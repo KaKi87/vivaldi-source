@@ -13,6 +13,7 @@
 #include "base/strings/stringprintf.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/run_until.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/contextual_cueing/contextual_cueing_enums.h"
 #include "chrome/browser/contextual_cueing/contextual_cueing_service.h"
 #include "chrome/browser/contextual_cueing/contextual_cueing_service_factory.h"
@@ -23,6 +24,7 @@
 #include "chrome/browser/optimization_guide/browser_test_util.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
+#include "chrome/browser/private_insights/private_insights_service_factory.h"
 #include "chrome/browser/signin/signin_browser_test_base.h"
 #include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -38,6 +40,7 @@
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
 #include "chrome/browser/ui/views/infobars/confirm_infobar.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -46,6 +49,9 @@
 #include "components/infobars/content/content_infobar_manager.h"
 #include "components/infobars/core/confirm_infobar_delegate.h"
 #include "components/infobars/core/infobar.h"
+#include "components/metrics/private_metrics/private_insights/events/contextual_cue_log_event.pb.h"
+#include "components/metrics/private_metrics/private_insights/private_insights_features.h"
+#include "components/metrics/private_metrics/private_insights/private_insights_service.h"
 #include "components/optimization_guide/core/feature_registry/feature_registration.h"
 #include "components/optimization_guide/core/model_execution/model_execution_prefs.h"
 #include "components/optimization_guide/core/optimization_guide_prefs.h"
@@ -57,11 +63,12 @@
 #include "components/sync/test/test_sync_service.h"
 #include "components/ukm/test_ukm_recorder.h"
 #include "content/public/browser/navigation_entry.h"
+#include "content/public/browser/storage_partition.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
-#include "pdf/buildflags.h"
 #include "services/metrics/public/cpp/metrics_utils.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
+#include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "ui/actions/actions.h"
 #include "ui/base/window_open_disposition.h"
@@ -72,6 +79,31 @@ namespace {
 std::unique_ptr<KeyedService> CreateTestSyncService(
     content::BrowserContext* context) {
   return std::make_unique<syncer::TestSyncService>();
+}
+
+class MockPrivateInsightsService
+    : public private_insights::PrivateInsightsService {
+ public:
+  MockPrivateInsightsService(
+      PrefService* local_state,
+      const base::FilePath& profile_dir,
+      scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory)
+      : private_insights::PrivateInsightsService(
+            local_state,
+            profile_dir,
+            std::move(url_loader_factory)) {}
+  MOCK_METHOD(void,
+              LogContextualCueEvent,
+              (private_insights::events::ContextualCueLogEvent event),
+              (override));
+};
+
+std::unique_ptr<KeyedService> CreateMockPrivateInsightsService(
+    content::BrowserContext* context) {
+  return std::make_unique<testing::NiceMock<MockPrivateInsightsService>>(
+      g_browser_process->local_state(), context->GetPath(),
+      context->GetDefaultStoragePartition()
+          ->GetURLLoaderFactoryForBrowserProcess());
 }
 
 using ::testing::Return;
@@ -86,7 +118,8 @@ class TestInfoBarDelegate : public ConfirmInfoBarDelegate {
   std::u16string GetMessageText() const override { return u"Test InfoBar"; }
 };
 
-class ContextualCueingControllerBrowserTestBase : public SigninBrowserTestBase {
+class ContextualCueingControllerBrowserTestBase : public SigninBrowserTestBase,
+                                                  public TabStripModelObserver {
  public:
   void SetUp() override {
     InitializeFeatureList();
@@ -96,10 +129,9 @@ class ContextualCueingControllerBrowserTestBase : public SigninBrowserTestBase {
   void SetUpOnMainThread() override {
     SigninBrowserTestBase::SetUpOnMainThread();
 
-    auto test_cue_target = std::make_unique<TestCueTarget>();
-    cue_target_ = test_cue_target.get();
-    contextual_cueing_controller()->RegisterCueTarget(
-        CueTargetType::kGlic, std::move(test_cue_target));
+    browser()->tab_strip_model()->AddObserver(this);
+
+    RegisterTestCueTargetForTab(browser()->GetActiveTabInterface());
 
     // Enable history sync by default.
     EnableHistorySync(true);
@@ -121,7 +153,7 @@ class ContextualCueingControllerBrowserTestBase : public SigninBrowserTestBase {
   }
 
   void TearDownOnMainThread() override {
-    cue_target_ = nullptr;
+    browser()->tab_strip_model()->RemoveObserver(this);
     SigninBrowserTestBase::TearDownOnMainThread();
   }
 
@@ -132,7 +164,33 @@ class ContextualCueingControllerBrowserTestBase : public SigninBrowserTestBase {
   }
 
   ContextualCueingController* contextual_cueing_controller() {
-    return browser()->GetFeatures().contextual_cueing_controller();
+    return browser()
+        ->GetActiveTabInterface()
+        ->GetTabFeatures()
+        ->contextual_cueing_controller();
+  }
+
+  TestCueTarget* cue_target() {
+    return static_cast<TestCueTarget*>(
+        contextual_cueing_controller()->GetTarget(CueTargetType::kGlic));
+  }
+
+  // TabStripModelObserver:
+  void OnTabStripModelChanged(
+      TabStripModel* tab_strip_model,
+      const TabStripModelChange& change,
+      const TabStripSelectionChange& selection) override {
+    if (change.type() == TabStripModelChange::kInserted) {
+      for (const auto& contents : change.GetInsert()->contents) {
+        RegisterTestCueTargetForTab(contents.tab);
+      }
+    }
+  }
+
+  void RegisterTestCueTargetForTab(tabs::TabInterface* tab) {
+    auto test_cue_target = std::make_unique<TestCueTarget>();
+    tab->GetTabFeatures()->contextual_cueing_controller()->RegisterCueTarget(
+        CueTargetType::kGlic, std::move(test_cue_target));
   }
 
   MockBrowserUserEducationInterface* mock_user_education_interface() {
@@ -143,7 +201,7 @@ class ContextualCueingControllerBrowserTestBase : public SigninBrowserTestBase {
   void SeedExecutionResult(
       optimization_guide::OptimizationGuideModelExecutionResult result) {
     OptimizationGuideKeyedServiceFactory::GetInstance()
-        ->GetForProfile(browser()->profile())
+        ->GetForProfile(browser()->GetProfile())
         ->AddExecutionResultForTesting(
             optimization_guide::ModelBasedCapabilityKey::kContextualCueing,
             std::move(result));
@@ -202,13 +260,18 @@ class ContextualCueingControllerBrowserTestBase : public SigninBrowserTestBase {
   virtual void InitializeFeatureList() = 0;
 
  protected:
-  raw_ptr<TestCueTarget> cue_target_ = nullptr;
   base::test::ScopedFeatureList scoped_feature_list_;
+
+  MockPrivateInsightsService* GetMockPrivateInsightsService() {
+    return static_cast<MockPrivateInsightsService*>(
+        private_insights::PrivateInsightsServiceFactory::GetForProfile(
+            browser()->GetProfile()));
+  }
 
  private:
   syncer::TestSyncService* GetTestSyncService() {
     return static_cast<syncer::TestSyncService*>(
-        SyncServiceFactory::GetForProfile(browser()->profile()));
+        SyncServiceFactory::GetForProfile(browser()->GetProfile()));
   }
 
   void OnWillCreateBrowserContextServices(
@@ -216,6 +279,9 @@ class ContextualCueingControllerBrowserTestBase : public SigninBrowserTestBase {
     SigninBrowserTestBase::OnWillCreateBrowserContextServices(context);
     SyncServiceFactory::GetInstance()->SetTestingFactory(
         context, base::BindRepeating(&CreateTestSyncService));
+    private_insights::PrivateInsightsServiceFactory::GetInstance()
+        ->SetTestingFactory(
+            context, base::BindRepeating(&CreateMockPrivateInsightsService));
   }
 
   ui::UserDataFactory::ScopedOverride user_ed_override_;
@@ -243,7 +309,8 @@ class ContextualCueingControllerBrowserTest
     scoped_feature_list_.InitWithFeaturesAndParameters(
         {{kContextualCueingV2,
           {{"ContextualCueingV2DiscardShoppingPdfs", "true"},
-           {"ContextualCueingV2TabListVisibility", "always"}}}},
+           {"ContextualCueingV2TabListVisibility", "always"},
+           {"ContextualCueingV2EnablePrivateInsightsLogging", "true"}}}},
         /*disabled_features=*/{kContextualCueingV2EnforceAgeRestriction});
   }
 };
@@ -441,8 +508,8 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerTabListOnlyIfMultipleTest,
       ukm::GetExponentialBucketMin(2, 1.5));
 
   EXPECT_TRUE(observer.expandable_content_.has_value());
-  EXPECT_EQ(observer.expandable_content_->expand_button_tooltip,
-            u"Show tab sharing details. Sharing 2 tabs from www.activetab.com, "
+  EXPECT_EQ(observer.expandable_content_->expand_button_accessible_name,
+            u"Tab sharing details. Sharing 2 tabs from www.activetab.com, "
             u"www.example.com");
 }
 
@@ -618,6 +685,7 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
   content::WebContents* active_web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(active_web_contents);
+  cue_target()->page_eligible = false;
   contextual_cueing_controller()->OnPageContentAnnotated(
       page_content_annotations::HistoryVisit(
           active_web_contents->GetController()
@@ -681,7 +749,7 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
                        PassesFilterAndModelExecutionSucceeded) {
-  browser()->profile()->GetPrefs()->SetBoolean(
+  browser()->GetProfile()->GetPrefs()->SetBoolean(
       glic::prefs::kGlicDefaultTabContextEnabled, true);
 
   // Navigate current Chrome tab to a valid URL (and will be in the background
@@ -809,8 +877,8 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
   EXPECT_TRUE(model_observer.content_.has_value());
   EXPECT_EQ(model_observer.content_->items.size(), 1u);
   EXPECT_FALSE(model_observer.content_->items[0].text.empty());
-  EXPECT_EQ(model_observer.content_->expand_button_tooltip,
-            u"Show tab sharing details. Sharing 1 tab from www.example.com");
+  EXPECT_EQ(model_observer.content_->expand_button_accessible_name,
+            u"Tab sharing details. Sharing 1 tab from www.example.com");
   // No favicon provided, so we should have logged it as missing.
   histogram_tester.ExpectUniqueSample("ContextualCueing.V2.MissingFaviconCount",
                                       1, 1);
@@ -875,7 +943,7 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest, Ineligible) {
       WindowOpenDisposition::NEW_FOREGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
 
-  cue_target_->eligible = false;
+  cue_target()->eligible = false;
   SimulateFilterPassed();
   optimization_guide::RetryForHistogramUntilCountReached(
       &histogram_tester, "ContextualCueing.V2.Decision", 1);
@@ -893,7 +961,7 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest, ShowCueAndClick) {
       << "Contextual cueing anchored message not implemented for Android";
 #endif
 
-  ASSERT_FALSE(cue_target_->HasClickData());
+  ASSERT_FALSE(cue_target()->HasClickData());
 
   page_actions::PageActionController* page_action_controller =
       GetPageActionController();
@@ -909,6 +977,13 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest, ShowCueAndClick) {
   base::HistogramTester histogram_tester;
   ukm::TestAutoSetUkmRecorder ukm_recorder;
 
+  // Expect Shown event
+  EXPECT_CALL(*GetMockPrivateInsightsService(),
+              LogContextualCueEvent(testing::Property(
+                  &private_insights::events::ContextualCueLogEvent::event_type,
+                  private_insights::events::ContextualCueLogEvent::SHOWN)))
+      .Times(1);
+
   SeedExecutionResult(MakeCompleteResponse());
   SimulateFilterPassed();
   optimization_guide::RetryForHistogramUntilCountReached(
@@ -921,11 +996,26 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest, ShowCueAndClick) {
   auto* action =
       actions::ActionManager::Get().FindAction(kActionAnchoredContextualCue);
   ASSERT_TRUE(action);
+
+  // Expect Clicked event
+  EXPECT_CALL(
+      *GetMockPrivateInsightsService(),
+      LogContextualCueEvent(testing::AllOf(
+          testing::Property(
+              &private_insights::events::ContextualCueLogEvent::event_type,
+              private_insights::events::ContextualCueLogEvent::CLICKED),
+          testing::Property(
+              &private_insights::events::ContextualCueLogEvent::cue_context,
+              testing::ResultOf(
+                  [](const auto& ctx) { return ctx.active_page().url(); },
+                  testing::Eq("https://www.activetab.com/abc"))))))
+      .Times(1);
+
   action->InvokeAction();
 
-  ASSERT_TRUE(cue_target_->HasClickData());
+  ASSERT_TRUE(cue_target()->HasClickData());
   EXPECT_EQ("Prompt",
-            std::get<GlicCueActionData>(cue_target_->click_data).prompt);
+            std::get<GlicCueActionData>(cue_target()->click_data).prompt);
   EXPECT_FALSE(observer.GetCurrentPageActionState().showing);
 
   histogram_tester.ExpectUniqueSample("ContextualCueing.V2.CueInteraction",
@@ -940,7 +1030,7 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest, ShowCueAndClick) {
       entry, ukm::builders::ContextualCueing_CueInteraction::
                  kProactiveCueShownDurationMsName);
   ASSERT_TRUE(duration_value);
-  EXPECT_GE(*duration_value, 0);
+  EXPECT_GT(*duration_value, 0);
 
   ukm_recorder.ExpectEntryMetric(
       entry,
@@ -956,7 +1046,7 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
       << "Contextual cueing anchored message not implemented for Android";
 #endif
 
-  ASSERT_FALSE(cue_target_->HasClickData());
+  ASSERT_FALSE(cue_target()->HasClickData());
 
   ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
       browser(), GURL("https://www.activetab.com/abc"),
@@ -1002,12 +1092,154 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
   action->InvokeAction();
 
   // Target click handler was not invoked.
-  EXPECT_FALSE(cue_target_->HasClickData());
+  EXPECT_FALSE(cue_target()->HasClickData());
 
   // Anchored message is showing again.
   ASSERT_TRUE(base::test::RunUntil([&]() {
     return observer.GetCurrentPageActionState().anchored_message_showing;
   }));
+}
+
+IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
+                       AccessibleNameUpdatesWithAnchoredMessageState) {
+#if BUILDFLAG(IS_ANDROID)
+  GTEST_SKIP()
+      << "Contextual cueing anchored message not implemented for Android";
+#endif
+
+  ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
+      browser(), GURL("https://www.activetab.com/abc"),
+      WindowOpenDisposition::NEW_FOREGROUND_TAB,
+      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
+
+  page_actions::PageActionController* page_action_controller =
+      GetPageActionController();
+  CHECK(page_action_controller);
+
+  // 1. Setup observer to track accessible name.
+  class AccessibleNameObserver : public page_actions::PageActionModelObserver {
+   public:
+    void OnPageActionModelChanged(
+        const page_actions::PageActionModelInterface& model) override {
+      accessible_name_ = model.GetAccessibleName();
+    }
+    std::u16string accessible_name_;
+  };
+
+  AccessibleNameObserver name_observer;
+  base::ScopedObservation<page_actions::PageActionModelInterface,
+                          page_actions::PageActionModelObserver>
+      name_observation(&name_observer);
+  page_action_controller->AddObserver(kActionAnchoredContextualCue,
+                                      name_observation);
+
+  // Also keep standard observer to wait for states.
+  page_actions::PageActionObserver state_observer(kActionAnchoredContextualCue);
+  state_observer.RegisterAsPageActionObserver(*page_action_controller);
+
+  base::HistogramTester histogram_tester;
+
+  // 2. Trigger the cue.
+  SeedExecutionResult(MakeCompleteResponse());
+  SimulateFilterPassed();
+  optimization_guide::RetryForHistogramUntilCountReached(
+      &histogram_tester, "ContextualCueing.V2.Decision", 1);
+
+  // 3. Verify it is shown and has the short cue as the accessible name.
+  ASSERT_TRUE(base::test::RunUntil([&]() {
+    return state_observer.GetCurrentPageActionState().anchored_message_showing;
+  }));
+  EXPECT_EQ(name_observer.accessible_name_, u"Action text");
+
+  // 4. Hide the anchored message.
+  page_action_controller->HideAnchoredMessage(kActionAnchoredContextualCue);
+  ASSERT_TRUE(base::test::RunUntil([&]() {
+    return !state_observer.GetCurrentPageActionState().anchored_message_showing;
+  }));
+
+  // 5. Verify name persists with it hiding into smaller action / icon.
+  EXPECT_EQ(name_observer.accessible_name_, u"Action text");
+}
+
+IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
+                       TooltipUpdatesWithAnchoredMessageState) {
+#if BUILDFLAG(IS_ANDROID)
+  GTEST_SKIP()
+      << "Contextual cueing anchored message not implemented for Android";
+#endif
+
+  ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
+      browser(), GURL("https://www.activetab.com/abc"),
+      WindowOpenDisposition::NEW_FOREGROUND_TAB,
+      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
+
+  page_actions::PageActionController* page_action_controller =
+      GetPageActionController();
+  CHECK(page_action_controller);
+
+  // 1. Setup observer to track tooltip.
+  class TooltipObserver : public page_actions::PageActionModelObserver {
+   public:
+    void OnPageActionModelChanged(
+        const page_actions::PageActionModelInterface& model) override {
+      tooltip_ = model.GetTooltipText();
+    }
+    std::u16string tooltip_;
+  };
+
+  TooltipObserver tooltip_observer;
+  base::ScopedObservation<page_actions::PageActionModelInterface,
+                          page_actions::PageActionModelObserver>
+      tooltip_observation(&tooltip_observer);
+  page_action_controller->AddObserver(kActionAnchoredContextualCue,
+                                      tooltip_observation);
+
+  // Also keep standard observer to wait for states.
+  page_actions::PageActionObserver state_observer(kActionAnchoredContextualCue);
+  state_observer.RegisterAsPageActionObserver(*page_action_controller);
+
+  base::HistogramTester histogram_tester;
+
+  // 2. Trigger the cue.
+  SeedExecutionResult(MakeCompleteResponse());
+  SimulateFilterPassed();
+  optimization_guide::RetryForHistogramUntilCountReached(
+      &histogram_tester, "ContextualCueing.V2.Decision", 1);
+
+  // 3. Verify it is shown and has the short cue as the tooltip.
+  ASSERT_TRUE(base::test::RunUntil([&]() {
+    return state_observer.GetCurrentPageActionState().anchored_message_showing;
+  }));
+  EXPECT_EQ(state_observer.GetCurrentPageActionState().tooltip, u"Action text");
+  EXPECT_EQ(tooltip_observer.tooltip_, u"Action text");
+
+  // 4. Hide the anchored message.
+  page_action_controller->HideAnchoredMessage(kActionAnchoredContextualCue);
+  ASSERT_TRUE(base::test::RunUntil([&]() {
+    return !state_observer.GetCurrentPageActionState().anchored_message_showing;
+  }));
+
+  // 5. Verify tooltip persists with it hiding into smaller action / icon.
+  EXPECT_TRUE(state_observer.GetCurrentPageActionState().showing);
+  EXPECT_FALSE(state_observer.GetCurrentPageActionState().chip_showing);
+  EXPECT_EQ(state_observer.GetCurrentPageActionState().tooltip, u"Action text");
+  EXPECT_EQ(tooltip_observer.tooltip_, u"Action text");
+
+  // 6. Click the page action icon to re-show the anchored message.
+  auto* action =
+      actions::ActionManager::Get().FindAction(kActionAnchoredContextualCue);
+  ASSERT_TRUE(action);
+  action->InvokeAction();
+  ASSERT_TRUE(base::test::RunUntil([&]() {
+    return state_observer.GetCurrentPageActionState().anchored_message_showing;
+  }));
+
+  // 7. Click again while anchored message is shown to invoke the cue and hide it.
+  action->InvokeAction();
+  ASSERT_TRUE(base::test::RunUntil([&]() {
+    return !state_observer.GetCurrentPageActionState().showing;
+  }));
+  EXPECT_EQ(tooltip_observer.tooltip_, u"");
 }
 
 IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
@@ -1124,7 +1356,7 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
   browser()->tab_strip_model()->AddToNewSplit(
       {1}, split_tabs::SplitTabVisualData(),
       split_tabs::SplitTabCreatedSource::kToolbarButton);
-  ASSERT_TRUE(browser()->tab_strip_model()->IsActiveTabSplit());
+  ASSERT_TRUE(browser()->tab_strip_model()->GetActiveTab()->IsSplit());
 
   SimulateFilterPassed();
 
@@ -1330,6 +1562,27 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
+                       HomePageNotEligible_NoTrailingSlash) {
+  base::HistogramTester histogram_tester;
+  ukm::TestAutoSetUkmRecorder ukm_recorder;
+
+  // Simulate a new page load.
+  GURL homepage_url("https://activetab.com/us/en");
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), homepage_url));
+  SimulateFilterPassed(homepage_url);
+
+  optimization_guide::RetryForHistogramUntilCountReached(
+      &histogram_tester, "ContextualCueing.V2.Decision", 1);
+
+  // Should not be shown.
+  histogram_tester.ExpectUniqueSample("ContextualCueing.V2.Decision",
+                                      ContextualCueingDecision::kUrlNotEligible,
+                                      1);
+  VerifyProactiveCueDecision(ukm_recorder,
+                             ContextualCueingDecision::kUrlNotEligible);
+}
+
+IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
                        CueNotShowingBecauseSidePanelOpen) {
   ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
       browser(), GURL("https://www.activetab.com/abc"),
@@ -1445,7 +1698,7 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest, UserOptedOut) {
       WindowOpenDisposition::NEW_FOREGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
 
-  PrefService* prefs = browser()->profile()->GetPrefs();
+  PrefService* prefs = browser()->GetProfile()->GetPrefs();
   prefs->SetInteger(
       optimization_guide::prefs::GetSettingEnabledPrefName(
           optimization_guide::UserVisibleFeatureKey::kContextualCueing),
@@ -1473,7 +1726,7 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
       WindowOpenDisposition::NEW_FOREGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
 
-  PrefService* prefs = browser()->profile()->GetPrefs();
+  PrefService* prefs = browser()->GetProfile()->GetPrefs();
   prefs->SetInteger(
       optimization_guide::prefs::kChromeSuggestionsSettings,
       static_cast<int>(
@@ -1661,127 +1914,6 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
       static_cast<int64_t>(ContextualCueingInteraction::kCueClicked));
 }
 
-#if BUILDFLAG(ENABLE_PDF)
-
-IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
-                       PdfEduOnlyIsSupported) {
-  ASSERT_TRUE(embedded_test_server()->Start());
-  GURL pdf_url = embedded_test_server()->GetURL("/pdf/test.pdf");
-
-  ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
-      browser(), pdf_url, WindowOpenDisposition::NEW_FOREGROUND_TAB,
-      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
-
-  base::HistogramTester histogram_tester;
-  ukm::TestAutoSetUkmRecorder ukm_recorder;
-  SeedExecutionResult(MakeCompleteResponse());
-
-  content::WebContents* active_web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
-  ASSERT_TRUE(active_web_contents);
-  EXPECT_EQ(active_web_contents->GetContentsMimeType(), "application/pdf");
-
-  contextual_cueing_controller()->OnPageContentAnnotated(
-      page_content_annotations::HistoryVisit(
-          active_web_contents->GetController()
-              .GetLastCommittedEntry()
-              ->GetTimestamp(),
-          pdf_url),
-      page_content_annotations::PageContentAnnotationsResult::
-          CreateCategoryResults({
-              page_content_annotations::Category(
-                  page_content_annotations::CategoryType::kEducation, 0.9),
-              page_content_annotations::Category(
-                  page_content_annotations::CategoryType::kShopping, 0.2),
-          }));
-
-  optimization_guide::RetryForHistogramUntilCountReached(
-      &histogram_tester, "ContextualCueing.V2.Decision", 1);
-  histogram_tester.ExpectUniqueSample("ContextualCueing.V2.Decision",
-                                      ContextualCueingDecision::kSuccess, 1);
-  VerifyProactiveCueDecision(ukm_recorder, ContextualCueingDecision::kSuccess);
-}
-
-IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
-                       PdfShoppingOnlyIsNotSupported) {
-  ASSERT_TRUE(embedded_test_server()->Start());
-  GURL pdf_url = embedded_test_server()->GetURL("/pdf/test.pdf");
-
-  ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
-      browser(), pdf_url, WindowOpenDisposition::NEW_FOREGROUND_TAB,
-      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
-
-  base::HistogramTester histogram_tester;
-  ukm::TestAutoSetUkmRecorder ukm_recorder;
-
-  content::WebContents* active_web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
-  ASSERT_TRUE(active_web_contents);
-
-  contextual_cueing_controller()->OnPageContentAnnotated(
-      page_content_annotations::HistoryVisit(
-          active_web_contents->GetController()
-              .GetLastCommittedEntry()
-              ->GetTimestamp(),
-          pdf_url),
-      page_content_annotations::PageContentAnnotationsResult::
-          CreateCategoryResults({
-              page_content_annotations::Category(
-                  page_content_annotations::CategoryType::kEducation, 0.2),
-              page_content_annotations::Category(
-                  page_content_annotations::CategoryType::kShopping, 0.9),
-          }));
-
-  optimization_guide::RetryForHistogramUntilCountReached(
-      &histogram_tester, "ContextualCueing.V2.Decision", 1);
-  histogram_tester.ExpectUniqueSample(
-      "ContextualCueing.V2.Decision",
-      ContextualCueingDecision::kFailedCategoryClassification, 1);
-  VerifyProactiveCueDecision(
-      ukm_recorder, ContextualCueingDecision::kFailedCategoryClassification);
-}
-
-IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
-                       PdfEduAndShoppingIsNotSupported) {
-  ASSERT_TRUE(embedded_test_server()->Start());
-  GURL pdf_url = embedded_test_server()->GetURL("/pdf/test.pdf");
-
-  ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
-      browser(), pdf_url, WindowOpenDisposition::NEW_FOREGROUND_TAB,
-      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
-
-  base::HistogramTester histogram_tester;
-  ukm::TestAutoSetUkmRecorder ukm_recorder;
-
-  content::WebContents* active_web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
-  ASSERT_TRUE(active_web_contents);
-
-  contextual_cueing_controller()->OnPageContentAnnotated(
-      page_content_annotations::HistoryVisit(
-          active_web_contents->GetController()
-              .GetLastCommittedEntry()
-              ->GetTimestamp(),
-          pdf_url),
-      page_content_annotations::PageContentAnnotationsResult::
-          CreateCategoryResults({
-              page_content_annotations::Category(
-                  page_content_annotations::CategoryType::kEducation, 0.9),
-              page_content_annotations::Category(
-                  page_content_annotations::CategoryType::kShopping, 0.9),
-          }));
-
-  optimization_guide::RetryForHistogramUntilCountReached(
-      &histogram_tester, "ContextualCueing.V2.Decision", 1);
-  histogram_tester.ExpectUniqueSample(
-      "ContextualCueing.V2.Decision",
-      ContextualCueingDecision::kFailedCategoryClassification, 1);
-  VerifyProactiveCueDecision(
-      ukm_recorder, ContextualCueingDecision::kFailedCategoryClassification);
-}
-
-#endif  // BUILDFLAG(ENABLE_PDF)
-
 class ContextualCueingControllerBrowserTestWithAgeRestriction
     : public ContextualCueingControllerBrowserTest {
  public:
@@ -1794,7 +1926,7 @@ class ContextualCueingControllerBrowserTestWithAgeRestriction
   void SetUserRestriction(bool is_restricted) {
     auto account_info = identity_test_env()->MakePrimaryAccountAvailable(
         "user@gmail.com", signin::ConsentLevel::kSignin);
-    AccountCapabilitiesTestMutator mutator(&account_info.capabilities);
+    AccountCapabilitiesTestMutator mutator(&account_info);
     mutator.set_can_use_model_execution_features(!is_restricted);
     identity_test_env()->UpdateAccountInfoForAccount(account_info);
   }
@@ -1844,136 +1976,6 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTestWithAgeRestriction,
   VerifyProactiveCueDecision(ukm_recorder, ContextualCueingDecision::kSuccess);
 }
 
-#if BUILDFLAG(ENABLE_PDF)
-
-class ContextualCueingControllerDoNotDiscardShoppingPdfsTest
-    : public ContextualCueingControllerBrowserTest {
- public:
-  void InitializeFeatureList() override {
-    scoped_feature_list_.InitWithFeaturesAndParameters(
-        {{kContextualCueingV2,
-          {{"ContextualCueingV2DiscardShoppingPdfs", "false"}}}},
-        /*disabled_features=*/{kContextualCueingV2EnforceAgeRestriction});
-  }
-};
-
-IN_PROC_BROWSER_TEST_F(ContextualCueingControllerDoNotDiscardShoppingPdfsTest,
-                       PdfEduOnlyIsSupported) {
-  ASSERT_TRUE(embedded_test_server()->Start());
-  GURL pdf_url = embedded_test_server()->GetURL("/pdf/test.pdf");
-
-  ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
-      browser(), pdf_url, WindowOpenDisposition::NEW_FOREGROUND_TAB,
-      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
-
-  base::HistogramTester histogram_tester;
-  ukm::TestAutoSetUkmRecorder ukm_recorder;
-  SeedExecutionResult(MakeCompleteResponse());
-
-  content::WebContents* active_web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
-  ASSERT_TRUE(active_web_contents);
-  EXPECT_EQ(active_web_contents->GetContentsMimeType(), "application/pdf");
-
-  contextual_cueing_controller()->OnPageContentAnnotated(
-      page_content_annotations::HistoryVisit(
-          active_web_contents->GetController()
-              .GetLastCommittedEntry()
-              ->GetTimestamp(),
-          pdf_url),
-      page_content_annotations::PageContentAnnotationsResult::
-          CreateCategoryResults({
-              page_content_annotations::Category(
-                  page_content_annotations::CategoryType::kEducation, 0.9),
-              page_content_annotations::Category(
-                  page_content_annotations::CategoryType::kShopping, 0.2),
-          }));
-
-  optimization_guide::RetryForHistogramUntilCountReached(
-      &histogram_tester, "ContextualCueing.V2.Decision", 1);
-  histogram_tester.ExpectUniqueSample("ContextualCueing.V2.Decision",
-                                      ContextualCueingDecision::kSuccess, 1);
-  VerifyProactiveCueDecision(ukm_recorder, ContextualCueingDecision::kSuccess);
-}
-
-IN_PROC_BROWSER_TEST_F(ContextualCueingControllerDoNotDiscardShoppingPdfsTest,
-                       PdfShoppingOnlyIsSupported) {
-  ASSERT_TRUE(embedded_test_server()->Start());
-  GURL pdf_url = embedded_test_server()->GetURL("/pdf/test.pdf");
-
-  ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
-      browser(), pdf_url, WindowOpenDisposition::NEW_FOREGROUND_TAB,
-      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
-
-  base::HistogramTester histogram_tester;
-  ukm::TestAutoSetUkmRecorder ukm_recorder;
-  SeedExecutionResult(MakeCompleteResponse());
-
-  content::WebContents* active_web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
-  ASSERT_TRUE(active_web_contents);
-
-  contextual_cueing_controller()->OnPageContentAnnotated(
-      page_content_annotations::HistoryVisit(
-          active_web_contents->GetController()
-              .GetLastCommittedEntry()
-              ->GetTimestamp(),
-          pdf_url),
-      page_content_annotations::PageContentAnnotationsResult::
-          CreateCategoryResults({
-              page_content_annotations::Category(
-                  page_content_annotations::CategoryType::kEducation, 0.2),
-              page_content_annotations::Category(
-                  page_content_annotations::CategoryType::kShopping, 0.9),
-          }));
-
-  optimization_guide::RetryForHistogramUntilCountReached(
-      &histogram_tester, "ContextualCueing.V2.Decision", 1);
-  histogram_tester.ExpectUniqueSample("ContextualCueing.V2.Decision",
-                                      ContextualCueingDecision::kSuccess, 1);
-  VerifyProactiveCueDecision(ukm_recorder, ContextualCueingDecision::kSuccess);
-}
-
-IN_PROC_BROWSER_TEST_F(ContextualCueingControllerDoNotDiscardShoppingPdfsTest,
-                       PdfEduAndShoppingIsNotSupported) {
-  ASSERT_TRUE(embedded_test_server()->Start());
-  GURL pdf_url = embedded_test_server()->GetURL("/pdf/test.pdf");
-
-  ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
-      browser(), pdf_url, WindowOpenDisposition::NEW_FOREGROUND_TAB,
-      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
-
-  base::HistogramTester histogram_tester;
-  ukm::TestAutoSetUkmRecorder ukm_recorder;
-  SeedExecutionResult(MakeCompleteResponse());
-
-  content::WebContents* active_web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
-  ASSERT_TRUE(active_web_contents);
-
-  contextual_cueing_controller()->OnPageContentAnnotated(
-      page_content_annotations::HistoryVisit(
-          active_web_contents->GetController()
-              .GetLastCommittedEntry()
-              ->GetTimestamp(),
-          pdf_url),
-      page_content_annotations::PageContentAnnotationsResult::
-          CreateCategoryResults({
-              page_content_annotations::Category(
-                  page_content_annotations::CategoryType::kEducation, 0.9),
-              page_content_annotations::Category(
-                  page_content_annotations::CategoryType::kShopping, 0.9),
-          }));
-
-  optimization_guide::RetryForHistogramUntilCountReached(
-      &histogram_tester, "ContextualCueing.V2.Decision", 1);
-  histogram_tester.ExpectUniqueSample("ContextualCueing.V2.Decision",
-                                      ContextualCueingDecision::kSuccess, 1);
-  VerifyProactiveCueDecision(ukm_recorder, ContextualCueingDecision::kSuccess);
-}
-
-#endif
-
 class ContextualCueingControllerShowInSplitViewBrowserTest
     : public ContextualCueingControllerBrowserTestBase {
  public:
@@ -2011,7 +2013,7 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerShowInSplitViewBrowserTest,
   browser()->tab_strip_model()->AddToNewSplit(
       {1}, split_tabs::SplitTabVisualData(),
       split_tabs::SplitTabCreatedSource::kToolbarButton);
-  ASSERT_TRUE(browser()->tab_strip_model()->IsActiveTabSplit());
+  ASSERT_TRUE(browser()->tab_strip_model()->GetActiveTab()->IsSplit());
 
   SimulateFilterPassed();
 
@@ -2024,5 +2026,81 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingControllerShowInSplitViewBrowserTest,
 #endif
 }
 
+IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
+                       RecordsCueInteractionDismissed) {
+  ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
+      browser(), GURL("https://www.activetab.com/abc"),
+      WindowOpenDisposition::NEW_FOREGROUND_TAB,
+      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
+
+  base::HistogramTester histogram_tester;
+  ukm::TestAutoSetUkmRecorder ukm_recorder;
+
+  auto response = MakeCompleteResponse();
+  response.mutable_contextual_cues(0)->set_suggested_cuj("test_cuj_string");
+  SeedExecutionResult(response);
+
+  SimulateFilterPassed();
+
+  optimization_guide::RetryForHistogramUntilCountReached(
+      &histogram_tester, "ContextualCueing.V2.Decision", 1);
+
+  // Directly call OnCueInteraction to simulate the Menu Delegate
+  auto* cue = &response.contextual_cues(0);
+  contextual_cueing_controller()->OnCueInteraction(
+      ContextualCueingInteraction::kCueDismissed, CueTargetType::kGlic, *cue,
+      {}, {}, "test_cuj_string", {}, "fake_id");
+
+  histogram_tester.ExpectUniqueSample(
+      "ContextualCueing.V2.CueInteraction.Dismissed",
+      base::HashMetricName("test_cuj_string"), 1);
+
+  auto entries = ukm_recorder.GetEntriesByName(
+      ukm::builders::ContextualCueing_CueInteraction::kEntryName);
+  ASSERT_EQ(1u, entries.size());
+  ukm_recorder.ExpectEntryMetric(
+      entries[0].get(),
+      ukm::builders::ContextualCueing_CueInteraction::
+          kProactiveCueInteractionName,
+      static_cast<int64_t>(ContextualCueingInteraction::kCueDismissed));
+}
+
+IN_PROC_BROWSER_TEST_F(ContextualCueingControllerBrowserTest,
+                       RecordsCueInteractionEditPrompt) {
+  ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
+      browser(), GURL("https://www.activetab.com/abc"),
+      WindowOpenDisposition::NEW_FOREGROUND_TAB,
+      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
+
+  base::HistogramTester histogram_tester;
+  ukm::TestAutoSetUkmRecorder ukm_recorder;
+
+  auto response = MakeCompleteResponse();
+  response.mutable_contextual_cues(0)->set_suggested_cuj("test_cuj_string");
+  SeedExecutionResult(response);
+
+  SimulateFilterPassed();
+
+  optimization_guide::RetryForHistogramUntilCountReached(
+      &histogram_tester, "ContextualCueing.V2.Decision", 1);
+
+  auto* cue = &response.contextual_cues(0);
+  contextual_cueing_controller()->OnCueInteraction(
+      ContextualCueingInteraction::kCueEditPrompt, CueTargetType::kGlic, *cue,
+      {}, {}, "test_cuj_string", {}, "fake_id");
+
+  histogram_tester.ExpectUniqueSample(
+      "ContextualCueing.V2.CueInteraction.EditPrompt",
+      base::HashMetricName("test_cuj_string"), 1);
+
+  auto entries = ukm_recorder.GetEntriesByName(
+      ukm::builders::ContextualCueing_CueInteraction::kEntryName);
+  ASSERT_EQ(1u, entries.size());
+  ukm_recorder.ExpectEntryMetric(
+      entries[0].get(),
+      ukm::builders::ContextualCueing_CueInteraction::
+          kProactiveCueInteractionName,
+      static_cast<int64_t>(ContextualCueingInteraction::kCueEditPrompt));
+}
 }  // namespace
 }  // namespace contextual_cueing

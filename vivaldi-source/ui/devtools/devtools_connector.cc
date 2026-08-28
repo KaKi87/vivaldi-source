@@ -231,14 +231,12 @@ content::WebContents* DevtoolsConnectorItem::AddNewContents(
 
 void DevtoolsConnectorItem::WebContentsCreated(
     content::WebContents* source_contents,
-    int opener_render_process_id,
-    int opener_render_frame_id,
+    const content::GlobalRenderFrameHostId& opener_id,
     const std::string& frame_name,
     const GURL& target_url,
     content::WebContents* new_contents) {
   if (devtools_delegate_) {
-    devtools_delegate_->WebContentsCreated(
-        source_contents, opener_render_process_id, opener_render_frame_id,
+    devtools_delegate_->WebContentsCreated(source_contents, opener_id,
         frame_name, target_url, new_contents);
   }
 }

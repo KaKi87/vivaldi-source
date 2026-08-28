@@ -12,6 +12,7 @@
 #include "ui/actions/action_id.h"
 
 namespace {
+// LINT.IfChange(kPageActionProperties)
 constexpr auto kPageActionProperties = base::MakeFixedFlatMap<
     actions::ActionId,
     page_actions::PageActionProperties>({
@@ -123,6 +124,7 @@ constexpr auto kPageActionProperties = base::MakeFixedFlatMap<
         {
             .histogram_name = "ReadingMode",
             .type = PageActionIconType::kReadingMode,
+            .element_identifier = kReadAnythingPageActionElementId,
             .priority =
                 page_actions::PageActionPriorityCategory::kCoreSiteUtility,
         },
@@ -318,7 +320,25 @@ constexpr auto kPageActionProperties = base::MakeFixedFlatMap<
             .element_identifier = kAutofillPaymentIconElementId,
         },
     },
+    {
+        kActionShowPaymentsChurnedUsersBubble,
+        {
+            .histogram_name = "PaymentsChurnedUsers",
+            .type = PageActionIconType::kPaymentsChurnedUsers,
+            .element_identifier = kPaymentsChurnedUsersBubbleId,
+        },
+    },
+    {
+        kActionFakePageActionForDebug,
+        {
+            .histogram_name = "FakePageActionForDebug",
+            .type = PageActionIconType::kFakePageActionForDebug,
+            .priority =
+                page_actions::PageActionPriorityCategory::kUserInteraction,
+        },
+    },
 });
+// LINT.ThenChange(//components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom:PageActionId,//chrome/browser/ui/page_action/action_ids.h:kActionIds)
 
 constexpr bool CheckIgnoreFlagUsage() {
   for (const auto& [action_id, properties] : kPageActionProperties) {

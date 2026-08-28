@@ -4,6 +4,8 @@
 
 package org.chromium.chrome.browser.ui.browser_window;
 
+import static org.chromium.base.ApplicationStatus.getTaskId;
+
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.role.RoleManager;
@@ -27,14 +29,13 @@ import org.chromium.base.ApplicationStatus;
 import org.chromium.base.ApplicationStatus.TaskVisibilityListener;
 import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
+import org.chromium.base.IntentUtils;
 import org.chromium.base.JniOnceCallback;
 import org.chromium.base.Log;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.TimeUtils;
-import org.chromium.build.BuildConfig;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher.ActivityState;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcherProvider;
@@ -318,40 +319,30 @@ final class ChromeAndroidTaskImpl
                 public void onProfileDestroyed(Profile profile) {
                     removeAllFeaturesForProfile(profile);
 
-                    // TODO(crbug.com/479566813): Several objects for desktop Android related to
-                    // extensions do not handle the BrowserWindow destruction happening when the
-                    // profile is destroyed. This should be fixed. For now we can just defer the
-                    // destruction until the activity is destroyed since there should never be more
-                    // than one profile/window on desktop Android.
-                    if (!BuildConfig.IS_DESKTOP_ANDROID) {
-                        if (mPendingBrowserWindow != null
-                                && mPendingBrowserWindow.getProfile() == profile) {
-                            assert mActivityScopedObjectsDeque.isEmpty();
+                    if (mPendingBrowserWindow != null
+                            && mPendingBrowserWindow.getProfile() == profile) {
+                        assert mActivityScopedObjectsDeque.isEmpty();
 
-                            destroyBrowserWindow(
-                                    mPendingBrowserWindow,
-                                    null,
-                                    mAndroidBrowserWindowObserverNotifier);
-                            mPendingBrowserWindow = null;
-                            return;
-                        }
-
-                        var iterator = mActivityScopedObjectsDeque.iterator();
-                        while (iterator.hasNext()) {
-                            var internalActivityScopedObjects = iterator.next();
-                            var browserWindow =
-                                    internalActivityScopedObjects.mAndroidBrowserWindows.get(
-                                            profile);
-                            if (browserWindow != null) {
-                                destroyBrowserWindow(
-                                        browserWindow,
-                                        internalActivityScopedObjects,
-                                        mAndroidBrowserWindowObserverNotifier);
-                            }
-                        }
-                        mAndroidBrowserWindowObserverNotifier.updateActiveBrowserWindow(
-                                getActiveBrowserWindow());
+                        destroyBrowserWindow(
+                                mPendingBrowserWindow, null, mAndroidBrowserWindowObserverNotifier);
+                        mPendingBrowserWindow = null;
+                        return;
                     }
+
+                    var iterator = mActivityScopedObjectsDeque.iterator();
+                    while (iterator.hasNext()) {
+                        var internalActivityScopedObjects = iterator.next();
+                        var browserWindow =
+                                internalActivityScopedObjects.mAndroidBrowserWindows.get(profile);
+                        if (browserWindow != null) {
+                            destroyBrowserWindow(
+                                    browserWindow,
+                                    internalActivityScopedObjects,
+                                    mAndroidBrowserWindowObserverNotifier);
+                        }
+                    }
+                    mAndroidBrowserWindowObserverNotifier.updateActiveBrowserWindow(
+                            getActiveBrowserWindow());
                 }
             };
 
@@ -477,15 +468,6 @@ final class ChromeAndroidTaskImpl
                                                     .getDisplay()));
                 }
             };
-
-    // TODO(https://crbug.com/518763461): remove flag once verified
-    private static int getTaskId(Activity activity) {
-        if (ChromeFeatureList.sTaskGetIdAnrFix.isEnabled()) {
-            return ApplicationStatus.getTaskId(activity);
-        } else {
-            return activity.getTaskId();
-        }
-    }
 
     private static Activity getActivity(ActivityWindowAndroid activityWindowAndroid) {
         Activity activity = activityWindowAndroid.getActivity().get();
@@ -627,25 +609,48 @@ final class ChromeAndroidTaskImpl
         addActivityScopedObjectsInternal(activityScopedObjects);
     }
 
+    /**
+     * Transitions from {@link State#PENDING_CREATE} to {@link State#IDLE}, if the current state is
+     * {@code PENDING_CREATE}. Otherwise, this method is a no-op.
+     */
     private void completePendingCreate() {
         var topActivityScopedObjects = TopActivityScopedObjects.obtain(this);
         if (mPendingTaskInfo == null || topActivityScopedObjects == null) {
             return;
         }
 
-        // Transition from PENDING_CREATE to IDLE.
         assert mState == State.PENDING_CREATE;
         assert mId == null;
 
+        // (1) Remove EXTRA_PENDING_BROWSER_WINDOW_TASK_ID from the launch Intent.
+        //
+        // Intent extras survive Activity recreation. If EXTRA_PENDING_BROWSER_WINDOW_TASK_ID isn't
+        // removed and ChromeActivity is recreated, the recreated Activity will try finding a
+        // pending ChromeAndroidTask, and cause a crash, because there is no pending
+        // ChromeAndroidTask for the recreated Activity.
+        IntentUtils.safeRemoveExtra(
+                topActivityScopedObjects.mActivity.getIntent(),
+                ChromeAndroidTaskTracker.EXTRA_PENDING_BROWSER_WINDOW_TASK_ID);
+
+        // (2) Make WindowStateManager up-to-date.
         mWindowStateManager.update(
                 topActivityScopedObjects.mActivity,
                 topActivityScopedObjects.mActivityWindowAndroid.getDisplay());
+
+        // (3) Mark the ChromeAndroidTask as IDLE.
+        //
+        // Note that this should be done before dispatching pending actions (windowing requests
+        // received during the PENDING_CREATE state) since the actions should be performed in the
+        // IDLE state (when we have a real Task and an Activity).
         mId = getTaskId(topActivityScopedObjects.mActivity);
+        mState = State.IDLE;
+
+        // (4) Dispatch pending actions.
         @Nullable Rect futureBounds = mPendingActionManager.getFutureBoundsInDp();
         @Nullable Rect futureRestoredBounds = mPendingActionManager.getFutureRestoredBoundsInDp();
-        mState = State.IDLE;
         dispatchPendingActions(topActivityScopedObjects, futureBounds, futureRestoredBounds);
 
+        // (5) Invoke the JNI callback for the native CreateBrowserWindow() function.
         JniOnceCallback<Long> taskCreationCallbackForNative =
                 mPendingTaskInfo.mTaskCreationCallbackForNative;
         if (taskCreationCallbackForNative != null) {
@@ -1388,9 +1393,33 @@ final class ChromeAndroidTaskImpl
 
             if (activityScopedObjects.mSupportedProfileType == SupportedProfileType.MIXED) {
                 internalActivityScopedObjects.addIncognitoTabModelObserver(this);
+
+                // If the activity was recreated in Incognito mode, the current model is Incognito.
+                // However, the regular TabModel also exists. We need to explicitly create its
+                // AndroidBrowserWindow here to reflect this reality, since it won't be caught by
+                // the normal startup path (which only creates a window for the current model).
+                if (profile.isOffTheRecord()) {
+                    var regularModel =
+                            activityScopedObjects.mTabModelSelector.getModel(
+                                    /* incognito= */ false);
+                    if (regularModel != null && regularModel.getProfile() != null) {
+                        var regularProfile = regularModel.getProfile();
+                        var regularBrowserWindow =
+                                new AndroidBrowserWindow(
+                                        /* chromeAndroidTask= */ this,
+                                        regularProfile,
+                                        activityScopedObjects.mBrowserWindowType,
+                                        activityWindowAndroid);
+                        internalActivityScopedObjects.addBrowserWindow(regularBrowserWindow);
+                        regularModel.associateWithBrowserWindow(
+                                regularBrowserWindow.getOrCreateNativePtr());
+                        mAndroidBrowserWindowObserverNotifier.notifyBrowserWindowAdded(
+                                regularBrowserWindow);
+                    }
+                }
             }
 
-            // Notify observers of new window creation.
+            // Notify observers of new window creation (for the primary window).
             mAndroidBrowserWindowObserverNotifier.notifyBrowserWindowAdded(newBrowserWindow);
             mAndroidBrowserWindowObserverNotifier.updateActiveBrowserWindow(
                     getActiveBrowserWindow());
@@ -1890,11 +1919,13 @@ final class ChromeAndroidTaskImpl
                             nativeBrowserWindowPtr,
                             isTaskVisible,
                             mWindowStateManager.getCurrentBoundsInPx(),
+                            mWindowStateManager.getCurrentBoundsInDp(),
                             displayId);
                 },
                 new InitInfo(
                         nativeBrowserWindowPtr,
                         /* isVisible= */ false,
+                        new Rect(),
                         new Rect(),
                         Display.DEFAULT_DISPLAY));
     }

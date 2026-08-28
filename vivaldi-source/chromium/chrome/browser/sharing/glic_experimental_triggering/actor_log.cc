@@ -38,6 +38,8 @@ std::string_view TaskUpdateStateToString(
       return "COMPLETE";
     case TaskUpdate::FAILED:
       return "FAILED";
+    case TaskUpdate::RESUMED:
+      return "RESUMED";
   }
   return "UNKNOWN_STATE";
 }
@@ -74,6 +76,10 @@ std::string_view ExperimentalTriggeringRequestPayloadCaseToString(
       return "StopActuationRequest";
     case Request::kDeviceOptInRequest:
       return "DeviceOptInRequest";
+    case Request::kGetScreenshotRequest:
+      return "GetScreenshotRequest";
+    case Request::kContinueActuationRequest:
+      return "ContinueActuationRequest";
     case Request::PAYLOAD_NOT_SET:
       return "PAYLOAD_NOT_SET";
   }

@@ -22,6 +22,7 @@
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/glic/public/glic_instance.h"
 #include "chrome/browser/glic/public/glic_instance_metrics_backwards_compatibility.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
 #include "ui/display/display.h"
 
@@ -95,7 +96,10 @@ enum class ShareImageResult {
   kFailedInvalidConfiguration = 23,
   kFailedNoClientFrame = 24,
   kFailedNoClipboardMetadata = 25,
-  kMaxValue = kFailedNoClipboardMetadata,
+  kFailedCancelled = 26,
+  kFailedProfileNotEnabled = 27,
+  kFailedSuperseded = 28,
+  kMaxValue = kFailedSuperseded,
 };
 
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:ShareImageResult)
@@ -166,7 +170,7 @@ enum class OptInFlow {
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicOptInFlowSource)
 
-class GlicSharingManager;
+class GlicSharingManagerInternal;
 
 namespace internal {
 class BrowserActivityObserver;
@@ -185,7 +189,7 @@ class GlicMetrics : public GlicInstanceMetricsBackwardsCompatibility {
     virtual bool IsWindowAttached() const = 0;
     virtual content::WebContents* GetFocusedWebContents() = 0;
     virtual int32_t GetNumPinnedTabs() const = 0;
-    virtual std::vector<content::WebContents*>
+    virtual std::vector<raw_ptr<content::WebContents>>
     GetPinnedAndSharedWebContents() = 0;
   };
 
@@ -279,10 +283,14 @@ class GlicMetrics : public GlicInstanceMetricsBackwardsCompatibility {
   // arbitrary tab.
   void LogGetContextForActorFromTabError(GlicGetContextFromTabError error);
 
+  // Logs an error that occurred while trying to get image bytes from an
+  // arbitrary tab.
+  void LogGetImageBytesFromTabError(GlicGetContextFromTabError error);
+
   // One of these must be called immediately after constructor before any
   // calls from glic.mojom.
   void SetControllersWithInstance(GlicInstance* glic_instance,
-                                  GlicSharingManager* sharing_manager);
+                                  GlicSharingManagerInternal* sharing_manager);
   void ClearControllers();
 
   // Records user preferences for the profile. Called when the GlicKeyedService
@@ -312,6 +320,9 @@ class GlicMetrics : public GlicInstanceMetricsBackwardsCompatibility {
 
   // Called when kGlicCompletedFre or GlicEnabling::IsAllowed() changes.
   void OnMaybeEnabledAndConsentForProfileChanged();
+
+  // Called when kGlicPinnedToTabstrip changes.
+  void OnPinningPrefChanged();
 
   // Records the time from startup until Glic was enabled for the profile.
   void RecordStartupEnablement();
@@ -386,6 +397,11 @@ class GlicMetrics : public GlicInstanceMetricsBackwardsCompatibility {
   bool recorded_startup_enablement_ = false;
 
   std::vector<base::CallbackListSubscription> subscriptions_;
+
+  // Cache the last value of the kGlicPinnedToTabstrip pref so that we only emit
+  // metrics for changes to the last value.
+  bool is_pinned_ = false;
+  PrefChangeRegistrar pref_registrar_;
 
   // The following two variables are used together for recording metrics and are
   // reset together after the metric is recorded.

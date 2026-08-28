@@ -11,13 +11,17 @@
 #include <string>
 #include <vector>
 
+#include "base/containers/span.h"
 #include "base/files/file_path.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
 #include "third_party/skia/include/core/SkColor.h"
+#include "third_party/skia/include/core/SkPath.h"
 #include "ui/base/models/image_model.h"
 #include "ui/gfx/geometry/point.h"
+#include "ui/gfx/geometry/point_f.h"
+#include "ui/gfx/geometry/rect.h"
 
 namespace base {
 class FilePath;
@@ -265,6 +269,21 @@ ui::ImageModel EmbedAvatarOntoImage(int resource_id,
                                     const gfx::Image& avatar,
                                     const gfx::Point& avatar_position,
                                     size_t avatar_size);
+
+#if !BUILDFLAG(IS_ANDROID)
+// Returns a circular avatar with a decorative linear gradient ring.
+gfx::ImageSkia AddLinearGradientRingToAvatar(
+    const ui::ImageModel& avatar_image,
+    const ui::ColorProvider& color_provider,
+    SkColor start_color,
+    SkColor end_color,
+    base::span<const float, 4> positions,
+    base::span<const float, 2> p1_normalized,
+    base::span<const float, 2> p2_normalized,
+    int avatar_size,
+    int gap_width,
+    int ring_thickness);
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 }  // namespace profiles
 

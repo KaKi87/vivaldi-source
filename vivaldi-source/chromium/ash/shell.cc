@@ -215,7 +215,6 @@
 #include "ash/wm/event_client_impl.h"
 #include "ash/wm/float/float_controller.h"
 #include "ash/wm/gestures/back_gesture/back_gesture_event_handler.h"
-#include "ash/wm/immersive_context_ash.h"
 #include "ash/wm/lock_state_controller.h"
 #include "ash/wm/mru_window_tracker.h"
 #include "ash/wm/multi_display/multi_display_metrics_controller.h"
@@ -240,10 +239,10 @@
 #include "ash/wm/window_properties.h"
 #include "ash/wm/window_restore/informed_restore_controller.h"
 #include "ash/wm/window_restore/window_restore_controller.h"
+#include "ash/wm/window_state.h"
 #include "ash/wm/window_util.h"
 #include "ash/wm/wm_shadow_controller_delegate.h"
 #include "ash/wm/workspace_controller.h"
-#include "ash/wm_mode/wm_mode_controller.h"
 #include "base/check.h"
 #include "base/check_is_test.h"
 #include "base/command_line.h"
@@ -267,6 +266,7 @@
 #include "chromeos/dbus/power/power_policy_controller.h"
 #include "chromeos/ui/clipboard_history/clipboard_history_types.h"
 #include "chromeos/ui/clipboard_history/clipboard_history_util.h"
+#include "chromeos/ui/frame/immersive/immersive_fullscreen_controller.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
 #include "components/viz/host/host_frame_sink_manager.h"
@@ -653,7 +653,7 @@ void Shell::NotifyFullscreenStateChanged(bool is_fullscreen,
     return;
   }
   // A fullscreen state change may trigger another fullscreen state change.
-  // TODO(crbug.com/484371187): Investigate if we can remove the recentrancy.
+  // TODO(crbug.com/484371187): Investigate if we can remove the reentrancy.
   shell_observers_.NotifyAllowReentrancyUntriaged(
       &ShellObserver::OnFullscreenStateChanged, is_fullscreen, container);
 }
@@ -671,9 +671,12 @@ void Shell::NotifyUserWorkAreaInsetsChanged(aura::Window* root_window) {
   if (shutting_down_) {
     return;
   }
-  for (auto& observer : shell_observers_) {
-    observer.OnUserWorkAreaInsetsChanged(root_window);
-  }
+  // Allow reentrancy here. A fullscreen state change in
+  // `NotifyFullscreenStateChanged` could move the accessibility panel which
+  // triggers this call to update shelf components' layout.
+  // See crbug.com/525739020 for details.
+  shell_observers_.NotifyAllowReentrancy(
+      &ShellObserver::OnUserWorkAreaInsetsChanged, root_window);
 }
 
 void Shell::NotifyShelfAlignmentChanged(aura::Window* root_window,
@@ -750,7 +753,6 @@ WebAuthNDialogController* Shell::webauthn_dialog_controller() {
 Shell::Shell(std::unique_ptr<ShellDelegate> shell_delegate)
     : focus_cycler_(std::make_unique<FocusCycler>()),
       ime_controller_(std::make_unique<ImeControllerImpl>()),
-      immersive_context_(std::make_unique<ImmersiveContextAsh>()),
       webauthn_dialog_controller_(
           std::make_unique<WebAuthNDialogControllerImpl>()),
       in_session_auth_dialog_controller_(
@@ -883,8 +885,6 @@ Shell::~Shell() {
   // Close and destroy all application windows here, so that the window manager
   // related objects, which app windows relies on, can be sefely deleted.
   CloseAllAppWindows();
-
-  wm_mode_controller_.reset();
 
   // `shortcut_input_handler_` must be cleaned up before
   // `event_rewriter_controller_`.
@@ -1784,13 +1784,6 @@ void Shell::Init(
   detachable_base_notification_controller_ =
       std::make_unique<DetachableBaseNotificationController>(
           detachable_base_handler_.get());
-
-  // WmModeController should be created before initializing the window tree
-  // hosts, since the latter will initialize the shelf on each display, which
-  // hosts the WM mode tray button.
-  if (features::IsWmModeEnabled()) {
-    wm_mode_controller_ = std::make_unique<WmModeController>();
-  }
 
   hotspot_icon_animation_ = std::make_unique<HotspotIconAnimation>();
   hotspot_info_cache_ = std::make_unique<HotspotInfoCache>();

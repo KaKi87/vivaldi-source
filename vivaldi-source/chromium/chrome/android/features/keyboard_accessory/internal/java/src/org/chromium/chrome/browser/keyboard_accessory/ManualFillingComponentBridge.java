@@ -22,7 +22,6 @@ import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.LoyaltyCardInfo;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.OptionToggle;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.PasskeySection;
-import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.PlusAddressInfo;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.PromoCodeInfo;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.UserInfo;
 import org.chromium.chrome.browser.keyboard_accessory.data.Provider;
@@ -52,25 +51,6 @@ class ManualFillingComponentBridge {
         mNativeView = nativeView;
         mWindowAndroid = windowAndroid;
         mWebContents = webContents;
-
-        initializeAtMemoryCallback();
-    }
-
-    private void initializeAtMemoryCallback() {
-        if (getManualFillingComponent() != null) {
-            getManualFillingComponent()
-                    .setAtMemoryCallback(
-                            () -> {
-                                if (mNativeView != 0) {
-                                    ManualFillingMetricsRecorder.recordActionSelected(
-                                            AccessoryAction.SHOW_AT_MEMORY_BOTTOMSHEET);
-                                    ManualFillingComponentBridgeJni.get()
-                                            .onOptionSelected(
-                                                    mNativeView,
-                                                    AccessoryAction.SHOW_AT_MEMORY_BOTTOMSHEET);
-                                }
-                            });
-        }
     }
 
     Provider<AccessorySheetData> getOrCreateProvider(@AccessoryTabType int tabType) {
@@ -167,7 +147,6 @@ class ManualFillingComponentBridge {
     private void destroy() {
         if (getManualFillingComponent() != null) {
             getManualFillingComponent().removeObserver(mDestructionObserver);
-            getManualFillingComponent().setAtMemoryCallback(null);
         }
         for (int i = 0; i < mProviders.size(); ++i) {
             mProviders.valueAt(i).notifyObservers(null);
@@ -179,9 +158,8 @@ class ManualFillingComponentBridge {
     private static AccessorySheetData createAccessorySheetData(
             @AccessoryTabType int type,
             @JniType("std::u16string") String userInfoTitle,
-            @JniType("std::u16string") String plusAddressTitle,
             @JniType("std::u16string") String warning) {
-        return new AccessorySheetData(type, userInfoTitle, plusAddressTitle, warning);
+        return new AccessorySheetData(type, userInfoTitle, warning);
     }
 
     @CalledByNative
@@ -265,37 +243,6 @@ class ManualFillingComponentBridge {
                                 .setIsObfuscated(isObfuscated)
                                 .setCallback(callback)
                                 .build());
-    }
-
-    @CalledByNative
-    private void addPlusAddressInfoToAccessorySheetData(
-            AccessorySheetData accessorySheetData,
-            @AccessoryTabType int sheetType,
-            @AccessorySuggestionType int suggestionType,
-            @JniType("std::string") String origin,
-            @JniType("std::u16string") String plusAddress) {
-        Callback<UserInfoField> callback =
-                (field) -> {
-                    assert mNativeView != 0 : "Controller was destroyed but the bridge wasn't!";
-                    ManualFillingMetricsRecorder.recordActionSelected(
-                            AccessoryAction.AUTOFILL_SUGGESTION_FROM_ACCESSORY_SHEET);
-                    ManualFillingMetricsRecorder.recordSuggestionSelected(
-                            sheetType, suggestionType);
-                    ManualFillingComponentBridgeJni.get()
-                            .onFillingTriggered(mNativeView, sheetType, field);
-                };
-        UserInfoField field =
-                new UserInfoField.Builder()
-                        .setSuggestionType(suggestionType)
-                        .setDisplayText(plusAddress)
-                        .setTextToFill(plusAddress)
-                        .setA11yDescription(plusAddress)
-                        .setId("")
-                        .setIsObfuscated(false)
-                        .setCallback(callback)
-                        .build();
-
-        accessorySheetData.getPlusAddressInfoList().add(new PlusAddressInfo(origin, field));
     }
 
     @CalledByNative
@@ -516,6 +463,11 @@ class ManualFillingComponentBridge {
         ManualFillingComponentBridgeJni.get().onOptionSelected(mNativeView, action.getActionType());
     }
 
+    static void onOptionSelectedForWebContents(WebContents webContents, int accessoryAction) {
+        ManualFillingComponentBridgeJni.get()
+                .onOptionSelectedForWebContents(webContents, accessoryAction);
+    }
+
     @NativeMethods
     interface Natives {
         void onFillingTriggered(
@@ -527,6 +479,8 @@ class ManualFillingComponentBridge {
                 @JniType("std::vector<uint8_t>") byte[] passkeyId);
 
         void onOptionSelected(long nativeManualFillingViewAndroid, int accessoryAction);
+
+        void onOptionSelectedForWebContents(WebContents webContents, int accessoryAction);
 
         void onToggleChanged(
                 long nativeManualFillingViewAndroid, int accessoryAction, boolean enabled);

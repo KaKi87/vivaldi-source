@@ -89,7 +89,7 @@ base::DictValue ParsedField(std::string renderer_id,
                               .Set("aria_description", "")
                               .Set("should_autocomplete", true)
                               .Set("is_focusable", true)
-                              .Set("is_user_edited_deprecated", true)
+                              .Set("is_user_edited_deprecated", false)
                               .Set("is_checkable", false)
                               .Set("value", value)
                               .Set("label", label)
@@ -276,6 +276,44 @@ class PasswordControllerJsTest : public PlatformTest {
   }
 
   web::WebState* web_state() { return web_state_.get(); }
+
+  // Helper to load a page with specific container styling and target
+  // positioning, and returns whether the password field is visible.
+  bool IsPasswordFieldVisibleWithContainerStyle(NSString* container_style,
+                                                NSString* target_position) {
+    NSString* html = [NSString
+        stringWithFormat:
+            @"<html><body>"
+             "  <div id=\"container\" style=\"width:10px; height:10px; "
+             "overflow:hidden; %@\">"
+             "    <form id=\"login_form\">"
+             "      <input id=\"Email\" name=\"Email\" type=\"email\">"
+             "      <input id=\"Passwd\" name=\"Passwd\" type=\"password\" "
+             "style=\"position:%@; margin-top:50px;\">"
+             "    </form>"
+             "  </div>"
+             "</body></html>",
+            container_style, target_position];
+    web::test::LoadHtml(html, GURL("https://example.com/login"), web_state());
+    if (!SetUpUniqueIDs()) {
+      ADD_FAILURE() << "SetUpUniqueIDs failed";
+      return false;
+    }
+
+    id uniqueIdObj = ExecuteJavaScript(
+        @"document.getElementById('Passwd').getAttribute('__gCrUniqueID')");
+    if (!uniqueIdObj) {
+      ADD_FAILURE() << "Failed to get unique ID for Passwd element";
+      return false;
+    }
+    int uniqueId = [uniqueIdObj intValue];
+
+    id result = ExecuteJavaScript([NSString
+        stringWithFormat:@"__gCrWeb.getRegisteredApi('passwords')."
+                          "getFunction('scrollAndCheckViewAreaVisible')(%d)",
+                         uniqueId]);
+    return [result boolValue];
+  }
 
   IOSChromeScopedTestingLocalState scoped_testing_local_state_;
   web::ScopedTestingWebClient web_client_;
@@ -846,75 +884,6 @@ TEST_F(PasswordControllerJsTest,
   ASSERT_TRUE(result_json);
 
   EXPECT_EQ(*expected_result_json, *result_json);
-}
-
-// Checks that a touchend event from a button which contains in a password form
-// works as a submission indicator for this password form.
-TEST_F(PasswordControllerJsTest, TouchendAsSubmissionIndicator) {
-  TestPasswordFormHelperDelegate* delegate =
-      [[TestPasswordFormHelperDelegate alloc] init];
-
-  PasswordFormHelper* helper =
-      [[PasswordFormHelper alloc] initWithWebState:web_state()];
-  helper.delegate = delegate;
-
-  web::test::LoadHtml(@"<html><body>"
-                       "<form name='login_form' id='login_form'>"
-                       "  Name: <input type='text' name='username'>"
-                       "  Password: <input type='password' name='password'>"
-                       "  <button id='submit_button' value='Submit'>"
-                       "</form>"
-                       "</body></html>",
-                      web_state());
-  ASSERT_TRUE(SetUpUniqueIDs());
-
-  // Call __gCrWeb.getRegisteredApi('passwords').getFunction('findPasswordForms')
-  // in order to set an event handler on the button touchend event.
-  FindPasswordFormsInFrame(GetMainWebFrame());
-
-  // Simulate touchend event on the button.
-  ExecuteJavaScript(
-      @"document.getElementsByName('username')[0].value = 'user1';"
-       "document.getElementsByName('password')[0].value = 'password1';"
-       "var e = new UIEvent('touchend');"
-       "document.getElementsByTagName('button')[0].dispatchEvent(e);");
-
-  // Check that there was only 1 call for sendWebKitMessage.
-  ASSERT_EQ(1, delegate.submittedFormMessageCalls);
-
-  auto expected_form = base::DictValue()
-                           .Set("name", "login_form")
-                           .Set("origin", BaseUrl())
-                           .Set("action", BaseUrl())
-                           .Set("name_attribute", "login_form")
-                           .Set("id_attribute", "login_form")
-                           .Set("renderer_id", "1")
-                           .Set("host_frame", GetMainWebFrame()->GetFrameId());
-  base::DictValue expected_username_field = ParsedField(
-      /*renderer_id=*/"2", /*contole_type=*/"text",
-      /*identifier=*/"username", /*value=*/"user1",
-      /*label=*/"Name:", /*name=*/"username");
-
-  base::DictValue expected_password_field = ParsedField(
-      /*renderer_id=*/"3", /*contole_type=*/"password",
-      /*identifier=*/"password", /*value=*/"password1",
-      /*label=*/"Password:", /*name=*/"password");
-  auto expected_fields = base::ListValue()
-                             .Append(std::move(expected_username_field))
-                             .Append(std::move(expected_password_field));
-  expected_form.Set("fields", std::move(expected_fields));
-
-  autofill::FieldDataManager* fieldDataManager =
-      autofill::FieldDataManagerFactoryIOS::FromWebFrame(
-          delegate.lastSubmittedFormFrame);
-
-  base::expected<autofill::FormData, autofill::ExtractFormDataFailure>
-      expected_form_data = autofill::ExtractFormData(
-          expected_form, /*form_name_filter=*/std::nullopt, GURL(BaseUrl()),
-          url::Origin::Create(GURL(base::SysNSStringToUTF8(FormOrigin()))),
-          GetMainWebFrame()->GetUrl(), *fieldDataManager,
-          GetMainWebFrame()->GetFrameId());
-  EXPECT_THAT(expected_form_data, ValueIs(delegate.lastSubmittedForm));
 }
 
 // Check that a form is filled if url of a page and url in form fill data are
@@ -1514,6 +1483,170 @@ TEST_F(PasswordControllerJsTest, ExtractFormOutsideTheFormTag) {
   results_content.Remove("host_frame");
 
   EXPECT_EQ(expected_form, *results);
+}
+
+// Tests that scrollAndCheckViewAreaVisible returns true for a visible password
+// field.
+TEST_F(PasswordControllerJsTest, ScrollAndCheckViewAreaVisible_VisibleElement) {
+  const std::string origin = "https://example.com/login";
+  NSString* const formOrigin = [NSString stringWithUTF8String:origin.c_str()];
+  web::test::LoadHtml(GAIASignInForm(formOrigin, kUsername, /*isReadOnly=*/NO,
+                                     /*isDisabled=*/NO),
+                      GURL(origin), web_state());
+  ASSERT_TRUE(SetUpUniqueIDs());
+
+  id uniqueIdObj = ExecuteJavaScript(
+      @"document.getElementById('Passwd').getAttribute('__gCrUniqueID')");
+  ASSERT_TRUE(uniqueIdObj != nil);
+  int uniqueId = [uniqueIdObj intValue];
+
+  id result = ExecuteJavaScript([NSString
+      stringWithFormat:@"__gCrWeb.getRegisteredApi('passwords')."
+                        "getFunction('scrollAndCheckViewAreaVisible')(%d)",
+                       uniqueId]);
+  EXPECT_NSEQ(@YES, result);
+}
+
+// Tests containing block detection for absolute positioned element with static
+// container.
+TEST_F(PasswordControllerJsTest,
+       ScrollAndCheckViewAreaVisible_StaticContainerAbsoluteTarget) {
+  EXPECT_TRUE(IsPasswordFieldVisibleWithContainerStyle(@"position: static;",
+                                                       @"absolute"));
+}
+
+// Tests containing block detection for absolute positioned element with
+// relative container.
+TEST_F(PasswordControllerJsTest,
+       ScrollAndCheckViewAreaVisible_RelativeContainerAbsoluteTarget) {
+  EXPECT_FALSE(IsPasswordFieldVisibleWithContainerStyle(@"position: relative;",
+                                                        @"absolute"));
+}
+
+// Tests containing block detection for absolute positioned element with
+// transform container.
+TEST_F(PasswordControllerJsTest,
+       ScrollAndCheckViewAreaVisible_TransformContainerAbsoluteTarget) {
+  EXPECT_FALSE(IsPasswordFieldVisibleWithContainerStyle(
+      @"transform: scale(0.5);", @"absolute"));
+}
+
+// Tests containing block detection for fixed positioned element with transform
+// container.
+TEST_F(PasswordControllerJsTest,
+       ScrollAndCheckViewAreaVisible_TransformContainerFixedTarget) {
+  EXPECT_FALSE(IsPasswordFieldVisibleWithContainerStyle(
+      @"transform: translate(10px);", @"fixed"));
+}
+
+// Tests containing block detection for fixed positioned element with
+// will-change transform container.
+TEST_F(PasswordControllerJsTest,
+       ScrollAndCheckViewAreaVisible_WillChangeTransformContainerFixedTarget) {
+  EXPECT_FALSE(IsPasswordFieldVisibleWithContainerStyle(
+      @"will-change: transform;", @"fixed"));
+}
+
+// Tests containing block detection for fixed positioned element with
+// will-change unrelated container.
+TEST_F(PasswordControllerJsTest,
+       ScrollAndCheckViewAreaVisible_WillChangeUnrelatedContainerFixedTarget) {
+  EXPECT_TRUE(IsPasswordFieldVisibleWithContainerStyle(@"will-change: color;",
+                                                       @"fixed"));
+}
+
+// Tests containing block detection for fixed positioned element with contain
+// paint container.
+TEST_F(PasswordControllerJsTest,
+       ScrollAndCheckViewAreaVisible_ContainPaintContainerFixedTarget) {
+  EXPECT_FALSE(
+      IsPasswordFieldVisibleWithContainerStyle(@"contain: paint;", @"fixed"));
+}
+
+// Tests containing block detection for absolute positioned element with contain
+// layout container.
+TEST_F(PasswordControllerJsTest,
+       ScrollAndCheckViewAreaVisible_ContainLayoutContainerAbsoluteTarget) {
+  EXPECT_FALSE(IsPasswordFieldVisibleWithContainerStyle(@"contain: layout;",
+                                                        @"absolute"));
+}
+
+// Tests containing block detection for absolute positioned element with display
+// contents container.
+TEST_F(PasswordControllerJsTest,
+       ScrollAndCheckViewAreaVisible_DisplayContentsContainerAbsoluteTarget) {
+  EXPECT_TRUE(IsPasswordFieldVisibleWithContainerStyle(
+      @"display: contents; position: relative;", @"absolute"));
+}
+
+// Tests that scrollAndCheckViewAreaVisible returns true for a partially clipped
+// element where a portion of the element remains visible.
+TEST_F(PasswordControllerJsTest,
+       ScrollAndCheckViewAreaVisible_PartiallyClippedElement) {
+  const std::string origin = "https://example.com/login";
+  NSString* html = @"<html><body>"
+                    "<div style='width:100px; height:100px; overflow:hidden; "
+                    "position:relative;'>"
+                    "  <form id='login_form'>"
+                    "    <input id='Email' name='Email' type='email'>"
+                    // Position target so that its top 50px is clipped by the
+                    // container, but the bottom 50px is visible.
+                    "    <input id='Passwd' name='Passwd' type='password' "
+                    "           style='position:absolute; width:100px; "
+                    "height:100px; top:-50px; left:0; margin:0;'>"
+                    "  </form>"
+                    "</div>"
+                    "</body></html>";
+  web::test::LoadHtml(html, GURL(origin), web_state());
+  ASSERT_TRUE(SetUpUniqueIDs());
+
+  id uniqueIdObj = ExecuteJavaScript(
+      @"document.getElementById('Passwd').getAttribute('__gCrUniqueID')");
+  ASSERT_TRUE(uniqueIdObj != nil);
+  int uniqueId = [uniqueIdObj intValue];
+
+  id result = ExecuteJavaScript([NSString
+      stringWithFormat:@"__gCrWeb.getRegisteredApi('passwords')."
+                        "getFunction('scrollAndCheckViewAreaVisible')(%d)",
+                       uniqueId]);
+  EXPECT_NSEQ(@YES, result);
+}
+
+// Tests that scrollAndCheckViewAreaVisible returns false when an element is
+// completely clipped by the combination of its parent and grandparent
+// containers.
+TEST_F(PasswordControllerJsTest,
+       ScrollAndCheckViewAreaVisible_FullyClippedByMultipleContainers) {
+  const std::string origin = "https://example.com/login";
+  NSString* html = @"<html><body>"
+                    // Grandparent container: covers y = 0 to 50.
+                    "<div style='position:absolute; top:0px; height:50px; "
+                    "width:100px; overflow:hidden;'>"
+                    // Parent container: positioned at top: 50px (completely
+                    // clipped by grandparent).
+                    "  <div style='position:absolute; top:50px; height:50px; "
+                    "width:100px; overflow:hidden;'>"
+                    "    <form id='login_form'>"
+                    "      <input id='Email' name='Email' type='email'>"
+                    "      <input id='Passwd' name='Passwd' type='password' "
+                    "style='position:absolute; height:100px; top:0;'>"
+                    "    </form>"
+                    "  </div>"
+                    "</div>"
+                    "</body></html>";
+  web::test::LoadHtml(html, GURL(origin), web_state());
+  ASSERT_TRUE(SetUpUniqueIDs());
+
+  id uniqueIdObj = ExecuteJavaScript(
+      @"document.getElementById('Passwd').getAttribute('__gCrUniqueID')");
+  ASSERT_TRUE(uniqueIdObj != nil);
+  int uniqueId = [uniqueIdObj intValue];
+
+  id result = ExecuteJavaScript([NSString
+      stringWithFormat:@"__gCrWeb.getRegisteredApi('passwords')."
+                        "getFunction('scrollAndCheckViewAreaVisible')(%d)",
+                       uniqueId]);
+  EXPECT_NSEQ(@NO, result);
 }
 
 }  // namespace

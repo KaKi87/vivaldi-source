@@ -14,12 +14,12 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 
 import {$$, $closest, hideElement} from "../utils/dom.js";
 import {raceWinner} from "../introspection/race.js";
-import {formatArguments, toRegExp} from "../utils/general.js";
+import {formatArguments, sendSnippetHitEvent, toRegExp}
+  from "../utils/general.js";
 import {getDebugger} from "../introspection/log.js";
 import {profile} from "../introspection/profile.js";
 import {fetchContent} from "../utils/execution.js";
@@ -30,11 +30,13 @@ let {
   MutationObserver,
   Uint8Array
 } = $(window);
+const hitFilters = new Set();
 
 /**
- * Hides any HTML element or one of its ancestors matching a CSS selector if
- * the background image of the element matches a given pattern.
- * @alias module:content/snippets.hide-if-contains-image
+ * @description Hides any HTML element or one of its ancestors matching
+ * a CSS selector if the background image of the element
+ * matches a given pattern.
+ * @memberof module:snippets/conditional-hiding
  *
  * @param {string} search The pattern to look for in the background images of
  *   HTML elements. This must be the hexadecimal representation of the image
@@ -45,7 +47,12 @@ let {
  * @param {?string} [searchSelector] The CSS selector that an HTML element
  *   containing the given pattern must match. Defaults to the value of the
  *   `selector` argument.
+ * @example
+ * hide-if-contains-image ffd8ffe1001845 div => Hides any div element
+ * whose background-image's hex matches the ffd8ffe1001845 pattern.
  *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69962622/hide-if-contains-image} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/conditional-hiding-snippets/hide-if-contains-image} for external documentation.
  * @since Adblock Plus 3.4.2
  */
 export function hideIfContainsImage(search, selector, searchSelector) {
@@ -75,6 +82,13 @@ export function hideIfContainsImage(search, selector, searchSelector) {
                        closest,
                        "\nFILTER: hide-if-contains-image",
                        formattedArguments);
+              const filter =
+                "hide-if-contains-image " +
+                formattedArguments;
+              if (!hitFilters.has(filter)) {
+                hitFilters.add(filter);
+                sendSnippetHitEvent(filter);
+              }
             }
           }
         });

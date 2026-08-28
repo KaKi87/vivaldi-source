@@ -18,7 +18,9 @@
 import {setup, teardown} from "./browser.js";
 
 import main from "../webext/main.mjs";
-import isolated from "../webext/isolated-full.mjs";
+import isolated from "../webext/isolated.mjs";
+import isolatedHeavy from "../webext/isolated-heavy.mjs";
+import isolatedFull from "../webext/isolated-full.mjs";
 import {assert} from "./utils.js";
 
 const {log} = console;
@@ -45,8 +47,13 @@ isolated({}, ["log", "LOG"], ["trace", "TRACE"]);
 teardown();
 
 assert(
-  typeof isolated.get("hide-if-matches-xpath3") === "function",
-  "XPath3 should have dependencies"
+  typeof isolatedHeavy.get("hide-if-matches-xpath3") === "function",
+  "isolated-heavy XPath3 snippet should have dependencies"
+);
+
+assert(
+  typeof isolatedFull.get("hide-if-matches-xpath3") === "function",
+  "isolated-full XPath3 snippet should have dependencies"
 );
 
 assert(

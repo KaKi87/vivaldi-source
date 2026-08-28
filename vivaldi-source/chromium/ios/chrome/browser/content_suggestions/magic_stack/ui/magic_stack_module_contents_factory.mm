@@ -7,9 +7,10 @@
 #import "base/notreached.h"
 #import "ios/chrome/browser/content_suggestions/app_bundle_promo/ui/app_bundle_promo_config.h"
 #import "ios/chrome/browser/content_suggestions/default_browser/ui/default_browser_config.h"
+#import "ios/chrome/browser/content_suggestions/level_up/ui/level_up_config.h"
+#import "ios/chrome/browser/content_suggestions/level_up/ui/level_up_view.h"
 #import "ios/chrome/browser/content_suggestions/magic_stack/ui/magic_stack_module_content_view_delegate.h"
 #import "ios/chrome/browser/content_suggestions/most_visited_tiles/ui/most_visited_tiles_collection_view.h"
-#import "ios/chrome/browser/content_suggestions/most_visited_tiles/ui/most_visited_tiles_stack_view.h"
 #import "ios/chrome/browser/content_suggestions/price_tracking_promo/ui/price_tracking_promo_config.h"
 #import "ios/chrome/browser/content_suggestions/public/content_suggestions_constants.h"
 #import "ios/chrome/browser/content_suggestions/safety_check/ui/safety_check_config.h"
@@ -35,9 +36,9 @@
 #import "ios/chrome/browser/content_suggestions/tips/ui/tips_module_config.h"
 #import "ios/chrome/browser/content_suggestions/tips/ui/tips_module_view.h"
 #import "ios/chrome/browser/content_suggestions/ui/cells/content_suggestions_tile_layout_util.h"
+#import "ios/chrome/browser/content_suggestions/ui/cells/icon_detail_view.h"
 #import "ios/chrome/browser/content_suggestions/ui/cells/multi_row_container_view.h"
 #import "ios/chrome/browser/content_suggestions/ui/cells/standalone_module_view.h"
-#import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_feature.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 
 @implementation MagicStackModuleContentsFactory
@@ -50,14 +51,7 @@
     case ContentSuggestionsModuleType::kMostVisited: {
       MostVisitedTilesConfig* mvtConfig =
           static_cast<MostVisitedTilesConfig*>(config);
-      if (IsContentSuggestionsCustomizable()) {
-        return
-            [[MostVisitedTilesCollectionView alloc] initWithConfig:mvtConfig];
-      }
-      return [[MostVisitedTilesStackView alloc]
-          initWithConfig:mvtConfig
-                 spacing:ContentSuggestionsTilesHorizontalSpacing(
-                             traitCollection)];
+      return [[MostVisitedTilesCollectionView alloc] initWithConfig:mvtConfig];
     }
     case ContentSuggestionsModuleType::kShortcuts: {
       ShortcutsConfig* shortcutsConfig = static_cast<ShortcutsConfig*>(config);
@@ -114,6 +108,10 @@
       DefaultBrowserConfig* defaultBrowserConfig =
           static_cast<DefaultBrowserConfig*>(config);
       return [self defaultBrowserViewForConfig:defaultBrowserConfig];
+    }
+    case ContentSuggestionsModuleType::kLevelUp: {
+      LevelUpConfig* levelUpConfig = static_cast<LevelUpConfig*>(config);
+      return [self levelUpViewForConfig:levelUpConfig];
     }
     default:
       NOTREACHED();
@@ -238,6 +236,11 @@
 - (UIView*)defaultBrowserViewForConfig:(DefaultBrowserConfig*)config {
   IconDetailView* view = [[IconDetailView alloc] initWithConfig:config];
   view.tapDelegate = config;
+  return view;
+}
+
+- (UIView*)levelUpViewForConfig:(LevelUpConfig*)config {
+  LevelUpView* view = [[LevelUpView alloc] initWithConfig:config];
   return view;
 }
 

@@ -14,9 +14,11 @@
 #include "net/net_buildflags.h"
 #include "ui/base/unowned_user_data/user_data_factory.h"
 
+#if !BUILDFLAG(IS_ANDROID)
 namespace infobars {
 class BrowserInfoBarManager;
 }  // namespace infobars
+#endif
 
 class GlobalBrowserCollection;
 
@@ -42,6 +44,10 @@ class GlicSyntheticTrialManager;
 }  // namespace glic
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
+namespace omnibox_everywhere {
+class OmniboxEverywhereController;
+}
+
 class ApplicationLocaleStorage;
 class AudioProcessMlModelForwarder;
 class BrowserProcess;
@@ -61,6 +67,8 @@ class ApplicationAdvancedProtectionStatusDetector;
 #if !BUILDFLAG(IS_ANDROID)
 class ProfileLaunchObserver;
 #endif  // !BUILDFLAG(IS_ANDROID)
+
+class GlassFrameService;
 
 #if BUILDFLAG(IS_WIN)
 class StartupLaunchManager;
@@ -84,6 +92,10 @@ namespace smart_restart {
 class SmartRestartManager;
 class SmartRestartMetricsObserver;
 }  // namespace smart_restart
+
+namespace tabs_api {
+class TabDragSessionManager;
+}
 
 // This class owns the core controllers for features that are globally
 // scoped on desktop and Android. It can be subclassed by tests to perform
@@ -119,6 +131,7 @@ class GlobalFeatures {
   // called immediately after construction, before any other
   // initialization.
   void Init();
+  void PreMainMessageLoopRun();
 
   // Each of these is called exactly once when the browser starts to shutdown,
   // in the named browser shutdown lifecycle phases. Importantly,
@@ -149,12 +162,21 @@ class GlobalFeatures {
   glic::GlicProfileManager* glic_profile_manager() {
     return glic_profile_manager_.get();
   }
-#endif
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
+#if !BUILDFLAG(IS_ANDROID)
   glic::GlicBackgroundModeManager* glic_background_mode_manager() {
     return glic_background_mode_manager_.get();
   }
+#endif
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+#if !BUILDFLAG(IS_ANDROID)
+  omnibox_everywhere::OmniboxEverywhereController*
+  omnibox_everywhere_controller() {
+    return nullptr;
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    return omnibox_everywhere_controller_.get();
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  }
+#endif
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   glic::GlicSyntheticTrialManager* glic_synthetic_trial_manager() {
@@ -206,6 +228,10 @@ class GlobalFeatures {
   }
 #endif  // !BUILDFLAG(IS_ANDROID)
 
+  tabs_api::TabDragSessionManager* tab_drag_session_manager() {
+    return tab_drag_session_manager_.get();
+  }
+
  protected:
   GlobalFeatures();
 
@@ -246,8 +272,10 @@ class GlobalFeatures {
 #if !BUILDFLAG(IS_ANDROID)
   std::unique_ptr<glic::GlicBackgroundModeManager>
       glic_background_mode_manager_;
-  std::unique_ptr<glic::GlicSyntheticTrialManager> synthetic_trial_manager_;
+  std::unique_ptr<omnibox_everywhere::OmniboxEverywhereController>
+      omnibox_everywhere_controller_;
 #endif
+  std::unique_ptr<glic::GlicSyntheticTrialManager> synthetic_trial_manager_;
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   std::unique_ptr<ApplicationLocaleStorage> application_locale_storage_;
@@ -270,7 +298,9 @@ class GlobalFeatures {
   std::unique_ptr<local_network_access::IPAddressSpaceOverridesPrefsObserver>
       ip_address_space_overrides_prefs_observer_;
 
+#if !BUILDFLAG(IS_ANDROID)
   std::unique_ptr<infobars::BrowserInfoBarManager> browser_infobar_manager_;
+#endif
 
 #if BUILDFLAG(IS_WIN)
   std::unique_ptr<StartupLaunchManager> startup_launch_manager_;
@@ -293,6 +323,10 @@ class GlobalFeatures {
 
   std::unique_ptr<smart_restart::SmartRestartManager> smart_restart_manager_;
 #endif  // !BUILDFLAG(IS_ANDROID)
+
+  std::unique_ptr<tabs_api::TabDragSessionManager> tab_drag_session_manager_;
+
+  std::unique_ptr<GlassFrameService> glass_frame_service_;
 };
 
 #endif  // CHROME_BROWSER_GLOBAL_FEATURES_H_

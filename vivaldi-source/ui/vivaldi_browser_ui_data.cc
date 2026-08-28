@@ -7,6 +7,7 @@
 #include "base/check_deref.h"
 #include "chrome/browser/sessions/session_service.h"
 #include "chrome/browser/sessions/session_service_factory.h"
+#include "chrome/browser/ui/browser_init_state.h"
 
 namespace vivaldi {
 
@@ -16,8 +17,11 @@ VivaldiBrowserUiData::VivaldiBrowserUiData(BrowserWindowInterface* browser)
     : browser_interface_(CHECK_DEREF(browser)),
       scoped_data_holder_(browser->GetUnownedUserDataHost(), *this) {
   Browser* typed_browser = static_cast<Browser*>(browser);
-  if (!typed_browser->create_params().viv_ext_data.empty()) {
-    set_viv_ext_data(typed_browser->create_params().viv_ext_data);
+  if (!BrowserInitState::From(typed_browser)
+           ->create_params()
+           .viv_ext_data.empty()) {
+    set_viv_ext_data(
+        BrowserInitState::From(typed_browser)->create_params().viv_ext_data);
   }
 }
 

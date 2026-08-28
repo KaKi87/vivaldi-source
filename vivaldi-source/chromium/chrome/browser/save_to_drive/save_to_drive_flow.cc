@@ -9,7 +9,7 @@
 #include <string>
 #include <utility>
 
-#include "base/byte_count.h"
+#include "base/byte_size.h"
 #include "base/check.h"
 #include "base/check_is_test.h"
 #include "base/strings/utf_string_conversions.h"
@@ -49,7 +49,7 @@ using extensions::api::pdf_viewer_private::SaveToDriveProgress;
 using extensions::api::pdf_viewer_private::SaveToDriveStatus;
 
 constexpr base::TimeDelta kHatsSurveyTimeout = base::Seconds(4);
-constexpr base::ByteCount kMultipartUploadThreshold = base::MiB(5);
+constexpr base::ByteSize kMultipartUploadThreshold = base::MiBU(5);
 
 WebContents* GetTabWebContents(RenderFrameHost* render_frame_host) {
   auto stream = GetStreamWeakPtr(render_frame_host);
@@ -126,7 +126,9 @@ void SaveToDriveFlow::Run() {
 
   WebContents* contents = GetTabWebContents(&render_frame_host());
   CHECK(contents);
-  account_chooser_->GetAccount(contents,
+  std::u16string title = EnsurePdfExtension(contents->GetTitle());
+  upload_title_ = base::UTF16ToUTF8(title);
+  account_chooser_->GetAccount(contents, title,
                                base::BindOnce(&SaveToDriveFlow::OnAccountChosen,
                                               weak_ptr_factory_.GetWeakPtr()));
 }
@@ -172,21 +174,19 @@ void SaveToDriveFlow::OnOpenContent(AccountInfo account_info, bool success) {
     OnUploadProgress(std::move(progress));
     return;
   }
-  auto* web_contents = WebContents::FromRenderFrameHost(&render_frame_host());
-  std::string title = base::UTF16ToUTF8(web_contents->GetTitle());
 
   auto upload_progress_callback = base::BindRepeating(
       &SaveToDriveFlow::OnUploadProgress, weak_ptr_factory_.GetWeakPtr());
   auto* profile =
       Profile::FromBrowserContext(render_frame_host().GetBrowserContext());
 
-  if (base::ByteCount(content_reader_->GetSize()) < kMultipartUploadThreshold) {
+  if (base::ByteSize(content_reader_->GetSize()) < kMultipartUploadThreshold) {
     drive_uploader_ = std::make_unique<MultipartDriveUploader>(
-        std::move(title), std::move(account_info),
+        std::move(upload_title_), std::move(account_info),
         std::move(upload_progress_callback), profile, content_reader_.get());
   } else {
     drive_uploader_ = std::make_unique<ResumableDriveUploader>(
-        std::move(title), std::move(account_info),
+        std::move(upload_title_), std::move(account_info),
         std::move(upload_progress_callback), profile, content_reader_.get());
   }
   drive_uploader_->Start();

@@ -8,7 +8,6 @@ include_rules = [
   "+chrome/browser/ash/apps",
   "+chrome/browser/ash/arc/arc_util.h",
   "+chrome/browser/ash/arc/fileapi",
-  "+chrome/browser/ash/arc/intent_helper",
   "+chrome/browser/ash/fileapi",
   "+chrome/browser/ash/file_manager",
   "+chrome/browser/ash/profiles",
@@ -27,9 +26,6 @@ include_rules = [
 
 specific_include_rules = {
   # Allow access for tests.
-  "arc_vm_data_migration_confirmation_dialog_unittest\\.cc": [
-    "+chrome/browser/ui/views/chrome_layout_provider.h",
-  ],
   "arc_open_url_delegate_impl_browsertest\\.cc": [
     "+chrome/browser/ui/browser_window/public/browser_window_interface.h",
     "+chrome/browser/ui/browser_window/public/global_browser_collection.h",

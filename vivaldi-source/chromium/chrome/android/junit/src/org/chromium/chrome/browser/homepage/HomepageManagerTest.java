@@ -24,6 +24,7 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
+import org.chromium.base.DeviceInfo;
 import org.chromium.base.FeatureOverrides;
 import org.chromium.base.UserDataHost;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -31,10 +32,12 @@ import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.actor.ui.ActorUiTabController;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.glic.GlicEnabling;
 import org.chromium.chrome.browser.new_tab_url.DseNewTabUrlManager;
 import org.chromium.chrome.browser.partnercustomizations.PartnerBrowserCustomizations;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
+import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tabmodel.TabCreator;
@@ -742,10 +745,13 @@ public class HomepageManagerTest {
     @Test
     @EnableFeatures(ChromeFeatureList.GLIC)
     public void testOpenHomepage_WithActiveTab_GlicEnabled_ActorActive_ConfirmDialogShown() {
+        GlicEnabling.setEnabledForTesting(true);
         HomepageManager homepageManager = HomepageManager.getInstance();
         HomepagePolicyManager.setHomepageForTesting(true, JUnitTestGURLs.EXAMPLE_URL, false);
 
         Tab tab = Mockito.mock(Tab.class);
+        Profile profile = Mockito.mock(Profile.class);
+        Mockito.doReturn(profile).when(tab).getProfile();
         UserDataHost userDataHost = new UserDataHost();
         Mockito.doReturn(userDataHost).when(tab).getUserDataHost();
         userDataHost.setUserData(ActorUiTabController.class, mActorUiTabController);
@@ -783,10 +789,13 @@ public class HomepageManagerTest {
     @Test
     @EnableFeatures(ChromeFeatureList.GLIC)
     public void testOpenHomepage_WithActiveTab_GlicEnabled_ActorActive_ConfirmDialogNotShown() {
+        GlicEnabling.setEnabledForTesting(true);
         HomepageManager homepageManager = HomepageManager.getInstance();
         HomepagePolicyManager.setHomepageForTesting(true, JUnitTestGURLs.EXAMPLE_URL, false);
 
         Tab tab = Mockito.mock(Tab.class);
+        Profile profile = Mockito.mock(Profile.class);
+        Mockito.doReturn(profile).when(tab).getProfile();
         UserDataHost userDataHost = new UserDataHost();
         Mockito.doReturn(userDataHost).when(tab).getUserDataHost();
         userDataHost.setUserData(ActorUiTabController.class, mActorUiTabController);
@@ -814,10 +823,13 @@ public class HomepageManagerTest {
     @Test
     @EnableFeatures(ChromeFeatureList.GLIC)
     public void testOpenHomepage_WithActiveTab_GlicEnabled_ActorNotActive() {
+        GlicEnabling.setEnabledForTesting(true);
         HomepageManager homepageManager = HomepageManager.getInstance();
         HomepagePolicyManager.setHomepageForTesting(true, JUnitTestGURLs.EXAMPLE_URL, false);
 
         Tab tab = Mockito.mock(Tab.class);
+        Profile profile = Mockito.mock(Profile.class);
+        Mockito.doReturn(profile).when(tab).getProfile();
         UserDataHost userDataHost = new UserDataHost();
         Mockito.doReturn(userDataHost).when(tab).getUserDataHost();
         userDataHost.setUserData(ActorUiTabController.class, mActorUiTabController);
@@ -841,6 +853,7 @@ public class HomepageManagerTest {
 
     @Test
     @EnableFeatures({ChromeFeatureList.HOME_BUTTON_REMOVAL + ":remove_home_button_everywhere/true"})
+    @DisableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR)
     public void testIsHomepageEnabled_HomeButtonRemovalEverywhere() {
         HomepageManager homepageManager = HomepageManager.getInstance();
         ChromeSharedPreferences.getInstance()
@@ -867,6 +880,7 @@ public class HomepageManagerTest {
 
     @Test
     @EnableFeatures({ChromeFeatureList.HOME_BUTTON_REMOVAL + ":remove_home_button_everywhere/true"})
+    @DisableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR)
     public void testShouldShowHomepageSettings_HomeButtonRemovalEverywhere() {
         Locale.setDefault(Locale.US);
         Assert.assertFalse(
@@ -889,6 +903,7 @@ public class HomepageManagerTest {
 
     @Test
     @EnableFeatures({ChromeFeatureList.HOME_BUTTON_REMOVAL + ":keep_home_button_on_ntp/true"})
+    @DisableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR)
     public void testShouldShowHomeButtonOnToolbar_KeepOnNtp() {
         HomepageManager homepageManager = HomepageManager.getInstance();
         ChromeSharedPreferences.getInstance()
@@ -925,6 +940,7 @@ public class HomepageManagerTest {
 
     @Test
     @EnableFeatures({ChromeFeatureList.HOME_BUTTON_REMOVAL + ":keep_home_button_on_ntp/true"})
+    @DisableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR)
     public void testShouldShowHomepageMenuItem_KeepOnNtp() {
         HomepageManager homepageManager = HomepageManager.getInstance();
         ChromeSharedPreferences.getInstance()
@@ -947,5 +963,27 @@ public class HomepageManagerTest {
                 "Homepage menu item should be shown with keep_on_ntp and apply_to_all_countries set"
                         + " to true in non-US geo.",
                 homepageManager.shouldShowHomepageMenuItem());
+    }
+
+    @Test
+    @EnableFeatures({
+        ChromeFeatureList.HOME_BUTTON_REMOVAL + ":set_default_to_false_on_homepage_on_desktop/true"
+    })
+    public void testGetPrefHomepageEnabled_DesktopDefaultFalse() {
+        DeviceInfo.setIsDesktopForTesting(true);
+        HomepageManager homepageManager = HomepageManager.getInstance();
+
+        // Without preference written in SharedPreferences, should default to false on Desktop.
+        Assert.assertFalse(
+                "getPrefHomepageEnabled should default to false on Desktop",
+                homepageManager.getPrefHomepageEnabled());
+
+        // Once toggle is explicitly enabled, should read true from SharedPreferences.
+        ChromeSharedPreferences.getInstance()
+                .writeBoolean(ChromePreferenceKeys.HOMEPAGE_ENABLED, true);
+        Assert.assertTrue(
+                "getPrefHomepageEnabled should return true after preference is set.",
+                homepageManager.getPrefHomepageEnabled());
+        DeviceInfo.setIsDesktopForTesting(false);
     }
 }

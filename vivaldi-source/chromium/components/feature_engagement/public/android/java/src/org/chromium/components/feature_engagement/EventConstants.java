@@ -51,6 +51,13 @@ public final class EventConstants {
     public static final String ADAPTIVE_TOOLBAR_PAGE_SUMMARY_WEB_USED =
             "adaptive_toolbar_page_summary_web_used";
 
+    /** The user interacted with the promo dialog shown to introduce AI Mode with the bottom bar. */
+    public static final String ANDROID_BOTTOM_BAR_AIM_PROMO_DIALOG_USED =
+            "android_bottom_bar_aim_promo_dialog_used";
+
+    /** The user interacted with the AI Mode button on the new bottom bar. */
+    public static final String ANDROID_BOTTOM_BAR_AIM_USED = "android_bottom_bar_aim_used";
+
     /** The user interacted with the GLIC button on the new bottom bar. */
     public static final String ANDROID_BOTTOM_BAR_GLIC_USED = "android_bottom_bar_glic_used";
 
@@ -63,6 +70,10 @@ public final class EventConstants {
 
     /** A generic event that any startup promo should notify when it is shown. */
     public static final String ANDROID_STARTUP_PROMO_SHOWN = "android_startup_promo_shown";
+
+    /** The user switched to Vertical Tabs. */
+    public static final String ANDROID_VERTICAL_TABS_PROMO_USED =
+            "android_vertical_tabs_promo_used";
 
     /** Read later related events. */
     public static final String APP_MENU_BOOKMARK_STAR_ICON_PRESSED =
@@ -226,6 +237,13 @@ public final class EventConstants {
 
     public static final String READ_LATER_CONTEXT_MENU_TAPPED = "read_later_context_menu_tapped";
 
+    /**
+     * The user selected the 'Recent tabs' app menu option, with at least one closed window in
+     * persistence.
+     */
+    public static final String RECENT_TABS_USED_WITH_CLOSED_WINDOWS =
+            "recent_tabs_used_with_closed_windows";
+
     /** The request desktop site window setting IPH was shown. */
     public static final String REQUEST_DESKTOP_SITE_WINDOW_SETTING_IPH_SHOWN =
             "request_desktop_site_window_setting_iph_shown";
@@ -275,9 +293,6 @@ public final class EventConstants {
 
     /** The page load has failed and user has landed on an offline dino page. */
     public static final String USER_HAS_SEEN_DINO = "user_has_seen_dino";
-
-    /** WebFeed events. */
-    public static final String WEB_FEED_FOLLOW_INTRO_CLICKED = "web_feed_follow_intro_clicked";
 
     /**
      * User performed a web search for a query by choosing the Web Search option on the popup menu.

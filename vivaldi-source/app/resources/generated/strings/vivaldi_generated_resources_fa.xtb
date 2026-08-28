@@ -53,7 +53,6 @@
 <translation id="1901303067676059328">انتخاب &amp;همه</translation>
 <translation id="1921584744613111023"><ph name="DPI" /> نقطه در اینچ</translation>
 <translation id="1925021887439448749">نشانی اینترنتی مورد نظر خود را وارد کنید</translation>
-<translation id="1932098463447129402">نه قبل از</translation>
 <translation id="1936931585862840749">تعداد نسخه‌های لازم برای چاپ را با یک عدد تعیین نمایید (۱ تا <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">&amp;باز کردن فایل صوتی در زبانه جدید</translation>
 <translation id="2050339315714019657">عمودی</translation>
@@ -89,7 +88,6 @@
 <translation id="253557089021624350">تعداد فعالیت‌های زنده‌نگه‌داری</translation>
 <translation id="2550212893339833758">حافظه‌ی بخش سواپ</translation>
 <translation id="2553440850688409052">پنهان‌سازی این افزونه</translation>
-<translation id="2607101320794533334">اطلاعات کلید عمومی موضوع</translation>
 <translation id="26224892172169984">به هیچ سایتی برای کنترل پروتکل‌ها اجازه داده نشود</translation>
 <translation id="2653275834716714682">جایگزینی متن</translation>
 <translation id="265390580714150011">مقدار قسمت</translation>
@@ -97,7 +95,6 @@
 <translation id="2678063897982469759">فعال کردن مجدد</translation>
 <translation id="2719936478972253983">کوکی‌های زیر مسدود شدند</translation>
 <translation id="2721037002783622288">&amp;جستجوی <ph name="SEARCH_ENGINE" /> برای تصویر</translation>
-<translation id="2738771556149464852">نه بعد از</translation>
 <translation id="2749881179542288782">بررسی املا و دستور زبان</translation>
 <translation id="2785873697295365461">توصیف‌گرهای فایل</translation>
 <translation id="2825758591930162672">کلید عمومی موضوع</translation>
@@ -144,7 +141,6 @@
 <translation id="3387614642886316601">استفاده از غلط‌گیر املایی بهبودیافته</translation>
 <translation id="3390013585654699824">جزئیات برنامه</translation>
 <translation id="345693547134384690">گشودن &amp;تصویر در زبانه‌ی جدید</translation>
-<translation id="3493881266323043047">اعتبار</translation>
 <translation id="3511307672085573050">کپی آدر&amp;س پیوند</translation>
 <translation id="354068948465830244">می‌تواند داده‌های سایت را خوانده و تغییر دهد</translation>
 <translation id="3560034655160545939">&amp;غلط‌گیر املایی</translation>
@@ -158,7 +154,6 @@
 <translation id="3760460896538743390">بازرسی صفحه‌ی &amp;پس‌زمینه</translation>
 <translation id="3786224729726357296">حذف داده‌ها و اجازه‌های سایت <ph name="SITE" /></translation>
 <translation id="3797900183766075808">&amp;جستجوی “<ph name="SEARCH_TERMS" />” در <ph name="SEARCH_ENGINE" /></translation>
-<translation id="3798449238516105146">نسخه</translation>
 <translation id="3810973564298564668">مدیریت</translation>
 <translation id="3838085852053358637">افزونه بارگذاری نشد</translation>
 <translation id="383891835335927981">هیچ سایتی بزرگ‌نمایی یا کوچک‌نمایی نشده است</translation>
@@ -237,7 +232,6 @@
 <translation id="5063480226653192405">کاربرد</translation>
 <translation id="5116628073786783676">ذ&amp;خیره‌ی فایل صوتی به‌عنوان...</translation>
 <translation id="5154108062446123722">تنظیمات پیشرفته برای <ph name="PRINTING_DESTINATION" /></translation>
-<translation id="5154702632169343078">موضوع</translation>
 <translation id="5171343362375269016">حافظه بخش سواپ</translation>
 <translation id="5233231016133573565">شناسه فرایند</translation>
 <translation id="5233736638227740678">&amp;چسباندن</translation>
@@ -277,7 +271,6 @@
 <translation id="5780973441651030252">اولویت پردازش</translation>
 <translation id="5804241973901381774">مجوزها</translation>
 <translation id="5828633471261496623">در حال چاپ...</translation>
-<translation id="5851868085455377790">صادرکننده</translation>
 <translation id="5860491529813859533">فعال‌سازی</translation>
 <translation id="5910363049092958439">ذ&amp;خیره‌ی فایل تصویری به‌عنوان...</translation>
 <translation id="5914724413750400082">مقدار (<ph name="MODULUS_NUM_BITS" /> بیت):
@@ -416,7 +409,6 @@
 <translation id="862750493060684461">‏حافظه‌ی نهان CSS</translation>
 <translation id="8661290697478713397">گشودن پیوند در پنجره‌ی حالت &amp;ناشناس</translation>
 <translation id="8664389313780386848">&amp;مشاهده منبع صفحه</translation>
-<translation id="8705331520020532516">شماره سریال</translation>
 <translation id="8708000541097332489">پاک‌سازی در هنگام خروج</translation>
 <translation id="8714838604780058252">گرافیک‌های پس‌زمینه</translation>
 <translation id="8725066075913043281">تلاش مجدد</translation>

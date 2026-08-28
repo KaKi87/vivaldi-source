@@ -128,16 +128,6 @@ class InProcessContextFactory::PerCompositorData
     display_->SetVisible(visible);
   }
   void Resize(const gfx::Size& size) override { display_->Resize(size); }
-#if BUILDFLAG(IS_WIN)
-  bool DisableSwapUntilResize() override {
-    display_->DisableSwapUntilResize(base::OnceClosure());
-    return true;
-  }
-  void DisableSwapUntilResize(
-      DisableSwapUntilResizeCallback callback) override {
-    display_->DisableSwapUntilResize(std::move(callback));
-  }
-#endif
   void SetDisplayColorMatrix(const gfx::Transform& matrix) override {
     output_color_matrix_ = gfx::TransformToSkM44(matrix);
   }
@@ -153,7 +143,6 @@ class InProcessContextFactory::PerCompositorData
   void SetOutputIsSecure(bool secure) override {}
 #if BUILDFLAG(IS_MAC)
   void SetVSyncDisplayID(int64_t display_id) override {}
-  void RefreshRateChangedOnSameDisplay() override {}
 #endif
   void ForceImmediateDrawAndSwapIfPossible() override {}
   void AddVSyncParameterObserver(

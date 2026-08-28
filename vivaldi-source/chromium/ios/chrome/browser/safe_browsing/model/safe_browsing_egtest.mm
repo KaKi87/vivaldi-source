@@ -189,7 +189,7 @@ void EnableEnterpriseUrlFilteringPrefs() {
   config.additional_args.push_back(std::string("--mark_as_malware=") +
                                    _malwareURL.spec());
   config.additional_args.push_back(
-      std::string("--mark_as_hash_prefix_real_time_phishing=") +
+      std::string("--mark_as_v5_search_hashes_phishing=") +
       _phishingURL.spec());
 
   // Disable HPRT for malware URL related tests since artificial verdict caching
@@ -231,10 +231,12 @@ void EnableEnterpriseUrlFilteringPrefs() {
     config.additional_args.push_back(
         std::string("--mark_as_enterprise_blocked=") +
         _enterpriseBlockURL.spec());
-  } else if ([self isRunningTest:@selector(testEnterpriseWarningPage)] ||
-             [self isRunningTest:@selector(testEnterpriseWarningPageBypass)] ||
-             [self isRunningTest:@selector
-                   (testEnterpriseWarningPageRefreshedThenBypass)]) {
+  } else if ([self isRunningTest:@selector(MAYBE_testEnterpriseWarningPage)] ||
+             [self isRunningTest:@selector(
+                                     MAYBE_testEnterpriseWarningPageBypass)] ||
+             [self
+                 isRunningTest:
+                     @selector(testEnterpriseWarningPageRefreshedThenBypass)]) {
     config.additional_args.push_back(
         std::string("--mark_as_enterprise_warned=") +
         _enterpriseWarnURL.spec());
@@ -247,11 +249,9 @@ void EnableEnterpriseUrlFilteringPrefs() {
 
   config.additional_args.push_back(
       std::string("--mark_as_allowlisted_for_real_time=") + _safeURL1.spec());
-  config.relaunch_policy = ForceRelaunchByKilling;
-  // TODO(crbug.com/514608938): Fix test for Chrome Next.
-  if ([self isRunningTest:@selector(testRealTimeWarningForBookmark)]) {
-    config.features_disabled.push_back(kChromeNextIa);
-  }
+  config.relaunch_policy = ForceRelaunchByCleanShutdown;
+  config.features_enabled.push_back(kChromeNextIa);
+  config.features_enabled.push_back(kFullscreenRefactoring);
   return config;
 }
 
@@ -369,23 +369,25 @@ void EnableEnterpriseUrlFilteringPrefs() {
 #pragma mark - Helper methods
 
 - (BOOL)isRunningEnterpriseReportingTest {
-  return [self isRunningTest:@selector
-               (testProceedingPastPhishingWarningReported)] ||
-         [self isRunningTest:@selector
-               (testProceedingPastMalwareWarningReported)] ||
-         [self isRunningTest:@selector(testEnterpriseBlockingPage)] ||
-         [self isRunningTest:@selector(testEnterpriseWarningPage)] ||
-         [self isRunningTest:@selector(testEnterpriseWarningPageBypass)] ||
-         [self isRunningTest:@selector
-               (testEnterpriseWarningPageRefreshedThenBypass)];
+  return
+      [self
+          isRunningTest:@selector(testProceedingPastPhishingWarningReported)] ||
+      [self
+          isRunningTest:@selector(testProceedingPastMalwareWarningReported)] ||
+      [self isRunningTest:@selector(testEnterpriseBlockingPage)] ||
+      [self isRunningTest:@selector(MAYBE_testEnterpriseWarningPage)] ||
+      [self isRunningTest:@selector(MAYBE_testEnterpriseWarningPageBypass)] ||
+      [self isRunningTest:@selector(
+                              testEnterpriseWarningPageRefreshedThenBypass)];
 }
 
 - (BOOL)isRunningEntepriseUrlFilteringTest {
-  return [self isRunningTest:@selector(testEnterpriseBlockingPage)] ||
-         [self isRunningTest:@selector(testEnterpriseWarningPage)] ||
-         [self isRunningTest:@selector(testEnterpriseWarningPageBypass)] ||
-         [self isRunningTest:@selector
-               (testEnterpriseWarningPageRefreshedThenBypass)];
+  return
+      [self isRunningTest:@selector(testEnterpriseBlockingPage)] ||
+      [self isRunningTest:@selector(MAYBE_testEnterpriseWarningPage)] ||
+      [self isRunningTest:@selector(MAYBE_testEnterpriseWarningPageBypass)] ||
+      [self isRunningTest:@selector(
+                              testEnterpriseWarningPageRefreshedThenBypass)];
 }
 
 - (void)waitForEnterpriseReports:(int)count {
@@ -789,6 +791,9 @@ void EnableEnterpriseUrlFilteringPrefs() {
                  @"Failed to toggle-on Enhanced Safe Browsing");
   [[EarlGrey selectElementWithMatcher:SettingsDoneButton()]
       performAction:grey_tap()];
+  [[EarlGrey
+      selectElementWithMatcher:chrome_test_util::SettingsCollectionView()]
+      assertWithMatcher:grey_notVisible()];
 
   // Verify that a dark red box prompting to turn on Enhanced Protection is not
   // visible.
@@ -1040,7 +1045,7 @@ void EnableEnterpriseUrlFilteringPrefs() {
 
 // Verifies that the Enteprise warning interstitial is displayed for urls
 // flagged by Enterprise organizations.
-- (void)testEnterpriseWarningPage {
+- (void)MAYBE_testEnterpriseWarningPage {
   EnableEnterpriseUrlFilteringPrefs();
 
   [ChromeEarlGrey loadURL:_safeURL1];
@@ -1070,7 +1075,13 @@ void EnableEnterpriseUrlFilteringPrefs() {
 
 // Verifies that the Enteprise warning interstitial allows to bypass the warning
 // and navigate to urls flagged by Enterprise organizations.
-- (void)testEnterpriseWarningPageBypass {
+// TODO(crbug.com/522400526): Test fails on physical iOS 18 devices.
+- (void)MAYBE_testEnterpriseWarningPageBypass {
+#if !TARGET_OS_SIMULATOR
+  if (!@available(iOS 26.0, *)) {
+    EARL_GREY_TEST_DISABLED(@"Fails on physical iOS 18 devices.");
+  }
+#endif
   EnableEnterpriseUrlFilteringPrefs();
 
   [ChromeEarlGrey loadURL:_safeURL1];
@@ -1116,7 +1127,13 @@ void EnableEnterpriseUrlFilteringPrefs() {
 // Verifies that the Enteprise warning interstitial allows to bypass the warning
 // after refreshing the warning page and navigate to urls flagged by Enterprise
 // organizations.
+// TODO(crbug.com/522400526): Test fails on physical iOS 18 devices.
 - (void)testEnterpriseWarningPageRefreshedThenBypass {
+#if !TARGET_OS_SIMULATOR
+  if (!@available(iOS 26.0, *)) {
+    EARL_GREY_TEST_DISABLED(@"Fails on physical iOS 18 devices.");
+  }
+#endif
   EnableEnterpriseUrlFilteringPrefs();
 
   [ChromeEarlGrey loadURL:_safeURL1];

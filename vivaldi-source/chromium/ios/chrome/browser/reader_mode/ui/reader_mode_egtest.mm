@@ -6,7 +6,6 @@
 
 #import "base/strings/stringprintf.h"
 #import "base/strings/sys_string_conversions.h"
-#import "base/test/ios/wait_util.h"
 #import "components/dom_distiller/core/dom_distiller_features.h"
 #import "components/dom_distiller/core/mojom/distilled_page_prefs.mojom.h"
 #import "components/dom_distiller/core/pref_names.h"
@@ -118,9 +117,7 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
 
 // Returns the Contextual Panel's entrypoint view GREY matcher.
 id<GREYMatcher> ContextualPanelEntrypointImageViewMatcher() {
-  // TODO(crbug.com/494235953): Clean up when feature is enabled by default.
-  if ([ChromeEarlGrey isAskGeminiChipEnabled] ||
-      [ChromeEarlGrey isProactiveSuggestionsFrameworkEnabled]) {
+  if ([ChromeEarlGrey isProactiveSuggestionsFrameworkEnabled]) {
     return grey_allOf(
         grey_accessibilityID(kLocationBarBadgeImageViewIdentifier),
         grey_interactable(), nil);
@@ -266,7 +263,6 @@ std::unique_ptr<net::test_server::HttpResponse> HandleReaderModeTestRequests(
 #endif
   ) {
     config.features_enabled.push_back(kProactiveSuggestionsFramework);
-    config.features_enabled.push_back(kAskGeminiChip);
   }
 #if TARGET_OS_SIMULATOR
   if ([self isRunningTest:@selector
@@ -277,7 +273,6 @@ std::unique_ptr<net::test_server::HttpResponse> HandleReaderModeTestRequests(
           (FLAKY_testReaderModeChipVisibleWhenLeavingReaderModeWithPSFDisabled)]) {
 #endif
     config.features_disabled.push_back(kProactiveSuggestionsFramework);
-    config.features_disabled.push_back(kAskGeminiChip);
   }
 #if TARGET_OS_SIMULATOR
   if ([self isRunningTest:@selector
@@ -1040,8 +1035,7 @@ std::unique_ptr<net::test_server::HttpResponse> HandleReaderModeTestRequests(
   EXPECT_EQ(1, CountNumLinks());
 }
 
-// Tests that a sample contextual chip stays visible inside Reader mode if
-// kAskGeminiChip is enabled.
+// Tests that a sample contextual chip stays visible inside Reader mode.
 // TODO(crbug.com/481633359): Deflake this test.
 #if TARGET_OS_SIMULATOR
 #define MAYBE_testSampleContextualChipVisibleInReaderMode \
@@ -1066,8 +1060,7 @@ std::unique_ptr<net::test_server::HttpResponse> HandleReaderModeTestRequests(
       assertWithMatcher:grey_sufficientlyVisible()];
 }
 
-// Tests that the Reader mode contextual chip is hidden inside Reader mode if
-// kAskGeminiChip is enabled.
+// Tests that the Reader mode contextual chip is hidden inside Reader mode.
 - (void)testReaderModeChipHiddenInReaderMode {
   [SigninEarlGrey signinWithFakeIdentity:self.fakeIdentity];
   [self loadURLWithOptimizationGuideHints:self.testServer->GetURL(

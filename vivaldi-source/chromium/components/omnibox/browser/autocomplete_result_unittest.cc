@@ -25,6 +25,7 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
+#include "build/android_buildflags.h"
 #include "build/build_config.h"
 #include "components/omnibox/browser/actions/omnibox_action_in_suggest.h"
 #include "components/omnibox/browser/autocomplete_input.h"
@@ -1345,7 +1346,8 @@ TEST_F(AutocompleteResultTest, DemoteByType) {
   matches[0].allowed_to_be_default_match = false;
   matches[2].allowed_to_be_default_match = false;
 
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+#if (!BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)) || \
+    BUILDFLAG(IS_DESKTOP_ANDROID)
   // Where Grouping suggestions by Search vs URL kicks in, search gets
   // promoted to the top of the list.
 
@@ -2131,7 +2133,8 @@ TEST_F(AutocompleteResultTest, SortAndCullMaxURLMatches) {
   // Case 1: Eject URL match for a search.
   // Does not apply to Android and iOS which picks top N matches and performs
   // group by search vs URL separately (Adaptive Suggestions).
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+#if (!BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)) || \
+    BUILDFLAG(IS_DESKTOP_ANDROID)
   {
     ACMatches matches;
     const AutocompleteMatchTestData data[] = {
@@ -2239,11 +2242,6 @@ TEST_F(AutocompleteResultTest, ConvertsOpenTabsCorrectly) {
 
 #if BUILDFLAG(IS_ANDROID)
 TEST_F(AutocompleteResultTest, ConvertOpenTabMatches_AttachTabSwitchAction) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeatureWithParameters(
-      omnibox::kOmniboxImprovementForLFF,
-      {{OmniboxFieldTrial::kOmniboxImprovementForLFFSwitchToTabChip.name,
-        "true"}});
 
   AutocompleteResult result;
   ACMatches matches;
@@ -2272,11 +2270,6 @@ TEST_F(AutocompleteResultTest, ConvertOpenTabMatches_AttachTabSwitchAction) {
 
 TEST_F(AutocompleteResultTest,
        ConvertOpenTabMatches_DoNotAttachTabSwitchActionInKeywordMode) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeatureWithParameters(
-      omnibox::kOmniboxImprovementForLFF,
-      {{OmniboxFieldTrial::kOmniboxImprovementForLFFSwitchToTabChip.name,
-        "true"}});
 
   AutocompleteResult result;
   ACMatches matches;
@@ -2301,6 +2294,32 @@ TEST_F(AutocompleteResultTest,
   EXPECT_EQ(result.match_at(0)->actions.size(), 0u);
 }
 #endif
+
+TEST_F(AutocompleteResultTest,
+       ConvertOpenTabMatches_WebUiNtpEnabled_DoNotAttachTabSwitchAction) {
+  AutocompleteResult result;
+  ACMatches matches;
+  AutocompleteMatch match;
+  match.destination_url = GURL("http://this-site-matches.com");
+  matches.push_back(match);
+  result.AppendMatches(matches);
+
+  FakeAutocompleteProviderClient client;
+  static_cast<FakeTabMatcher&>(const_cast<TabMatcher&>(client.GetTabMatcher()))
+      .set_url_substring_match("matches");
+
+  ON_CALL(client, IsWebUiNtpEnabledForDesktopAndroid())
+      .WillByDefault(testing::Return(true));
+
+  AutocompleteInput input(u"a", metrics::OmniboxEventProto::NTP_REALBOX,
+                          TestSchemeClassifier());
+  result.ConvertOpenTabMatches(&client, &input);
+
+  ASSERT_TRUE(result.match_at(0)->has_tab_match.value_or(false));
+  // Should NOT attach the action because IsWebUiNtpEnabledForDesktopAndroid()
+  // is true.
+  EXPECT_EQ(result.match_at(0)->actions.size(), 0u);
+}
 
 TEST_F(AutocompleteResultTest, AttachesPedals) {
   FakeAutocompleteProviderClient client;
@@ -3383,7 +3402,8 @@ TEST_F(AutocompleteResultTest, IOS_InspireMe) {
 }
 #endif
 
-#if (BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS))
+#if (BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)) && \
+    !BUILDFLAG(IS_DESKTOP_ANDROID)
 
 TEST_F(AutocompleteResultTest, Mobile_TrimOmniboxActions) {
   scoped_refptr<FakeAutocompleteProvider> provider =
@@ -3514,7 +3534,8 @@ TEST_F(AutocompleteResultTest, Mobile_TrimOmniboxActions) {
             const auto* match = result.match_at(index);
             const auto& expected_actions_at_position = expected_actions[index];
             EXPECT_EQ(match->actions.size(),
-                      expected_actions_at_position.size());
+                      expected_actions_at_position.size())
+                << " while testing variant: " << data.test_name;
             for (size_t action_index = 0u;
                  action_index < expected_actions_at_position.size();
                  ++action_index) {

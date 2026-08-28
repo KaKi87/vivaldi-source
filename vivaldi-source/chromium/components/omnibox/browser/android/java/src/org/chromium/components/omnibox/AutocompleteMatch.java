@@ -26,6 +26,8 @@ import org.chromium.components.omnibox.RichAnswerTemplateProto.RichAnswerTemplat
 import org.chromium.components.omnibox.SuggestTemplateInfoProto.SuggestTemplateInfo;
 import org.chromium.components.omnibox.TypesProto.SuggestSubtype;
 import org.chromium.components.omnibox.action.OmniboxAction;
+import org.chromium.components.omnibox.action.OmniboxActionId;
+import org.chromium.components.search_engines.StarterPackId;
 import org.chromium.url.GURL;
 
 import java.util.ArrayList;
@@ -73,6 +75,7 @@ public class AutocompleteMatch {
     private final int mType;
     private final Set<Integer> mSubtypes;
     private final boolean mIsSearchType;
+    private final @OmniboxSuggestionKind int mSuggestionKind;
     private final int /* SuggestTemplateInfo.IconType */ mIconType;
     private String mDisplayText;
     private final List<MatchClassification> mDisplayTextClassifications;
@@ -86,15 +89,17 @@ public class AutocompleteMatch {
     private final @Nullable String mImageDominantColor;
     private final int mTransition;
     private final boolean mIsDeletable;
-    private final int mStarterPackId;
+    private final @StarterPackId int mStarterPackId;
     private final Map<String, String> mExtraHeaders;
     private byte @Nullable [] mPostData;
     private final int mGroupId;
+    private final boolean mSwapContentsAndDescription;
     private byte @Nullable [] mClipboardImageData;
     private final boolean mHasTabMatch;
     private final int mAndroidTabId;
     private long mNativeMatch;
     private final List<OmniboxAction> mActions;
+    private final @Nullable OmniboxAction mTakeoverAction;
     private final boolean mAllowedToBeDefaultMatch;
     private final String mInlineAutocompletion;
     private final String mAdditionalText;
@@ -102,11 +107,13 @@ public class AutocompleteMatch {
     private final @Nullable String mAssociatedKeyword;
     private final boolean mIsRefineable;
     private @Nullable SuggestTemplateInfo mSuggestTemplate;
+    private final @DocumentType int mDocumentType;
 
     public AutocompleteMatch(
             int nativeType,
             Set<Integer> subtypes,
             boolean isSearchType,
+            @OmniboxSuggestionKind int suggestionKind,
             int iconType,
             int transition,
             String displayText,
@@ -120,26 +127,30 @@ public class AutocompleteMatch {
             GURL imageUrl,
             @Nullable String imageDominantColor,
             boolean isDeletable,
-            int starterPackId,
+            @StarterPackId int starterPackId,
             @Nullable String postContentType,
             byte @Nullable [] postData,
             int groupId,
+            boolean swapContentsAndDescription,
             byte @Nullable [] clipboardImageData,
             boolean hasTabMatch,
             int androidTabId,
             @Nullable List<OmniboxAction> actions,
+            @Nullable OmniboxAction takeoverAction,
             boolean allowedToBeDefaultMatch,
             String inlineAutocompletion,
             String additionalText,
             @Nullable String tabGroupUuid,
             @Nullable String associatedKeyword,
-            byte @Nullable [] serializedSuggestTemplate) {
+            byte @Nullable [] serializedSuggestTemplate,
+            @DocumentType int documentType) {
         if (subtypes == null) {
             subtypes = Collections.emptySet();
         }
         mType = nativeType;
         mSubtypes = subtypes;
         mIsSearchType = isSearchType;
+        mSuggestionKind = suggestionKind;
         mIconType = iconType;
         mTransition = transition;
         mDisplayText = displayText;
@@ -165,10 +176,12 @@ public class AutocompleteMatch {
         mExtraHeaders = new ArrayMap<>();
         mPostData = postData;
         mGroupId = groupId;
+        mSwapContentsAndDescription = swapContentsAndDescription;
         mClipboardImageData = clipboardImageData;
         mHasTabMatch = hasTabMatch;
         mAndroidTabId = androidTabId;
         mActions = actions != null ? actions : Arrays.asList();
+        mTakeoverAction = takeoverAction;
         mAllowedToBeDefaultMatch = allowedToBeDefaultMatch;
         mInlineAutocompletion = inlineAutocompletion;
         mAdditionalText = additionalText;
@@ -181,7 +194,8 @@ public class AutocompleteMatch {
                         && mType != OmniboxSuggestionType.OPEN_TAB
                         && mType != OmniboxSuggestionType.TILE_SUGGESTION
                         && !mSubtypes.contains(
-                                SuggestSubtype.SUBTYPE_AI_MODE_MORE_THREADS_ENTRYPOINT_VALUE);
+                                SuggestSubtype.SUBTYPE_AI_MODE_MORE_THREADS_ENTRYPOINT_VALUE)
+                        && mTakeoverAction == null;
         if (serializedSuggestTemplate != null) {
             try {
                 mSuggestTemplate = SuggestTemplateInfo.parseFrom(serializedSuggestTemplate);
@@ -190,6 +204,7 @@ public class AutocompleteMatch {
             }
         }
 
+        mDocumentType = documentType;
         updatePostContentType(postContentType);
     }
 
@@ -207,6 +222,7 @@ public class AutocompleteMatch {
             int nativeType,
             @JniType("std::vector<int32_t>") int[] nativeSubtypes,
             boolean isSearchType,
+            @OmniboxSuggestionKind int suggestionKind,
             int iconType,
             int transition,
             @JniType("std::u16string") String contents,
@@ -222,20 +238,23 @@ public class AutocompleteMatch {
             @JniType("GURL") GURL imageUrl,
             @JniType("std::string") String imageDominantColor,
             boolean isDeletable,
-            int starterPackId,
+            @StarterPackId int starterPackId,
             @JniType("std::string") String postContentType,
             byte[] postData,
             int groupId,
+            boolean swapContentsAndDescription,
             byte[] clipboardImageData,
             boolean hasTabMatch,
             int androidTabId,
             @JniType("std::vector") List<OmniboxAction> actions,
+            @Nullable OmniboxAction takeoverAction,
             boolean allowedToBeDefaultMatch,
             @JniType("std::u16string") String inlineAutocompletion,
             @JniType("std::u16string") String additionalText,
             @JniType("std::optional<std::string>") @Nullable String localTabGroupId,
             @JniType("std::u16string") String associatedKeyword,
-            byte[] serializedSuggestTemplate) {
+            byte[] serializedSuggestTemplate,
+            @JniType("AutocompleteMatch::DocumentType") @DocumentType int documentType) {
         assert contentClassificationOffsets.length == contentClassificationStyles.length;
         List<MatchClassification> contentClassifications = new ArrayList<>();
         for (int i = 0; i < contentClassificationOffsets.length; i++) {
@@ -254,6 +273,7 @@ public class AutocompleteMatch {
                         nativeType,
                         subtypes,
                         isSearchType,
+                        suggestionKind,
                         iconType,
                         transition,
                         contents,
@@ -271,16 +291,19 @@ public class AutocompleteMatch {
                         postContentType,
                         postData,
                         groupId,
+                        swapContentsAndDescription,
                         clipboardImageData,
                         hasTabMatch,
                         androidTabId,
                         actions,
+                        takeoverAction,
                         allowedToBeDefaultMatch,
                         inlineAutocompletion,
                         additionalText,
                         localTabGroupId,
                         TextUtils.isEmpty(associatedKeyword) ? null : associatedKeyword,
-                        serializedSuggestTemplate);
+                        serializedSuggestTemplate,
+                        documentType);
         match.updateNativeObjectRef(nativeObject);
         match.setDescription(
                 description, descriptionClassificationOffsets, descriptionClassificationStyles);
@@ -459,6 +482,13 @@ public class AutocompleteMatch {
         return mPostData;
     }
 
+    /**
+     * @return Whether the suggestion's contents and description should be swapped.
+     */
+    public boolean shouldSwapContentsAndDescription() {
+        return mSwapContentsAndDescription;
+    }
+
     public boolean hasTabMatch() {
         return mHasTabMatch;
     }
@@ -469,6 +499,21 @@ public class AutocompleteMatch {
 
     public List<OmniboxAction> getActions() {
         return mActions;
+    }
+
+    /**
+     * @return The takeover action for this suggestion, if any.
+     */
+    public @Nullable OmniboxAction getTakeoverAction() {
+        return mTakeoverAction;
+    }
+
+    /**
+     * @param actionId The ID of the action to check for.
+     * @return Whether the suggestion has a takeover action with the given ID.
+     */
+    public boolean hasTakeoverAction(@OmniboxActionId int actionId) {
+        return mTakeoverAction != null && mTakeoverAction.actionId == actionId;
     }
 
     public boolean allowedToBeDefaultMatch() {
@@ -511,6 +556,8 @@ public class AutocompleteMatch {
                         + 2017 * displayTextHash
                         + 1901 * fillIntoEditHash
                         + (mIsDeletable ? 1 : 0);
+        hash = 31 * hash + (mSwapContentsAndDescription ? 1 : 0);
+        hash = 31 * hash + (mTakeoverAction != null ? mTakeoverAction.hashCode() : 0);
         return hash;
     }
 
@@ -521,11 +568,11 @@ public class AutocompleteMatch {
         }
 
         AutocompleteMatch suggestion = (AutocompleteMatch) obj;
-        boolean answer_template_is_equal =
+        boolean answerTemplateIsEqual =
                 (mAnswerTemplate != null && suggestion.mAnswerTemplate != null)
                         ? mAnswerTemplate.equals(suggestion.mAnswerTemplate)
                         : mAnswerTemplate == null && suggestion.mAnswerTemplate == null;
-        boolean suggest_template_is_equal =
+        boolean suggestTemplateIsEqual =
                 (mSuggestTemplate != null && suggestion.mSuggestTemplate != null)
                         ? mSuggestTemplate.equals(suggestion.mSuggestTemplate)
                         : mSuggestTemplate == null && suggestion.mSuggestTemplate == null;
@@ -543,12 +590,14 @@ public class AutocompleteMatch {
                 && ObjectsCompat.equals(mExtraHeaders, suggestion.mExtraHeaders)
                 && Arrays.equals(mPostData, suggestion.mPostData)
                 && mGroupId == suggestion.mGroupId
+                && mSwapContentsAndDescription == suggestion.mSwapContentsAndDescription
                 && mAnswerType == suggestion.mAnswerType
                 && mAndroidTabId == suggestion.mAndroidTabId
-                && answer_template_is_equal
-                && suggest_template_is_equal
+                && answerTemplateIsEqual
+                && suggestTemplateIsEqual
                 && ObjectsCompat.equals(mTabGroupUuid, suggestion.mTabGroupUuid)
-                && ObjectsCompat.equals(mAssociatedKeyword, suggestion.mAssociatedKeyword);
+                && ObjectsCompat.equals(mAssociatedKeyword, suggestion.mAssociatedKeyword)
+                && ObjectsCompat.equals(mTakeoverAction, suggestion.mTakeoverAction);
     }
 
     /**
@@ -569,10 +618,24 @@ public class AutocompleteMatch {
     }
 
     /**
+     * @return The document type for document suggestions, or DocumentType.NONE.
+     */
+    public @DocumentType int getDocumentType() {
+        return mDocumentType;
+    }
+
+    /**
      * @return The starter pack engine id, or 0 if not a starter pack match.
      */
-    public int getStarterPackId() {
+    public @StarterPackId int getStarterPackId() {
         return mStarterPackId;
+    }
+
+    /**
+     * @return The suggestion kind for accessibility announcements.
+     */
+    public @OmniboxSuggestionKind int getSuggestionKind() {
+        return mSuggestionKind;
     }
 
     public boolean isRefineable() {
@@ -666,6 +729,7 @@ public class AutocompleteMatch {
                 input.getType(),
                 new ArraySet<>(input.getSubtypeList()),
                 input.getIsSearchType(),
+                OmniboxSuggestionKind.NAVIGATION,
                 input.getIconType(),
                 input.getTransition(),
                 input.getDisplayText(),
@@ -683,16 +747,19 @@ public class AutocompleteMatch {
                 /* postContentType= */ null,
                 /* postData= */ null,
                 input.getGroupId(),
+                /* swapContentsAndDescription= */ false,
                 /* clipboardImageData= */ null,
                 /* hasTabMatch= */ false,
                 /* androidTabId= */ 0,
                 /* actions= */ null,
+                /* takeoverAction= */ null,
                 input.getAllowedToBeDefaultMatch(),
                 input.getInlineAutocompletion(),
                 input.getAdditionalText(),
                 /* tabGroupUuid= */ null,
                 /* associatedKeyword= */ null,
-                /* serializedSuggestTemplate= */ null);
+                /* serializedSuggestTemplate= */ null,
+                DocumentType.NONE);
     }
 
     @Override

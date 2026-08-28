@@ -27,15 +27,19 @@ import androidx.annotation.VisibleForTesting;
 import androidx.core.view.ViewCompat;
 import androidx.core.widget.ImageViewCompat;
 
+import org.chromium.base.Callback;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxDrawableState;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.omnibox.suggestions.SuggestionCommonProperties;
+import org.chromium.chrome.browser.omnibox.suggestions.SuggestionCommonProperties.PositionalMode;
+import org.chromium.chrome.browser.omnibox.suggestions.SuggestionCommonProperties.RoundSides;
 import org.chromium.chrome.browser.omnibox.suggestions.base.BaseSuggestionViewProperties.Action;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.components.browser_ui.styles.ChromeColors;
+import org.chromium.components.omnibox.OmniboxCapabilities;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor.ViewBinder;
@@ -55,7 +59,7 @@ import org.chromium.build.BuildConfig;
  * @param <T> The inner content view type being updated.
  */
 @NullMarked
-public final class BaseSuggestionViewBinder<T extends View>
+public abstract class BaseSuggestionViewBinder<T extends View>
         implements ViewBinder<PropertyModel, BaseSuggestionView<T>, PropertyKey> {
     /**
      * Holder of metadata about a view's current state w.r.t. a suggestion's visual properties. This
@@ -70,8 +74,6 @@ public final class BaseSuggestionViewBinder<T extends View>
 
     private static @BrandedColorScheme int sFocusableDrawableStateTheme;
     private static boolean sFocusableDrawableStateInNightMode;
-    private final ViewBinder<PropertyModel, T, PropertyKey> mContentBinder;
-
     private static boolean sDimensionsInitialized;
     private static int sEdgeSize;
     private static int sEdgeSizeLargeIcon;
@@ -79,24 +81,28 @@ public final class BaseSuggestionViewBinder<T extends View>
     private static int sLargeIconRoundingRadius;
     private static int sSmallIconRoundingRadius;
 
-    public BaseSuggestionViewBinder(ViewBinder<PropertyModel, T, PropertyKey> contentBinder) {
-        mContentBinder = contentBinder;
+    private final OmniboxResourceProvider mResourceProvider;
+
+    public BaseSuggestionViewBinder(OmniboxResourceProvider resourceProvider) {
+        mResourceProvider = resourceProvider;
     }
 
     @Override
     @SuppressLint("ClickableViewAccessibility")
     public void bind(PropertyModel model, BaseSuggestionView<T> view, PropertyKey propertyKey) {
         if (!sDimensionsInitialized) {
-            initializeDimensions(view.getContext());
+            initializeDimensions(view.getContext(), mResourceProvider);
             sDimensionsInitialized = true;
         }
 
-        mContentBinder.bind(model, view.contentView, propertyKey);
+        bindContent(model, view.contentView, propertyKey);
         ActionChipsBinder.bind(model, view.actionChipsView, propertyKey);
 
         if (BaseSuggestionViewProperties.ACTION_CHIP_LEAD_IN_SPACING == propertyKey) {
             view.setActionChipLeadInSpacing(
                     model.get(BaseSuggestionViewProperties.ACTION_CHIP_LEAD_IN_SPACING));
+        } else if (SuggestionCommonProperties.APPLY_SIDE_SPACING == propertyKey) {
+            updateMargin(model, view);
         } else if (BaseSuggestionViewProperties.ICON == propertyKey) {
             updateSuggestionIcon(model, view);
         } else if (SuggestionCommonProperties.LAYOUT_DIRECTION == propertyKey) {
@@ -106,23 +112,16 @@ public final class BaseSuggestionViewBinder<T extends View>
             updateMargin(model, view);
         } else if (SuggestionCommonProperties.COLOR_SCHEME == propertyKey) {
             updateColorScheme(model, view);
-        } else if (SuggestionCommonProperties.BG_BOTTOM_CORNER_ROUNDED == propertyKey
-                || SuggestionCommonProperties.BG_TOP_CORNER_ROUNDED == propertyKey) {
-            view.setRoundingEdges(
-                    model.get(SuggestionCommonProperties.BG_TOP_CORNER_ROUNDED),
-                    model.get(SuggestionCommonProperties.BG_BOTTOM_CORNER_ROUNDED));
+        } else if (SuggestionCommonProperties.BG_POSITIONAL_MODE == propertyKey
+                || SuggestionCommonProperties.BG_ROUND_SIDES == propertyKey) {
+            updateRounding(model, view);
         } else if (BaseSuggestionViewProperties.ACTION_BUTTONS == propertyKey) {
             bindActionButtons(model, view, model.get(BaseSuggestionViewProperties.ACTION_BUTTONS));
         } else if (BaseSuggestionViewProperties.ON_FOCUS_VIA_SELECTION == propertyKey) {
             view.setOnFocusViaSelectionListener(
                     model.get(BaseSuggestionViewProperties.ON_FOCUS_VIA_SELECTION));
-        } else if (BaseSuggestionViewProperties.ON_CLICK == propertyKey) {
-            Runnable listener = model.get(BaseSuggestionViewProperties.ON_CLICK);
-            if (listener == null) {
-                view.setOnClickListener(null);
-            } else {
-                view.setOnClickListener(v -> listener.run());
-            }
+        } else if (BaseSuggestionViewProperties.ON_ACTIVATE == propertyKey) {
+            view.setOnActivateListener(model.get(BaseSuggestionViewProperties.ON_ACTIVATE));
         } else if (BaseSuggestionViewProperties.ON_LONG_CLICK == propertyKey) {
             Runnable listener = model.get(BaseSuggestionViewProperties.ON_LONG_CLICK);
             if (listener == null) {
@@ -135,14 +134,14 @@ public final class BaseSuggestionViewBinder<T extends View>
                         });
             }
         } else if (BaseSuggestionViewProperties.ON_TOUCH_DOWN_EVENT == propertyKey) {
-            Runnable listener = model.get(BaseSuggestionViewProperties.ON_TOUCH_DOWN_EVENT);
+            Callback<Long> listener = model.get(BaseSuggestionViewProperties.ON_TOUCH_DOWN_EVENT);
             if (listener == null) {
                 view.setOnTouchListener(null);
             } else {
                 view.setOnTouchListener(
                         (v, event) -> {
                             if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
-                                listener.run();
+                                listener.onResult(event.getEventTime());
                             }
                             return false;
                         });
@@ -202,12 +201,10 @@ public final class BaseSuggestionViewBinder<T extends View>
         }
     }
 
-    /** Update visual theme to reflect dark mode UI theme update. */
-    private static <T extends View> void updateColorScheme(
-            PropertyModel model, BaseSuggestionView<T> view) {
+    private void updateColorScheme(PropertyModel model, BaseSuggestionView<T> view) {
         maybeResetCachedFocusableDrawableState(model, view);
         updateSuggestionIcon(model, view);
-        applySelectableBackground(model, view);
+        applySelectableBackground(model, view, mResourceProvider);
 
         final List<Action> actions = model.get(BaseSuggestionViewProperties.ACTION_BUTTONS);
         // Setting ACTION_BUTTONS and updating actionViews can happen later. Appropriate color
@@ -294,22 +291,21 @@ public final class BaseSuggestionViewBinder<T extends View>
      *
      * @param model A property model to look up relevant properties.
      * @param view A view that receives background.
+     * @param resourceProvider Provider for omnibox resources.
      */
-    public static void applySelectableBackground(PropertyModel model, View view) {
+    public static void applySelectableBackground(
+            PropertyModel model, View view, OmniboxResourceProvider resourceProvider) {
         // Use a throwaway metadata object if caching is off to simplify branching; the performance
         // difference will still manifest because it's not persisted.
         BaseSuggestionViewMetadata metadata = ensureViewMetadata(view);
         Drawable background;
 
         if (sFocusableDrawableState == null) {
-            var context = view.getContext();
-            @BrandedColorScheme int scheme = model.get(SuggestionCommonProperties.COLOR_SCHEME);
-            background =
-                    OmniboxResourceProvider.getStatefulSuggestionBackground(
-                            context,
-                            OmniboxResourceProvider.getStandardSuggestionBackgroundColor(
-                                    context, scheme),
-                            scheme);
+            int suggestionBgColor =
+                    resourceProvider.getSuggestionBackgroundColor(
+                            model.get(SuggestionCommonProperties.FUSEBOX_LAYOUT_MODE),
+                            /* isDropdownContainer= */ false);
+            background = resourceProvider.getStatefulSuggestionBackground(suggestionBgColor);
             sFocusableDrawableState = background.getConstantState();
         } else {
             if (sFocusableDrawableState == metadata.backgroundConstantState) return;
@@ -364,6 +360,21 @@ public final class BaseSuggestionViewBinder<T extends View>
         ImageViewCompat.setImageTintList(view, tint);
     }
 
+    private static void updateRounding(PropertyModel model, BaseSuggestionView<?> view) {
+        @PositionalMode
+        int positionalMode = model.get(SuggestionCommonProperties.BG_POSITIONAL_MODE);
+        @RoundSides int roundSides = model.get(SuggestionCommonProperties.BG_ROUND_SIDES);
+        boolean roundTopEdge =
+                (roundSides == RoundSides.TOP_AND_BOTTOM)
+                        && (positionalMode == PositionalMode.TOP
+                                || positionalMode == PositionalMode.SINGLE);
+        boolean roundBottomEdge =
+                (roundSides == RoundSides.TOP_AND_BOTTOM || roundSides == RoundSides.BOTTOM_ONLY)
+                        && (positionalMode == PositionalMode.BOTTOM
+                                || positionalMode == PositionalMode.SINGLE);
+        view.setRoundingEdges(roundTopEdge, roundBottomEdge);
+    }
+
     /**
      * Update the margin for the view.
      *
@@ -377,8 +388,10 @@ public final class BaseSuggestionViewBinder<T extends View>
                     new MarginLayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
         }
 
+        int sideSpacing =
+                model.get(SuggestionCommonProperties.APPLY_SIDE_SPACING) ? sSideSpacing : 0;
         if (layoutParams instanceof MarginLayoutParams) {
-            ((MarginLayoutParams) layoutParams).setMargins(sSideSpacing, 0, sSideSpacing, 0);
+            ((MarginLayoutParams) layoutParams).setMargins(sideSpacing, 0, sideSpacing, 0);
         }
         view.setLayoutParams(layoutParams);
     }
@@ -389,13 +402,22 @@ public final class BaseSuggestionViewBinder<T extends View>
     }
 
     @VisibleForTesting
-    static void initializeDimensions(Context context) {
+    static void initializeDimensions(Context context, OmniboxResourceProvider resourceProvider) {
         Resources resources = context.getResources();
 
-        sEdgeSize = resources.getDimensionPixelSize(R.dimen.omnibox_suggestion_24dp_icon_size);
-        sEdgeSizeLargeIcon =
-                resources.getDimensionPixelSize(R.dimen.omnibox_suggestion_36dp_icon_size);
-        sSideSpacing = OmniboxResourceProvider.getSideSpacing(context);
+        if (OmniboxCapabilities.isDesktopPlatform()) {
+            sEdgeSize =
+                    resources.getDimensionPixelSize(
+                            R.dimen.omnibox_desktop_small_decoration_icon_size);
+            sEdgeSizeLargeIcon =
+                    resources.getDimensionPixelSize(
+                            R.dimen.omnibox_desktop_large_decoration_icon_size);
+        } else {
+            sEdgeSize = resources.getDimensionPixelSize(R.dimen.omnibox_suggestion_24dp_icon_size);
+            sEdgeSizeLargeIcon =
+                    resources.getDimensionPixelSize(R.dimen.omnibox_suggestion_36dp_icon_size);
+        }
+        sSideSpacing = resourceProvider.getSideSpacing();
         sLargeIconRoundingRadius =
                 resources.getDimensionPixelSize(R.dimen.omnibox_large_icon_rounding_radius);
         sSmallIconRoundingRadius =
@@ -408,4 +430,7 @@ public final class BaseSuggestionViewBinder<T extends View>
     public static @Nullable ConstantState getFocusableDrawableStateForTesting() {
         return sFocusableDrawableState;
     }
+
+    protected abstract void bindContent(
+            PropertyModel model, T contentView, PropertyKey propertyKey);
 }

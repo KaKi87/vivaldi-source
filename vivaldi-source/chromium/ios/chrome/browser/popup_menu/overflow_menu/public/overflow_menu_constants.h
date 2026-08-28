@@ -94,6 +94,9 @@ enum class ActionType {
   HideToolbars,
   TabGroupDeprecated,  // This enum is deprecated due to feature cleanup.
   ShareThisPage,
+  SigninDeprecated,
+  Identity,
+  CustomizeHomePage,
 
   // Vivaldi action groups
   vStartPage,

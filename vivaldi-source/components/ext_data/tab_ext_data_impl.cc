@@ -834,7 +834,11 @@ void TabExtDataImpl::DidOpenRequestedURL(
     bool renderer_initiated) {
   auto * ext = Create(new_contents);
   TabPositioningParams positional_params = ext->GetPositioningParams();
-  positional_params.invoked_by = TabInvokedBy::kHtml;
+  if (GetPanelId()) {
+    positional_params.invoked_by = TabInvokedBy::kPanelLink;
+  } else {
+    positional_params.invoked_by = TabInvokedBy::kHtml;
+  }
   ext->SetPositioningParams(positional_params);
 }
 

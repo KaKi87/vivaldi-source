@@ -7,7 +7,7 @@
 #include <string>
 
 #include "base/metrics/histogram_functions.h"
-#include "base/scoped_observation.h"
+#include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/digital_credentials/digital_identity_interstitial_closed_reason.h"
 #include "chrome/browser/ui/views/extensions/security_dialog_tracker.h"
 #include "chrome/grit/generated_resources.h"
@@ -19,7 +19,6 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/dialog_model.h"
 #include "ui/base/mojom/dialog_button.mojom.h"
-#include "ui/display/screen.h"
 #include "ui/views/layout/layout_provider.h"
 #include "ui/views/style/typography.h"
 #include "ui/views/style/typography_provider.h"
@@ -187,6 +186,8 @@ void DigitalIdentitySafetyInterstitialControllerDesktop::ShowInterstitialImpl(
 
 void DigitalIdentitySafetyInterstitialControllerDesktop::OnDialogClosed(
     DigitalIdentityInterstitialClosedReason closed_reason) {
+  dialog_widget_ = nullptr;
+
   if (!callback_) {
     return;
   }
@@ -199,8 +200,13 @@ void DigitalIdentitySafetyInterstitialControllerDesktop::OnDialogClosed(
   base::UmaHistogramEnumeration(
       "Blink.DigitalIdentityRequest.InterstitialClosedReason", closed_reason);
 
-  std::move(callback_).Run(
-      closed_reason == DigitalIdentityInterstitialClosedReason::kOkButton
-          ? RequestStatusForMetrics::kSuccess
-          : RequestStatusForMetrics::kErrorUserDeclined);
+  // Run async to ensure it's impossible to tear down the controller while our
+  // caller may still be using it.
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE,
+      base::BindOnce(
+          std::move(callback_),
+          closed_reason == DigitalIdentityInterstitialClosedReason::kOkButton
+              ? RequestStatusForMetrics::kSuccess
+              : RequestStatusForMetrics::kErrorUserDeclined));
 }

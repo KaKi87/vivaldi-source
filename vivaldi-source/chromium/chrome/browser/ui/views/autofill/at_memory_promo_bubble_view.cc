@@ -11,13 +11,11 @@
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
-#include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/views/user_education/impl/browser_user_education_context.h"
-#include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/browser_resources.h"
-#include "components/accessibility_annotator/core/url_constants.h"
+#include "components/personal_context/core/url_constants.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/user_education/common/feature_promo/feature_promo_specification.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -116,8 +114,8 @@ void AtMemoryPromoBubbleView::OnLearnMoreClicked() {
                          }
                          NavigateParams params(
                              browser.get(),
-                             GURL(accessibility_annotator::
-                                      kAccessibilityAnnotatorLearnMoreURL),
+                             GURL(personal_context::
+                                      kPersonalContextOptedInLearnMoreURL),
                              ui::PAGE_TRANSITION_LINK);
                          params.disposition =
                              WindowOpenDisposition::NEW_FOREGROUND_TAB;

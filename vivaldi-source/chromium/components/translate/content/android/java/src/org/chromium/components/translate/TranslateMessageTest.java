@@ -326,7 +326,7 @@ public final class TranslateMessageTest {
         translateMessage.clearNativePointer();
 
         // No native methods should be called after clearing the native pointer.
-        var unused = messageProperties.get(MessageBannerProperties.ON_PRIMARY_ACTION).get();
+        var _ = messageProperties.get(MessageBannerProperties.ON_PRIMARY_ACTION).get();
         messageProperties.get(MessageBannerProperties.ON_DISMISSED).onResult(DismissReason.GESTURE);
         Assert.assertNull(
                 translateMessage.handleSecondaryMenuItemClicked(
@@ -362,7 +362,7 @@ public final class TranslateMessageTest {
                 MessageIdentifier.TRANSLATE,
                 messageProperties.get(MessageBannerProperties.MESSAGE_IDENTIFIER));
         Assert.assertEquals(
-                R.drawable.infobar_translate_compact,
+                R.drawable.message_translate_compact,
                 messageProperties.get(MessageBannerProperties.ICON_RESOURCE_ID));
         Assert.assertEquals(
                 MessageBannerProperties.TINT_NONE,

@@ -7,7 +7,10 @@
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/memory/raw_ptr.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/test/bind.h"
+#include "base/test/metrics/histogram_tester.h"
+#include "base/test/metrics/user_action_tester.h"
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
@@ -16,6 +19,7 @@
 #include "chrome/browser/indigo/indigo_agent_host.h"
 #include "chrome/browser/indigo/indigo_page_action_controller.h"
 #include "chrome/browser/indigo/onboarding/indigo_onboarding_dialog.h"
+#include "chrome/browser/indigo/resources/grit/indigo_strings.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -46,6 +50,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "third_party/blink/public/common/tokens/tokens.h"
+#include "ui/base/l10n/l10n_util.h"
 
 namespace indigo {
 
@@ -211,9 +216,11 @@ class MockImageReplacement : public blink::mojom::ImageReplacement {
 
     blink::mojom::ImageDataPtr image_data = blink::mojom::ImageData::New();
     image_data->webp_bytes = mojo_base::BigBuffer(kImageBytes);
+    blink::mojom::ReplacementDataPtr replacement_data =
+        blink::mojom::ReplacementData::New(
+            std::move(image_data), base::Token::CreateRandom(), object_fit_);
     host_remote_->ReplacementFrameAttached(raw_subframe->GetFrameToken(),
-                                           std::move(image_data),
-                                           base::Token::CreateRandom());
+                                           std::move(replacement_data));
 
     start_replacement_future_.SetValue();
   }
@@ -248,6 +255,10 @@ class MockImageReplacement : public blink::mojom::ImageReplacement {
     EXPECT_FALSE(start_replacement_future_.IsReady());
   }
 
+  void set_object_fit(blink::mojom::ObjectFit object_fit) {
+    object_fit_ = object_fit;
+  }
+
  private:
   raw_ptr<content::WebContents> web_contents_;
   const size_t frame_index_;
@@ -256,6 +267,7 @@ class MockImageReplacement : public blink::mojom::ImageReplacement {
   base::test::TestFuture<void> render_replacement_future_;
   base::test::TestFuture<void> disconnect_future_;
   content::FrameTreeNodeId frame_tree_node_id_;
+  blink::mojom::ObjectFit object_fit_ = blink::mojom::ObjectFit::kNone;
 };
 
 }  // namespace
@@ -268,7 +280,8 @@ class IndigoImageReplacementManagerBrowserTest : public InProcessBrowserTest {
     feature_list_.InitAndEnableFeatureWithParameters(
         features::kIndigo,
         {{features::kIndigoGenerateUrl.name, fake_api_.GetGenerateUrl().spec()},
-         {features::kIndigoDeleteUrl.name, fake_api_.GetDeleteUrl().spec()}});
+         {features::kIndigoDeleteUrl.name, fake_api_.GetDeleteUrl().spec()},
+         {features::kIndigoSkipEnterpriseCheck.name, "true"}});
 
     ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
     script_path_ = temp_dir_.GetPath().AppendASCII("test_script.js");
@@ -285,7 +298,7 @@ class IndigoImageReplacementManagerBrowserTest : public InProcessBrowserTest {
     ASSERT_TRUE(embedded_test_server()->Start());
     identity_test_env_adaptor_ =
         std::make_unique<IdentityTestEnvironmentProfileAdaptor>(
-            browser()->profile());
+            browser()->GetProfile());
     identity_test_env_adaptor_->identity_test_env()
         ->SetAutomaticIssueOfAccessTokens(true);
     identity_test_env_adaptor_->identity_test_env()
@@ -375,7 +388,8 @@ IN_PROC_BROWSER_TEST_F(IndigoImageReplacementManagerBrowserTest,
   ASSERT_TRUE(subframe.get());
   EXPECT_EQ(subframe->GetLastCommittedURL(), component_extension_url);
   EXPECT_FALSE(subframe->IsErrorDocument());
-  EXPECT_EQ("Indigo", content::EvalJs(subframe.get(), "document.title"));
+  EXPECT_EQ(l10n_util::GetStringUTF8(IDS_INDIGO_TITLE),
+            content::EvalJs(subframe.get(), "document.title"));
   EXPECT_TRUE(content::EvalJs(subframe.get(), R"js(
     (() => {
       const shadowRoot = document.body.querySelector(
@@ -506,6 +520,7 @@ IN_PROC_BROWSER_TEST_F(IndigoImageReplacementManagerBrowserTest,
   GURL test_url = embedded_test_server()->GetURL("/empty.html");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_url));
 
+  base::HistogramTester histogram_tester;
   tabs::TabInterface* tab = browser()->GetActiveTabInterface();
   content::WebContents* web_contents = tab->GetContents();
   content::RenderFrameHostWrapper main_rfh(web_contents->GetPrimaryMainFrame());
@@ -539,6 +554,10 @@ IN_PROC_BROWSER_TEST_F(IndigoImageReplacementManagerBrowserTest,
       ToastController::MaybeGetForTabInterface(tab);
   ASSERT_TRUE(toast_controller && toast_controller->IsShowingToast());
   EXPECT_EQ(toast_controller->GetCurrentToastId(), ToastId::kIndigoInvokeError);
+
+  histogram_tester.ExpectUniqueSample(
+      "Indigo.Transformation.Result",
+      IndigoTransformationResult::kGenerateImageError, 1);
 }
 
 IN_PROC_BROWSER_TEST_F(IndigoImageReplacementManagerBrowserTest,
@@ -610,6 +629,7 @@ IN_PROC_BROWSER_TEST_F(IndigoImageReplacementManagerBrowserTest,
   GURL test_url = embedded_test_server()->GetURL("/empty.html");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_url));
 
+  base::HistogramTester histogram_tester;
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   content::RenderFrameHostWrapper main_rfh(web_contents->GetPrimaryMainFrame());
@@ -650,6 +670,10 @@ IN_PROC_BROWSER_TEST_F(IndigoImageReplacementManagerBrowserTest,
       ToastController::MaybeGetForWebContents(web_contents);
   EXPECT_TRUE(toast_controller && toast_controller->IsShowingToast());
   EXPECT_EQ(toast_controller->GetCurrentToastId(), ToastId::kIndigoInvokeError);
+
+  histogram_tester.ExpectUniqueSample(
+      "Indigo.Transformation.Result",
+      IndigoTransformationResult::kPrimaryImageDisconnected, 1);
 }
 
 IN_PROC_BROWSER_TEST_F(IndigoImageReplacementManagerBrowserTest,
@@ -782,12 +806,117 @@ IN_PROC_BROWSER_TEST_F(IndigoImageReplacementManagerBrowserTest,
   auto* controller = IndigoPageActionController::From(tab);
   ASSERT_TRUE(controller);
 
-  controller->OnDeleteOriginalPhoto(nullptr);
+  controller->DeleteOriginalPhoto();
 
   fake_api_.WaitForDeleteRequest();
   fake_api_.SendDeleteSuccessResponse();
 
   mock_replacement.WaitForDisconnect();
+}
+
+IN_PROC_BROWSER_TEST_F(IndigoImageReplacementManagerBrowserTest,
+                       DeleteOriginalPhotoShowsSuccessToast) {
+  GURL test_url = embedded_test_server()->GetURL("/empty.html");
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_url));
+
+  content::WebContents* web_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+
+  auto* tab = tabs::TabInterface::GetFromContents(web_contents);
+  ASSERT_TRUE(tab);
+  auto* controller = IndigoPageActionController::From(tab);
+  ASSERT_TRUE(controller);
+
+  base::UserActionTester user_action_tester;
+
+  controller->DeleteOriginalPhoto();
+
+  fake_api_.WaitForDeleteRequest();
+  EXPECT_EQ(
+      user_action_tester.GetActionCount("Indigo.DeleteOriginalPhoto.Trigger"),
+      1);
+
+  fake_api_.SendDeleteSuccessResponse();
+
+  EXPECT_TRUE(base::test::RunUntil([&]() {
+    ToastController* const toast_controller =
+        ToastController::MaybeGetForWebContents(web_contents);
+    return toast_controller && toast_controller->IsShowingToast();
+  }));
+
+  ToastController* const toast_controller =
+      ToastController::MaybeGetForWebContents(web_contents);
+  EXPECT_EQ(toast_controller->GetCurrentToastId(),
+            ToastId::kIndigoDeleteSuccess);
+
+  EXPECT_EQ(
+      user_action_tester.GetActionCount("Indigo.DeleteOriginalPhoto.Complete"),
+      1);
+}
+
+IN_PROC_BROWSER_TEST_F(IndigoImageReplacementManagerBrowserTest,
+                       DeleteOriginalPhotoGuardsAgainstMultipleCalls) {
+  GURL test_url = embedded_test_server()->GetURL("/empty.html");
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_url));
+
+  content::WebContents* web_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+
+  auto* tab = tabs::TabInterface::GetFromContents(web_contents);
+  ASSERT_TRUE(tab);
+  auto* controller = IndigoPageActionController::From(tab);
+  ASSERT_TRUE(controller);
+
+  // Trigger twice in rapid succession.
+  controller->DeleteOriginalPhoto();
+  controller->DeleteOriginalPhoto();
+
+  fake_api_.WaitForDeleteRequest(0);
+  EXPECT_FALSE(fake_api_.HasReceivedDeleteRequest(1));
+
+  fake_api_.SendDeleteSuccessResponse(0);
+
+  EXPECT_TRUE(base::test::RunUntil([&]() {
+    ToastController* const toast_controller =
+        ToastController::MaybeGetForWebContents(web_contents);
+    return toast_controller && toast_controller->IsShowingToast();
+  }));
+
+  ToastController* const toast_controller =
+      ToastController::MaybeGetForWebContents(web_contents);
+  EXPECT_EQ(toast_controller->GetCurrentToastId(),
+            ToastId::kIndigoDeleteSuccess);
+
+  EXPECT_FALSE(fake_api_.HasReceivedDeleteRequest(1));
+}
+
+IN_PROC_BROWSER_TEST_F(IndigoImageReplacementManagerBrowserTest,
+                       DeleteOriginalPhotoShowsErrorToast) {
+  GURL test_url = embedded_test_server()->GetURL("/empty.html");
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_url));
+
+  content::WebContents* web_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+
+  auto* tab = tabs::TabInterface::GetFromContents(web_contents);
+  ASSERT_TRUE(tab);
+  auto* controller = IndigoPageActionController::From(tab);
+  ASSERT_TRUE(controller);
+
+  controller->DeleteOriginalPhoto();
+
+  fake_api_.WaitForDeleteRequest();
+  fake_api_.SendDeleteErrorResponse();
+
+  EXPECT_TRUE(base::test::RunUntil([&]() {
+    ToastController* const toast_controller =
+        ToastController::MaybeGetForWebContents(web_contents);
+    return toast_controller && toast_controller->IsShowingToast();
+  }));
+
+  ToastController* const toast_controller =
+      ToastController::MaybeGetForWebContents(web_contents);
+  EXPECT_EQ(toast_controller->GetCurrentToastId(), ToastId::kIndigoDeleteError);
 }
 
 IN_PROC_BROWSER_TEST_F(IndigoImageReplacementManagerBrowserTest,
@@ -1324,6 +1453,7 @@ IN_PROC_BROWSER_TEST_F(IndigoImageReplacementManagerBrowserTest,
   GURL test_url = embedded_test_server()->GetURL("/empty.html");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_url));
 
+  base::HistogramTester histogram_tester;
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   content::RenderFrameHostWrapper main_rfh(web_contents->GetPrimaryMainFrame());
@@ -1334,7 +1464,8 @@ IN_PROC_BROWSER_TEST_F(IndigoImageReplacementManagerBrowserTest,
 
   // Simulate primary replacement creation failure by notifying the host
   // directly.
-  fake_agent->host()->ReportInvokeError();
+  fake_agent->host()->ReportInvokeError(
+      chrome::mojom::IndigoInvokeError::kPrimaryImageReplacementCreationFailed);
   // Verify that an error toast is displayed.
   EXPECT_TRUE(base::test::RunUntil([&]() {
     ToastController* const toast_controller =
@@ -1345,6 +1476,10 @@ IN_PROC_BROWSER_TEST_F(IndigoImageReplacementManagerBrowserTest,
   ToastController* const toast_controller =
       ToastController::MaybeGetForWebContents(web_contents);
   EXPECT_EQ(toast_controller->GetCurrentToastId(), ToastId::kIndigoInvokeError);
+
+  histogram_tester.ExpectUniqueSample(
+      "Indigo.Transformation.Result",
+      IndigoTransformationResult::kPrimaryImageReplacementCreationFailed, 1);
 }
 
 class IndigoImageReplacementManagerBrowserTestWithParam
@@ -1356,6 +1491,7 @@ IN_PROC_BROWSER_TEST_P(IndigoImageReplacementManagerBrowserTestWithParam,
   GURL test_url = embedded_test_server()->GetURL("/empty.html");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_url));
 
+  base::HistogramTester histogram_tester;
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   content::RenderFrameHostWrapper main_rfh(web_contents->GetPrimaryMainFrame());
@@ -1401,11 +1537,60 @@ IN_PROC_BROWSER_TEST_P(IndigoImageReplacementManagerBrowserTestWithParam,
       ToastController::MaybeGetForTabInterface(tab);
   ASSERT_TRUE(toast_controller && toast_controller->IsShowingToast());
   EXPECT_EQ(toast_controller->GetCurrentToastId(), ToastId::kIndigoInvokeError);
+
+  IndigoTransformationResult expected_result =
+      GetParam().IsEmpty() ? IndigoTransformationResult::kEmptyPrimaryImageSize
+                           : IndigoTransformationResult::kPrimaryImageTooSmall;
+  histogram_tester.ExpectUniqueSample("Indigo.Transformation.Result",
+                                      expected_result, 1);
 }
 
 INSTANTIATE_TEST_SUITE_P(All,
                          IndigoImageReplacementManagerBrowserTestWithParam,
                          ::testing::Values(gfx::Size(100, 100),
                                            gfx::Size(200, 0)));
+
+IN_PROC_BROWSER_TEST_F(IndigoImageReplacementManagerBrowserTest, ObjectFit) {
+  GURL test_url = embedded_test_server()->GetURL("/empty.html");
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), test_url));
+
+  content::WebContents* web_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+  content::RenderFrameHostWrapper main_rfh(web_contents->GetPrimaryMainFrame());
+
+  IndigoImageReplacementManager* manager =
+      IndigoImageReplacementManager::GetOrCreateForPage(main_rfh->GetPage());
+  ASSERT_TRUE(manager);
+
+  MockImageReplacement mock_replacement(web_contents);
+  mock_replacement.set_object_fit(blink::mojom::ObjectFit::kFill);
+  mojo::Receiver<blink::mojom::ImageReplacement> receiver(&mock_replacement);
+
+  manager->RegisterImageReplacement(receiver.BindNewPipeAndPassRemote(),
+                                    /*is_primary=*/true);
+  mock_replacement.WaitForStartReplacement();
+
+  GURL expected_url = GetComponentExtensionUrl();
+  content::TestNavigationObserver navigation_observer(expected_url);
+  navigation_observer.WatchExistingWebContents();
+  navigation_observer.Wait();
+
+  content::RenderFrameHostWrapper subframe(
+      content::ChildFrameAt(main_rfh.get(), 0));
+  ASSERT_TRUE(subframe.get());
+  EXPECT_EQ(subframe->GetLastCommittedURL(), expected_url);
+
+  mock_replacement.WaitForRenderReplacement();
+
+  // Verify that the object-fit style is set correctly on the image.
+  EXPECT_EQ("fill", content::EvalJs(subframe.get(), R"js(
+        (() => {
+          const app =
+              document.body.querySelector('indigo-image-replacement-app');
+          const img = app.shadowRoot.getElementById('image');
+          return window.getComputedStyle(img).objectFit;
+        })()
+      )js"));
+}
 
 }  // namespace indigo

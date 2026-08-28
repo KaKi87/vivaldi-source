@@ -4,11 +4,8 @@
 // found in the LICENSE file.
 //
 
-#ifdef UNSAFE_BUFFERS_BUILD
-#    pragma allow_unsafe_buffers
-#endif
-
 #include <variant>
+#include "common/unsafe_buffers.h"
 
 #include "test_utils/ANGLETest.h"
 
@@ -1506,10 +1503,6 @@ TEST_P(ClearTest, DefaultFramebuffer)
 // This forces down path that uses draw to do clear
 TEST_P(ClearTest, EmptyScissor)
 {
-    // These configs have bug that fails this test.
-    // These configs are unmaintained so skipping.
-    ANGLE_SKIP_TEST_IF(IsIntel() && IsD3D9());
-    ANGLE_SKIP_TEST_IF(IsIntel() && IsMac() && IsOpenGL());
     glClearColor(0.25f, 0.5f, 0.5f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glEnable(GL_SCISSOR_TEST);
@@ -1736,9 +1729,6 @@ TEST_P(ClearTest, ChangeFramebufferAttachmentFromRGBAtoRGB)
 {
     // http://anglebug.com/40096508
     ANGLE_SKIP_TEST_IF(IsAndroid() && IsAdreno() && IsOpenGLES());
-
-    // http://anglebug.com/40644765
-    ANGLE_SKIP_TEST_IF(IsMac() && IsDesktopOpenGL() && IsIntel());
 
     ANGLE_GL_PROGRAM(program, angle::essl1_shaders::vs::Simple(),
                      angle::essl1_shaders::fs::UniformColor());
@@ -2062,17 +2052,21 @@ TEST_P(ClearTestES3, ClearMultipleAttachmentsFollowedBySpecificOne)
 
     for (uint32_t i = 0; i < kAttachmentCount; ++i)
     {
-        glBindTexture(GL_TEXTURE_2D, textures[i]);
+        glBindTexture(GL_TEXTURE_2D, ANGLE_UNSAFE_TODO(textures[i]));
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kSize, kSize, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                      pixelData.data());
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, textures[i],
-                               0);
-        drawBuffers[i] = GL_COLOR_ATTACHMENT0 + i;
+        ANGLE_UNSAFE_TODO({
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D,
+                                   textures[i], 0);
+            drawBuffers[i] = GL_COLOR_ATTACHMENT0 + i;
+        })
 
-        clearValues[i].R = static_cast<GLubyte>(1 + i * 20);
-        clearValues[i].G = static_cast<GLubyte>(7 + i * 20);
-        clearValues[i].B = static_cast<GLubyte>(12 + i * 20);
-        clearValues[i].A = static_cast<GLubyte>(16 + i * 20);
+        ANGLE_UNSAFE_TODO({
+            clearValues[i].R = static_cast<GLubyte>(1 + i * 20);
+            clearValues[i].G = static_cast<GLubyte>(7 + i * 20);
+            clearValues[i].B = static_cast<GLubyte>(12 + i * 20);
+            clearValues[i].A = static_cast<GLubyte>(16 + i * 20);
+        })
     }
 
     glDrawBuffers(kAttachmentCount, drawBuffers);
@@ -2089,7 +2083,7 @@ TEST_P(ClearTestES3, ClearMultipleAttachmentsFollowedBySpecificOne)
     // Clear odd targets individually.
     for (uint32_t i = 1; i < kAttachmentCount; i += 2)
     {
-        clearColor = clearValues[i].toNormalizedVector();
+        clearColor = ANGLE_UNSAFE_TODO(clearValues[i]).toNormalizedVector();
         glClearBufferfv(GL_COLOR, i, clearColor.data());
     }
 
@@ -2101,7 +2095,7 @@ TEST_P(ClearTestES3, ClearMultipleAttachmentsFollowedBySpecificOne)
         ASSERT_GL_NO_ERROR();
 
         uint32_t clearIndex   = i % 2 == 0 ? 0 : i;
-        const GLColor &expect = clearValues[clearIndex];
+        const GLColor &expect = ANGLE_UNSAFE_TODO(clearValues[clearIndex]);
 
         EXPECT_PIXEL_COLOR_EQ(0, 0, expect);
         EXPECT_PIXEL_COLOR_EQ(0, kSize - 1, expect);
@@ -2132,17 +2126,21 @@ TEST_P(ClearTestES3, ClearMultipleAttachmentsIndividually)
 
     for (uint32_t i = 0; i < kAttachmentCount; ++i)
     {
-        glBindTexture(GL_TEXTURE_2D, textures[i]);
+        glBindTexture(GL_TEXTURE_2D, ANGLE_UNSAFE_TODO(textures[i]));
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kSize, kSize, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                      pixelData.data());
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, textures[i],
-                               0);
-        drawBuffers[i] = GL_COLOR_ATTACHMENT0 + i;
+        ANGLE_UNSAFE_TODO({
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D,
+                                   textures[i], 0);
+            drawBuffers[i] = GL_COLOR_ATTACHMENT0 + i;
+        })
 
-        clearValues[i].R = static_cast<GLubyte>(1 + i * 20);
-        clearValues[i].G = static_cast<GLubyte>(7 + i * 20);
-        clearValues[i].B = static_cast<GLubyte>(12 + i * 20);
-        clearValues[i].A = static_cast<GLubyte>(16 + i * 20);
+        ANGLE_UNSAFE_TODO({
+            clearValues[i].R = static_cast<GLubyte>(1 + i * 20);
+            clearValues[i].G = static_cast<GLubyte>(7 + i * 20);
+            clearValues[i].B = static_cast<GLubyte>(12 + i * 20);
+            clearValues[i].A = static_cast<GLubyte>(16 + i * 20);
+        })
     }
 
     glBindRenderbuffer(GL_RENDERBUFFER, depthStencil);
@@ -2157,7 +2155,7 @@ TEST_P(ClearTestES3, ClearMultipleAttachmentsIndividually)
 
     for (uint32_t i = 0; i < kAttachmentCount; ++i)
     {
-        glClearBufferfv(GL_COLOR, i, clearValues[i].toNormalizedVector().data());
+        glClearBufferfv(GL_COLOR, i, ANGLE_UNSAFE_TODO(clearValues[i]).toNormalizedVector().data());
     }
 
     glClearBufferfv(GL_DEPTH, 0, &kDepthClearValue);
@@ -2169,7 +2167,7 @@ TEST_P(ClearTestES3, ClearMultipleAttachmentsIndividually)
         glReadBuffer(GL_COLOR_ATTACHMENT0 + i);
         ASSERT_GL_NO_ERROR();
 
-        const GLColor &expect = clearValues[i];
+        const GLColor &expect = ANGLE_UNSAFE_TODO(clearValues[i]);
 
         EXPECT_PIXEL_COLOR_EQ(0, 0, expect);
         EXPECT_PIXEL_COLOR_EQ(0, kSize - 1, expect);
@@ -2179,7 +2177,7 @@ TEST_P(ClearTestES3, ClearMultipleAttachmentsIndividually)
 
     glReadBuffer(GL_COLOR_ATTACHMENT0);
     for (uint32_t i = 1; i < kAttachmentCount; ++i)
-        drawBuffers[i] = GL_NONE;
+        ANGLE_UNSAFE_TODO(drawBuffers[i]) = GL_NONE;
     glDrawBuffers(kAttachmentCount, drawBuffers);
 
     verifyDepth(kDepthClearValue, kSize);
@@ -2201,12 +2199,14 @@ TEST_P(ClearTestES3, MaskedScissoredClearMultipleAttachments)
 
     for (uint32_t i = 0; i < kAttachmentCount; ++i)
     {
-        glBindTexture(GL_TEXTURE_2D, textures[i]);
+        glBindTexture(GL_TEXTURE_2D, ANGLE_UNSAFE_TODO(textures[i]));
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kSize, kSize, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                      pixelData.data());
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, textures[i],
-                               0);
-        drawBuffers[i] = GL_COLOR_ATTACHMENT0 + i;
+        ANGLE_UNSAFE_TODO({
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D,
+                                   textures[i], 0);
+            drawBuffers[i] = GL_COLOR_ATTACHMENT0 + i;
+        })
     }
 
     glDrawBuffers(kAttachmentCount, drawBuffers);
@@ -2307,12 +2307,14 @@ TEST_P(ClearTestES3, MaskedIndexedClearMultipleAttachments)
 
     for (uint32_t i = 0; i < kAttachmentCount; ++i)
     {
-        glBindTexture(GL_TEXTURE_2D, textures[i]);
+        glBindTexture(GL_TEXTURE_2D, ANGLE_UNSAFE_TODO(textures[i]));
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kSize, kSize, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                      pixelData.data());
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, textures[i],
-                               0);
-        drawBuffers[i] = GL_COLOR_ATTACHMENT0 + i;
+        ANGLE_UNSAFE_TODO({
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D,
+                                   textures[i], 0);
+            drawBuffers[i] = GL_COLOR_ATTACHMENT0 + i;
+        })
     }
 
     glDrawBuffers(kAttachmentCount, drawBuffers);
@@ -2388,12 +2390,14 @@ TEST_P(ClearTestES3, MaskedClearHeterogeneousAttachments)
 
     for (uint32_t i = 0; i < kAttachmentCount; ++i)
     {
-        glBindTexture(GL_TEXTURE_2D, textures[i]);
-        glTexImage2D(GL_TEXTURE_2D, 0, kAttachmentFormats[i], kSize, kSize, 0, kDataFormats[i],
-                     kDataTypes[i], pixelData.data());
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, textures[i],
-                               0);
-        drawBuffers[i] = GL_COLOR_ATTACHMENT0 + i;
+        ANGLE_UNSAFE_TODO({
+            glBindTexture(GL_TEXTURE_2D, textures[i]);
+            glTexImage2D(GL_TEXTURE_2D, 0, kAttachmentFormats[i], kSize, kSize, 0, kDataFormats[i],
+                         kDataTypes[i], pixelData.data());
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D,
+                                   textures[i], 0);
+            drawBuffers[i] = GL_COLOR_ATTACHMENT0 + i;
+        })
     }
 
     glBindRenderbuffer(GL_RENDERBUFFER, depthStencil);
@@ -2459,7 +2463,7 @@ TEST_P(ClearTestES3, MaskedClearHeterogeneousAttachments)
 
     glReadBuffer(GL_COLOR_ATTACHMENT0);
     for (uint32_t i = 1; i < kAttachmentCount; ++i)
-        drawBuffers[i] = GL_NONE;
+        ANGLE_UNSAFE_TODO(drawBuffers[i]) = GL_NONE;
     glDrawBuffers(kAttachmentCount, drawBuffers);
 
     verifyDepth(kDepthClearValue, kSize);
@@ -2511,12 +2515,14 @@ TEST_P(ClearTestES3, ScissoredClearHeterogeneousAttachments)
 
     for (uint32_t i = 0; i < kAttachmentCount; ++i)
     {
-        glBindTexture(GL_TEXTURE_2D, textures[i]);
-        glTexImage2D(GL_TEXTURE_2D, 0, kAttachmentFormats[i], kSize, kSize, 0, kDataFormats[i],
-                     kDataTypes[i], pixelData.data());
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, textures[i],
-                               0);
-        drawBuffers[i] = GL_COLOR_ATTACHMENT0 + i;
+        ANGLE_UNSAFE_TODO({
+            glBindTexture(GL_TEXTURE_2D, textures[i]);
+            glTexImage2D(GL_TEXTURE_2D, 0, kAttachmentFormats[i], kSize, kSize, 0, kDataFormats[i],
+                         kDataTypes[i], pixelData.data());
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D,
+                                   textures[i], 0);
+            drawBuffers[i] = GL_COLOR_ATTACHMENT0 + i;
+        })
     }
 
     glBindRenderbuffer(GL_RENDERBUFFER, depthStencil);
@@ -2598,7 +2604,7 @@ TEST_P(ClearTestES3, ScissoredClearHeterogeneousAttachments)
 
     glReadBuffer(GL_COLOR_ATTACHMENT0);
     for (uint32_t i = 1; i < kAttachmentCount; ++i)
-        drawBuffers[i] = GL_NONE;
+        ANGLE_UNSAFE_TODO(drawBuffers[i]) = GL_NONE;
     glDrawBuffers(kAttachmentCount, drawBuffers);
 
     verifyDepth(kDepthClearValue, kHalfSize);
@@ -3361,9 +3367,6 @@ TEST_P(ClearTest, DrawThenInceptionScissorClears)
 // assert.
 TEST_P(ClearTestES3, ClearDisabledNonZeroAttachmentNoAssert)
 {
-    // http://anglebug.com/40644728
-    ANGLE_SKIP_TEST_IF(IsMac() && IsDesktopOpenGL());
-
     GLFramebuffer fb;
     glBindFramebuffer(GL_FRAMEBUFFER, fb);
 
@@ -3393,8 +3396,6 @@ TEST_P(ClearTestES3, ClearDisabledNonZeroAttachmentNoAssert)
 // stencil works.
 TEST_P(ClearTestES3, ClearMaxAttachments)
 {
-    // http://anglebug.com/40644728
-    ANGLE_SKIP_TEST_IF(IsMac() && IsDesktopOpenGL());
     // http://anglebug.com/42263935
     ANGLE_SKIP_TEST_IF(IsAMD() && IsD3D11());
 
@@ -3482,9 +3483,6 @@ TEST_P(ClearTestES3, ClearMaxAttachments)
 // stencil after a draw call works.
 TEST_P(ClearTestES3, ClearMaxAttachmentsAfterDraw)
 {
-    // http://anglebug.com/40644728
-    ANGLE_SKIP_TEST_IF(IsMac() && IsDesktopOpenGL());
-
     constexpr GLsizei kSize = 16;
 
     GLint maxDrawBuffers = 0;
@@ -3664,9 +3662,6 @@ TEST_P(ClearTestES3, ClearThenMixedMaskedClear)
 // Test that clearing stencil after a draw call works.
 TEST_P(ClearTestES3, ClearStencilAfterDraw)
 {
-    // http://anglebug.com/40644728
-    ANGLE_SKIP_TEST_IF(IsMac() && IsDesktopOpenGL());
-
     constexpr GLsizei kSize = 16;
 
     GLint maxDrawBuffers = 0;
@@ -3769,9 +3764,6 @@ TEST_P(ClearTestES3, ClearStencilAfterDraw)
 // Test that mid-render pass clearing of mixed used and unused color attachments works.
 TEST_P(ClearTestES3, MixedRenderPassClearMixedUsedUnusedAttachments)
 {
-    // http://anglebug.com/40644728
-    ANGLE_SKIP_TEST_IF(IsMac() && IsDesktopOpenGL());
-
     constexpr GLsizei kSize = 16;
 
     // Setup framebuffer.
@@ -3782,10 +3774,10 @@ TEST_P(ClearTestES3, MixedRenderPassClearMixedUsedUnusedAttachments)
 
     for (GLint colorIndex = 0; colorIndex < 2; ++colorIndex)
     {
-        glBindRenderbuffer(GL_RENDERBUFFER, color[colorIndex]);
+        glBindRenderbuffer(GL_RENDERBUFFER, ANGLE_UNSAFE_TODO(color[colorIndex]));
         glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, kSize, kSize);
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + colorIndex,
-                                  GL_RENDERBUFFER, color[colorIndex]);
+                                  GL_RENDERBUFFER, ANGLE_UNSAFE_TODO(color[colorIndex]));
     }
     EXPECT_GL_NO_ERROR();
     ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
@@ -4821,7 +4813,8 @@ TEST_P(ClearTestES31, Bind3DTextureAndClearUsingMultipleAttachments)
                                                      GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT1};
     for (uint32_t i = 0; i < kAttachmentCount; ++i)
     {
-        glFramebufferTextureLayer(GL_FRAMEBUFFER, usedAttachment[i], texture3D, 0, i);
+        glFramebufferTextureLayer(GL_FRAMEBUFFER, ANGLE_UNSAFE_TODO(usedAttachment[i]), texture3D,
+                                  0, i);
         ASSERT_GL_NO_ERROR();
         EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
         ASSERT_GL_NO_ERROR();

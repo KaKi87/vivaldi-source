@@ -11,6 +11,9 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback_forward.h"
 #include "base/timer/timer.h"
+#include "chrome/browser/ui/browser_actions.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/page_action/action_ids.h"
 #include "chrome/browser/ui/page_action/chip_selector.h"
 #include "chrome/browser/ui/page_action/page_action_metrics_recorder.h"
 #include "chrome/browser/ui/page_action/page_action_metrics_recorder_interface.h"
@@ -23,6 +26,11 @@
 #include "ui/menus/simple_menu_model.h"
 
 namespace page_actions {
+
+// static
+PageActionController* PageActionController::From(tabs::TabInterface* tab) {
+  return Get(tab->GetUnownedUserDataHost());
+}
 
 ScopedPageActionActivity::ScopedPageActionActivity(
     PageActionController& controller,
@@ -70,25 +78,19 @@ void ScopedPageActionActivity::RegisterWillDestroyControllerCallback() {
 }
 
 PageActionControllerImpl::PageActionControllerImpl(
+    tabs::TabInterface& tab_interface,
+    const std::vector<actions::ActionId>& action_ids,
+    const PageActionPropertiesProviderInterface& properties_provider,
     PinnedToolbarActionsModel* pinned_actions_model,
     PageActionModelFactory* page_action_model_factory,
     PageActionMetricsRecorderFactory* page_action_metrics_recorder_factory)
     : page_action_model_factory_(page_action_model_factory),
       page_action_metrics_recorder_factory_(
-          page_action_metrics_recorder_factory) {
+          page_action_metrics_recorder_factory),
+      scoped_unowned_user_data_(tab_interface.GetUnownedUserDataHost(), *this) {
   if (pinned_actions_model) {
     pinned_actions_observation_.Observe(pinned_actions_model);
   }
-}
-
-PageActionControllerImpl::~PageActionControllerImpl() {
-  on_will_destroy_callback_list_.Notify(*this);
-}
-
-void PageActionControllerImpl::Initialize(
-    tabs::TabInterface& tab_interface,
-    const std::vector<actions::ActionId>& action_ids,
-    const PageActionPropertiesProviderInterface& properties_provider) {
   tab_activated_callback_subscription_ =
       tab_interface.RegisterDidActivate(base::BindRepeating(
           &PageActionControllerImpl::OnTabActivated, base::Unretained(this)));
@@ -123,6 +125,10 @@ void PageActionControllerImpl::Initialize(
   if (pinned_actions_observation_.GetSource()) {
     PinnedActionsModelChanged();
   }
+}
+
+PageActionControllerImpl::~PageActionControllerImpl() {
+  on_will_destroy_callback_list_.Notify(*this);
 }
 
 void PageActionControllerImpl::Register(
@@ -364,9 +370,9 @@ void PageActionControllerImpl::OverrideImage(
     actions::ActionId action_id,
     const ui::ImageModel& override_image,
     PageActionColorSource color_source,
-    std::optional<int> animation_resource_id) {
+    std::optional<PageActionAnimationParams> animation_parameters) {
   FindPageActionModel(action_id).SetOverrideImage(
-      PageActionPassKey(), override_image, color_source, animation_resource_id);
+      PageActionPassKey(), override_image, color_source, animation_parameters);
 }
 
 void PageActionControllerImpl::ClearOverrideImage(actions::ActionId action_id) {
@@ -374,7 +380,30 @@ void PageActionControllerImpl::ClearOverrideImage(actions::ActionId action_id) {
   model.SetOverrideImage(PageActionPassKey(),
                          /*override_image=*/std::nullopt,
                          model.GetColorSource(),
-                         /*animation_resource_id=*/std::nullopt);
+                         /*animation_parameters=*/std::nullopt);
+}
+
+void PageActionControllerImpl::SetAnimationStyle(
+    actions::ActionId action_id,
+    PageActionAnimationStyle style) {
+  FindPageActionModel(action_id).SetAnimationStyle(PageActionPassKey(), style);
+}
+
+void PageActionControllerImpl::SetTrailingImage(
+    actions::ActionId action_id,
+    const ui::ImageModel& trailing_image) {
+  FindPageActionModel(action_id).SetTrailingImage(PageActionPassKey(),
+                                                  trailing_image);
+}
+
+void PageActionControllerImpl::ClearTrailingImage(actions::ActionId action_id) {
+  FindPageActionModel(action_id).SetTrailingImage(PageActionPassKey(),
+                                                  std::nullopt);
+}
+
+void PageActionControllerImpl::SetShowTrailingIcon(actions::ActionId action_id,
+                                                   bool show) {
+  FindPageActionModel(action_id).SetShowTrailingIcon(PageActionPassKey(), show);
 }
 
 void PageActionControllerImpl::OverrideTooltip(
@@ -388,6 +417,13 @@ void PageActionControllerImpl::ClearOverrideTooltip(
     actions::ActionId action_id) {
   FindPageActionModel(action_id).SetOverrideTooltip(
       PageActionPassKey(), /*override_tooltip=*/std::nullopt);
+}
+
+void PageActionControllerImpl::OverrideBackgroundColor(
+    actions::ActionId action_id,
+    std::optional<ui::ColorId> override_background_color_id) {
+  FindPageActionModel(action_id).SetOverrideBackgroundColorId(
+      PageActionPassKey(), override_background_color_id);
 }
 
 void PageActionControllerImpl::SetAnchoredMessageText(
@@ -429,6 +465,10 @@ void PageActionControllerImpl::SetAnchoredMessageAction(
 
   FindPageActionModel(action_id).SetAnchoredMessageAction(
       PageActionPassKey(), action_icon_type, std::move(model));
+}
+
+bool PageActionControllerImpl::ActionExists(actions::ActionId action_id) const {
+  return page_actions_.contains(action_id);
 }
 
 void PageActionControllerImpl::AddObserver(
@@ -568,5 +608,51 @@ std::ostream& operator<<(std::ostream& os, const SuggestionChipConfig& config) {
      << ", should_announce_chip: " << config.should_announce_chip << " }";
   return os;
 }
+
+std::vector<actions::ActionId> GetActivePageActionIds(
+    BrowserWindowInterface& bwi) {
+  auto* browser_actions = bwi.GetActions();
+  if (!browser_actions) {
+    return {};
+  }
+
+  auto* root_action_item = browser_actions->root_action_item();
+  if (!root_action_item) {
+    return {};
+  }
+
+  std::vector<actions::ActionId> ids;
+  for (actions::ActionId action_id : kActionIds) {
+    if (actions::ActionManager::Get().FindAction(action_id, root_action_item)) {
+      ids.push_back(action_id);
+    }
+  }
+
+  return ids;
+}
+
+std::vector<actions::ActionItem*> GetActivePageActionItems(
+    BrowserWindowInterface& bwi) {
+  auto* browser_actions = bwi.GetActions();
+  if (!browser_actions) {
+    return {};
+  }
+
+  auto* root_action_item = browser_actions->root_action_item();
+  if (!root_action_item) {
+    return {};
+  }
+
+  std::vector<actions::ActionItem*> items;
+  for (actions::ActionId action_id : kActionIds) {
+    if (actions::ActionItem* item = actions::ActionManager::Get().FindAction(
+            action_id, root_action_item)) {
+      items.push_back(item);
+    }
+  }
+  return items;
+}
+
+DEFINE_USER_DATA(PageActionController);
 
 }  // namespace page_actions

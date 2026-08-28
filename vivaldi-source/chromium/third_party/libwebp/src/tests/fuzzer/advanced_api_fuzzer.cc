@@ -17,19 +17,21 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <string>
 #include <string_view>
 
 #include "./fuzz_utils.h"
+#include "gtest/gtest.h"
 #include "src/dec/webpi_dec.h"
 #include "src/utils/rescaler_utils.h"
-#include "src/webp/decode.h"
+#include "webp/decode.h"
 
 namespace {
 
-void AdvancedApiTest(std::string_view blob, uint8_t factor_u8, bool flip,
-                     bool bypass_filtering, bool no_fancy_upsampling,
-                     bool use_threads, bool use_cropping, bool use_scaling,
-                     bool use_dithering, int colorspace, bool incremental) {
+void AdvancedApiTest(std::string_view blob, uint8_t factor_u8, int colorspace,
+                     bool incremental,
+                     const fuzz_utils::WebPDecoderOptionsCpp& decoder_options) {
   WebPDecoderConfig config;
   if (!WebPInitDecoderConfig(&config)) return;
   const uint8_t* const data = reinterpret_cast<const uint8_t*>(blob.data());
@@ -46,24 +48,14 @@ void AdvancedApiTest(std::string_view blob, uint8_t factor_u8, bool flip,
   const uint8_t value = fuzz_utils::FuzzHash(data, size);
   const float factor = factor_u8 / 255.f;  // 0-1
 
-  config.options.flip = flip;
-  config.options.bypass_filtering = bypass_filtering;
-  config.options.no_fancy_upsampling = no_fancy_upsampling;
-  config.options.use_threads = use_threads;
-  if (use_cropping) {
-    config.options.use_cropping = 1;
+  std::memcpy(&config.options, &decoder_options, sizeof(decoder_options));
+  if (config.options.use_cropping) {
     config.options.crop_width = (int)(config.input.width * (1 - factor));
     config.options.crop_height = (int)(config.input.height * (1 - factor));
     config.options.crop_left = config.input.width - config.options.crop_width;
     config.options.crop_top = config.input.height - config.options.crop_height;
   }
-  if (use_dithering) {
-    int strength = (int)(factor * 100);
-    config.options.dithering_strength = strength;
-    config.options.alpha_dithering_strength = 100 - strength;
-  }
-  if (use_scaling) {
-    config.options.use_scaling = 1;
+  if (config.options.use_scaling) {
     config.options.scaled_width = (int)(config.input.width * factor * 2);
     config.options.scaled_height = (int)(config.input.height * factor * 2);
   }
@@ -162,13 +154,6 @@ FUZZ_TEST(AdvancedApi, AdvancedApiTest)
     .WithDomains(fuzztest::String().WithMaxSize(fuzz_utils::kMaxWebPFileSize +
                                                 1),
                  /*factor_u8=*/fuzztest::Arbitrary<uint8_t>(),
-                 /*flip=*/fuzztest::Arbitrary<bool>(),
-                 /*bypass_filtering=*/fuzztest::Arbitrary<bool>(),
-                 /*no_fancy_upsampling=*/fuzztest::Arbitrary<bool>(),
-                 /*use_threads=*/fuzztest::Arbitrary<bool>(),
-                 /*use_cropping=*/fuzztest::Arbitrary<bool>(),
-                 /*use_scaling=*/fuzztest::Arbitrary<bool>(),
-                 /*use_dithering=*/fuzztest::Arbitrary<bool>(),
 #if defined(WEBP_REDUCE_CSP)
                  fuzztest::ElementOf<int>({static_cast<int>(MODE_RGBA),
                                            static_cast<int>(MODE_BGRA),
@@ -177,4 +162,27 @@ FUZZ_TEST(AdvancedApi, AdvancedApiTest)
 #else
                  fuzztest::InRange<int>(0, static_cast<int>(MODE_LAST) - 1),
 #endif
-                 /*incremental=*/fuzztest::Arbitrary<bool>());
+                 /*incremental=*/fuzztest::Arbitrary<bool>(),
+                 fuzz_utils::ArbitraryValidWebPDecoderOptions());
+
+TEST(AdvancedApi, Buganizer498966235) {
+  AdvancedApiTest(
+      std::string(
+          "RIFF\014|"
+          "\000\000WEBPVP8X\n\000\000\000\020\000\000D\002\000\000\017\000\000A"
+          "LPH5\000\000\000\004\327\000\000\000\000\000\000c8\345S\000\243\000"
+          "\253c\311\000\027\000\000\000\200\000\000\000\000\240\"AE\001\000"
+          "\000\0008<"
+          "ALP\010\000s\002\000\000\000\000\000\000\000\000\000ALPH\000\000\000"
+          "\000VP8 "
+          "(\000\000\000\224\001\000\235\001*\003\000\020\000\003,\000~"
+          "\342\000\000se\002ionR\265Vq\302M}\"webp\"r\010\003\000\020#"
+          "\366\356\002\323\220\000 "
+          "\212N@\000\026\327A\367\266\201\201\"IFF@\"RIFF\"&\226!"
+          "VP\n8Rg\000\0001\"\335\"I\"XEBP\"\002\002\"\367\\x0\203\203\203\341"
+          "\341l,\203\\sectiqncJUN=\"sectistre\\x9D\\x01\\x2A\"JUKQ\"",
+          257),
+      68, 3, true,
+      fuzz_utils::WebPDecoderOptionsCpp{
+          0, 0, 1, 5, 10, 5, 9, 0, 1, 3, 0, 72, 0, 83, {0, 0, 0, 0, 0}});
+}

@@ -4,15 +4,15 @@
 
 #include "chrome/browser/glic/glic_profile_manager.h"
 
+#include "base/byte_size.h"
 #include "base/command_line.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
-#include "base/memory_coordinator/utils.h"
 #include "base/notimplemented.h"
+#include "base/system/sys_info.h"
 #include "base/task/sequenced_task_runner.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/glic/fre/glic_fre_controller.h"
 #include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/glic/host/host.h"
 #include "chrome/browser/glic/public/glic_enabling.h"
@@ -81,13 +81,7 @@ GlicProfileManager* GlicProfileManager::GetInstance() {
   return g_browser_process->GetFeatures()->glic_profile_manager();
 }
 
-GlicProfileManager::GlicProfileManager()
-    : memory_consumer_registration_(
-          /*consumer_name=*/kMemoryConsumerName,
-          /*traits=*/std::nullopt,  // TODO(crbug.com/489671163): Fill traits.
-          this,
-          base::MemoryConsumerRegistration::CheckUnregister::kDisabled,
-          base::MemoryConsumerRegistration::CheckRegistryExists::kDisabled) {
+GlicProfileManager::GlicProfileManager() {
   ProfileManager* profile_manager = g_browser_process->profile_manager();
   if (profile_manager) {
     profile_manager->AddObserver(this);
@@ -286,9 +280,6 @@ void GlicProfileManager::ForceConnectionTypeForTesting(
   g_forced_connection_type_ = connection_type;
 }
 
-bool GlicProfileManager::IsUnderMemoryPressure() const {
-  return memory_limit() <= base::kCriticalMemoryPressureThreshold;
-}
 
 void GlicProfileManager::CanPreloadForProfile(Profile* profile,
                                               ShouldPreloadCallback callback) {
@@ -320,8 +311,9 @@ void GlicProfileManager::CanPreloadForProfile(Profile* profile,
     return produce_result(GlicPrewarmingChecksResult::kNotPinnedToTabstrip);
   }
 
-  if (IsUnderMemoryPressure()) {
-    return produce_result(GlicPrewarmingChecksResult::kUnderMemoryPressure);
+  if (base::SysInfo::AmountOfTotalPhysicalMemory() <
+      base::MiBU(features::kGlicWarmingMinRequiredRamMb.Get())) {
+    return produce_result(GlicPrewarmingChecksResult::kDeviceLowMemory);
   }
   if (!g_prewarming_enabled_for_testing_) {
     return produce_result(

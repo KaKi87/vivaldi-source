@@ -90,10 +90,6 @@ class BrowserTabStripModelDelegate : public TabStripModelDelegate {
       const std::vector<tab_groups::TabGroupId>& group_ids,
       base::OnceCallback<void()> callback) override;
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-  bool IsTabGlicPinned(tabs::TabHandle tab_handle) override;
-  bool GlicPinTabs(base::span<const tabs::TabHandle> tab_handles) override;
-  bool GlicUnpinTabs(base::span<const tabs::TabHandle> tab_handles) override;
-  void OpenGlicWindowFromSharedTab() override;
   void GlicUnpinTabsFromAllConversations(
       base::span<const tabs::TabHandle> tab_handles) override;
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled

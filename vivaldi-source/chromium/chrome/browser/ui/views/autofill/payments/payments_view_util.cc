@@ -4,7 +4,6 @@
 
 #include "chrome/browser/ui/views/autofill/payments/payments_view_util.h"
 
-#include <algorithm>
 #include <memory>
 #include <optional>
 
@@ -16,17 +15,14 @@
 #include "chrome/browser/ui/views/autofill/payments/dialog_view_ids.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/chrome_typography.h"
+#include "components/autofill/core/common/autofill_payments_features.h"
 #include "components/grit/components_scaled_resources.h"
-#include "components/strings/grit/components_strings.h"
 #include "components/vector_icons/vector_icons.h"
-#include "ui/base/l10n/l10n_util.h"
-#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_provider.h"
-#include "ui/gfx/color_palette.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/image/image_skia.h"
@@ -38,7 +34,6 @@
 #include "ui/views/border.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
-#include "ui/views/controls/separator.h"
 #include "ui/views/controls/styled_label.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/controls/theme_tracking_image_view.h"
@@ -112,7 +107,10 @@ std::unique_ptr<views::ImageView> CreateIconView(
     case TitleWithIconAfterLabelView::Icon::GOOGLE_WALLET:
       model = ui::ImageModel::FromImageSkia(
           *ui::ResourceBundle::GetSharedInstance().GetImageSkiaNamed(
-              IDR_AUTOFILL_GOOGLE_WALLET_ICON));
+              base::FeatureList::IsEnabled(
+                  features::kAutofillEnableGradientGoogleLogos)
+                  ? IDR_AUTOFILL_GOOGLE_WALLET_ICON_WITH_GRADIENT
+                  : IDR_AUTOFILL_GOOGLE_WALLET_ICON));
       break;
     case TitleWithIconAfterLabelView::Icon::AFFIRM:
       model = ui::ImageModel::FromImageSkia(

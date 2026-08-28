@@ -31,10 +31,10 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab_ui.RecyclerViewPosition;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tab_ui.TabContentManagerThumbnailProvider;
+import org.chromium.chrome.browser.tab_ui.TabListMode;
 import org.chromium.chrome.browser.tab_ui.ThumbnailProvider;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tasks.tab_management.TabListCoordinator.TabListItemSizeChangedObserver;
-import org.chromium.chrome.browser.tasks.tab_management.TabListCoordinator.TabListMode;
 import org.chromium.chrome.browser.tasks.tab_management.TabListMediator.TabListItemOnClickListenerProvider;
 import org.chromium.chrome.browser.tasks.tab_management.TabProperties.TabActionState;
 import org.chromium.chrome.browser.tasks.tab_management.TabProperties.UiType;
@@ -420,7 +420,7 @@ public class TabListEditorCoordinator {
             mSnackbarManager = snackbarManager;
             mTabActionState = initialTabActionState;
             mTabContentManager = tabContentManager;
-            assert mode == TabListCoordinator.TabListMode.GRID;
+            assert mode == TabListMode.GRID;
             mTabListItemOnClickListenerProvider = tabListItemOnClickListenerProvider;
             mModalDialogManager = modalDialogManager;
             mEdgeToEdgeSupplier = edgeToEdgeSupplier;
@@ -528,7 +528,7 @@ public class TabListEditorCoordinator {
     /**
      * Inserts a special item into the underlying TabListCoordinator.
      *
-     * @see TabListCoordinator#addSpecialItemToModel(int, int, PropertyModel).
+     * @see TabListMediator#addSpecialItemToModel(int, int, PropertyModel).
      */
     public void addSpecialListItem(int index, @UiType int uiType, PropertyModel model) {
         assert mTabListCoordinator != null;
@@ -536,12 +536,12 @@ public class TabListEditorCoordinator {
     }
 
     /**
-     * Removes a special {@link org.chromium.ui.modelutil.MVCListAdapter.ListItem} that has the
-     * given {@code uiType} and/or its {@link PropertyModel} has the given {@code itemIdentifier}.
+     * Removes a special {@link MVCListAdapter.ListItem} that has the given {@code uiType} and/or
+     * its {@link PropertyModel} has the given {@code itemIdentifier}.
      *
      * @param uiType The uiType to match.
      * @param itemIdentifier The itemIdentifier to match. This can be obsoleted if the {@link
-     *     org.chromium.ui.modelutil.MVCListAdapter.ListItem} does not need additional identifier.
+     *     MVCListAdapter.ListItem} does not need additional identifier.
      */
     public void removeSpecialListItem(@UiType int uiType, int itemIdentifier) {
         assert mTabListCoordinator != null;
@@ -549,8 +549,8 @@ public class TabListEditorCoordinator {
     }
 
     /**
-     * Removes a {@link org.chromium.ui.modelutil.MVCListAdapter.ListItem} that has the given {@code
-     * uiType} and the {@link PropertyModel} has the given {@link TabListEditorItemSelectionId}.
+     * Removes a {@link MVCListAdapter.ListItem} that has the given {@code uiType} and the {@link
+     * PropertyModel} has the given {@link TabListEditorItemSelectionId}.
      *
      * @param uiType The uiType to match.
      * @param itemId The itemId to match.
@@ -698,7 +698,7 @@ public class TabListEditorCoordinator {
                         mModel, mTabListEditorLayout, TabListEditorLayoutBinder::bind);
 
         if (mEdgeToEdgeSupplier != null && mDisplayGroups) {
-            assert mTabListMode != TabListMode.STRIP
+            assert mTabListMode != TabListMode.BOTTOM_STRIP
                     : "STRIP tab lists should not be padded for edge-to-edge.";
             mEdgeToEdgePadAdjuster =
                     EdgeToEdgeControllerFactory.createForViewAndObserveSupplier(

@@ -8,10 +8,6 @@
 class PrefRegistrySimple;
 class PrefService;
 
-namespace user_prefs {
-class PrefRegistrySyncable;
-}
-
 namespace ios_web_view {
 
 inline constexpr char kCWVAutofillAddressSyncEnabled[] =
@@ -20,11 +16,11 @@ inline constexpr char kCWVAutofillAddressSyncEnabled[] =
 inline constexpr char kCWVAutofillVCNUsageEnabled[] =
     "cwv.autofill.vcn_usage_enabled";
 
-inline constexpr char kRiskBasedAuthenticationEnabled[] =
-    "cwv.autofill.risk_based_authentication_enabled";
+inline constexpr char kCWVAutofillSafeLifecycleEnabled[] =
+    "cwv.autofill.safe_lifecycle_enabled";
 
 // Registers the CWVAutofill preferences for this `pref_registry`.
-void RegisterCWVAutofillPrefs(user_prefs::PrefRegistrySyncable* pref_registry);
+void RegisterCWVAutofillPrefs(PrefRegistrySimple* pref_registry);
 
 void SetAutofillAddressSyncEnabled(PrefService* prefs, bool value);
 
@@ -34,6 +30,10 @@ void SetAutofillVCNUsageEnabled(PrefService* prefs, bool value);
 
 bool IsAutofillVCNUsageEnabled(const PrefService* prefs);
 
+void SetAutofillSafeLifecycleEnabled(PrefService* prefs, bool value);
+
+bool IsAutofillSafeLifecycleEnabled(const PrefService* prefs);
+
 void SetUseImageFetcherEnabled(PrefService* prefs, bool value);
 
 bool IsUseImageFetcherEnabled(const PrefService* prefs);
@@ -41,10 +41,6 @@ bool IsUseImageFetcherEnabled(const PrefService* prefs);
 void SetUseCardCustomImageEnabled(PrefService* prefs, bool value);
 
 bool IsUseCardCustomImagerEnabled(const PrefService* prefs);
-
-void SetRiskBasedAuthenticationEnabled(PrefService* prefs, bool value);
-
-bool IsRiskBasedAuthenticationEnabled(const PrefService* prefs);
 
 }  // namespace ios_web_view
 

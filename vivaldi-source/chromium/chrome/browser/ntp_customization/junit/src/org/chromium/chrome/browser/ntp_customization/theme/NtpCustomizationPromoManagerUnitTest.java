@@ -30,9 +30,11 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
+import org.chromium.base.DeviceInfo;
 import org.chromium.base.FakeTimeTestRule;
 import org.chromium.base.TimeUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.ntp_customization.NtpCustomizationConfigManager;
@@ -45,6 +47,7 @@ import org.chromium.chrome.browser.ntp_customization.theme.NtpCustomizationPromo
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
+import org.chromium.chrome.browser.url_constants.UrlOverrideUtils;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.edge_to_edge.EdgeToEdgeStateProvider;
 import org.chromium.url.JUnitTestGURLs;
@@ -92,13 +95,13 @@ public class NtpCustomizationPromoManagerUnitTest {
         mFakeTimeTestRule.advanceMillis(Duration.ofDays(10).toMillis());
         assertTrue(
                 NtpCustomizationUtils.isNtpThemeCustomizationEnabled(
-                        mWindowAndroid, /* isTablet= */ false));
+                        mWindowAndroid, /* isLff= */ false));
 
         // Case 1: Feature flag is disabled.
         assertFalse(ChromeFeatureList.sNewTabPageCustomizationV2ShowTipBottomSheet.getValue());
         assertFalse(
                 NtpCustomizationPromoManager.canTriggerCustomizationBottomSheet(
-                        mWindowAndroid, /* isTablet= */ false, /* ntpOpenedCount= */ 2));
+                        mWindowAndroid, /* isLff= */ false, /* ntpOpenedCount= */ 2));
 
         ChromeFeatureList.sNewTabPageCustomizationV2ShowTipBottomSheet.setForTesting(true);
         NtpCustomizationConfigManager configManager = mock(NtpCustomizationConfigManager.class);
@@ -108,30 +111,30 @@ public class NtpCustomizationPromoManagerUnitTest {
         // Case 2: Background type is not DEFAULT.
         assertFalse(
                 NtpCustomizationPromoManager.canTriggerCustomizationBottomSheet(
-                        mWindowAndroid, /* isTablet= */ false, /* ntpOpenedCount= */ 2));
+                        mWindowAndroid, /* isLff= */ false, /* ntpOpenedCount= */ 2));
 
         // Case 3: Background type is DEFAULT, but ntpOpenedCount is 1.
         when(configManager.getBackgroundType()).thenReturn(NtpBackgroundType.DEFAULT);
         assertFalse(
                 NtpCustomizationPromoManager.canTriggerCustomizationBottomSheet(
-                        mWindowAndroid, /* isTablet= */ false, /* ntpOpenedCount= */ 1));
+                        mWindowAndroid, /* isLff= */ false, /* ntpOpenedCount= */ 1));
 
         // Case 4: Background type is DEFAULT, ntpOpenedCount is 2, and not shown before.
         assertTrue(
                 NtpCustomizationPromoManager.canTriggerCustomizationBottomSheet(
-                        mWindowAndroid, /* isTablet= */ false, /* ntpOpenedCount= */ 2));
+                        mWindowAndroid, /* isLff= */ false, /* ntpOpenedCount= */ 2));
 
         // Case 5: Background type is DEFAULT, ntpOpenedCount is 2, but already shown.
         NtpCustomizationUtils.setThemeTipBottomSheetShownTimestampToSharedPreference(100);
         assertFalse(
                 NtpCustomizationPromoManager.canTriggerCustomizationBottomSheet(
-                        mWindowAndroid, /* isTablet= */ false, /* ntpOpenedCount= */ 2));
+                        mWindowAndroid, /* isLff= */ false, /* ntpOpenedCount= */ 2));
 
         // Case 6: Force show enabled.
         ChromeFeatureList.sNewTabPageCustomizationV2ForceShowTipBottomSheet.setForTesting(true);
         assertTrue(
                 NtpCustomizationPromoManager.canTriggerCustomizationBottomSheet(
-                        mWindowAndroid, /* isTablet= */ false, /* ntpOpenedCount= */ 2));
+                        mWindowAndroid, /* isLff= */ false, /* ntpOpenedCount= */ 2));
         ChromeFeatureList.sNewTabPageCustomizationV2ForceShowTipBottomSheet.setForTesting(false);
 
         NtpCustomizationUtils
@@ -142,7 +145,7 @@ public class NtpCustomizationPromoManagerUnitTest {
         NtpCustomizationUtils.setLastApplyThemeTimestampToSharedPreference(sixDaysAgo);
         assertFalse(
                 NtpCustomizationPromoManager.canTriggerCustomizationBottomSheet(
-                        mWindowAndroid, /* isTablet= */ false, /* ntpOpenedCount= */ 2));
+                        mWindowAndroid, /* isLff= */ false, /* ntpOpenedCount= */ 2));
 
         // Case 8: Outside cool down period (last applied 8 days ago).
         long eightDaysAgo = TimeUtils.currentTimeMillis() - Duration.ofDays(8).toMillis();
@@ -153,7 +156,7 @@ public class NtpCustomizationPromoManagerUnitTest {
                 NtpCustomizationUtils.getLastApplyThemeTimestampFromSharedPreference());
         assertTrue(
                 NtpCustomizationPromoManager.canTriggerCustomizationBottomSheet(
-                        mWindowAndroid, /* isTablet= */ false, /* ntpOpenedCount= */ 2));
+                        mWindowAndroid, /* isLff= */ false, /* ntpOpenedCount= */ 2));
 
         // Reset for other tests.
         ChromeFeatureList.sNewTabPageCustomizationV2ShowTipBottomSheet.setForTesting(false);
@@ -168,13 +171,13 @@ public class NtpCustomizationPromoManagerUnitTest {
         // Case 1: All conditions met.
         assertTrue(
                 NtpCustomizationPromoManager.canShowCustomizationIph(
-                        mTab, mWindowAndroid, /* isTablet= */ false));
+                        mTab, mWindowAndroid, /* isLff= */ false));
 
         // Case 2: Incognito.
         when(mTab.isIncognitoBranded()).thenReturn(true);
         assertFalse(
                 NtpCustomizationPromoManager.canShowCustomizationIph(
-                        mTab, mWindowAndroid, /* isTablet= */ false));
+                        mTab, mWindowAndroid, /* isLff= */ false));
 
         when(mTab.isIncognitoBranded()).thenReturn(false);
 
@@ -182,7 +185,7 @@ public class NtpCustomizationPromoManagerUnitTest {
         when(mTab.getUrl()).thenReturn(JUnitTestGURLs.URL_1);
         assertFalse(
                 NtpCustomizationPromoManager.canShowCustomizationIph(
-                        mTab, mWindowAndroid, /* isTablet= */ false));
+                        mTab, mWindowAndroid, /* isLff= */ false));
 
         when(mTab.getUrl()).thenReturn(JUnitTestGURLs.NTP_URL);
 
@@ -191,14 +194,14 @@ public class NtpCustomizationPromoManagerUnitTest {
                 NtpBackgroundType.IMAGE_FROM_DISK);
         assertFalse(
                 NtpCustomizationPromoManager.canShowCustomizationIph(
-                        mTab, mWindowAndroid, /* isTablet= */ false));
+                        mTab, mWindowAndroid, /* isLff= */ false));
         NtpCustomizationUtils.setNtpBackgroundTypeToSharedPreference(NtpBackgroundType.DEFAULT);
 
         // Case 5: Customization not enabled (e.g. EdgeToEdge disabled).
         mEdgeToEdgeStateProvider.releaseSetDecorFitsSystemWindowToken(0);
         assertFalse(
                 NtpCustomizationPromoManager.canShowCustomizationIph(
-                        mTab, mWindowAndroid, /* isTablet= */ false));
+                        mTab, mWindowAndroid, /* isLff= */ false));
     }
 
     @Test
@@ -213,21 +216,21 @@ public class NtpCustomizationPromoManagerUnitTest {
         // Case 1: Bottom sheet not shown yet -> should not show IPH.
         assertFalse(
                 NtpCustomizationPromoManager.canShowCustomizationIph(
-                        mTab, mWindowAndroid, /* isTablet= */ false));
+                        mTab, mWindowAndroid, /* isLff= */ false));
 
         // Case 2: Bottom sheet shown, but within cool down period (e.g., 6 days ago).
         long sixDaysAgo = TimeUtils.currentTimeMillis() - Duration.ofDays(6).toMillis();
         NtpCustomizationUtils.setThemeTipBottomSheetShownTimestampToSharedPreference(sixDaysAgo);
         assertFalse(
                 NtpCustomizationPromoManager.canShowCustomizationIph(
-                        mTab, mWindowAndroid, /* isTablet= */ false));
+                        mTab, mWindowAndroid, /* isLff= */ false));
 
         // Case 3: Bottom sheet shown, outside cool down period (e.g., 8 days ago).
         long eightDaysAgo = TimeUtils.currentTimeMillis() - Duration.ofDays(8).toMillis();
         NtpCustomizationUtils.setThemeTipBottomSheetShownTimestampToSharedPreference(eightDaysAgo);
         assertTrue(
                 NtpCustomizationPromoManager.canShowCustomizationIph(
-                        mTab, mWindowAndroid, /* isTablet= */ false));
+                        mTab, mWindowAndroid, /* isLff= */ false));
 
         // Reset flag and preferences.
         ChromeFeatureList.sNewTabPageCustomizationV2ShowTipBottomSheet.setForTesting(false);
@@ -385,5 +388,83 @@ public class NtpCustomizationPromoManagerUnitTest {
 
         // State should remain NOT_SET because it was already shown
         assertEquals(SnackBarState.NOT_SET, NtpCustomizationPromoManager.getStateForTesting());
+    }
+
+    @Test
+    @EnableFeatures({
+        ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_V2,
+        ChromeFeatureList.USE_WEB_UI_NTP_ANDROID
+    })
+    public void testNtpThemeDisabled_whenWebUiNtpOverrideEnabled() {
+        DeviceInfo.setIsDesktopForTesting(true);
+        assertTrue(UrlOverrideUtils.isWebUiNtpOverrideEnabled());
+        assertFalse(
+                NtpCustomizationUtils.isNtpThemeCustomizationEnabled(
+                        mWindowAndroid, /* isLff= */ false));
+        assertFalse(
+                NtpCustomizationUtils.isNtpThemeCustomizationEnabled(
+                        mWindowAndroid, /* isLff= */ true));
+
+        // isNtpThemeCustomizationEnabled returning false disables the clank theme entry points:
+        // 1. Hides the theme tip bottom sheet.
+        NtpCustomizationUtils.setNtpBackgroundTypeToSharedPreference(NtpBackgroundType.DEFAULT);
+        NtpCustomizationConfigManager configManager = mock(NtpCustomizationConfigManager.class);
+        NtpCustomizationConfigManager.setInstanceForTesting(configManager);
+        when(configManager.getBackgroundType()).thenReturn(NtpBackgroundType.DEFAULT);
+        assertFalse(
+                NtpCustomizationPromoManager.canTriggerCustomizationBottomSheet(
+                        mWindowAndroid, /* isLff= */ true, /* ntpOpenedCount= */ 2));
+
+        // 2. Hides the NTP theme IPH.
+        when(mTab.isIncognitoBranded()).thenReturn(false);
+        when(mTab.getUrl()).thenReturn(JUnitTestGURLs.NTP_URL);
+        assertFalse(
+                NtpCustomizationPromoManager.canShowCustomizationIph(
+                        mTab, mWindowAndroid, /* isLff= */ true));
+
+        // 3. Hides the NTP theme magic stack.
+        assertFalse(
+                NtpCustomizationPromoManager.canTriggerCustomizationPromo(
+                        mWindowAndroid, /* isLff= */ true));
+
+        NtpCustomizationConfigManager.setInstanceForTesting(null);
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_V2)
+    @Features.DisableFeatures(ChromeFeatureList.USE_WEB_UI_NTP_ANDROID)
+    public void testNtpThemeEnabled_whenWebUiNtpOverrideDisabled() {
+        DeviceInfo.setIsDesktopForTesting(true);
+        assertFalse(UrlOverrideUtils.isWebUiNtpOverrideEnabled());
+        assertTrue(
+                NtpCustomizationUtils.isNtpThemeCustomizationEnabled(
+                        mWindowAndroid, /* isLff= */ false));
+        assertTrue(
+                NtpCustomizationUtils.isNtpThemeCustomizationEnabled(
+                        mWindowAndroid, /* isLff= */ true));
+
+        // Verifies that when isNtpThemeCustomizationEnabled returns true and all other conditions
+        // are satisfied, canTriggerCustomizationBottomSheet returns true
+        NtpCustomizationUtils.setNtpBackgroundTypeToSharedPreference(NtpBackgroundType.DEFAULT);
+        NtpCustomizationConfigManager configManager = mock(NtpCustomizationConfigManager.class);
+        NtpCustomizationConfigManager.setInstanceForTesting(configManager);
+        when(configManager.getBackgroundType()).thenReturn(NtpBackgroundType.DEFAULT);
+        ChromeFeatureList.sNewTabPageCustomizationV2ShowTipBottomSheet.setForTesting(true);
+        assertTrue(
+                NtpCustomizationPromoManager.canTriggerCustomizationBottomSheet(
+                        mWindowAndroid, /* isLff= */ true, /* ntpOpenedCount= */ 2));
+
+        // Verifies that when isNtpThemeCustomizationEnabled returns true and all other conditions
+        // are satisfied, canShowCustomizationIph returns true
+        ChromeFeatureList.sNewTabPageCustomizationV2ShowTipBottomSheet.setForTesting(false);
+        when(mTab.isIncognitoBranded()).thenReturn(false);
+        when(mTab.getUrl()).thenReturn(JUnitTestGURLs.NTP_URL);
+        assertTrue(
+                NtpCustomizationPromoManager.canShowCustomizationIph(
+                        mTab, mWindowAndroid, /* isLff= */ true));
+
+        assertTrue(
+                NtpCustomizationPromoManager.canTriggerCustomizationPromo(
+                        mWindowAndroid, /* isLff= */ true));
     }
 }

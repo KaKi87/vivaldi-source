@@ -257,10 +257,6 @@
 [submodule "third_party/openscreen/src"]
 	path = third_party/openscreen/src
 	url = ../../openscreen.git
-[submodule "third_party/openxr/src"]
-	path = third_party/openxr/src
-	url = ../../external/github.com/KhronosGroup/OpenXR-SDK.git
-	gclient-condition = checkout_openxr
 [submodule "third_party/pdfium"]
 	path = third_party/pdfium
 	url = ../../pdfium/pdfium.git

@@ -41,6 +41,7 @@ typedef NS_ENUM(NSInteger, SettingsItemType) {
   SettingsItemTypeAutofillProfile,
   SettingsItemTypeIdentityDocs,
   SettingsItemTypeTravelInfo,
+  SettingsItemTypeShoppingInfo,
   SettingsItemTypeAutofillAndPasswords,
   SettingsItemTypeAutofillSettings,
   SettingsItemTypeVoiceSearch,
@@ -57,6 +58,8 @@ typedef NS_ENUM(NSInteger, SettingsItemType) {
   SettingsItemTypeViewSource,
   SettingsItemTypeTableCellCatalog,
   SettingsItemTypeButtonCatalog,
+  SettingsItemTypeViewControllerCatalog,
+  SettingsItemTypeViewCatalog,
   SettingsItemTypeArticlesForYou,
   SettingsItemTypeManagedArticlesForYou,
   SettingsItemTypeSafetyCheck,
@@ -131,6 +134,9 @@ extern NSString* const kSettingsIdentityDocsCellId;
 
 // The accessibility identifier of the Travel Info cell.
 extern NSString* const kSettingsTravelInfoCellId;
+
+// The accessibility identifier of the Shopping Info cell.
+extern NSString* const kSettingsShoppingInfoCellId;
 
 // The accessibility identifier of the Autofill and Passwords cell.
 extern NSString* const kSettingsAutofillAndPasswordsCellId;

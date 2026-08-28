@@ -38,8 +38,6 @@ class BrandOverride {
   BrandConfiguration brand_config_;
 };
 
-void ClientHintsBrandRegisterProfilePrefs(PrefService*);
-
 void SelectClientHintsBrand(std::optional<std::string>& brand,
                             std::string& major_version,
                             std::string& full_version);

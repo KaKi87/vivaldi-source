@@ -12,6 +12,91 @@
 
 using vivaldi::kVivaldiUIScheme;
 
+namespace {
+
+BOOL IsValidScheme(NSString* scheme) {
+  return [scheme rangeOfString:@"^[A-Za-z][A-Za-z0-9+.-]*$"
+                       options:NSRegularExpressionSearch]
+             .location != NSNotFound;
+}
+
+BOOL IsPort(NSString* remainder) {
+  return [remainder rangeOfString:@"^[0-9]+([/?#].*)?$"
+                          options:NSRegularExpressionSearch]
+             .location != NSNotFound;
+}
+
+BOOL HostWithPort(NSString* host, NSString* remainder) {
+  if (!IsPort(remainder)) {
+    return NO;
+  }
+
+  NSString* lowercaseHost = [host lowercaseString];
+  return [lowercaseHost isEqualToString:@"localhost"] ||
+         [host rangeOfString:@"."].location != NSNotFound;
+}
+
+NSString* SchemeInURLString(NSString* urlString) {
+  NSRange colonRange = [urlString rangeOfString:@":"];
+  if (colonRange.location == NSNotFound) {
+    return nil;
+  }
+
+  NSString* scheme = [urlString substringToIndex:colonRange.location];
+  if (!IsValidScheme(scheme)) {
+    return nil;
+  }
+
+  NSString* remainder = [urlString substringFromIndex:NSMaxRange(colonRange)];
+  if ([remainder hasPrefix:@"//"]) {
+    return scheme;
+  }
+
+  return HostWithPort(scheme, remainder) ? nil : scheme;
+}
+
+BOOL HasURLScheme(NSString* urlString) {
+  return SchemeInURLString(urlString) != nil;
+}
+
+BOOL HasHTTPOrHTTPSScheme(NSString* urlString) {
+  NSURL* url = [NSURL URLWithString:urlString];
+  NSString* scheme = [url scheme];
+
+  if (scheme == nil) {
+    return NO;
+  }
+
+  NSString* lowercaseScheme = [scheme lowercaseString];
+  return [lowercaseScheme isEqualToString:@"http"] ||
+         [lowercaseScheme isEqualToString:@"https"];
+}
+
+NSString* TrimURLString(NSString* urlString) {
+  return [urlString
+      stringByTrimmingCharactersInSet:[NSCharacterSet
+                                          whitespaceAndNewlineCharacterSet]];
+}
+
+NSString* URLStringWithSchemeIfNeeded(NSString* urlString, NSString* scheme) {
+  NSString* trimmedURL = TrimURLString(urlString);
+  if (trimmedURL.length == 0 || HasURLScheme(trimmedURL)) {
+    return trimmedURL;
+  }
+
+  return [NSString stringWithFormat:@"%@://%@", scheme, trimmedURL];
+}
+
+NSString* URLStringWithHTTPFallback(NSString* urlString) {
+  if (HasHTTPOrHTTPSScheme(urlString)) {
+    return urlString;
+  }
+
+  return [NSString stringWithFormat:@"http://%@", urlString];
+}
+
+}  // namespace
+
 @implementation VivaldiGlobalHelpers
 
 + (BOOL)isVivaldiRunning {
@@ -174,9 +259,7 @@ using vivaldi::kVivaldiUIScheme;
 }
 
 + (BOOL)isValidURL:(NSString* _Nonnull)urlString {
-  if (![VivaldiGlobalHelpers urlStringHasHTTPorHTTPS:urlString]) {
-    urlString = [NSString stringWithFormat:@"http://%@", urlString];
-  }
+  urlString = URLStringWithHTTPFallback(urlString);
 
   NSURL* url = [NSURL URLWithString:urlString];
   if (!url) {
@@ -189,22 +272,16 @@ using vivaldi::kVivaldiUIScheme;
 }
 
 + (BOOL)urlStringHasHTTPorHTTPS:(NSString* _Nonnull)urlString {
-  NSURL* url = [NSURL URLWithString:urlString];
-  NSString* scheme = [url scheme];
+  return HasHTTPOrHTTPSScheme(urlString);
+}
 
-  if (scheme == nil) {
-    return NO;
-  }
-
-  NSString* lowercaseScheme = [scheme lowercaseString];
-  return [lowercaseScheme isEqualToString:@"http"] ||
-         [lowercaseScheme isEqualToString:@"https"];
++ (NSString* _Nonnull)urlStringWithHTTPSchemeIfNeeded:
+    (NSString* _Nonnull)urlString {
+  return URLStringWithSchemeIfNeeded(urlString, @"http");
 }
 
 + (NSString* _Nonnull)hostOfURLString:(NSString* _Nonnull)urlString {
-  if (![VivaldiGlobalHelpers urlStringHasHTTPorHTTPS:urlString]) {
-    urlString = [NSString stringWithFormat:@"http://%@", urlString];
-  }
+  urlString = URLStringWithHTTPFallback(urlString);
 
   NSURL* url = [NSURL URLWithString:urlString];
   if (!url) {

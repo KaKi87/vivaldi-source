@@ -21,12 +21,14 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/uuid.h"
 #include "components/notes/note_node.h"
+#include "components/sync/base/client_tag_hash.h"
 #include "components/sync/base/unique_position.h"
 #include "components/sync/protocol/entity_data.h"
 #include "components/sync/protocol/entity_specifics.pb.h"
 #include "components/sync/protocol/notes_specifics.pb.h"
 #include "components/sync_bookmarks/switches.h"
 #include "sync/notes/note_model_view.h"
+#include "sync/vivaldi_server_defined_unique_tags.h"
 #include "url/gurl.h"
 
 namespace sync_notes {
@@ -409,12 +411,10 @@ bool HasExpectedNoteGuid(const sync_pb::NotesSpecifics& specifics,
   DCHECK(base::Uuid::ParseLowercase(specifics.guid()).is_valid());
 
   if (!client_tag_hash.value().empty()) {
-    // Earlier vivaldi versions were mistakenly using the BOOKMARKS type here,
-    // so we temporarily produce tags using the BOOKMARKS type and allow it.
-    // Remove this in a few version. 07-2021
+    // Due to earlier mistakes, the incorrect BOOKMARKS type was used here. This
+    // probably cannot be fixed without removing all existing notes from the
+    // server.
     return syncer::ClientTagHash::FromUnhashed(
-               syncer::NOTES, specifics.guid()) == client_tag_hash ||
-           syncer::ClientTagHash::FromUnhashed(
                syncer::BOOKMARKS, specifics.guid()) == client_tag_hash;
   }
 
@@ -426,6 +426,52 @@ bool HasExpectedNoteGuid(const sync_pb::NotesSpecifics& specifics,
   return base::Uuid::ParseLowercase(specifics.guid()) ==
          InferGuidFromLegacyOriginatorId(originator_cache_guid,
                                          originator_client_item_id);
+}
+
+base::Uuid GetPermanentFolderUuidForServerDefinedUniqueTag(
+    const std::string& server_defined_unique_tag) {
+  DCHECK(!server_defined_unique_tag.empty());
+
+  if (server_defined_unique_tag == syncer::kMainNotesTag) {
+    return base::Uuid::ParseLowercase(vivaldi::NoteNode::kMainNodeUuid);
+  }
+  if (server_defined_unique_tag == syncer::kOtherNotesTag) {
+    return base::Uuid::ParseLowercase(vivaldi::NoteNode::kOtherNotesNodeUuid);
+  }
+  if (server_defined_unique_tag == syncer::kTrashNotesTag) {
+    return base::Uuid::ParseLowercase(vivaldi::NoteNode::kTrashNodeUuid);
+  }
+
+  return base::Uuid();
+}
+
+syncer::ClientTagHash GetOrInferClientTagHashInUpdate(
+    const syncer::EntityData& update_entity) {
+  if (!update_entity.client_tag_hash.value().empty()) {
+    return update_entity.client_tag_hash;
+  }
+  if (!update_entity.originator_client_item_id.empty()) {
+    // Due to earlier mistakes, the incorrect BOOKMARKS type was used here. This
+    // probably cannot be fixed without removing all existing notes from the
+    // server.
+    return syncer::ClientTagHash::FromUnhashed(
+        syncer::BOOKMARKS,
+        InferGuidFromLegacyOriginatorId(update_entity.originator_cache_guid,
+                                        update_entity.originator_client_item_id)
+            .AsLowercaseString());
+  }
+  if (!update_entity.server_defined_unique_tag.empty()) {
+    const base::Uuid uuid = GetPermanentFolderUuidForServerDefinedUniqueTag(
+        update_entity.server_defined_unique_tag);
+    if (uuid.is_valid()) {
+      // Due to earlier mistakes, the incorrect BOOKMARKS type was used here.
+      // This probably cannot be fixed without removing all existing notes from
+      // the server.
+      return syncer::ClientTagHash::FromUnhashed(syncer::BOOKMARKS,
+                                                 uuid.AsLowercaseString());
+    }
+  }
+  return syncer::ClientTagHash();
 }
 
 }  // namespace sync_notes

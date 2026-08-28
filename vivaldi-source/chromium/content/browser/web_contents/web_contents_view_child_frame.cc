@@ -53,6 +53,15 @@ WebContentsViewChildFrame::WebContentsViewChildFrame(
 
 WebContentsViewChildFrame::~WebContentsViewChildFrame() = default;
 
+WebContentsViewChildFrame::Type WebContentsViewChildFrame::GetType() const {
+  if (web_contents_->IsGuest()) {
+    CHECK(!web_contents_->GetSurfaceEmbedConnector());
+    return Type::kGuestView;
+  }
+  CHECK(web_contents_->GetSurfaceEmbedConnector());
+  return Type::kSurfaceEmbed;
+}
+
 WebContentsView* WebContentsViewChildFrame::GetOuterView() {
   if (auto* outer_web_contents = web_contents_->GetOuterWebContents()) {
     return outer_web_contents->GetView();
@@ -129,7 +138,7 @@ gfx::Rect WebContentsViewChildFrame::GetContainerBounds() const {
 void WebContentsViewChildFrame::SetInitialFocus() {
   // Expected in Vivaldi as all webviews are ChildFrames.
   if (vivaldi::IsVivaldiRunning())
-  	return;
+    return;
 
   // Ignore focus requests for GuestView WebContents.
   if (web_contents_->IsGuest()) {
@@ -244,7 +253,15 @@ void WebContentsViewChildFrame::StoreFocus() {
 }
 
 void WebContentsViewChildFrame::FocusThroughTabTraversal(bool reverse) {
-  NOTREACHED();
+  if (GetType() == Type::kGuestView) {
+    NOTREACHED();
+  }
+
+  if (delegate_) {
+    delegate_->ResetStoredFocus();
+  }
+
+  web_contents_->GetRenderViewHost()->SetInitialFocus(reverse);
 }
 
 DropData* WebContentsViewChildFrame::GetDropData() const {
@@ -274,9 +291,15 @@ void WebContentsViewChildFrame::GotFocus(
 }
 
 void WebContentsViewChildFrame::TakeFocus(bool reverse) {
-  // This is handled in RenderFrameHostImpl::TakeFocus we shouldn't
-  // end up here.
-  NOTREACHED();
+  if (GetType() == Type::kGuestView) {
+    // This is handled in RenderFrameHostImpl::TakeFocus we shouldn't
+    // end up here.
+    NOTREACHED();
+  }
+
+  // TODO(crbug.com/508638062): this is reached when pressing Tab to traverse
+  // from an embedded frame to the parent frame.
+  NOTIMPLEMENTED();
 }
 
 void WebContentsViewChildFrame::ShowContextMenu(

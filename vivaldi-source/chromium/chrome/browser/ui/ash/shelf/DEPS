@@ -1,7 +1,6 @@
 include_rules = [
   "+chromeos/ash/experiences/system_web_apps/types",
   "+components/services/app_service/public",
-  "+components/app_restore/full_restore_utils.h",
   "+components/app_icon_loader",
 
   # Existing dependencies within //chrome. There is an active effort to
@@ -48,7 +47,6 @@ include_rules = [
   "+chrome/browser/ui/ash/multi_user",
   "+chrome/browser/ui/ash/session",
   "+chrome/browser/ui/ash/system_web_apps",
-  "+chrome/browser/ui/browser.h",
   "+chrome/browser/ui/browser_tab_strip_tracker.h",
   "+chrome/browser/ui/browser_window/public",
   "+chrome/browser/ui/chrome_pages.h",
@@ -58,7 +56,7 @@ include_rules = [
   "+chrome/browser/ui/tabs/tab_strip_model_observer.h",
   "+chrome/browser/ui/views/frame",
   "+chrome/browser/ui/web_applications",
-  "+chrome/browser/ui/webui/ash/settings/app_management",
+  "+chrome/browser/ui/window_metadata/window_metadata_controller.h",
   "+chrome/browser/web_applications",
   "+chrome/common",
   "+chrome/grit",
@@ -71,6 +69,7 @@ specific_include_rules = {
     "+chrome/browser/extensions/extension_apitest.h",
     "+chrome/browser/extensions/extension_browsertest.h",
     "+chrome/browser/extensions/test_extension_system.h",
+    "+chrome/browser/ui/browser.h",
     "+chrome/browser/ui/browser_commands.h",
     "+chrome/browser/ui/browser_tabstrip.h",
     "+chrome/browser/ui/browser_window.h",

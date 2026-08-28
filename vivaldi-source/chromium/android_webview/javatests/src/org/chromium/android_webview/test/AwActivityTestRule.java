@@ -4,6 +4,7 @@
 
 package org.chromium.android_webview.test;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.util.Base64;
@@ -115,6 +116,8 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
     private final List<WeakReference<AwContents>> mAwContentsDestroyedInTearDown =
             new ArrayList<>();
 
+    private final List<WeakReference<Activity>> mActivitiesCreatedInTests = new ArrayList<>();
+
     @Nullable private Consumer<AwSettings> mMaybeMutateAwSettings;
 
     public AwActivityTestRule() {
@@ -150,24 +153,31 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
 
     @Override
     protected void after() {
-        if (!needsAwContentsCleanup()) {
-            super.after();
-            return;
+        if (needsAwContentsCleanup()) {
+            ThreadUtils.runOnUiThreadBlocking(
+                    () -> {
+                        for (WeakReference<AwContents> awContentsRef :
+                                mAwContentsDestroyedInTearDown) {
+                            AwContents awContents = awContentsRef.get();
+                            if (awContents == null) continue;
+                            awContents.destroy();
+                        }
+                    });
+            // Flush the UI queue since destroy posts again to UI thread.
+            ThreadUtils.runOnUiThreadBlocking(
+                    () -> {
+                        mAwContentsDestroyedInTearDown.clear();
+                    });
         }
 
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    for (WeakReference<AwContents> awContentsRef : mAwContentsDestroyedInTearDown) {
-                        AwContents awContents = awContentsRef.get();
-                        if (awContents == null) continue;
-                        awContents.destroy();
-                    }
-                });
-        // Flush the UI queue since destroy posts again to UI thread.
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    mAwContentsDestroyedInTearDown.clear();
-                });
+        for (WeakReference<Activity> activityRef : mActivitiesCreatedInTests) {
+            Activity activity = activityRef.get();
+            if (activity != null) {
+                ApplicationTestUtils.finishActivity(activity);
+            }
+        }
+        mActivitiesCreatedInTests.clear();
+
         super.after();
     }
 
@@ -549,19 +559,25 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
                 testDependencyFactory.createAwTestContainerView(
                         getActivity(), allowHardwareAcceleration);
 
-        AwSettings awSettings =
-                testDependencyFactory.createAwSettings(getActivity(), supportsLegacyQuirks);
-        if (mMaybeMutateAwSettings != null) mMaybeMutateAwSettings.accept(awSettings);
+        testDependencyFactory.setSupportsLegacyQuirks(supportsLegacyQuirks);
         AwContents awContents =
                 testDependencyFactory.createAwContents(
                         browserContext != null ? browserContext : sBrowserContext,
                         testContainerView,
                         testContainerView.getContext(),
                         testContainerView.getInternalAccessDelegate(),
-                        testContainerView.getDrawFnAccess(),
+                        new AwTestContainerView.RoutingDrawFnAccess(),
                         awContentsClient,
-                        awSettings,
                         testDependencyFactory);
+
+        // Disable favicons by default to ensure test determinism, as background
+        // favicon requests can pollute shouldInterceptRequest callbacks. Tests that
+        // specifically need favicons can enable it explicitly.
+        awContents.getSettings().setDownloadFaviconsEnabled(false);
+
+        if (mMaybeMutateAwSettings != null) {
+            mMaybeMutateAwSettings.accept(awContents.getSettings());
+        }
         if (overridesShouldInterceptRequest(awContentsClient)) {
             awContents.onWebViewClientUpdated(OVERRIDES_SHOULD_INTERCEPT_REQUEST_WEB_VIEW_CLIENT);
         }
@@ -607,6 +623,43 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
                                 browserContext));
     }
 
+    /**
+     * Helper to reparent an existing AwTestContainerView to a new Activity. This is useful for
+     * testing state preservation across context updates.
+     */
+    public AwTestContainerView reparentAwContents(AwTestContainerView view) {
+        AwTestRunnerActivity newActivity;
+        Intent intent = new Intent(getActivity(), AwTestRunnerActivity.class);
+        newActivity =
+                ApplicationTestUtils.waitForActivityWithClass(
+                        AwTestRunnerActivity.class,
+                        Stage.CREATED,
+                        () -> getActivity().startActivity(intent));
+        ApplicationTestUtils.waitForActivityState(newActivity, Stage.RESUMED);
+        mActivitiesCreatedInTests.add(new WeakReference<>(newActivity));
+
+        return ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    ViewGroup parent = (ViewGroup) view.getParent();
+                    if (parent != null) {
+                        parent.removeView(view);
+                    }
+
+                    AwTestContainerView newContainerView =
+                            new AwTestContainerView(
+                                    newActivity,
+                                    /* allowHardwareAcceleration= */ true,
+                                    /* allowMultipleHardwareViews= */ true);
+                    newContainerView.initialize(view.getAwContents());
+                    view.getAwContents()
+                            .adopt(newContainerView, newContainerView.getInternalAccessDelegate());
+
+                    newActivity.addView(newContainerView);
+                    newContainerView.requestFocus();
+                    return newContainerView;
+                });
+    }
+
     public void destroyAwContentsOnMainSync(@Nullable final AwContents awContents) {
         if (awContents == null) return;
         ThreadUtils.runOnUiThreadBlocking(() -> awContents.destroy());
@@ -616,7 +669,7 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
         return ThreadUtils.runOnUiThreadBlocking(() -> awContents.getTitle());
     }
 
-    public AwSettings getAwSettingsOnUiThread(final AwContents awContents) throws Exception {
+    public AwSettings getAwSettingsOnUiThread(final AwContents awContents) {
         return ThreadUtils.runOnUiThreadBlocking(() -> awContents.getSettings());
     }
 
@@ -661,7 +714,7 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
                 viewClient.getOnEvaluateJavaScriptResultHelper(), code);
     }
 
-    public static void checkJavaScriptEnabled(AwContents awContents) throws Exception {
+    public static void checkJavaScriptEnabled(AwContents awContents) {
         boolean javaScriptEnabled = AwActivityTestRule.getJavaScriptEnabledOnUiThread(awContents);
         if (!javaScriptEnabled) {
             throw new IllegalStateException(
@@ -698,8 +751,7 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
             final AwContents awContents,
             final Object objectToInject,
             final String javascriptIdentifier,
-            final List<String> allowlist)
-            throws Exception {
+            final List<String> allowlist) {
         checkJavaScriptEnabled(awContents);
         return ThreadUtils.runOnUiThreadBlocking(
                 () ->
@@ -714,8 +766,7 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
     public static void addJavascriptInterfaceOnUiThread(
             final AwContents awContents,
             final Object objectToInject,
-            final String javascriptIdentifier)
-            throws Exception {
+            final String javascriptIdentifier) {
         checkJavaScriptEnabled(awContents);
         ThreadUtils.runOnUiThreadBlocking(
                 () -> awContents.addJavascriptInterface(objectToInject, javascriptIdentifier));
@@ -824,22 +875,22 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
     }
 
     /** Returns pure page scale. */
-    public float getScaleOnUiThread(final AwContents awContents) throws Exception {
+    public float getScaleOnUiThread(final AwContents awContents) {
         return ThreadUtils.runOnUiThreadBlocking(() -> awContents.getPageScaleFactor());
     }
 
     /** Returns page scale multiplied by the screen density. */
-    public float getPixelScaleOnUiThread(final AwContents awContents) throws Exception {
+    public float getPixelScaleOnUiThread(final AwContents awContents) {
         return ThreadUtils.runOnUiThreadBlocking(() -> awContents.getScale());
     }
 
     /** Returns whether a user can zoom the page in. */
-    public boolean canZoomInOnUiThread(final AwContents awContents) throws Exception {
+    public boolean canZoomInOnUiThread(final AwContents awContents) {
         return ThreadUtils.runOnUiThreadBlocking(() -> awContents.canZoomIn());
     }
 
     /** Returns whether a user can zoom the page out. */
-    public boolean canZoomOutOnUiThread(final AwContents awContents) throws Exception {
+    public boolean canZoomOutOnUiThread(final AwContents awContents) {
         return ThreadUtils.runOnUiThreadBlocking(() -> awContents.canZoomOut());
     }
 
@@ -955,21 +1006,34 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
     }
 
     /**
-     * Factory class used in creation of test AwContents instances. Test cases
-     * can provide subclass instances to the createAwTest* methods in order to
-     * create an AwContents instance with injected test dependencies.
+     * Factory class used in creation of test AwContents instances. Test cases can provide subclass
+     * instances to the createAwTest* methods in order to create an AwContents instance with
+     * injected test dependencies.
      */
     public static class TestDependencyFactory extends AwContents.DependencyFactory {
+        private boolean mSupportsLegacyQuirks;
+
+        public void setSupportsLegacyQuirks(boolean supportsLegacyQuirks) {
+            mSupportsLegacyQuirks = supportsLegacyQuirks;
+        }
+
         public AwTestContainerView createAwTestContainerView(
                 AwTestRunnerActivity activity, boolean allowHardwareAcceleration) {
             return new AwTestContainerView(activity, allowHardwareAcceleration);
         }
 
-        public AwSettings createAwSettings(Context context, boolean supportsLegacyQuirks) {
+        @Override
+        public AwSettings createAwSettings(
+                AwContents awContents,
+                boolean isAccessFromFileUrlsGrantedByDefault,
+                boolean supportsLegacyQuirks,
+                boolean allowEmptyDocumentPersistence,
+                boolean allowGeolocationOnInsecureOrigins,
+                boolean doNotUpdateSelectionOnMutatingSelectionRange) {
             return new AwSettings(
-                    context,
+                    awContents,
                     /* isAccessFromFileUrlsGrantedByDefault= */ false,
-                    supportsLegacyQuirks,
+                    mSupportsLegacyQuirks,
                     /* allowEmptyDocumentPersistence= */ false,
                     /* allowGeolocationOnInsecureOrigins= */ true,
                     /* doNotUpdateSelectionOnMutatingSelectionRange= */ false);
@@ -982,7 +1046,6 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
                 InternalAccessDelegate internalAccessAdapter,
                 AwDrawFnImpl.DrawFnAccess drawFnAccess,
                 AwContentsClient contentsClient,
-                AwSettings settings,
                 DependencyFactory dependencyFactory) {
             return new AwContents(
                     browserContext,
@@ -990,8 +1053,7 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
                     context,
                     internalAccessAdapter,
                     drawFnAccess,
-                    contentsClient,
-                    settings,
+                    aw -> contentsClient,
                     dependencyFactory);
         }
     }

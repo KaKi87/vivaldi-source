@@ -42,6 +42,7 @@
 #import "ios/chrome/browser/autofill/model/bottom_sheet/autofill_bottom_sheet_java_script_feature.h"
 #import "ios/chrome/browser/browser_content/model/edit_menu_tab_helper.h"
 #import "ios/chrome/browser/cobrowse/model/aim_cobrowse_java_script_feature.h"
+#import "ios/chrome/browser/cobrowse/model/cobrowse_util.h"
 #import "ios/chrome/browser/content_settings/model/host_content_settings_map_factory.h"
 #import "ios/chrome/browser/enterprise/connectors/ios_enterprise_interstitial.h"
 #import "ios/chrome/browser/enterprise/connectors/reporting/ios_reporting_event_router_factory.h"
@@ -65,8 +66,6 @@
 #import "ios/chrome/browser/reader_mode/model/features.h"
 #import "ios/chrome/browser/reader_mode/model/reader_mode_java_script_feature.h"
 #import "ios/chrome/browser/reader_mode/model/reader_mode_scroll_anchor_java_script_feature.h"
-#import "ios/chrome/browser/reading_list/model/offline_page_tab_helper.h"
-#import "ios/chrome/browser/reading_list/model/offline_url_utils.h"
 #import "ios/chrome/browser/safe_browsing/model/password_protection_java_script_feature.h"
 #import "ios/chrome/browser/safe_browsing/model/safe_browsing_blocking_page.h"
 #import "ios/chrome/browser/search_engines/model/search_engine_java_script_feature.h"
@@ -135,16 +134,14 @@
 #import "ui/base/l10n/l10n_util.h"
 #import "ui/base/resource/resource_bundle.h"
 #import "url/gurl.h"
+#import "url/url_constants.h"
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
 #import "browser/features/vivaldi_features.h"
-#import "ios/bankid/vivaldi_bankid_form_navigation_java_script_feature.h"
-#import "ios/website_dark_mode/website_dark_mode_java_script_feature.h"
 #import "ios/reader_mode/vivaldi_reader_mode_java_script_feature.h"
 #import "ios/search/vivaldi_add_search_engine_java_script_feature.h"
-
-using vivaldi::IsVivaldiRunning;
+#import "ios/website_dark_mode/website_dark_mode_java_script_feature.h"
 // End Vivaldi
 
 namespace {
@@ -266,7 +263,7 @@ NSString* GetSupervisedUserErrorPageHTML(web::WebState* web_state,
       ProfileIOS::FromBrowserState(web_state->GetBrowserState());
   std::string error_page_content =
       supervised_user::SupervisedUserInterstitial::GetHTMLContentsWithApprovals(
-          SupervisedUserServiceFactory::GetForProfile(profile),
+          supervised_user::SupervisedUserServiceFactory::GetForProfile(profile),
           error_info->filtering_result().reason,
           container->IsRemoteApprovalPendingForUrl(url),
           error_info->is_main_frame(),
@@ -295,16 +292,14 @@ std::string GetDesktopProduct() {
                             version_info::GetMajorVersionNumber().c_str());
 }
 
-// If `url` is an offline URL, returns the associated online URL. If it is not
-// an offline URL then returns `url` as it can be considered as online.
-GURL GetOnlineUrl(const GURL& url) {
-  GURL online_url = url;
-  if (reading_list::IsOfflineEntryURL(url)) {
-    online_url = reading_list::EntryURLForOfflineURL(url);
-  } else if (reading_list::IsOfflineReloadURL(url)) {
-    online_url = reading_list::ReloadURLForOfflineURL(url);
+// Filter javascript: URLs and replace them by about:blank.
+bool WillHandleWebBrowserJavascriptURLs(GURL* url, web::BrowserState*) {
+  if (url->is_valid() && url->SchemeIs(url::kJavaScriptScheme)) {
+    *url = GURL(url::kAboutBlankURL);
+    return true;
   }
-  return online_url;
+
+  return false;
 }
 
 }  // namespace
@@ -398,6 +393,7 @@ void ChromeWebClient::GetAdditionalWebUISchemes(
 
 void ChromeWebClient::PostBrowserURLRewriterCreation(
     web::BrowserURLRewriter* rewriter) {
+  rewriter->AddURLRewriter(&WillHandleWebBrowserJavascriptURLs);
   rewriter->AddURLRewriter(&WillHandleWebBrowserNewTabPageURLForPolicy);
   rewriter->AddURLRewriter(&WillHandleWebBrowserAboutURL);
   ios::provider::AddURLRewriters(rewriter);
@@ -460,7 +456,7 @@ std::vector<web::JavaScriptFeature*> ChromeWebClient::GetJavaScriptFeatures(
     features.push_back(actor::SelectToolJavaScriptFeature::GetInstance());
     features.push_back(actor::TypeToolJavaScriptFeature::GetInstance());
   }
-  if (IsActorEnabled() || IsPageStabilityMetricsEnabled()) {
+  if (IsActorEnabled()) {
     features.push_back(actor::PageStabilityJavaScriptFeature::GetInstance());
   }
 
@@ -469,11 +465,6 @@ std::vector<web::JavaScriptFeature*> ChromeWebClient::GetJavaScriptFeatures(
   features.push_back(VivaldiReaderModeJavaScriptFeature::GetInstance());
   features.push_back(
       vivaldi::VivaldiAddSearchEngineJavaScriptFeature::GetInstance());
-  if (base::FeatureList::IsEnabled(
-          vivaldi_features::kBankIDDigIDLatencyWorkaround)) {
-    features.push_back(
-        vivaldi::VivaldiBankIDFormNavigationJavaScriptFeature::GetInstance());
-  }
   // End Vivaldi
 
   features.push_back(
@@ -501,7 +492,7 @@ std::vector<web::JavaScriptFeature*> ChromeWebClient::GetJavaScriptFeatures(
     }
   }
 
-  if (IsAimCobrowseEnabled()) {
+  if (IsAimCobrowseEligible(profile)) {
     features.push_back(AimCobrowseJavaScriptFeature::GetInstance());
   }
 
@@ -547,23 +538,6 @@ void ChromeWebClient::PrepareErrorPage(
         ssl_info.value(), url, ssl_info.value().is_fatal_cert_error,
         navigation_id, std::move(callback));
   } else {
-    OfflinePageTabHelper* offline_page_tab_helper =
-        OfflinePageTabHelper::FromWebState(web_state);
-    // WebState that are not attached to a tab may not have an
-    // OfflinePageTabHelper.
-    if (offline_page_tab_helper &&
-        (offline_page_tab_helper->CanHandleErrorLoadingURL(url))) {
-      // An offline version of the page will be displayed to replace this error
-      // page. Loading an error page here can cause a race between the
-      // navigation to load the error page and the navigation to display the
-      // offline version of the page. If the latter navigation interrupts the
-      // former and causes it to fail, this can incorrectly appear to be a
-      // navigation back to the previous committed URL. To avoid this race,
-      // return a nil error page here to avoid an error page load. See
-      // crbug.com/980912.
-      std::move(callback).Run(nil);
-      return;
-    }
     std::move(callback).Run(
         GetErrorPage(url, error, is_post, is_off_the_record));
   }
@@ -630,13 +604,6 @@ void ChromeWebClient::CleanupNativeRestoreURLs(web::WebState* web_state) const {
     web::NavigationItem* item = navigationManager->GetItemAtIndex(i);
     NewTabPageTabHelper::UpdateItem(item);
 
-    // The WKWebView URL underneath a forced-offline page is chrome://offline,
-    // which has an embedded entry URL. Apply that entryURL to the virtualURL
-    // here.
-    if (item->GetVirtualURL().GetHost() == kChromeUIOfflineHost) {
-      item->SetVirtualURL(
-          reading_list::EntryURLForOfflineURL(item->GetVirtualURL()));
-    }
   }
 }
 
@@ -650,9 +617,7 @@ void ChromeWebClient::WillDisplayMediaCapturePermissionPrompt(
 
 bool ChromeWebClient::IsPointingToSameDocument(const GURL& url1,
                                                const GURL& url2) const {
-  GURL url_to_compare1 = GetOnlineUrl(url1);
-  GURL url_to_compare2 = GetOnlineUrl(url2);
-  return url_to_compare1 == url_to_compare2;
+  return url1 == url2;
 }
 
 bool ChromeWebClient::IsBrowserLockdownModeEnabled() {

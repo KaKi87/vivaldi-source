@@ -24,10 +24,11 @@ import org.robolectric.Robolectric;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.blink.mojom.ImmersiveProjectionType;
-import org.chromium.blink.mojom.ImmersiveStereoMode;
 import org.chromium.chrome.browser.media.immersive_playback.ImmersiveVideoFormatRadioGroup;
 import org.chromium.chrome.browser.modules.xr.R;
+import org.chromium.chrome.browser.xr.scenecore.XrModuleProviderImpl;
+import org.chromium.content_public.browser.ImmersiveProjectionType;
+import org.chromium.content_public.browser.ImmersiveStereoMode;
 import org.chromium.ui.xr.scenecore.XrEntityHolder;
 import org.chromium.ui.xr.scenecore.XrPanelEntityHolder;
 import org.chromium.ui.xr.scenecore.XrSceneCoreSessionManager;
@@ -48,10 +49,12 @@ public class ImmersiveVideoFormatCoordinatorTest {
 
     @Before
     public void setUp() {
+        XrModuleProviderImpl.initialize();
         MockitoAnnotations.openMocks(this);
         mActivity = Robolectric.buildActivity(Activity.class).create().get();
 
         when(mSessionManager.createPanelEntity(any(), any())).thenReturn(mHolder);
+        when(mFormatView.getRadioGroup()).thenReturn(mFormatRadioGroup);
         when(mFormatView.findViewById(R.id.format_radio_group)).thenReturn(mFormatRadioGroup);
 
         mCoordinator =

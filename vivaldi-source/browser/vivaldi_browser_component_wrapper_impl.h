@@ -419,6 +419,13 @@ class VivaldiBrowserComponentWrapperImpl
                               int32_t window_id,
                               std::string menu_id) override;
 
+  void VivaldiForBrowserShowWebsiteSettingsAt(
+      Browser* browser,
+      Profile* profile,
+      content::WebContents* web_contents,
+      const GURL& url,
+      gfx::Point pos) override;
+
   //<..>
 };
 

@@ -32,7 +32,7 @@
 #include "content/public/common/content_switches.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
-#include "ui/views/widget/widget_interactive_uitest_utils.h"
+#include "ui/views/test/views_test_utils.h"
 
 #if BUILDFLAG(IS_CHROMEOS)
 #include "ash/constants/ash_features.h"
@@ -47,7 +47,7 @@ class SessionRestoreInteractiveTest : public InProcessBrowserTest {
  protected:
   void SetUpOnMainThread() override {
     SessionStartupPref pref(SessionStartupPref::LAST);
-    SessionStartupPref::SetStartupPref(browser()->profile(), pref);
+    SessionStartupPref::SetStartupPref(browser()->GetProfile(), pref);
   }
 
   bool SetUpUserDataDirectory() override {
@@ -59,7 +59,7 @@ class SessionRestoreInteractiveTest : public InProcessBrowserTest {
   }
 
   BrowserWindowInterface* QuitBrowserAndRestore(Browser* browser) {
-    Profile* profile = browser->profile();
+    Profile* profile = browser->GetProfile();
 
     // Close the browser.
     auto keep_alive = std::make_unique<ScopedKeepAlive>(
@@ -191,18 +191,12 @@ IN_PROC_BROWSER_TEST_F(SessionRestoreInteractiveTest, MAYBE_FocusOnLaunch) {
 // Regression test for https://crbug.com/40655640.
 IN_PROC_BROWSER_TEST_F(SessionRestoreInteractiveTest,
                        MAYBE_RestoreMinimizedWindow) {
-#if BUILDFLAG(IS_WIN)
-  if (base::FeatureList::IsEnabled(features::kInitialWebUI)) {
-    GTEST_SKIP() << "Skipping test on Windows with InitialWebUI enabled. "
-                    "See crbug.com/477426026";
-  }
-#endif
   // Minimize the window.
   views::test::PropertyWaiter minimize_waiter(
       base::BindRepeating(&ui::BaseWindow::IsMinimized,
-                          base::Unretained(browser()->window())),
+                          base::Unretained(browser()->GetWindow())),
       true);
-  browser()->window()->Minimize();
+  browser()->GetWindow()->Minimize();
   EXPECT_TRUE(minimize_waiter.Wait());
 
   // Restart and session restore the tabs.
@@ -223,17 +217,17 @@ IN_PROC_BROWSER_TEST_F(SessionRestoreInteractiveTest,
 // Also fails flakily on Mac.
 IN_PROC_BROWSER_TEST_F(SessionRestoreInteractiveTest,
                        DISABLED_RestoreMinimizedWindowTwice) {
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
 
   // Create a second browser.
-  CreateBrowser(browser()->profile());
+  CreateBrowser(browser()->GetProfile());
 
   // Minimize the first browser window.
   views::test::PropertyWaiter minimize_waiter(
       base::BindRepeating(&ui::BaseWindow::IsMinimized,
-                          base::Unretained(browser()->window())),
+                          base::Unretained(browser()->GetWindow())),
       true);
-  browser()->window()->Minimize();
+  browser()->GetWindow()->Minimize();
   EXPECT_TRUE(minimize_waiter.Wait());
 
   EXPECT_EQ(2u, GlobalBrowserCollection::GetInstance()->GetSize());
@@ -297,7 +291,7 @@ IN_PROC_BROWSER_TEST_F(SessionRestoreAshInteractiveTest, MultiWindowTabLoad) {
   base::CommandLine* cmd = base::CommandLine::ForCurrentProcess();
   cmd->RemoveSwitch(switches::kDisableBackgroundingOccludedWindowsForTesting);
 
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
 
   const gfx::Rect bounds(0, 0, 600, 400);
 
@@ -305,12 +299,12 @@ IN_PROC_BROWSER_TEST_F(SessionRestoreAshInteractiveTest, MultiWindowTabLoad) {
   Browser* browser1 = browser();
   const GURL kUrlWindow1("data:,window 1");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser1, kUrlWindow1));
-  browser1->window()->SetBounds(bounds);
+  browser1->GetWindow()->SetBounds(bounds);
 
   ui_test_utils::BrowserCreatedObserver browser_created_observer;
   chrome::NewWindow(browser1);
   Browser* browser2 = browser_created_observer.Wait();
-  browser2->window()->SetBounds(bounds);
+  browser2->GetWindow()->SetBounds(bounds);
 
   ui_test_utils::WaitUntilBrowserBecomeActive(browser2);
   const GURL kUrlWindow2("data:,window 2");

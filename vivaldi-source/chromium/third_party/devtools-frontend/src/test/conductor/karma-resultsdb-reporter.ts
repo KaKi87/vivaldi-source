@@ -4,26 +4,26 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-// TODO: Fix this as they are extraneous dependencies
-// The type that get resolve are wrong, so keep the required
-import chalkImport from 'chalk';
+import {existsSync} from 'node:fs';
+import {styleText} from 'node:util';
+
+import {generateExactTestId} from '../../front_end/testing/TestIdGeneration.js';
 
 import {formatAsHtml, formatDiff, resultAssertionsDiff} from './diff-utils.js';
+import {GEN_DIR} from './paths.js';
 import * as ResultsDb from './resultsdb.js';
 import {ScreenshotError} from './screenshot-error.js';
-
-const chalk: any = chalkImport;
+import {isExpectedResult} from './test_expectations.js';
 
 export function formatAsPatch(assertionDiff: any) {
-  // We keep the console patch formatting here as it uses chalk
   const consoleDiffLines = Array.from(formatDiff(
       assertionDiff,
       (same: string) => ` ${same}`,
-      (actual: string) => chalk.green(`+${actual}`),
-      (expected: string) => chalk.red(`-${expected}`),
+      (actual: string) => styleText('green', `+${actual}`),
+      (expected: string) => styleText('red', `-${expected}`),
       ));
   if (consoleDiffLines.length > 0) {
-    return `${chalk.red('- expected')}\n${chalk.green('+ actual')}\n\n${consoleDiffLines.join('\n')}\n`;
+    return `${styleText('red', '- expected')}\n${styleText('green', '+ actual')}\n\n${consoleDiffLines.join('\n')}\n`;
   }
   return null;
 }
@@ -32,20 +32,35 @@ export const ResultsDBReporter = function(
     this: any, baseReporterDecorator: (arg0: any) => void, formatError: any, _config: any) {
   baseReporterDecorator(this);
 
-  this.USE_COLORS = true;
+  this.USE_COLORS = false;
 
   const capturedLog: Array<{log: string, type: string}> = [];
   this.onBrowserLog = (_browser: any, log: string, type: string) => {
     capturedLog.push({log, type});
   };
 
+  this.onBrowserError = (_browser: any, error: string) => {
+    this.write(`==== FATAL ERROR ====\n${error}\n=====================\n`);
+  };
+
   const specComplete = (_browser: any, result: any) => {
     if (result.mocha?.hasExclusiveTests) {
       this.hasExclusiveTests = true;
     }
+    const type = result.mocha?.type;
+    if (!type) {
+      throw new Error(`Test ${result.description} does not have a type property`);
+    }
+    const file = result.mocha?.file;
+    if (type !== 'hook' && !file) {
+      throw new Error(`Test ${result.description} does not have a file property`);
+    }
+    if (file && !existsSync(file)) {
+      throw new Error(`Test file ${file} does not exist`);
+    }
     const {suite, description, log, startTime, endTime, success, skipped} = result;
-    const testId = ResultsDb.sanitizedTestId([...suite, description].join('/'));
-    const expected = success || skipped;
+    const {exactTestId, coarseName, fineName, caseName} = generateExactTestId(GEN_DIR, file, [...suite, description]);
+    const expected = isExpectedResult({exactTestId, success, skipped});
     const status = skipped ? 'SKIP' : success ? 'PASS' : 'FAIL';
     let duration = '.001s';
     if (startTime < endTime) {
@@ -68,7 +83,7 @@ export const ResultsDBReporter = function(
       }
       summaryHtml = summaryLines.join('\n');
 
-      const consoleHeader = `==== ${status}: ${testId}`;
+      const consoleHeader = `==== ${status}: ${exactTestId}`;
       this.write(`${consoleHeader}\n${messages.join('\n\n')}\n`);
       const patch = formatAsPatch(assertionDiff);
       if (patch) {
@@ -79,10 +94,16 @@ export const ResultsDBReporter = function(
         throw new Error('Bailing (bail option is enabled)');
       }
     } else if (skipped) {
-      this.write(`==== ${status}: ${testId}\n\n`);
+      this.write(`==== ${status}: ${exactTestId}\n\n`);
     }
 
-    const testResult: ResultsDb.TestResult = {testId, duration, status, expected, summaryHtml};
+    const testResult: ResultsDb.TestResult = {
+      duration,
+      status,
+      expected,
+      summaryHtml,
+      ...ResultsDb.buildTestProperties(exactTestId, coarseName, fineName, caseName),
+    };
 
     if (result.log?.[0]?.startsWith('Error: ScreenshotError')) {
       const screenshotError = ScreenshotError.errors.shift();
@@ -103,7 +124,13 @@ export const ResultsDBReporter = function(
         }
       }
     }
-    ResultsDb.sendTestResult(testResult, /* sendImmediately=*/ true);
+
+    // Clear any leftover screenshot errors from retries of this test.
+    // Mocha retries cause multiple ScreenshotErrors to be pushed, but specComplete
+    // only shifts the first one. We must clear the rest so they don't bleed into the next test.
+    ScreenshotError.errors.length = 0;
+
+    ResultsDb.sendTestResult(testResult);
   };
   this.specSuccess = specComplete;
   this.specSkipped = specComplete;

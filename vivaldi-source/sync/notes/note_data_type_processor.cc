@@ -19,6 +19,7 @@
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "components/notes/note_node.h"
+#include "components/sync/base/client_tag_hash.h"
 #include "components/sync/base/data_type.h"
 #include "components/sync/base/data_type_histogram.h"
 #include "components/sync/base/features.h"
@@ -42,6 +43,7 @@
 #include "sync/notes/notes_model_observer_impl.h"
 #include "sync/notes/parent_guid_preprocessing.h"
 #include "sync/notes/synced_note_tracker_entity.h"
+#include "sync/vivaldi_server_defined_unique_tags.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
 #include "ui/base/models/tree_node_iterator.h"
 
@@ -96,13 +98,13 @@ std::string_view ComputeServerDefinedUniqueTagForDebugging(
     const vivaldi::NoteNode* node,
     const NoteModelView* model) {
   if (node == model->main_node()) {
-    return "main_notes";
+    return syncer::kMainNotesTag;
   }
   if (node == model->other_node()) {
-    return "other_notes";
+    return syncer::kOtherNotesTag;
   }
   if (node == model->trash_node()) {
-    return "trash_notes";
+    return syncer::kTrashNotesTag;
   }
   return "";
 }
@@ -189,16 +191,18 @@ void NoteDataTypeProcessor::OnCommitCompleted(
   // transient and the processor with eventually retry.
 
   for (const syncer::CommitResponseData& response : committed_response_list) {
-    const SyncedNoteTrackerEntity* entity =
+    SyncedNoteTrackerEntity* entity =
         note_tracker_->GetEntityForClientTagHash(response.client_tag_hash);
     if (!entity) {
       DLOG(WARNING) << "Received a commit response for an unknown entity.";
       continue;
     }
 
-    note_tracker_->UpdateUponCommitResponse(entity, response.id,
-                                            response.response_version,
-                                            response.sequence_number);
+    entity->RecordCommitResponse(response);
+
+    if (!entity->IsUnsynced() && entity->IsDeleted()) {
+      note_tracker_->Remove(entity);
+    }
   }
   note_tracker_->set_data_type_state(type_state);
   schedule_save_closure_.Run();
@@ -222,6 +226,9 @@ void NoteDataTypeProcessor::OnUpdateReceived(
 
   if (!note_tracker_) {
     OnInitialUpdateReceived(data_type_state, std::move(updates));
+  } else if (gc_directive && gc_directive->clear_metadata()) {
+    OverrideAllServerMetadataToForceApplyUpdates(updates);
+    ApplyFullUpdateAsIncrementalUpdate(data_type_state, std::move(updates));
   } else if (HasClearAllDirective(gc_directive)) {
     ApplyFullUpdateAsIncrementalUpdate(data_type_state, std::move(updates));
   } else {
@@ -830,14 +837,10 @@ void NoteDataTypeProcessor::ApplyFullUpdateAsIncrementalUpdate(
     syncer::UpdateResponseDataList updates) {
   absl::flat_hash_set<const SyncedNoteTrackerEntity*> updated_entities;
   for (const syncer::UpdateResponseData& update : updates) {
-    bool should_ignore_update = false;
     const SyncedNoteTrackerEntity* tracked_entity =
         NoteRemoteUpdatesHandler::DetermineLocalTrackedEntityToUpdate(
-            note_tracker_.get(), update.entity, &should_ignore_update);
+            note_tracker_.get(), update.entity);
     if (tracked_entity) {
-      // If the update is invalid and should be ignored, there should be no
-      // `tracked_entity`.
-      CHECK(!should_ignore_update);
       updated_entities.insert(tracked_entity);
     }
   }
@@ -894,6 +897,34 @@ void NoteDataTypeProcessor::ApplyFullUpdateAsIncrementalUpdate(
   }
 
   OnIncrementalUpdateReceived(type_state, std::move(updates));
+}
+
+void NoteDataTypeProcessor::OverrideAllServerMetadataToForceApplyUpdates(
+    const syncer::UpdateResponseDataList& updates) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  CHECK(note_tracker_);
+
+  for (const auto& update : updates) {
+    const syncer::ClientTagHash client_tag_hash =
+        GetOrInferClientTagHashInUpdate(update.entity);
+
+    if (client_tag_hash.value().empty()) {
+      continue;
+    }
+
+    const SyncedNoteTrackerEntity* entity =
+        note_tracker_->GetEntityForClientTagHash(client_tag_hash);
+    if (entity) {
+      // For both synced and unsynced entities, the server version is overridden
+      // to `response_version - 1`.
+      // For synced entities, this ensures the update is applied.
+      // For unsynced entities, this forces a conflict resolution, which will
+      // resolve in favor of the local change (preserving it) while correctly
+      // updating and persisting the server ID.
+      note_tracker_->OverrideServerMetadata(client_tag_hash, update.entity.id,
+                                            update.response_version - 1);
+    }
+  }
 }
 
 bool NoteDataTypeProcessor::ExceedsRemoteUpdatesLimit(size_t count) const {

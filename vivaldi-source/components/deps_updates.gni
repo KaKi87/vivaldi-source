@@ -14,11 +14,6 @@ if (!is_ios) {
       "//vivaldi/components/request_filter",
       "//vivaldi/components/signature",
     ]
-    allow_circular_includes_from += [
-      "//vivaldi/components:adverse_adblocking",
-      "//vivaldi/components/notes",
-      "//vivaldi/components/notes:browser",
-    ]
     deps += [
       "//vivaldi/components:user_agent",
       "//vivaldi/components:version_utils",
@@ -68,7 +63,8 @@ if (!is_ios) {
     ]
   }
 
-  update_template_instance("//third_party/blink/renderer/bindings/modules/v8:v8") {
+  update_template_instance(
+      "//third_party/blink/renderer/bindings/modules/v8:v8") {
     deps += [ "//services/webnn/public/cpp:buildflags" ]
   }
 }
@@ -77,6 +73,7 @@ update_target("//chrome/renderer:renderer") {
   deps += [
     "//vivaldi/components/content_injection/renderer",
     "//vivaldi/components/translate/renderer",
+    "//vivaldi/components/user_agent/renderer",
   ]
 }
 
@@ -109,6 +106,18 @@ if (vivaldi_build_tests) {
   update_target("//components/search_engines:test_support") {
     public_deps -= [ "//third_party/search_engines_data:regional_settings" ]
   }
+}
+
+if (vivaldi_build_tests) {
+  update_target("//chrome/test:unit_tests") {
+    deps += [
+      "//vivaldi/extensions/api:unit_tests",
+    ]
+    if (!is_ios) {
+      deps += [ "//vivaldi/components:tabs" ]
+    }
+  }
+
 }
 
 update_template_instance("//components/feed/core/proto:proto_v2") {
@@ -155,7 +164,17 @@ update_target("//components/shared_highlighting/core/common:common") {
 }
 
 if (!is_ios) {
-  update_target("//components/tabs:tabs") {
+  update_target("//components/tabs:impl") {
     deps += [ "//vivaldi/components:tabs" ]
   }
+}
+
+update_template_instance("//components/policy:translate_policy_templates") {
+  if (!defined(inputs)) {
+    inputs = []
+  }
+  inputs += [
+    "//vivaldi/components/policy/policies.yaml",
+    "//vivaldi/components/policy/suppression_list.yaml",
+  ]
 }

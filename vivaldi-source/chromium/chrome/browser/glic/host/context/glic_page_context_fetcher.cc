@@ -18,6 +18,7 @@
 #include "chrome/browser/actor/actor_metrics.h"
 #include "chrome/browser/actor/actor_proto_conversion.h"
 #include "chrome/browser/actor/actor_tab_data.h"
+#include "chrome/browser/actor/actor_util.h"
 #include "chrome/browser/glic/host/context/glic_tab_data.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/glic/host/glic_mojom_traits.h"
@@ -27,6 +28,7 @@
 #include "components/content_extraction/content/browser/inner_text.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/optimization_guide/content/browser/page_content_proto_provider.h"
+#include "components/optimization_guide/proto/features/common_quality_data.pb.h"
 #include "components/page_content_annotations/content/page_context_fetcher.h"
 #include "components/tabs/public/tab_interface.h"
 #include "mojo/public/cpp/base/proto_wrapper.h"
@@ -136,7 +138,7 @@ void HandleFetchPageResult(
 
   page_content_annotations::FetchPageContextResult& page_context =
       **fetch_result;
-  auto tab_context = mojom::TabContext::New();
+  auto tab_context = mojom::TabContextResult::New();
   tab_context->tab_data = std::move(tab_data);
 
   if (page_context.inner_text_result) {
@@ -156,9 +158,23 @@ void HandleFetchPageResult(
   }
   if (page_context.screenshot_result.has_value()) {
     if (journal) {
+      std::optional<std::vector<uint8_t>> iframe_screenshot = std::nullopt;
+      if (page_context.annotated_page_content_result.has_value() &&
+          page_context.annotated_page_content_result->proto
+                  .gemini_in_chrome_page_metadata()
+                  .screenshot_info()
+                  .iframe_info_size() > 0) {
+        iframe_screenshot = actor::GetScreenshotWithIframeBoundingBoxes(
+            page_context.screenshot_result->screenshot_data,
+            page_context.screenshot_result->mime_type,
+            page_context.annotated_page_content_result->proto
+                .gemini_in_chrome_page_metadata()
+                .screenshot_info());
+      }
       journal->LogScreenshot(tab_context->tab_data->url, task_id,
                              page_context.screenshot_result->mime_type,
-                             page_context.screenshot_result->screenshot_data);
+                             page_context.screenshot_result->screenshot_data,
+                             iframe_screenshot);
     }
 
     tab_context->viewport_screenshot = glic::mojom::Screenshot::New(
@@ -167,7 +183,8 @@ void HandleFetchPageResult(
         std::move(page_context.screenshot_result->screenshot_data),
         page_context.screenshot_result->mime_type,
         // Implement image annotations (see b/380495633).
-        glic::mojom::ImageOriginAnnotations::New());
+        glic::mojom::ImageOriginAnnotations::New(),
+        /*encryption_scheme=*/glic::mojom::ScreenshotEncryptionScheme::kNone);
   }
 
   if (page_context.pdf_result) {
@@ -177,11 +194,20 @@ void HandleFetchPageResult(
             std::get_if<std::vector<uint8_t>>(&page_context.pdf_result->data)) {
       auto pdf_document_data = mojom::PdfDocumentData::New();
       pdf_document_data->origin = page_context.pdf_result->origin;
-      pdf_document_data->size_limit_exceeded =
+      pdf_document_data->pdf_size_limit_exceeded =
           page_context.pdf_result->size_exceeded;
       pdf_document_data->pdf_data = std::move(*pdf_data);
       tab_context->pdf_document_data = std::move(pdf_document_data);
     }
+  }
+
+  // If the screenshot is going to be annotated, mark the standalone
+  // screenshot_info as such.
+  if (is_screenshot_annotated) {
+    if (!page_context.screenshot_info.has_value()) {
+      page_context.screenshot_info.emplace();
+    }
+    page_context.screenshot_info->set_has_selection_region_in_screenshot(true);
   }
 
   if (page_context.annotated_page_content_result.has_value()) {
@@ -221,6 +247,11 @@ void HandleFetchPageResult(
 
     tab_context->annotated_page_data = std::move(annotated_page_data);
   }
+
+  if (page_context.screenshot_info.has_value()) {
+    tab_context->screenshot_info =
+        mojo_base::ProtoWrapper(*page_context.screenshot_info);
+  }
   std::move(callback).Run(
       base::ok(mojom::GetContextResult::NewTabContext(std::move(tab_context))));
 }
@@ -229,7 +260,7 @@ void HandleFetchPageResult(
 
 void FetchPageContext(
     tabs::TabInterface* tab,
-    const mojom::GetTabContextOptions& tab_context_options,
+    const mojom::TabContextOptions& tab_context_options,
     base::OnceCallback<void(
         base::expected<glic::mojom::GetContextResultPtr,
                        page_content_annotations::FetchPageContextErrorDetails>)>
@@ -266,16 +297,16 @@ void FetchPageContext(
 #endif
 
   page_content_annotations::FetchPageContextOptions options;
-  if (tab_context_options.include_inner_text) {
+  if (tab_context_options.inner_text) {
     options.inner_text_bytes_limit = tab_context_options.inner_text_bytes_limit;
   }
-  if (tab_context_options.include_pdf) {
+  if (tab_context_options.pdf_data) {
     options.pdf_options.emplace(
         page_content_annotations::PdfOptions::Format::kBytes,
         tab_context_options.pdf_size_limit);
   }
 
-  if (tab_context_options.include_viewport_screenshot) {
+  if (tab_context_options.viewport_screenshot) {
     // Disable paint preview backend for glic, and capture the viewport only.
     options.screenshot_options =
         page_content_annotations::ScreenshotOptions::ViewportOnly(
@@ -284,7 +315,7 @@ void FetchPageContext(
   }
 
   const bool on_critical_path = true;
-  if (tab_context_options.include_annotated_page_content) {
+  if (tab_context_options.annotated_page_content) {
     if (tab_context_options.annotated_page_content_mode ==
         optimization_guide::proto::
             ANNOTATED_PAGE_CONTENT_MODE_ACTIONABLE_ELEMENTS) {

@@ -6,9 +6,11 @@
 
 #import <Foundation/Foundation.h>
 
+#import "components/sync/test/test_sync_service.h"
 #import "ios/chrome/app/application_delegate/fake_startup_information.h"
 #import "ios/chrome/app/profile/profile_init_stage.h"
 #import "ios/chrome/app/profile/profile_state.h"
+#import "ios/chrome/app/profile/profile_state_test_utils.h"
 #import "ios/chrome/browser/promos_manager/coordinator/bannered_promo_view_provider.h"
 #import "ios/chrome/browser/promos_manager/coordinator/promos_manager_coordinator+Testing.h"
 #import "ios/chrome/browser/promos_manager/coordinator/standard_promo_action_handler.h"
@@ -29,6 +31,8 @@
 #import "ios/chrome/browser/signin/model/authentication_service.h"
 #import "ios/chrome/browser/signin/model/authentication_service_factory.h"
 #import "ios/chrome/browser/signin/model/fake_authentication_service_delegate.h"
+#import "ios/chrome/browser/sync/model/sync_service_factory.h"
+#import "ios/chrome/browser/sync/model/test_sync_service_utils.h"
 #import "ios/chrome/common/ui/confirmation_alert/confirmation_alert_action_handler.h"
 #import "ios/chrome/common/ui/confirmation_alert/confirmation_alert_view_controller.h"
 #import "ios/chrome/common/ui/promo_style/promo_style_view_controller.h"
@@ -53,6 +57,8 @@ class PromosManagerCoordinatorTest : public PlatformTest {
         AuthenticationServiceFactory::GetInstance(),
         AuthenticationServiceFactory::GetFactoryWithDelegate(
             std::make_unique<FakeAuthenticationServiceDelegate>()));
+    builder.AddTestingFactory(SyncServiceFactory::GetInstance(),
+                              base::BindRepeating(&CreateTestSyncService));
     profile_ = std::move(builder).Build();
 
     view_controller_ = [[UIViewController alloc] init];
@@ -62,12 +68,11 @@ class PromosManagerCoordinatorTest : public PlatformTest {
     startup_information_ = [[FakeStartupInformation alloc] init];
     [startup_information_ setIsColdStart:YES];
 
-    profile_state_ = OCMClassMock([ProfileState class]);
-    OCMStub([profile_state_ initStage]).andReturn(ProfileInitStage::kFinal);
-    OCMStub([profile_state_ profile]).andReturn(profile_.get());
+    profile_state_ = [[ProfileState alloc] initWithAppState:nil];
+    SetProfileStateInitStage(profile_state_, ProfileInitStage::kFinal);
+    profile_state_.profile = profile_.get();
 
-    scene_state_ = [[FakeSceneState alloc] initWithAppState:nil
-                                                    profile:profile_.get()];
+    scene_state_ = [[FakeSceneState alloc] initWithProfile:profile_.get()];
     scene_state_.profileState = profile_state_;
     scene_state_.scene = static_cast<UIWindowScene*>(
         [[[UIApplication sharedApplication] connectedScenes] anyObject]);
@@ -76,7 +81,11 @@ class PromosManagerCoordinatorTest : public PlatformTest {
   void TearDown() override {
     [coordinator_ stop];
     [scene_state_ shutdown];
+    coordinator_ = nil;
+    mock_pip_handler_ = nil;
+    mock_promos_manager_handler_ = nil;
     scene_state_ = nil;
+    profile_state_ = nil;
     PlatformTest::TearDown();
   }
 
@@ -292,6 +301,29 @@ TEST_F(PromosManagerCoordinatorTest,
   [mockCoordinator displayPromoCallback];
 
   EXPECT_OCMOCK_VERIFY(mockCoordinator);
+}
+
+// Tests that confirmationAlertPrimaryAction safely handles when the promo
+// coordinator is stopped (clearing self.provider) during
+// standardPromoPrimaryAction.
+TEST_F(PromosManagerCoordinatorTest,
+       ConfirmationAlertPrimaryActionStopsCoordinator) {
+  CreatePromosManagerCoordinator();
+
+  id provider = OCMProtocolMock(@protocol(StandardPromoViewProvider));
+  coordinator_.provider = provider;
+
+  OCMStub([provider standardPromoPrimaryAction])
+      .andDo(^(NSInvocation* invocation) {
+        [coordinator_ stop];
+        // In production, calling `-stop` clears `_viewProviderPromos`, setting
+        // the weak `provider` property on the coordinator to nil.
+        coordinator_.provider = nil;
+      });
+
+  // Calling confirmationAlertPrimaryAction should not crash or DCHECK when
+  // `stop` clears `coordinator_.provider`.
+  [coordinator_ confirmationAlertPrimaryAction];
 }
 
 // TODO(crbug.com/40241101): Add unit tests for promoWasDisplayed being

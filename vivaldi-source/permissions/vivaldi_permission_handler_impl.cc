@@ -337,8 +337,8 @@ bool VivaldiPermissionHandlerImpl::HandlePermissionRequest(
   std::string protocol_name;
   std::string protocol_url;
 
-  content_settings_type = ConvertRequestTypeToContentSettingsType(
-      request->request_type());
+  content_settings_type =
+      ConvertRequestTypeToContentSettingsType(request->request_type());
 
   // Extract protocol handler data after conversion if needed.
   if (content_settings_type == ContentSettingsType::PROTOCOL_HANDLERS) {

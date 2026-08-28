@@ -51,6 +51,7 @@ TAG_SPECIALIZATIONS = {
             'ventura',
             'sonoma',
             'sequoia',
+            'macos26',
         ],
         'win': [
             'win8',
@@ -78,7 +79,6 @@ TAG_SPECIALIZATIONS = {
             'amd-0x150e',
             'amd-0x1900',
             'amd-0x6613',
-            'amd-0x679e',
             'amd-0x67ef',
             'amd-0x6821',
             'amd-0x7340',

@@ -21,6 +21,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.TextView;
 
 import androidx.test.InstrumentationRegistry;
@@ -433,6 +434,20 @@ public class AppMenuTest {
 
     @Test
     @MediumTest
+    public void testOnSubmenuEntered() throws TimeoutException {
+        showMenuAndAssert(mAppMenuHandler);
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    ListView listView = mAppMenuHandler.getAppMenu().getListView();
+                    // Scroll down before triggering the submenu.
+                    listView.setSelection(2);
+                    mAppMenuHandler.onSubmenuEntered();
+                    Assert.assertEquals(0, listView.getFirstVisiblePosition());
+                });
+    }
+
+    @Test
+    @MediumTest
     public void testLongClickMenuItem_Title() throws TimeoutException {
         mPropertiesDelegate.enableAppIconRow = true;
         showMenuAndAssert(mAppMenuHandler);
@@ -541,7 +556,7 @@ public class AppMenuTest {
         int currentCallCount = mMenuObserver.menuShownCallback.getCallCount();
         View testView = mTestMenuButtonDelegate.getMenuButtonView();
 
-        ThreadUtils.runOnUiThreadBlocking(() -> onPressCallback.onResult(testView));
+        ThreadUtils.runOnUiThreadBlocking(onPressCallback.bind(testView));
 
         waitForMenuToShow(currentCallCount, mAppMenuHandler);
     }

@@ -26,6 +26,8 @@ constexpr crypto::kdf::Pbkdf2HmacSha1Params kParams{
 
 const auto kSalt = base::byte_span_from_cstring("saltysalt");
 
+constexpr const char *kSecretPortalKeyTag = "v11";
+
 }  // namespace
 
 // static
@@ -61,7 +63,9 @@ void VivaldiSecretPortalKeyProvider::ReceivedSecret() {
 
   // Sync os_crypt uses AES-128-CBC, not AES-256-GCM.
   Encryptor::Key key(derived_key, mojom::Algorithm::kAES128CBC);
-  Finalize(InitStatus::kSuccess, kKeyTag, std::move(key));
+  // Use "v11" tag to match the sync FreedesktopSecretKeyProvider and allow
+  // decryption of data previously encrypted by it (e.g. profiles from 8.0).
+  Finalize(InitStatus::kSuccess, kSecretPortalKeyTag, std::move(key));
 }
 
 }  // namespace os_crypt_async

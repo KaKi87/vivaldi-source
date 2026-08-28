@@ -14,7 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 // this is required by $ so it cannot be "magic" or circular dependency happens
 import env from "./env.js";
 import transformOnce from "transform-once";

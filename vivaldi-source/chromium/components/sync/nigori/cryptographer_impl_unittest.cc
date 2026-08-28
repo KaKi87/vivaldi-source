@@ -8,9 +8,9 @@
 #include <vector>
 
 #include "base/containers/span.h"
+#include "components/sync/model/crypto/key_derivation_params.h"
+#include "components/sync/model/crypto/nigori.h"
 #include "components/sync/nigori/cross_user_sharing_public_private_key_pair.h"
-#include "components/sync/nigori/key_derivation_params.h"
-#include "components/sync/nigori/nigori.h"
 #include "components/sync/nigori/nigori_key_bag.h"
 #include "components/sync/protocol/encryption.pb.h"
 #include "components/sync/protocol/nigori_local_data.pb.h"
@@ -118,7 +118,7 @@ TEST(CryptographerImplTest, ShouldSelectDefaultCrossUserSharingKey) {
       CryptographerImpl::CreateEmpty();
   ASSERT_THAT(cryptographer, NotNull());
 
-  cryptographer->SetKeyPair(
+  cryptographer->SetCrossUserSharingKeyPair(
       CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair(), 4);
   cryptographer->SelectDefaultCrossUserSharingKey(4);
 
@@ -138,7 +138,7 @@ TEST(CryptographerImplTest, ShouldFailOnNonSetEncryptionKeyPair) {
       CryptographerImpl::CreateEmpty();
   ASSERT_THAT(cryptographer, NotNull());
 
-  cryptographer->SetKeyPair(
+  cryptographer->SetCrossUserSharingKeyPair(
       CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair(), 4);
 
   const std::string plaintext = "Sharing is caring";
@@ -157,7 +157,7 @@ TEST(CryptographerImplTest, ShouldFailOnNonExistentDefaultEncryptionKeyPair) {
       CryptographerImpl::CreateEmpty();
   ASSERT_THAT(cryptographer, NotNull());
 
-  cryptographer->SetKeyPair(
+  cryptographer->SetCrossUserSharingKeyPair(
       CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair(), 4);
   cryptographer->SelectDefaultCrossUserSharingKey(3);
 
@@ -184,7 +184,7 @@ TEST(CryptographerImplTest, ShouldSerializeToAndFromProto) {
       "password1", KeyDerivationParams::CreateForPbkdf2());
   const std::string key_name2 = original_cryptographer->EmplaceKey(
       "password2", KeyDerivationParams::CreateForPbkdf2());
-  original_cryptographer->SetKeyPair(
+  original_cryptographer->SetCrossUserSharingKeyPair(
       CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair(), 0);
 
   original_cryptographer->SelectDefaultEncryptionKey(key_name1);
@@ -197,10 +197,12 @@ TEST(CryptographerImplTest, ShouldSerializeToAndFromProto) {
 
   // Restore a new cryptographer from proto.
   std::unique_ptr<CryptographerImpl> restored_cryptographer =
-      CryptographerImpl::FromLocalProto(original_cryptographer->ToLocalProto());
+      CryptographerImpl::FromLocalProto(
+          original_cryptographer->ToLocalProto(),
+          /*default_encryption_key_invalidated=*/false);
   ASSERT_THAT(restored_cryptographer, NotNull());
   EXPECT_TRUE(restored_cryptographer->CanEncrypt());
-  EXPECT_TRUE(restored_cryptographer->HasKeyPair(0));
+  EXPECT_TRUE(restored_cryptographer->HasCrossUserSharingKeyPair(0));
 
   std::string decrypted;
   EXPECT_TRUE(restored_cryptographer->DecryptToString(encrypted1, &decrypted));
@@ -230,18 +232,18 @@ TEST(CryptographerImplTest, ShouldExportDefaultKey) {
               Eq(key_name));
 }
 
-TEST(CryptographerImplTest, ShouldSetKeyPair) {
+TEST(CryptographerImplTest, ShouldSetCrossUserSharingKeyPair) {
   std::unique_ptr<CryptographerImpl> cryptographer =
       CryptographerImpl::CreateEmpty();
   ASSERT_THAT(cryptographer, NotNull());
   std::optional<CrossUserSharingPublicPrivateKeyPair> key_pair =
       CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair();
   ASSERT_TRUE(key_pair.has_value());
-  ASSERT_FALSE(cryptographer->HasKeyPair(0));
+  ASSERT_FALSE(cryptographer->HasCrossUserSharingKeyPair(0));
 
-  cryptographer->SetKeyPair(std::move(key_pair.value()), 0);
+  cryptographer->SetCrossUserSharingKeyPair(std::move(key_pair.value()), 0);
 
-  EXPECT_TRUE(cryptographer->HasKeyPair(0));
+  EXPECT_TRUE(cryptographer->HasCrossUserSharingKeyPair(0));
 }
 
 TEST(CryptographerImplTest, ShouldEmplaceKeysFrom) {
@@ -266,22 +268,22 @@ TEST(CryptographerImplTest, ShouldEmplaceExistingKeyPair) {
   std::unique_ptr<CryptographerImpl> cryptographer =
       CryptographerImpl::CreateEmpty();
   ASSERT_THAT(cryptographer, NotNull());
-  ASSERT_FALSE(cryptographer->HasKeyPair(0));
-  cryptographer->SetKeyPair(
+  ASSERT_FALSE(cryptographer->HasCrossUserSharingKeyPair(0));
+  cryptographer->SetCrossUserSharingKeyPair(
       CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair(), 0);
-  ASSERT_TRUE(cryptographer->HasKeyPair(0));
+  ASSERT_TRUE(cryptographer->HasCrossUserSharingKeyPair(0));
 
-  cryptographer->SetKeyPair(
+  cryptographer->SetCrossUserSharingKeyPair(
       CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair(), 0);
 
-  EXPECT_TRUE(cryptographer->HasKeyPair(0));
+  EXPECT_TRUE(cryptographer->HasCrossUserSharingKeyPair(0));
 }
 
 TEST(CryptographerImplTest, ShouldReplaceCrossUserSharingKeys) {
   std::unique_ptr<CryptographerImpl> cryptographer =
       CryptographerImpl::CreateEmpty();
   ASSERT_THAT(cryptographer, NotNull());
-  ASSERT_FALSE(cryptographer->HasKeyPair(0));
+  ASSERT_FALSE(cryptographer->HasCrossUserSharingKeyPair(0));
   CrossUserSharingKeys keys = CrossUserSharingKeys::CreateEmpty();
   keys.SetKeyPair(CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair(),
                   0);
@@ -290,8 +292,8 @@ TEST(CryptographerImplTest, ShouldReplaceCrossUserSharingKeys) {
 
   cryptographer->ReplaceCrossUserSharingKeys(std::move(keys));
 
-  EXPECT_TRUE(cryptographer->HasKeyPair(0));
-  EXPECT_TRUE(cryptographer->HasKeyPair(1));
+  EXPECT_TRUE(cryptographer->HasCrossUserSharingKeyPair(0));
+  EXPECT_TRUE(cryptographer->HasCrossUserSharingKeyPair(1));
 }
 
 TEST(CryptographerImplTest, ShouldOverwritePreexistingKeys) {
@@ -305,8 +307,10 @@ TEST(CryptographerImplTest, ShouldOverwritePreexistingKeys) {
       CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair(),
       /*version=*/1);
   cryptographer->ReplaceCrossUserSharingKeys(old_keys.Clone());
-  ASSERT_TRUE(cryptographer->HasKeyPair(/*key_pair_version=*/0));
-  ASSERT_TRUE(cryptographer->HasKeyPair(/*key_pair_version=*/1));
+  ASSERT_TRUE(
+      cryptographer->HasCrossUserSharingKeyPair(/*key_pair_version=*/0));
+  ASSERT_TRUE(
+      cryptographer->HasCrossUserSharingKeyPair(/*key_pair_version=*/1));
 
   // Generate a new key pair and replace the pre-existing one with the same
   // version. The version 1 should also disappear.
@@ -315,8 +319,10 @@ TEST(CryptographerImplTest, ShouldOverwritePreexistingKeys) {
       CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair(),
       /*version=*/0);
   cryptographer->ReplaceCrossUserSharingKeys(new_keys.Clone());
-  ASSERT_TRUE(cryptographer->HasKeyPair(/*key_pair_version=*/0));
-  ASSERT_FALSE(cryptographer->HasKeyPair(/*key_pair_version=*/1));
+  ASSERT_TRUE(
+      cryptographer->HasCrossUserSharingKeyPair(/*key_pair_version=*/0));
+  ASSERT_FALSE(
+      cryptographer->HasCrossUserSharingKeyPair(/*key_pair_version=*/1));
   EXPECT_EQ(cryptographer->GetCrossUserSharingKeyPair(/*version=*/0)
                 .GetRawPrivateKey(),
             new_keys.GetKeyPair(/*version=*/0).GetRawPrivateKey());
@@ -330,9 +336,9 @@ TEST(CryptographerImplTest, ShouldOverwriteOnlyOneKeyPair) {
       CryptographerImpl::CreateEmpty();
   ASSERT_THAT(cryptographer, NotNull());
 
-  cryptographer->SetKeyPair(
+  cryptographer->SetCrossUserSharingKeyPair(
       CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair(), 0);
-  cryptographer->SetKeyPair(
+  cryptographer->SetCrossUserSharingKeyPair(
       CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair(), 1);
 
   // Replace only one key with a new value.
@@ -342,7 +348,7 @@ TEST(CryptographerImplTest, ShouldOverwriteOnlyOneKeyPair) {
   auto raw_existing_private_key1 =
       cryptographer->GetCrossUserSharingKeyPair(/*version=*/1)
           .GetRawPrivateKey();
-  cryptographer->SetKeyPair(
+  cryptographer->SetCrossUserSharingKeyPair(
       CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair(), 0);
 
   EXPECT_NE(raw_existing_private_key0,
@@ -357,14 +363,14 @@ TEST(CryptographerImplTest, ShouldEncryptAndDecryptForCrossUserSharing) {
   std::unique_ptr<CryptographerImpl> cryptographer_sender =
       CryptographerImpl::CreateEmpty();
   ASSERT_THAT(cryptographer_sender, NotNull());
-  cryptographer_sender->SetKeyPair(
+  cryptographer_sender->SetCrossUserSharingKeyPair(
       CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair(), 0);
   cryptographer_sender->SelectDefaultCrossUserSharingKey(0);
   std::unique_ptr<CryptographerImpl> cryptographer_recipient =
       CryptographerImpl::CreateEmpty();
 
   ASSERT_THAT(cryptographer_recipient, NotNull());
-  cryptographer_recipient->SetKeyPair(
+  cryptographer_recipient->SetCrossUserSharingKeyPair(
       CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair(), 0);
   cryptographer_recipient->SelectDefaultCrossUserSharingKey(0);
 
@@ -394,15 +400,15 @@ TEST(CryptographerImplTest, ShouldClearCrossUserSharingKeys) {
 
   ASSERT_THAT(cryptographer, NotNull());
 
-  cryptographer->SetKeyPair(
+  cryptographer->SetCrossUserSharingKeyPair(
       CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair(), 0);
-  cryptographer->SetKeyPair(
+  cryptographer->SetCrossUserSharingKeyPair(
       CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair(), 1);
 
   cryptographer->ClearAllKeys();
 
-  EXPECT_FALSE(cryptographer->HasKeyPair(0));
-  EXPECT_FALSE(cryptographer->HasKeyPair(1));
+  EXPECT_FALSE(cryptographer->HasCrossUserSharingKeyPair(0));
+  EXPECT_FALSE(cryptographer->HasCrossUserSharingKeyPair(1));
 }
 
 TEST(CryptographerImplTest, ShouldEmplaceAllNigoriKeysFrom) {
@@ -441,7 +447,7 @@ TEST(CryptographerImplTest, ShouldEmplaceAllNigoriKeysFrom) {
 TEST(CryptographerImplTest, ShouldCloneDefaultCrossUserSharingKeyVersion) {
   std::unique_ptr<CryptographerImpl> cryptographer =
       CryptographerImpl::CreateEmpty();
-  cryptographer->SetKeyPair(
+  cryptographer->SetCrossUserSharingKeyPair(
       CrossUserSharingPublicPrivateKeyPair::GenerateNewKeyPair(), 4);
   cryptographer->SelectDefaultCrossUserSharingKey(4);
 
@@ -470,7 +476,9 @@ TEST(CryptographerImplTest, ShouldSerializeToLocalProto) {
   EXPECT_TRUE(proto.key_bag().key_size() > 0);
 
   std::unique_ptr<CryptographerImpl> restored =
-      CryptographerImpl::FromLocalProto(proto);
+      CryptographerImpl::FromLocalProto(
+          proto,
+          /*default_encryption_key_invalidated=*/false);
   ASSERT_THAT(restored, NotNull());
   EXPECT_THAT(restored->GetDefaultEncryptionKeyName(), Eq(key_name));
   EXPECT_TRUE(restored->CanEncrypt());
@@ -482,7 +490,9 @@ TEST(CryptographerImplTest, ShouldReturnNullOnInvalidLocalProto) {
   // The key bag is empty, so "non_existent_key" is missing.
 
   std::unique_ptr<CryptographerImpl> restored =
-      CryptographerImpl::FromLocalProto(proto);
+      CryptographerImpl::FromLocalProto(
+          proto,
+          /*default_encryption_key_invalidated=*/false);
   EXPECT_THAT(restored, IsNull());
 }
 
@@ -536,6 +546,80 @@ TEST(CryptographerImplTest, ShouldExportEncryptedKeyBagWithMultipleKeys) {
 
   EXPECT_THAT(decrypted_keys, UnorderedElementsAre(HasKeyName(key_name1),
                                                    HasKeyName(key_name2)));
+}
+
+TEST(CryptographerImplTest, ShouldDisableAndEnableDefaultKey) {
+  std::unique_ptr<CryptographerImpl> cryptographer =
+      CryptographerImpl::CreateEmpty();
+  const std::string key_name = cryptographer->EmplaceKey(
+      "password", KeyDerivationParams::CreateForPbkdf2());
+  cryptographer->SelectDefaultEncryptionKey(key_name);
+
+  ASSERT_TRUE(cryptographer->CanEncrypt());
+  ASSERT_THAT(cryptographer->GetDefaultEncryptionKeyName(), Eq(key_name));
+
+  // Disable default key.
+  cryptographer->InvalidateDefaultEncryptionKey();
+  EXPECT_FALSE(cryptographer->CanEncrypt());
+  EXPECT_THAT(cryptographer->GetDefaultEncryptionKeyName(), Eq(""));
+  // Keys should still exist (we can still decrypt).
+  EXPECT_TRUE(cryptographer->HasKey(key_name));
+
+  // Re-enable by selecting it again.
+  cryptographer->SelectDefaultEncryptionKey(key_name);
+  EXPECT_TRUE(cryptographer->CanEncrypt());
+  EXPECT_THAT(cryptographer->GetDefaultEncryptionKeyName(), Eq(key_name));
+}
+
+TEST(CryptographerImplTest, ShouldResetInvalidatedStateOnClearAllKeys) {
+  std::unique_ptr<CryptographerImpl> cryptographer =
+      CryptographerImpl::CreateEmpty();
+  const std::string key_name = cryptographer->EmplaceKey(
+      "password", KeyDerivationParams::CreateForPbkdf2());
+  cryptographer->SelectDefaultEncryptionKey(key_name);
+
+  ASSERT_TRUE(cryptographer->CanEncrypt());
+
+  // Invalidate it.
+  cryptographer->InvalidateDefaultEncryptionKey();
+  ASSERT_FALSE(cryptographer->CanEncrypt());
+
+  // Clear all keys (reverts to empty, resets invalidation flag to false).
+  cryptographer->ClearAllKeys();
+  ASSERT_FALSE(cryptographer->CanEncrypt());  // Still false because empty.
+
+  // Emplace key again and select it -> should CanEncrypt.
+  const std::string new_key_name = cryptographer->EmplaceKey(
+      "password", KeyDerivationParams::CreateForPbkdf2());
+  cryptographer->SelectDefaultEncryptionKey(new_key_name);
+  EXPECT_TRUE(cryptographer->CanEncrypt());
+  EXPECT_THAT(cryptographer->GetDefaultEncryptionKeyName(), Eq(new_key_name));
+}
+
+TEST(CryptographerImplTest, ShouldRestoreDisabledDefaultKey) {
+  std::unique_ptr<CryptographerImpl> original =
+      CryptographerImpl::CreateEmpty();
+  const std::string key_name =
+      original->EmplaceKey("password", KeyDerivationParams::CreateForPbkdf2());
+  original->SelectDefaultEncryptionKey(key_name);
+
+  // Invalidate it.
+  original->InvalidateDefaultEncryptionKey();
+  ASSERT_FALSE(original->CanEncrypt());
+
+  sync_pb::CryptographerData proto = original->ToLocalProto();
+  // Under option 2, this should STILL have default_key_name set to key_name!
+  EXPECT_THAT(proto.default_key_name(), Eq(key_name));
+
+  // Restore with invalidated default key.
+  std::unique_ptr<CryptographerImpl> restored =
+      CryptographerImpl::FromLocalProto(
+          proto,
+          /*default_encryption_key_invalidated=*/true);
+  ASSERT_THAT(restored, NotNull());
+  EXPECT_FALSE(restored->CanEncrypt());
+  EXPECT_THAT(restored->GetDefaultEncryptionKeyName(), Eq(""));
+  EXPECT_TRUE(restored->HasKey(key_name));
 }
 
 }  // namespace syncer

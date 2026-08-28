@@ -13,6 +13,8 @@
 
 #include "base/command_line.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/scoped_refptr.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_io_thread.h"
 #include "build/build_config.h"
@@ -29,6 +31,7 @@
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/public/web/web_frame.h"
 #include "third_party/blink/public/web/web_input_element.h"
+#include "ui/events/keycodes/keyboard_codes.h"
 #include "v8/include/v8-forward.h"
 
 #if BUILDFLAG(IS_MAC)
@@ -164,11 +167,13 @@ class RenderViewTest : public testing::Test {
   // Resize the view.
   void Resize(gfx::Size new_size, bool is_fullscreen);
 
-  // Simulates typing the |ascii_character| into this render view. Also accepts
-  // ui::VKEY_BACK for backspace. Will flush the message loop if
-  // |flush_message_loop| is true.
-  void SimulateUserTypingASCIICharacter(char ascii_character,
+  // Simulates typing `ascii_character` into this render view.
+  void SimulateUserTypingAsciiCharacter(char ascii_character,
                                         bool flush_message_loop);
+
+  // Simulates typing `key_code` (e.g., ui::VKEY_END).
+  void SimulateUserTypingKeyCode(ui::KeyboardCode key_code,
+                                 bool flush_message_loop);
 
   // Simulates user focusing |input|, erasing all text, and typing the
   // |new_value| instead. Will process input events for autofill. This is a user
@@ -218,7 +223,8 @@ class RenderViewTest : public testing::Test {
 
     RendererBlinkPlatformImpl* blink_platform();
 
-    void SetUp();
+    void SetUp(
+        scoped_refptr<base::SingleThreadTaskRunner> io_thread_task_runner);
     void TearDown();
 
    private:

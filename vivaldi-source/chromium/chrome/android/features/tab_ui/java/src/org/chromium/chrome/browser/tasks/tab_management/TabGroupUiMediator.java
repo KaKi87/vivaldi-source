@@ -250,7 +250,7 @@ public class TabGroupUiMediator implements BackPressHandler {
 
         var layoutStateProvider = layoutStateProviderSupplier.get();
         if (layoutStateProvider != null) {
-            if (layoutStateProvider.isLayoutVisible(LayoutType.TAB_SWITCHER)) {
+            if (layoutStateProvider.isLayoutVisible(LayoutType.HUB)) {
                 mIsShowingHub = true;
             }
             if (layoutStateProvider.isLayoutVisible(LayoutType.TOOLBAR_SWIPE)) {
@@ -295,7 +295,7 @@ public class TabGroupUiMediator implements BackPressHandler {
                 new LayoutStateProvider.LayoutStateObserver() {
                     @Override
                     public void onStartedShowing(@LayoutType int layoutType) {
-                        if (layoutType == LayoutType.TAB_SWITCHER) {
+                        if (layoutType == LayoutType.HUB) {
                             mIsShowingHub = true;
                             hideTabGridDialog();
                             resetTabStrip();
@@ -308,7 +308,7 @@ public class TabGroupUiMediator implements BackPressHandler {
 
                     @Override
                     public void onFinishedHiding(@LayoutType int layoutType) {
-                        if (layoutType == LayoutType.TAB_SWITCHER) {
+                        if (layoutType == LayoutType.HUB) {
                             mIsShowingHub = false;
                             resetTabStrip();
                         } else if (layoutType == LayoutType.TOOLBAR_SWIPE) {

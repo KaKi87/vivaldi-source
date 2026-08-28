@@ -11,6 +11,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
+#include "build/build_config.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_panel_host.h"
 #include "chrome/browser/tab_list/tab_list_interface_observer.h"
@@ -19,6 +20,10 @@
 #include "content/public/browser/web_contents_observer.h"
 #include "third_party/omnibox_proto/chrome_aim_entry_point.pb.h"
 #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
+
+#if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/ui/views/bubble/webui_bubble_reopen_suppressor.h"
+#endif
 
 class BrowserWindowInterface;
 class PrefService;
@@ -44,6 +49,16 @@ class ContextualTasksUiService;
 class ActiveTaskContextProvider;
 class EntryPointEligibilityManager;
 
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+// LINT.IfChange(ContextualTasksTabCloseState)
+enum class ContextualTasksTabCloseState {
+  kActiveTab = 0,
+  kBackgroundTab = 1,
+  kMaxValue = kBackgroundTab,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/contextual_tasks/enums.xml:ContextualTasksTabCloseState)
+
 class ContextualTasksSidePanelCoordinator
     : public ContextualTasksPanelController,
       public ContextualTasksPanelHost::Observer,
@@ -65,6 +80,13 @@ class ContextualTasksSidePanelCoordinator
 
     // The time when the WebContents becomes inactive.
     base::TimeTicks last_active_time_ticks;
+
+    // The entry source that triggered this task's panel.
+    ContextualTasksPanelController::EntrySource entry_source =
+        ContextualTasksPanelController::EntrySource::kOther;
+
+    // The time when this task's panel was opened.
+    base::TimeTicks open_time_ticks;
   };
 
   DECLARE_USER_DATA(ContextualTasksSidePanelCoordinator);
@@ -91,15 +113,24 @@ class ContextualTasksSidePanelCoordinator
   void AddObserver(ContextualTasksPanelController::Observer* observer) override;
   void RemoveObserver(
       ContextualTasksPanelController::Observer* observer) override;
-  void Show(bool transition_from_tab,
-            omnibox::ChromeAimEntryPoint entry_point) override;
+  void Show(
+      bool transition_from_tab,
+      omnibox::ChromeAimEntryPoint entry_point,
+      bool use_no_animation = false,
+      std::optional<base::TimeTicks> open_time_ticks = std::nullopt) override;
   void Close() override;
+  void OpenInZeroState() override;
   bool IsPanelOpenForContextualTask() const override;
+  ContextualTasksPanelController::EntrySource GetActiveEntrySource()
+      const override;
   std::optional<tabs::TabHandle> GetAutoSuggestedTabHandle() override;
   void OnTaskChanged(content::WebContents* web_contents,
                      base::Uuid task_id) override;
   void OnAiInteraction() override;
+  void SetPendingTaskForTab(tabs::TabInterface* tab,
+                            const base::Uuid& task_id) override;
   content::WebContents* GetActiveWebContents() const override;
+  content::WebContents* GetToolbarWebContents() const override;
   std::vector<content::WebContents*> GetPanelWebContentsList() const override;
   std::unique_ptr<content::WebContents> DetachWebContentsForTask(
       const base::Uuid& task_id) override;
@@ -116,6 +147,7 @@ class ContextualTasksSidePanelCoordinator
   void MoveTaskUiToNewTab() override;
   void NotifyExpandToFullTabStateChanged() override;
   bool CanExpandToFullTab() const override;
+  void ShowPageInfoBubble() override;
 
   // ContextualTasksPanelHost::Observer:
   void OnSurfaceStateChanged(
@@ -196,6 +228,12 @@ class ContextualTasksSidePanelCoordinator
   // Disassociate the tab from the task if it's associated with it.
   void DisassociateTabFromTask(content::WebContents* web_contents);
 
+  // Disassociate all tabs associated with the current task, or the active tab
+  // if no current task exists. Under kToolbarEphemeralBranded mode, active
+  // tasks with conversation threads are preserved on panel close to allow
+  // ephemeral button resume.
+  void DisassociateAllTabsFromCurrentTask();
+
   // Update open state of the panel.
   void UpdateOpenState(bool is_open);
 
@@ -204,6 +242,11 @@ class ContextualTasksSidePanelCoordinator
 
   // Closes any active Lens sessions for tabs associated with the given task.
   void CloseLensSessionsForTask(const ContextualTask& task);
+
+  // Closes any active Lens session on the given tab if it matches an
+  // eligibility criteria.
+  void CloseLensSessionIfActive(tabs::TabInterface* tab_interface,
+                                omnibox::ChromeAimEntryPoint entry_point);
 
   // Notifies the ActiveTaskContextProvider about the current session state.
   // This checks both the panel and the active tab for a valid session handle.
@@ -226,6 +269,15 @@ class ContextualTasksSidePanelCoordinator
   // Browser window of the current panel.
   const raw_ptr<BrowserWindowInterface> browser_window_ = nullptr;
 
+  // WebContents cache for each task.
+  // Must be declared before contextual_tasks_panel_host_ so that in automated
+  // C++ reverse destruction order, the panel host is destroyed before cached
+  // WebContents objects are deleted.
+  // It's okay to assume there is only 1 WebContents per task per window.
+  // Different windows do not share the WebContents with the same task.
+  std::map<base::Uuid, std::unique_ptr<WebContentsCacheItem>>
+      task_id_to_web_contents_cache_;
+
   // Interface to interact with/get state about the panel UI. Own the unique_ptr
   // so that its lifetime is tied to `this`.
   const std::unique_ptr<ContextualTasksPanelHost> contextual_tasks_panel_host_;
@@ -241,12 +293,6 @@ class ContextualTasksSidePanelCoordinator
 
   const raw_ptr<ActiveTaskContextProvider> active_task_context_provider_;
 
-  // WebContents cache for each task.
-  // It's okay to assume there is only 1 WebContents per task per window.
-  // Different windows do not share the WebContents with the same task.
-  std::map<base::Uuid, std::unique_ptr<WebContentsCacheItem>>
-      task_id_to_web_contents_cache_;
-
   base::CallbackListSubscription eligibility_change_subscription_;
 
   ui::ScopedUnownedUserData<ContextualTasksSidePanelCoordinator>
@@ -259,7 +305,17 @@ class ContextualTasksSidePanelCoordinator
   // in-panel webview navigation.
   bool suppress_hide_on_contextual_tasks_url_for_testing_ = false;
 
+  // Used to save the entry source that triggered a task's panel when the panel
+  // is being closed so that it can be logged.
+  std::optional<ContextualTasksPanelController::EntrySource>
+      closing_entry_source_;
+
   base::ObserverList<ContextualTasksPanelController::Observer> observers_;
+
+#if !BUILDFLAG(IS_ANDROID)
+  // TODO(crbug.com/536100150): Support this on Android Desktop
+  WebUIBubbleReopenSuppressor page_info_bubble_suppressor_;
+#endif
 
   base::WeakPtrFactory<ContextualTasksSidePanelCoordinator> weak_ptr_factory_{
       this};

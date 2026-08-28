@@ -34,6 +34,7 @@ import androidx.core.view.WindowInsetsCompat;
 
 import org.chromium.base.Callback;
 import org.chromium.base.CallbackController;
+import org.chromium.base.TimeUtils;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.base.supplier.NonNullObservableSupplier;
@@ -41,6 +42,7 @@ import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneshotSupplierImpl;
 import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.back_press.BackPressManager;
@@ -56,6 +58,7 @@ import org.chromium.chrome.browser.lifecycle.NativeInitObserver;
 import org.chromium.chrome.browser.locale.LocaleManager;
 import org.chromium.chrome.browser.omnibox.LocationBarMediator.OmniboxUma;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator;
+import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.FuseboxLayoutMode;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.FuseboxState;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.PopupState;
 import org.chromium.chrome.browser.omnibox.geo.GeolocationHeader;
@@ -92,6 +95,7 @@ import org.chromium.components.omnibox.AutocompleteInput.AutocompleteState;
 import org.chromium.components.omnibox.AutocompleteMatch;
 import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.components.omnibox.OmniboxFocusReason;
+import org.chromium.components.omnibox.TextSelection;
 import org.chromium.components.search_engines.TemplateUrlService;
 import org.chromium.ui.KeyboardVisibilityDelegate;
 import org.chromium.ui.base.DeviceFormFactor;
@@ -142,6 +146,7 @@ public class LocationBarCoordinator
     private final @Nullable BrowserControlsStateProvider mBrowserControlsStateProvider;
     private final boolean mIsToolbarPositionCustomizationEnabled;
     private final View mBottomContainerView;
+    private final OmniboxResourceProvider mResourceProvider;
     private UrlBarCoordinator mUrlCoordinator;
     private AutocompleteCoordinator mAutocompleteCoordinator;
     private StatusCoordinator mStatusCoordinator;
@@ -171,6 +176,8 @@ public class LocationBarCoordinator
     private @Nullable ButtonData mOptionalButtonData;
     private LocationBarDataProvider.@Nullable Observer mOptionalButtonLocationBarDataObserver;
     private @Nullable UrlFocusChangeListener mOptionalButtonUrlFocusChangeListener;
+    private final SettableNonNullObservableSupplier<Boolean> mSuggestionsListNonEmptySupplier =
+            ObservableSuppliers.createNonNull(false);
 
     private boolean mNativeInitialized;
     private boolean mDefaultBoundsEllipsis;
@@ -289,6 +296,12 @@ public class LocationBarCoordinator
         mUserEducationHelper = userEducationHelper;
         mActivityLifecycleDispatcher.register(this);
         Context context = mLocationBarLayout.getContext();
+        mResourceProvider =
+                new OmniboxResourceProvider(
+                        context,
+                        locationBarDataProvider.isIncognitoBranded(),
+                        locationBarDataProvider.getPrimaryColor());
+
         OneshotSupplierImpl<TemplateUrlService> templateUrlServiceSupplier =
                 new OneshotSupplierImpl<>();
         mDeferredIMEWindowInsetApplicationCallback =
@@ -315,21 +328,27 @@ public class LocationBarCoordinator
                                 mAutocompleteCoordinator != null
                                         ? mAutocompleteCoordinator.getSuggestionsDropdown()
                                         : null,
-                        backPressManager);
-        NonNullObservableSupplier<Integer> fuseboxStateSupplier;
-        if (OmniboxFeatures.isMultimodalInputEnabled(context)) {
-            fuseboxStateSupplier = mFuseboxCoordinator.getFuseboxStateSupplier();
-            fuseboxStateSupplier.addSyncObserverAndPostIfNonNull(mOnFuseboxStateChange);
-            mFuseboxCoordinator
-                    .getPopupStateSupplier()
-                    .addSyncObserverAndPostIfNonNull(mOnPopupStateChange);
-        } else {
-            fuseboxStateSupplier = ObservableSuppliers.createNonNull(FuseboxState.DISABLED);
-        }
+                        backPressManager,
+                        () ->
+                                mAutocompleteCoordinator.loadTypedOmniboxText(
+                                        TimeUtils.uptimeMillis(),
+                                        AutocompleteCoordinator.NavigationTarget.CURRENT_TAB),
+                        this::clearEditingAndUserText,
+                        this::getUrlBarTextWithoutAutocomplete,
+                        uiOverrides.isForcedPhoneStyleOmnibox());
+        NonNullObservableSupplier<Integer> fuseboxStateSupplier =
+                mFuseboxCoordinator.getFuseboxStateSupplier();
+        fuseboxStateSupplier.addSyncObserverAndPostIfNonNull(mOnFuseboxStateChange);
+        mFuseboxCoordinator
+                .getPopupStateSupplier()
+                .addSyncObserverAndPostIfNonNull(mOnPopupStateChange);
+        NonNullObservableSupplier<Integer> fuseboxLayoutModeSupplier =
+                mFuseboxCoordinator.getFuseboxLayoutModeSupplier();
 
         if (mLocationBarLayout instanceof LocationBarTablet tabletLayout) {
             mLocationBarHolder = (ViewGroup) tabletLayout.getParent();
-            tabletLayout.setHolder(mLocationBarHolder);
+            tabletLayout.setHolderAndContainer(
+                    mLocationBarHolder, mLocationBarEmbedder.getContainerView());
         }
 
         View alignmentView = mLocationBarLayout.getAlignmentView();
@@ -338,6 +357,8 @@ public class LocationBarCoordinator
                         mWindowAndroid,
                         autocompleteAnchorView,
                         alignmentView,
+                        mLocationBarLayout::getAlignmentViewTargetWidth,
+                        mLocationBarLayout::getAlignmentViewLeftOffset,
                         uiOverrides.isForcedPhoneStyleOmnibox(),
                         baseChromeLayout,
                         () ->
@@ -347,7 +368,7 @@ public class LocationBarCoordinator
                         mDeferredIMEWindowInsetApplicationCallback::getCurrentKeyboardHeight,
                         bottomWindowPaddingSupplier,
                         fuseboxStateSupplier,
-                        locationBarDataProvider,
+                        fuseboxLayoutModeSupplier,
                         topInsetProvider);
 
         mPageZoomIndicatorCoordinator =
@@ -365,6 +386,7 @@ public class LocationBarCoordinator
                         context,
                         mLocationBarLayout,
                         locationBarDataProvider,
+                        mResourceProvider,
                         uiOverrides,
                         profileObservableSupplier,
                         overrideUrlLoadingDelegate,
@@ -416,6 +438,7 @@ public class LocationBarCoordinator
                 new AutocompleteCoordinator(
                         mLocationBarLayout,
                         this,
+                        mResourceProvider,
                         mOmniboxDropdownEmbedderImpl,
                         mUrlCoordinator,
                         modalDialogManagerSupplier,
@@ -429,7 +452,7 @@ public class LocationBarCoordinator
                         omniboxActionDelegate,
                         omniboxSuggestionsDropdownScrollListener,
                         mActivityLifecycleDispatcher,
-                        uiOverrides.isForcedPhoneStyleOmnibox(),
+                        uiOverrides,
                         windowAndroid,
                         mDeferredIMEWindowInsetApplicationCallback,
                         mFuseboxCoordinator);
@@ -445,8 +468,8 @@ public class LocationBarCoordinator
                         pageInfoAction,
                         browserControlsVisibilityDelegate,
                         fuseboxStateSupplier,
-                        this::onPlusButtonClicked,
-                        mLocationBarMediator.getExactMatchUrlSupplier());
+                        fuseboxLayoutModeSupplier,
+                        this::onPlusButtonClicked);
         mLocationBarMediator.setCoordinators(
                 mUrlCoordinator, mAutocompleteCoordinator, mStatusCoordinator);
 
@@ -544,7 +567,7 @@ public class LocationBarCoordinator
 
     @Override
     public float getUrlBarHeight() {
-        return mUrlBar.getHeight();
+        return mUrlBar.getMeasuredHeight();
     }
 
     /**
@@ -699,8 +722,7 @@ public class LocationBarCoordinator
             mFuseboxCoordinator.plusButtonClicked();
         } else {
             mLocationBarMediator.beginInput(
-                    new AutocompleteInput()
-                            .setFocusReason(OmniboxFocusReason.FAKE_BOX_PLUS_BUTTON_TAP)
+                    new AutocompleteInput(OmniboxFocusReason.FAKE_BOX_PLUS_BUTTON_TAP)
                             .setAutocompleteState(AutocompleteState.STANDBY_NO_FOCUS));
         }
     }
@@ -792,6 +814,17 @@ public class LocationBarCoordinator
         mStatusCoordinator.setShowStatusIconForSecureOrigins(showStatusIconForSecureOrigins);
     }
 
+    /**
+     * Sets an icon override resource ID to replace the default status icon. See {@link
+     * StatusCoordinator#setDefaultStatusIconOverrideResId(int)} for more details.
+     *
+     * @param iconOverrideResId The resource ID of the override icon, or {@link Resources#ID_NULL}
+     *     to clear.
+     */
+    public void setDefaultStatusIconOverrideResId(@DrawableRes int iconOverrideResId) {
+        mStatusCoordinator.setDefaultStatusIconOverrideResId(iconOverrideResId);
+    }
+
     @Override
     public void setMiniOriginMode(boolean active) {
         mMiniOriginMode = active;
@@ -811,6 +844,12 @@ public class LocationBarCoordinator
             @Nullable AutocompleteMatch defaultMatch, boolean hasSuggestions) {
         assert defaultMatch == null || defaultMatch.allowedToBeDefaultMatch();
         mLocationBarMediator.onSuggestionsChanged(defaultMatch, hasSuggestions);
+        mSuggestionsListNonEmptySupplier.set(hasSuggestions);
+    }
+
+    /** Returns the supplier of whether the suggestions list has results. */
+    public NonNullObservableSupplier<Boolean> getSuggestionsListNonEmptySupplier() {
+        return mSuggestionsListNonEmptySupplier;
     }
 
     @Override
@@ -856,10 +895,20 @@ public class LocationBarCoordinator
         mLocationBarMediator.endInput();
     }
 
+    private void clearEditingAndUserText() {
+        if (mLocationBarMediator == null || mLocationBarMediator.getCurrentInput() == null) {
+            return;
+        }
+        setOmniboxEditingText("");
+        mLocationBarMediator.getCurrentInput().setUserText("");
+    }
+
     @Override
     public void setOmniboxEditingText(String text) {
         mUrlCoordinator.setUrlBarData(
-                UrlBarData.forNonUrlText(text), UrlBar.ScrollType.NO_SCROLL, UrlBarData.SELECT_END);
+                UrlBarData.forNonUrlText(text),
+                UrlBar.ScrollType.NO_SCROLL,
+                TextSelection.SELECT_END);
         updateButtonVisibility();
     }
 
@@ -922,8 +971,7 @@ public class LocationBarCoordinator
     /** Initiates a pre-fetch of autocomplete suggestions. */
     public void startAutocompletePrefetch() {
         if (!mNativeInitialized) return;
-        mAutocompleteCoordinator.prefetchZeroSuggestResults(
-                mLocationBarMediator.getLocationBarDataProvider().getTab());
+        mLocationBarMediator.hintZeroSuggestRefresh();
     }
 
     /**
@@ -1007,25 +1055,28 @@ public class LocationBarCoordinator
 
     /* package */ void onFuseboxStateChange(@FuseboxState int newState) {
         if (mUrlCoordinator == null || !mUrlCoordinator.hasFocus()) return;
-        View addButton = mLocationBarLayout.findViewById(R.id.location_bar_attachments_add);
-        if (addButton == null) return;
+        View plusButton = mLocationBarLayout.findViewById(R.id.fusebox_plus_button);
+        if (plusButton == null) return;
 
         // The Fade and and ChangeBounds anims below are only intended for animating between compact
         // <--> expanded; they don't look good otherwise.
         boolean transitioningFromOrToDisabledState =
                 mCurrentFuseboxState == FuseboxState.DISABLED || newState == FuseboxState.DISABLED;
+        // The popover UI doesn't look good when animating bounds changes.
+        boolean isPopover =
+                getFuseboxLayoutModeSupplier().get() == FuseboxLayoutMode.SUGGESTIONS_POPOVER;
 
         mCurrentFuseboxState = newState;
         updateUrlBarForMultilineInput();
 
-        if (transitioningFromOrToDisabledState) return;
+        if (transitioningFromOrToDisabledState || isPopover) return;
 
         ChangeBounds changeBounds = new ChangeBounds();
         changeBounds
                 .setDuration(COMPACT_MODE_ANIMATION_DURATION_MS)
                 .setInterpolator(Interpolators.STANDARD_INTERPOLATOR)
                 .addTarget(mLocationBarLayout)
-                .addTarget(addButton);
+                .addTarget(plusButton);
         Transition transition;
         if (newState == FuseboxState.COMPACT) {
             // Only fade when entering expanded mode.
@@ -1061,6 +1112,11 @@ public class LocationBarCoordinator
         } else {
             TransitionManager.beginDelayedTransition(mLocationBarLayout, transition);
         }
+    }
+
+    @VisibleForTesting
+    NonNullObservableSupplier<Integer> getFuseboxLayoutModeSupplier() {
+        return mFuseboxCoordinator.getFuseboxLayoutModeSupplier();
     }
 
     /* package */ void onPopupStateChange(@PopupState int popupState) {
@@ -1384,6 +1440,10 @@ public class LocationBarCoordinator
         mUrlCoordinator = urlCoordinator;
     }
 
+    void setFuseboxCoordinatorForTesting(FuseboxCoordinator fuseboxCoordinator) {
+        mFuseboxCoordinator = fuseboxCoordinator;
+    }
+
     /** Set an instance of UrlBar for testing. */
     void setUrlBarForTesting(View urlBar) {
         mUrlBar = urlBar;
@@ -1507,11 +1567,7 @@ public class LocationBarCoordinator
 
         var locationBarDataProvider = mLocationBarMediator.getLocationBarDataProvider();
         boolean isNtp = locationBarDataProvider.getNewTabPageDelegate().isCurrentlyVisible();
-        if (!ToolbarVariationUtils.shouldModifyToolbarButtons(
-                        mLocationBarLayout.getContext(), isNtp)
-                || mLocationBarMediator.isUrlBarFocused()
-                || mMiniOriginMode
-                || mOptionalButtonData == null) {
+        if (shouldHideOptionalButton(isNtp)) {
             mOptionalButtonCoordinator.hideButton();
         } else {
             mOptionalButtonCoordinator.setBrandedColorScheme(
@@ -1523,6 +1579,23 @@ public class LocationBarCoordinator
         }
 
         updateUrlBarNextFocusForwardId();
+    }
+
+    private boolean shouldHideOptionalButton(boolean isNtp) {
+        if (!ToolbarVariationUtils.shouldModifyToolbarButtons(
+                mLocationBarLayout.getContext(), isNtp)) {
+            return true;
+        }
+        if (mLocationBarMediator.isUrlBarFocused()
+                || mMiniOriginMode
+                || mOptionalButtonData == null) {
+            return true;
+        }
+        if (ToolbarVariationUtils.isToolbarUiRefactorEnabled(mLocationBarLayout.getContext())
+                && mOptionalButtonData.isIdentityDisc()) {
+            return true;
+        }
+        return false;
     }
 
     private void updateUrlBarNextFocusForwardId() {

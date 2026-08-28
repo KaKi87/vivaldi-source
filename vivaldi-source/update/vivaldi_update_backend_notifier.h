@@ -9,7 +9,7 @@
 #ifndef UPDATE_UPDATE_BACKEND_NOTIFIER_H_
 #define UPDATE_UPDATE_BACKEND_NOTIFIER_H_
 
-#include "extensions/api/auto_update/auto_update_status.h"
+#include "extensions/api/autoupdate/auto_update_status.h"
 
 namespace update {
 

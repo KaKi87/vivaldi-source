@@ -2,39 +2,37 @@
 
 source_set("vivaldi_favicon_service") {
   sources = [
-    "vivaldi_favicon_service.h",
-    "vivaldi_favicon_service.cc",
-    "vivaldi_favicon_service_factory.h",
-    "vivaldi_favicon_service_factory.cc",
     "vivaldi_favicon_loader.h",
     "vivaldi_favicon_loader.mm",
-    "vivaldi_favicon_loader_factory.h",
     "vivaldi_favicon_loader_factory.cc",
+    "vivaldi_favicon_loader_factory.h",
+    "vivaldi_favicon_service.cc",
+    "vivaldi_favicon_service.h",
+    "vivaldi_favicon_service_factory.cc",
+    "vivaldi_favicon_service_factory.h",
   ]
 
   deps = [
     "//base",
     "//components/favicon/core",
-    "//components/favicon_base",
     "//components/favicon/ios",
+    "//components/favicon_base",
     "//components/image_fetcher/core",
     "//components/image_fetcher/ios",
+    "//components/keyed_service/core",
     "//ios/chrome/browser/favicon/model",
     "//ios/chrome/browser/shared/model/profile",
     "//ios/chrome/browser/shared/model/profile:profile_keyed_service_factory",
-    "//components/keyed_service/core",
+    "//ios/chrome/common/ui/favicon",
+    "//ios/web",
+    "//net/traffic_annotation",
     "//skia",
     "//ui/gfx",
     "//ui/gfx/codec",
-    "//net/traffic_annotation:traffic_annotation",
     "//url",
-    "//ios/chrome/common/ui/favicon",
-    "//ios/web",
   ]
 
-  public_deps = [
-    "//components/favicon_base",
-  ]
+  public_deps = [ "//components/favicon_base" ]
 
   frameworks = [
     "UIKit.framework",

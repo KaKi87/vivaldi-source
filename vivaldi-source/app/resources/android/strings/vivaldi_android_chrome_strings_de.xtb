@@ -181,7 +181,7 @@ Drücken Sie lange, um Ihren Suchbegriff anzupassen. Um Ihre Suche zu verfeinern
 <translation id="8266862848225348053">Download-Ordner</translation>
 <translation id="8348430946834215779">Nach Möglichkeit HTTPS verwenden und vor dem Laden von Websites warnen, die das Protokoll nicht unterstützen</translation>
 <translation id="8480628728881718381">In neuem Tab in Gruppe öffnen</translation>
-<translation id="8543049482641423692">Tan zu neuer Gruppe hinzufügen</translation>
+<translation id="8543049482641423692">Tab zu neuer Gruppe hinzufügen</translation>
 <translation id="8560602726703398413">Finden Sie Ihre Leseliste in den Lesezeichen</translation>
 <translation id="85991616550051997">Startseite</translation>
 <translation id="8680308397617585416">Sie verlieren sofort den Zugriff auf die Tabgruppe „<ph name="GROUP_NAME" />“, und diese wird von all Ihren Geräten gelöscht</translation>
@@ -193,4 +193,5 @@ Drücken Sie lange, um Ihren Suchbegriff anzupassen. Um Ihre Suche zu verfeinern
 <translation id="9099398755190923267">Alle verlieren sofort den Zugriff auf die TTabgruppe „<ph name="GROUP_NAME" />“ und sie wird von allen Geräten gelöscht</translation>
 <translation id="930124987204876019">Verlauf, Cookies, Websitedaten löschen, Cache leeren…</translation>
 <translation id="961856697154696964">Browserdaten löschen</translation>
+<translation id="992223576089545146">Durchsuchen Sie Ihre privaten Tabs</translation>
 </translationbundle>

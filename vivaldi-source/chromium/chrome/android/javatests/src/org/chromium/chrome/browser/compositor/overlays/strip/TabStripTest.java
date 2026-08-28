@@ -446,6 +446,7 @@ public class TabStripTest {
     @LargeTest
     @Restriction(DeviceFormFactor.TABLET_OR_DESKTOP)
     @Feature({"TabStrip"})
+    @DisableFeatures({ChromeFeatureList.ANDROID_CONTEXT_MENU_NEW_ACTIONS})
     public void testCloseAllTabsFromTabMenuClosesAllTabs() {
         Assert.assertEquals(
                 "Initial window count is unexpected.",
@@ -666,7 +667,10 @@ public class TabStripTest {
     @Restriction(DeviceFormFactor.TABLET_OR_DESKTOP)
     // TODO(crbug.com/435241931): Remove this test once desktop-like incognito window feature is
     // launched.
-    @DisableFeatures(ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW)
+    @DisableFeatures({
+        ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW,
+        ChromeFeatureList.ANDROID_CONTEXT_MENU_NEW_ACTIONS
+    })
     public void testCloseAllIncognitoTabsFromTabMenu() {
         // 1. Create two incognito tabs.
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
@@ -727,6 +731,7 @@ public class TabStripTest {
         DeviceRestriction.RESTRICTION_TYPE_NON_FOLDABLE
     })
     @EnableFeatures(ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW)
+    @DisableFeatures({ChromeFeatureList.ANDROID_CONTEXT_MENU_NEW_ACTIONS})
     public void testCloseAllIncognitoTabsFromTabMenu_OpenIncognitoAsNewWindow() {
         // Create a regular window and verify.
         ChromeTabbedActivity regularActivity = mActivityTestRule.getActivity();
@@ -1286,7 +1291,7 @@ public class TabStripTest {
         // Verify that the card view background color is correctly set.
         Assert.assertEquals(
                 "Hover card background color is incorrect.",
-                TabUiThemeProvider.getStripTabHoverCardBackgroundTintList(
+                TabUiThemeProvider.getTabHoverCardBackgroundTintList(
                         hoverCardView.getContext(), false),
                 hoverCardView.getBackgroundTintList());
 
@@ -1370,7 +1375,7 @@ public class TabStripTest {
                         .getTabHoverCardViewForTesting());
         Assert.assertEquals(
                 "Hover card background color is incorrect.",
-                TabUiThemeProvider.getStripTabHoverCardBackgroundTintList(
+                TabUiThemeProvider.getTabHoverCardBackgroundTintList(
                         hoverCardView.getContext(), false),
                 hoverCardView.getBackgroundTintList());
 
@@ -1401,7 +1406,7 @@ public class TabStripTest {
                         .getTabHoverCardViewForTesting());
         Assert.assertEquals(
                 "Hover card background color is incorrect.",
-                TabUiThemeProvider.getStripTabHoverCardBackgroundTintList(
+                TabUiThemeProvider.getTabHoverCardBackgroundTintList(
                         hoverCardView.getContext(), true),
                 hoverCardView.getBackgroundTintList());
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2023 The Chromium Authors. All rights reserved.
+# Copyright 2023 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -22,8 +22,9 @@ import metadata.validation_result as vr
 
 def version_is_unknown(value: str) -> bool:
     """Returns whether the value denotes the version being unknown."""
-    return (value == "0" or util.is_not_applicable(value)
-            or util.is_unknown(value))
+    return (
+        value == "0" or util.is_not_applicable(value) or util.is_unknown(value)
+    )
 
 
 class VersionField(field_types.SingleLineTextField):
@@ -43,7 +44,8 @@ class VersionField(field_types.SingleLineTextField):
                 additional=[
                     "Set this field to 'N/A' if this package does not version "
                     "or is versioned by date or revision.",
-                ])
+                ],
+            )
 
         if util.is_empty(value):
             return vr.ValidationError(
@@ -51,7 +53,8 @@ class VersionField(field_types.SingleLineTextField):
                 additional=[
                     "Set this field to 'N/A' if this package does not version "
                     "or is versioned by date or revision.",
-                ])
+                ],
+            )
 
         return None
 

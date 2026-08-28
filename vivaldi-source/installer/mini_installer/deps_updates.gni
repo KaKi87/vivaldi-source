@@ -19,9 +19,14 @@ if (is_win) {
         "gdiplus.lib",
       ]
     }
+
     update_target("//chrome/test:interactive_ui_tests") {
       deps -= [ "//chrome/installer/util:strings" ]
       deps += [ "//vivaldi/installer/mini_installer/util:strings" ]
+    }
+
+    update_target("//chrome/browser/notifications:unit_tests") {
+      deps -= [ "//chrome/installer/setup:lib" ]
     }
   }
 }
@@ -32,12 +37,12 @@ if (is_win) {
     deps += [ "//vivaldi/installer/mini_installer/util:did_run_support" ]
   }
 
-  update_target("//chrome/browser:browser") {
+  update_target("//chrome/browser:core") {
     deps -= [ "//chrome/installer/util:isolation_support" ]
     deps += [ "//vivaldi/installer/mini_installer/util:isolation_support" ]
   }
 
-  update_target("//chrome/browser:core") {
+  update_target("//chrome/common:common_lib") {
     deps -= [ "//chrome/installer/util:isolation_support" ]
     deps += [ "//vivaldi/installer/mini_installer/util:isolation_support" ]
   }
@@ -69,15 +74,18 @@ if (is_win) {
 _targets = []
 if (is_win) {
   _targets += [
+    "//chrome/browser:core",
     "//chrome/browser/diagnostics:impl",
     "//chrome/browser/downgrade:impl",
     "//chrome/browser/enterprise/connectors/device_trust/key_management/browser/commands:commands",
     "//chrome/browser/enterprise/connectors/device_trust/key_management/core/persistence:persistence",
     "//chrome/browser/google:google",
     "//chrome/browser/media/router:router",
-    "//chrome/browser/ui/dialogs:impl",
+    "//chrome/browser/ui/dialogs:dialogs",
+    "//chrome/browser/ui/webui/feature_showcase:feature_showcase",
     "//chrome/browser/web_applications/chrome_pwa_launcher:util",
     "//chrome/browser/win:impl",
+    "//chrome/browser/win:unit_tests",
     "//chrome/notification_helper:notification_helper_unittests",
 
     #"//chrome/browser/updater:updater",

@@ -46,9 +46,6 @@ namespace {
 // the CTS tests.
 constexpr size_t kMaxConcurrentClients = 8;
 
-BASE_FEATURE(kArcVideoEncodeUseRec709ColorSpace,
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 bool ForceL1T3Encode(const media::VideoEncodeAccelerator::Config& config) {
   if (media::VideoCodecProfileToVideoCodec(config.output_profile) !=
       media::VideoCodec::kH264) {
@@ -174,6 +171,7 @@ GpuArcVideoEncodeAccelerator::InitializeTask(
   }
 
   visible_size_ = config.input_visible_size;
+  coded_size_ = gfx::Size();
   accelerator_.reset();
   auto accelerator_or_error =
       media::GpuVideoEncodeAcceleratorFactory::CreateVEA(
@@ -205,8 +203,24 @@ void GpuArcVideoEncodeAccelerator::Encode(
     return;
   }
 
+  // |coded_size_| is only set when the (asynchronous) RequireBitstreamBuffers()
+  // callback fires. Until then it is empty (reset in Initialize()) and cannot
+  // be used to validate the incoming dmabuf. Reject early instead.
+  if (coded_size_.IsEmpty()) {
+    DLOG(ERROR) << "Encode() called before RequireBitstreamBuffers().";
+    if (client_) {
+      client_->NotifyError(Error::kIllegalStateError);
+    }
+    return;
+  }
+
   if (planes.empty()) {  // EOS
     accelerator_->Encode(media::VideoFrame::CreateEOSFrame(), force_keyframe);
+    return;
+  }
+
+  if (!client_) {
+    DLOG(ERROR) << "No client is bound.";
     return;
   }
 
@@ -245,10 +259,7 @@ void GpuArcVideoEncodeAccelerator::Encode(
     return;
   }
   scoped_refptr<media::VideoFrame> frame;
-  const gfx::ColorSpace color_space =
-      base::FeatureList::IsEnabled(kArcVideoEncodeUseRec709ColorSpace)
-          ? gfx::ColorSpace::CreateREC709()
-          : gfx::ColorSpace();
+  const gfx::ColorSpace color_space = gfx::ColorSpace::CreateREC709();
   auto shared_image = sii_->CreateSharedImage(
       {*si_format, visible_size_, color_space,
        gpu::SHARED_IMAGE_USAGE_CPU_ONLY_READ_WRITE,
@@ -271,9 +282,7 @@ void GpuArcVideoEncodeAccelerator::Encode(
     return;
   }
 
-  if (base::FeatureList::IsEnabled(kArcVideoEncodeUseRec709ColorSpace)) {
-    frame->set_color_space(gfx::ColorSpace::CreateREC709());
-  }
+  frame->set_color_space(color_space);
 
   // Make sure the Mojo callback is called on the same thread as where the Mojo
   // call is received (here).

@@ -768,7 +768,7 @@ public class TabGroupUiMediatorUnitTest {
         initAndAssertProperties(mTab2);
         doReturn(POSITION2).when(mTabModel).index();
         doReturn(mTab2).when(mTabModelSelector).getCurrentTab();
-        doReturn(true).when(mLayoutManager).isLayoutVisible(LayoutType.TAB_SWITCHER);
+        doReturn(true).when(mLayoutManager).isLayoutVisible(LayoutType.HUB);
         // Simulate restore finished.
         mTabModelObserverArgumentCaptor.getValue().restoreCompleted();
 
@@ -850,7 +850,7 @@ public class TabGroupUiMediatorUnitTest {
         initAndAssertProperties(mTab1);
 
         // Simulate the overview mode is showing, which suppresses showing the strip.
-        mLayoutStateObserverCaptor.getValue().onStartedShowing(LayoutType.TAB_SWITCHER);
+        mLayoutStateObserverCaptor.getValue().onStartedShowing(LayoutType.HUB);
         verifyNeverReset();
 
         // Simulate that we undo a group closure of {mTab2, mTab3}.
@@ -866,10 +866,10 @@ public class TabGroupUiMediatorUnitTest {
     public void layoutStateChange_SingleTab() {
         initAndAssertProperties(mTab1);
 
-        mLayoutStateObserverCaptor.getValue().onStartedShowing(LayoutType.TAB_SWITCHER);
+        mLayoutStateObserverCaptor.getValue().onStartedShowing(LayoutType.HUB);
         verifyNeverReset();
 
-        mLayoutStateObserverCaptor.getValue().onFinishedHiding(LayoutType.TAB_SWITCHER);
+        mLayoutStateObserverCaptor.getValue().onFinishedHiding(LayoutType.HUB);
         verifyNeverReset();
     }
 
@@ -877,10 +877,10 @@ public class TabGroupUiMediatorUnitTest {
     public void layoutStateChange_NoCurrentTab() {
         initAndAssertProperties(null);
 
-        mLayoutStateObserverCaptor.getValue().onStartedShowing(LayoutType.TAB_SWITCHER);
+        mLayoutStateObserverCaptor.getValue().onStartedShowing(LayoutType.HUB);
         verifyNeverReset();
 
-        mLayoutStateObserverCaptor.getValue().onFinishedHiding(LayoutType.TAB_SWITCHER);
+        mLayoutStateObserverCaptor.getValue().onFinishedHiding(LayoutType.HUB);
         verifyNeverReset();
     }
 
@@ -889,11 +889,11 @@ public class TabGroupUiMediatorUnitTest {
         initAndAssertProperties(mTab2);
         mDialogControllerSupplier.get();
 
-        mLayoutStateObserverCaptor.getValue().onStartedShowing(LayoutType.TAB_SWITCHER);
+        mLayoutStateObserverCaptor.getValue().onStartedShowing(LayoutType.HUB);
         verify(mTabGridDialogController, atLeastOnce()).hideDialog(false);
         verifyResetStrip(false, null);
 
-        mLayoutStateObserverCaptor.getValue().onFinishedHiding(LayoutType.TAB_SWITCHER);
+        mLayoutStateObserverCaptor.getValue().onFinishedHiding(LayoutType.HUB);
         verifyResetStrip(true, mTabGroup2);
     }
 
@@ -1040,6 +1040,7 @@ public class TabGroupUiMediatorUnitTest {
         // Mock that tab2 is selected after tab model switch, and tab2 is in a group.
         when(mTabModelSelector.getCurrentTab()).thenReturn(mTab2);
         mTabModelSupplier.set(mTabModel);
+        RobolectricUtil.runAllBackgroundAndUi();
 
         verifyResetStrip(true, mTabGroup2);
     }
@@ -1052,6 +1053,7 @@ public class TabGroupUiMediatorUnitTest {
         // Mock that tab1 is selected after tab model switch, and tab1 is a single tab.
         when(mTabModelSelector.getCurrentTab()).thenReturn(mTab1);
         mTabModelSupplier.set(mTabModel);
+        RobolectricUtil.runAllBackgroundAndUi();
 
         verifyResetStrip(false, null);
     }
@@ -1074,6 +1076,7 @@ public class TabGroupUiMediatorUnitTest {
     public void testTabModelSelectorTabObserverDestroyWhenDetach() {
         InOrder tabObserverDestroyInOrder = inOrder(mTab1);
         initAndAssertProperties(mTab1);
+        mTabModelSupplier.set(mTabModel);
 
         mTabObserverCaptor.getValue().onActivityAttachmentChanged(mTab1, null);
 

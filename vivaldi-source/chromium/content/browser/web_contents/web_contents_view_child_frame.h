@@ -107,14 +107,16 @@ class WebContentsViewChildFrame : public WebContentsView,
   bool IsWebContentsViewChildFrame() const override;
 
  private:
+  enum class Type { kGuestView, kSurfaceEmbed };
+  Type GetType() const;
 
-#if defined(USE_AURA)
+#if defined(USE_AURA) // Vivaldi
   void InstallOverscrollControllerDelegate(
       RenderWidgetHostViewChildFrame* view);
 
   // Responsible for handling gesture-nav and pull-to-refresh UI.
   std::unique_ptr<GestureNavSimple> gesture_nav_simple_;
-#endif // USE_AURA
+#endif // USE_AURA // End Vivaldi
 
   WebContentsView* GetOuterView();
   const WebContentsView* GetOuterView() const;

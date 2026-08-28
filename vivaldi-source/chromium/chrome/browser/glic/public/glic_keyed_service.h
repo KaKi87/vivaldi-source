@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/callback_list.h"
+#include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -25,6 +26,7 @@
 #include "chrome/browser/glic/public/glic_instance.h"
 #include "chrome/browser/glic/public/glic_invoke_options.h"
 #include "chrome/browser/glic/public/glic_passkeys.h"
+#include "chrome/browser/glic/public/glic_window_invocation_tracker.h"
 #include "chrome/common/actor.mojom-forward.h"
 #include "chrome/common/actor_webui.mojom-forward.h"
 #include "components/autofill/core/browser/integrators/actor/actor_form_filling_types.h"
@@ -50,7 +52,6 @@ class AuthController;
 class ContextualCueingService;
 class GlicActorPolicyChecker;
 class GlicEnabling;
-class GlicFreController;
 class GlicMetrics;
 class GlicProfileManager;
 class GlicShareImageHandler;
@@ -90,6 +91,9 @@ class GlicKeyedService : public KeyedService, public base::SupportsUserData {
       GlicKeyedService* glic_keyed_service);
   bool IsGlicShortcutActive();
   bool IsBottomBarEnabled();
+
+  class GlicNudgeController* GetOrCreateNudgeController(
+      BrowserWindowInterface* browser);
 #endif  // BUILDFLAG(IS_ANDROID)
 
   // Convenience method, may return nullptr.
@@ -134,7 +138,6 @@ class GlicKeyedService : public KeyedService, public base::SupportsUserData {
   GlicEnabling& enabling() { return *enabling_.get(); }
 
   GlicMetrics* metrics() { return metrics_.get(); }
-  virtual GlicFreController& fre_controller();
 #if !BUILDFLAG(IS_ANDROID)
   virtual GlicExperimentalOptInController& opt_in_controller();
 #endif
@@ -144,7 +147,7 @@ class GlicKeyedService : public KeyedService, public base::SupportsUserData {
   // for whichever instance is active. Please prefer to use the sharing manager
   // on the `GlicInstance` if you don't need one that automatically tracks the
   // active instance.
-  GlicSharingManager& active_instance_sharing_manager();
+  GlicSharingManagerInternal& active_instance_sharing_manager();
 
   // Returns true if `bwi` has a glic panel showing for its active tab. Virtual
   // for testing.
@@ -277,7 +280,6 @@ class GlicKeyedService : public KeyedService, public base::SupportsUserData {
 
   std::unique_ptr<GlicEnabling> enabling_;
   std::unique_ptr<GlicMetrics> metrics_;
-  std::unique_ptr<GlicFreController> fre_controller_;
 #if !BUILDFLAG(IS_ANDROID)
   std::unique_ptr<GlicExperimentalOptInController> opt_in_controller_;
 #endif
@@ -293,6 +295,16 @@ class GlicKeyedService : public KeyedService, public base::SupportsUserData {
   std::unique_ptr<GlicTabFaviconObserver> tab_favicon_observer_;
 
   base::CallbackListSubscription experimental_triggering_state_subscription_;
+
+#if BUILDFLAG(IS_ANDROID)
+  void OnBrowserWindowClosed(BrowserWindowInterface* browser);
+
+  base::flat_map<BrowserWindowInterface*,
+                 std::unique_ptr<class GlicSplitButtonController>>
+      button_controllers_;
+  base::flat_map<BrowserWindowInterface*, base::CallbackListSubscription>
+      window_close_subscriptions_;
+#endif
 
   base::WeakPtrFactory<GlicKeyedService> weak_ptr_factory_{this};
 };

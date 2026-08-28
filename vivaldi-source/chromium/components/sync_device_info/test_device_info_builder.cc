@@ -71,6 +71,8 @@ TestDeviceInfoBuilder::TestDeviceInfoBuilder(const DeviceInfo& other)
       manufacturer_name_(other.manufacturer_name()),
       model_name_(other.model_name()),
       full_hardware_class_(other.full_hardware_class()),
+      android_os_build_fingerprint_prefix_(
+          other.android_os_build_fingerprint_prefix()),
       last_updated_timestamp_(other.last_updated_timestamp()),
       pulse_interval_(other.pulse_interval()),
       send_tab_to_self_receiving_enabled_(
@@ -85,14 +87,14 @@ TestDeviceInfoBuilder::TestDeviceInfoBuilder(const DeviceInfo& other)
       desktop_to_ios_promo_receiving_enabled_(
           other.desktop_to_ios_promo_receiving_enabled()),
       desktop_to_ios_promo_receiving_types_(
-          other.desktop_to_ios_promo_receiving_types()) //,
+          other.desktop_to_ios_promo_receiving_types()),
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
       glic_experimental_triggering_state_(
           other.glic_experimental_triggering_state()),
       glic_experimental_triggering_version_(
-          other.glic_experimental_triggering_version()) {}
+          other.glic_experimental_triggering_version()),
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-      {}
+      server_determined_model_name_(other.server_determined_model_name()) {}
 
 TestDeviceInfoBuilder::~TestDeviceInfoBuilder() = default;
 
@@ -104,18 +106,18 @@ std::unique_ptr<DeviceInfo> TestDeviceInfoBuilder::Build() const {
   return std::make_unique<DeviceInfo>(
       guid_, client_name_, chrome_version_, sync_user_agent_, device_type_,
       os_type_, form_factor_, signin_scoped_device_id_, manufacturer_name_,
-      model_name_, full_hardware_class_, last_updated_timestamp_,
-      pulse_interval_, send_tab_to_self_receiving_enabled_,
-      send_tab_to_self_receiving_type_, sharing_info_, paask_info_,
-      fcm_registration_token_, interested_data_types_,
-      auto_sign_out_last_signin_timestamp_,
+      model_name_, server_determined_model_name_, full_hardware_class_,
+      last_updated_timestamp_, pulse_interval_,
+      send_tab_to_self_receiving_enabled_, send_tab_to_self_receiving_type_,
+      sharing_info_, paask_info_, fcm_registration_token_,
+      interested_data_types_, auto_sign_out_last_signin_timestamp_,
       desktop_to_ios_promo_receiving_enabled_,
-      desktop_to_ios_promo_receiving_types_ //,
+      desktop_to_ios_promo_receiving_types_,
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
       glic_experimental_triggering_state_,
-      glic_experimental_triggering_version_);
+      glic_experimental_triggering_version_,
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-  );
+      android_os_build_fingerprint_prefix_);
 }
 
 TestDeviceInfoBuilder& TestDeviceInfoBuilder::WithGuid(
@@ -181,6 +183,12 @@ TestDeviceInfoBuilder& TestDeviceInfoBuilder::WithModelName(
 TestDeviceInfoBuilder& TestDeviceInfoBuilder::WithFullHardwareClass(
     const std::string& full_hardware_class) {
   full_hardware_class_ = full_hardware_class;
+  return *this;
+}
+
+TestDeviceInfoBuilder& TestDeviceInfoBuilder::WithAndroidBuildFingerprintPrefix(
+    std::optional<std::string> android_os_build_fingerprint_prefix) {
+  android_os_build_fingerprint_prefix_ = android_os_build_fingerprint_prefix;
   return *this;
 }
 
@@ -278,5 +286,11 @@ TestDeviceInfoBuilder::WithGlicExperimentalTriggeringVersion(
   return *this;
 }
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+
+TestDeviceInfoBuilder& TestDeviceInfoBuilder::WithServerDeterminedModelName(
+    const std::optional<std::string>& server_determined_model_name) {
+  server_determined_model_name_ = server_determined_model_name;
+  return *this;
+}
 
 }  // namespace syncer

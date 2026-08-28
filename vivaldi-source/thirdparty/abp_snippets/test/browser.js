@@ -86,8 +86,20 @@ export const setup = () => {
             };
 
             // basic HTML element and document shim
-            this.createElement = _ => ({});
-            this.documentElement = {appendChild: Object};
+            this.createElement = tagName => {
+              if (tagName === "script") {
+                return {
+                  set textContent(code) {
+                    // Execute the script when textContent is set
+                    Function(code)();
+                  },
+                  type: "",
+                  async: false
+                };
+              }
+              return {};
+            };
+            this.documentElement = {appendChild: Object, removeChild: Object};
 
             // invoke the "readystatechange" listener
             callback();

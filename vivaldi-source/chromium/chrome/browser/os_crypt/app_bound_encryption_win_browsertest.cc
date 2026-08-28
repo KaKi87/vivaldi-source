@@ -87,11 +87,9 @@ void WaitForHistogram(const std::string& histogram_name) {
 }
 
 scoped_refptr<os_crypt_async::Encryptor> GetInstanceSync(
-    os_crypt_async::OSCryptAsync& factory,
-    os_crypt_async::Encryptor::Option option =
-        os_crypt_async::Encryptor::Option::kNone) {
+    os_crypt_async::OSCryptAsync& factory) {
   base::test::TestFuture<scoped_refptr<os_crypt_async::Encryptor>> future;
-  factory.GetInstance(future.GetCallback(), option);
+  factory.GetInstance(future.GetCallback());
   return future.Take();
 }
 
@@ -139,16 +137,16 @@ class AppBoundEncryptionWinTestBase : public InProcessBrowserTest {
   // Used by multi-stage tests to persist data between each part of the test.
   void StoreData(base::span<const uint8_t> data) {
     base::ScopedAllowBlockingForTesting allow_blocking;
-    const auto data_path =
-        browser()->profile()->GetPath().Append(FILE_PATH_LITERAL("TestData"));
+    const auto data_path = browser()->GetProfile()->GetPath().Append(
+        FILE_PATH_LITERAL("TestData"));
     ASSERT_FALSE(base::PathExists(data_path));
     EXPECT_TRUE(base::WriteFile(data_path, data));
   }
 
   std::optional<std::vector<uint8_t>> RetrieveData() {
     base::ScopedAllowBlockingForTesting allow_blocking;
-    return base::ReadFileToBytes(
-        browser()->profile()->GetPath().Append(FILE_PATH_LITERAL("TestData")));
+    return base::ReadFileToBytes(browser()->GetProfile()->GetPath().Append(
+        FILE_PATH_LITERAL("TestData")));
   }
 
   static bool IsPreTest() {

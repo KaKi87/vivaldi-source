@@ -13,7 +13,7 @@
 #include "extensions/common/api/extension_options_internal.h"
 
 // Vivaldi constants
-#include "extensions/api/guest_view/vivaldi_web_view_constants.h"
+#include "extensions/api/web_view_private/vivaldi_web_view_constants.h"
 
 namespace extensions {
 namespace guest_view_events {
@@ -89,7 +89,7 @@ class EventMap {
         {kEventSendHeaders, events::WEB_VIEW_INTERNAL_ON_SEND_HEADERS},
 
         // Vivaldi specific events
-#include "extensions/api/guest_view/vivaldi_guest_view_events.h"
+#include "extensions/api/web_view_private/vivaldi_guest_view_events.h"
     };
     for (const auto& name_and_value : names_and_values) {
       values_[name_and_value.name] = name_and_value.value;

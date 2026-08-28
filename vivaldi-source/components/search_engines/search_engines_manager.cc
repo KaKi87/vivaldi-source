@@ -53,14 +53,15 @@ std::string LanguageCodeFromApplicationLocale(
 
 namespace TemplateURLPrepopulateData {
 
-base::span<const PrepopulatedEngine* const> kAllEngines;
+[[clang::no_destroy]] std::vector<raw_ptr<const PrepopulatedEngine>>
+    kAllEngines;
 }  // namespace TemplateURLPrepopulateData
 
 SearchEnginesManager::SearchEnginesManager(
     std::unique_ptr<ParsedSearchEngines> search_engines)
     : search_engines_(std::move(search_engines)) {
   CHECK(search_engines_);
-  TemplateURLPrepopulateData::kAllEngines = search_engines_->all_engines();
+  TemplateURLPrepopulateData::kAllEngines  = search_engines_->all_engines();
 }
 
 SearchEnginesManager::~SearchEnginesManager() = default;

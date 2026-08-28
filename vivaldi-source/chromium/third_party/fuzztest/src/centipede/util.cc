@@ -32,6 +32,7 @@
 #include <fstream>
 #include <functional>
 #include <ios>
+#include <limits>
 #include <queue>
 #include <random>
 #include <sstream>
@@ -50,6 +51,7 @@
 #include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./centipede/feature.h"
 #include "./common/defs.h"
@@ -367,6 +369,18 @@ uint8_t *MmapNoReserve(size_t size) {
 void Munmap(uint8_t *ptr, size_t size) {
   auto result = munmap(ptr, size);
   FUZZTEST_CHECK_EQ(result, 0);
+}
+
+int PollTimeoutMs(absl::Duration timeout) {
+  if (timeout == absl::InfiniteDuration()) {
+    return -1;
+  }
+  const auto ms = absl::ToInt64Milliseconds(absl::Ceil(
+      std::max(timeout, absl::Milliseconds(1)), absl::Milliseconds(1)));
+  if (ms > std::numeric_limits<int>::max()) {
+    return std::numeric_limits<int>::max();
+  }
+  return static_cast<int>(ms);
 }
 
 }  // namespace fuzztest::internal

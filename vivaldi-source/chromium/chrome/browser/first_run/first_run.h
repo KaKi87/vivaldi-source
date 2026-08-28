@@ -16,6 +16,8 @@
 #include "chrome/installer/util/initial_preferences.h"
 #include "extensions/buildflags/buildflags.h"
 
+#include "app/vivaldi_apptools.h"
+
 class GURL;
 class Profile;
 
@@ -74,7 +76,7 @@ struct MasterPrefs {
   bool confirm_to_quit;
 #endif
 #if BUILDFLAG(IS_LINUX)
-  bool eula_required = false;
+  bool eula_required = !vivaldi::IsVivaldiRunning();
 #endif
 };
 

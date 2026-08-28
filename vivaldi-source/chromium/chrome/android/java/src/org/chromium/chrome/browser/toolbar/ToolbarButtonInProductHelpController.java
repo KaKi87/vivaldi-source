@@ -39,6 +39,10 @@ import org.chromium.url.GURL;
 
 import java.util.function.Supplier;
 
+// Vivaldi
+import org.chromium.chrome.browser.ChromeApplicationImpl;
+// End Vivaldi
+
 /**
  * A helper class for IPH shown on the toolbar. TODO(crbug.com/40585866): Remove feature-specific
  * IPH from here.
@@ -167,20 +171,6 @@ public class ToolbarButtonInProductHelpController {
                         .build());
     }
 
-    /** Attempts to show an IPH text bubble for download continuing. */
-    public void showDownloadContinuingIph() {
-        mUserEducationHelper.requestShowIph(
-                new IphCommandBuilder(
-                                mActivity.getResources(),
-                                FeatureConstants.DOWNLOAD_INFOBAR_DOWNLOAD_CONTINUING_FEATURE,
-                                R.string.iph_download_infobar_download_continuing_text,
-                                R.string.iph_download_infobar_download_continuing_text)
-                        .setAnchorView(mMenuButtonAnchorView)
-                        .setOnShowCallback(() -> turnOnHighlightForMenuItem(R.id.downloads_menu_id))
-                        .setOnDismissCallback(this::turnOffHighlightForMenuItem)
-                        .build());
-    }
-
     /** Attempts to show an IPH for New Tab Page theme customization. */
     private void maybeShowNewTabPageThemeCustomizationIph(Tab tab) {
         if (NtpCustomizationPromoManager.canShowCustomizationIph(
@@ -192,6 +182,23 @@ public class ToolbarButtonInProductHelpController {
     }
 
     private void showNewTabPageThemeCustomizationIph() {
+        if (ChromeApplicationImpl.isVivaldi()) {
+            // Use Floating customize button as anchor for Vivaldi
+            View view = mActivity.findViewById(R.id.floating_customize_button);
+            if (view != null) {
+                mUserEducationHelper.requestShowIph(
+                        new IphCommandBuilder(
+                                mActivity.getResources(),
+                                FeatureConstants.NEW_TAB_PAGE_THEME_CUSTOMIZATION_FEATURE,
+                                R.string.new_tab_page_theme_customization_iph,
+                                R.string.new_tab_page_theme_customization_iph)
+                                .setAnchorView(view)
+                                .setOnShowCallback(
+                                        () -> turnOnHighlightForMenuItem(R.id.ntp_customization_id))
+                                .setOnDismissCallback(this::turnOffHighlightForMenuItem)
+                                .build());
+            }
+        } else // End Vivaldi
         mUserEducationHelper.requestShowIph(
                 new IphCommandBuilder(
                                 mActivity.getResources(),

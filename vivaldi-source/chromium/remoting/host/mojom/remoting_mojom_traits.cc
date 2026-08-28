@@ -7,10 +7,16 @@
 #include <string_view>
 
 #include "base/compiler_specific.h"
+#include "remoting/base/buildflags.h"
 #include "remoting/base/source_location.h"
+
+#if BUILDFLAG(REMOTING_MULTI_PROCESS)
 #include "remoting/host/mojom/desktop_session.mojom-shared.h"
+#endif  // BUILDFLAG(REMOTING_MULTI_PROCESS)
 
 namespace mojo {
+
+#if BUILDFLAG(REMOTING_MULTI_PROCESS)
 
 // static
 bool mojo::StructTraits<remoting::mojom::AudioPacketDataView,
@@ -98,6 +104,7 @@ bool mojo::StructTraits<remoting::mojom::DesktopEnvironmentOptionsDataView,
   out_options->set_enable_notifications(data_view.enable_notifications());
   out_options->set_terminate_upon_input(data_view.terminate_upon_input());
   out_options->set_enable_remote_webauthn(data_view.enable_remote_webauthn());
+  out_options->set_enable_security_key(data_view.enable_security_key());
 
   if (!data_view.ReadDesktopCaptureOptions(
           out_options->desktop_capture_options())) {
@@ -560,6 +567,8 @@ bool mojo::StructTraits<remoting::mojom::VideoLayoutDataView,
   return true;
 }
 
+#endif  // BUILDFLAG(REMOTING_MULTI_PROCESS)
+
 // static
 bool mojo::StructTraits<remoting::mojom::SourceLocationDataView,
                         ::remoting::SourceLocation>::
@@ -578,6 +587,8 @@ bool mojo::StructTraits<remoting::mojom::SourceLocationDataView,
 
   return true;
 }
+
+#if BUILDFLAG(REMOTING_MULTI_PROCESS)
 
 // static
 bool mojo::StructTraits<remoting::mojom::FractionalCoordinateDataView,
@@ -623,5 +634,7 @@ bool mojo::StructTraits<remoting::mojom::AudioSampleInfoDataView,
   out_info->channels = data_view.channels();
   return true;
 }
+
+#endif  // BUILDFLAG(REMOTING_MULTI_PROCESS)
 
 }  // namespace mojo

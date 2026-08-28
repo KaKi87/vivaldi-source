@@ -74,7 +74,7 @@ NSString* const kPrintActivityType = @"com.google.chrome.printActivity";
     return CustomSymbolWithPointSize(vPrint,
                                       kSymbolActionPointSize);  // End Vivaldi
 
-  return DefaultSymbolWithPointSize(kPrinterSymbol, kSymbolActionPointSize);
+  return SymbolWithPointSize(SymbolPrinter, kSymbolActionPointSize);
 }
 
 - (BOOL)canPerformWithActivityItems:(NSArray*)activityItems {

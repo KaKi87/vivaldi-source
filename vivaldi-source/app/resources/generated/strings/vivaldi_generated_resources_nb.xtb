@@ -39,7 +39,6 @@
 <translation id="1601560923496285236">Bruk</translation>
 <translation id="1603914832182249871">(privatvindu)</translation>
 <translation id="1627276047960621195">Filbeskrivelser</translation>
-<translation id="1654713139320245449">Fant ingen enheter å caste til. Trenger du hjelp?</translation>
 <translation id="166278006618318542">Algoritme for subjektets offentlige nøkkel</translation>
 <translation id="1682548588986054654">Nytt privatvindu</translation>
 <translation id="1708338024780164500">(inaktiv)</translation>
@@ -60,7 +59,6 @@
 <translation id="1906488504371069394">Oppdag flere utvidelser og temaer på <ph name="BEGIN_LINK" />Chrome Nettmarked<ph name="END_LINK" /></translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">Skriv inn en egendefinert nettadresse</translation>
-<translation id="1932098463447129402">Ikke før</translation>
 <translation id="1936157145127842922">Vis i mappe</translation>
 <translation id="1936931585862840749">Bruk et tall for å angi hvor mange eksemplarer som skal skrives ut (1 til <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">&amp;Åpne lyd i ny fane</translation>
@@ -102,7 +100,6 @@
 <translation id="253557089021624350">Keepalive-teller</translation>
 <translation id="2550212893339833758">Virtuelt minne</translation>
 <translation id="2553440850688409052">Skjul dette programtillegget</translation>
-<translation id="2607101320794533334">Informasjon om subjektets offentlige nøkkel</translation>
 <translation id="261305050785128654">La nettsteder få vite språkene du forstår. De viser innhold på disse språkene hvis mulig.</translation>
 <translation id="26224892172169984">Ikke la noe nettsted håndtere protokoller</translation>
 <translation id="2653275834716714682">Teksterstatning</translation>
@@ -112,7 +109,6 @@
 <translation id="2719936478972253983">Følgende infokapsler er blokkert</translation>
 <translation id="2721037002783622288">&amp;Søk etter bilder med <ph name="SEARCH_ENGINE" /></translation>
 <translation id="2722547199758472013">ID: <ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">Ikke etter</translation>
 <translation id="2749881179542288782">Kontroller grammatikk og stavemåte</translation>
 <translation id="2785873697295365461">Filbeskrivelser</translation>
 <translation id="2825758591930162672">Subjektets offentlige nøkkel</translation>
@@ -163,7 +159,6 @@
 <translation id="3387614642886316601">Bruk forbedret stavekontroll</translation>
 <translation id="3390013585654699824">Appdetaljer</translation>
 <translation id="345693547134384690">Åpne b&amp;ilde i ny fane</translation>
-<translation id="3493881266323043047">Gyldighet</translation>
 <translation id="3511307672085573050">Kopier lenkeadr&amp;esse</translation>
 <translation id="354068948465830244">Kan lese og endre nettstedsdata</translation>
 <translation id="3555812735919707620">Fjern utvidelse</translation>
@@ -179,7 +174,6 @@
 <translation id="3760460896538743390">Inspiser &amp;bakgrunnsside</translation>
 <translation id="3786224729726357296">Slett nettstedsdata og tillatelser for <ph name="SITE" /></translation>
 <translation id="3797900183766075808">&amp;Søk etter «<ph name="SEARCH_TERMS" />» på <ph name="SEARCH_ENGINE" /></translation>
-<translation id="3798449238516105146">Versjon</translation>
 <translation id="3810973564298564668">Håndter</translation>
 <translation id="3838085852053358637">Utvidelsen kunne ikke lastes inn</translation>
 <translation id="383891835335927981">Ingen nettsteder er zoomet inn eller ut</translation>
@@ -215,6 +209,7 @@
 <translation id="4170314459383239649">Fjern ved avslutning</translation>
 <translation id="4200983522494130825">Ny &amp;fane</translation>
 <translation id="4225397296022057997">På alle nettsteder</translation>
+<translation id="4242245038391716252">Lastet ned av utvidelse: &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="4256316378292851214">La&amp;gre video som...</translation>
 <translation id="4270393598798225102">Versjon <ph name="NUMBER" /></translation>
 <translation id="4278390842282768270">Tillatt</translation>
@@ -265,12 +260,10 @@
 <translation id="5063480226653192405">Bruk</translation>
 <translation id="5116628073786783676">La&amp;gre lyd som...</translation>
 <translation id="5154108062446123722">Avanserte innstillinger for <ph name="PRINTING_DESTINATION" /></translation>
-<translation id="5154702632169343078">Subjekt</translation>
 <translation id="5170568018924773124">Vis i mappe</translation>
 <translation id="5171343362375269016">Virtuelt minne</translation>
 <translation id="5233231016133573565">Prosess-ID</translation>
 <translation id="5233736638227740678">&amp;Lim inn</translation>
-<translation id="5244466461749935369">Behold inntil videre</translation>
 <translation id="5256861893479663409">På alle nettsteder</translation>
 <translation id="5260334392110301220">Smarte anførselstegn</translation>
 <translation id="5269977353971873915">Utskrift mislyktes</translation>
@@ -309,7 +302,6 @@
 <translation id="5780973441651030252">Prosessprioritet</translation>
 <translation id="5804241973901381774">Tilganger</translation>
 <translation id="5828633471261496623">Skriver ut...</translation>
-<translation id="5851868085455377790">Utsteder</translation>
 <translation id="5860491529813859533">Slå på</translation>
 <translation id="5910363049092958439">Lagre &amp;bildet som...</translation>
 <translation id="5914724413750400082">Modulus (<ph name="MODULUS_NUM_BITS" />-bit):
@@ -382,6 +374,7 @@
 <translation id="7144856456372460176">&amp;Installer <ph name="APP" />…</translation>
 <translation id="7175353351958621980">Lastet fra:</translation>
 <translation id="7186088072322679094">Behold i verktøylinjen</translation>
+<translation id="7234025455364623479">Du kan bruke lagrede passord på hvilken som helst enhet. De er lagret til <ph name="VIVALDI_PASSWORD_MANAGER" /> for <ph name="EMAIL" />.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Kontroller stavemåte mens du skriver</translation>
 <translation id="7359680654975233185">Kan ikke caste fanen</translation>
@@ -455,11 +448,11 @@ Ta godt vare på nøkkelfilen. Du vil trenge den for å lage nye versjoner av ut
 <translation id="862750493060684461">CSS-buffer</translation>
 <translation id="8661290697478713397">Åpne lenken i inko&amp;gnitovindu</translation>
 <translation id="8664389313780386848">&amp;Vis sidekilde</translation>
-<translation id="8705331520020532516">Serienummer</translation>
 <translation id="8708000541097332489">Fjern ved avslutning</translation>
 <translation id="8714838604780058252">Bakgrunnsgrafikk</translation>
 <translation id="8725066075913043281">Prøv igjen</translation>
 <translation id="8770406935328356739">Rotmappe for utvidelsen</translation>
+<translation id="8773535891252326047">Link kopiert til fremheving</translation>
 <translation id="8774934320277480003">Toppmarg</translation>
 <translation id="8798099450830957504">Standard</translation>
 <translation id="8808478386290700967">Nettmarked</translation>

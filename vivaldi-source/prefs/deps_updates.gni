@@ -3,10 +3,6 @@ update_target("//chrome/browser:browser") {
     "//vivaldi/prefs",
     "//vivaldi/prefs:browser_prefs",
   ]
-  allow_circular_includes_from += [
-    "//vivaldi/prefs",
-    "//vivaldi/prefs:browser_prefs",
-  ]
 }
 
 update_target("//components/history/core/browser:browser") {

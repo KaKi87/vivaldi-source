@@ -54,8 +54,6 @@
 constexpr char kHatsSurveyTriggerAutofillAddress[] = "autofill-address";
 constexpr char kHatsSurveyTriggerAutofillAddressUserPerception[] =
     "autofill-address-users-perception";
-constexpr char kHatsSurveyTriggerAutofillAiFilling[] =
-    "autofill-ai-walletable-entity-filled";
 constexpr char kHatsSurveyTriggerAutofillAiSavePrompt[] =
     "autofill-ai-walletable-entity-save-prompt";
 constexpr char kHatsSurveyTriggerAutofillAddressUserDeclinedSuggestion[] =
@@ -120,6 +118,11 @@ constexpr char kHatsSurveyTriggerIdentityProfilePickerAddProfileSignin[] =
     "identity-profile-picker-add-profile-signin";
 constexpr char kHatsSurveyTriggerIdentityRefreshedFirstRunCompleted[] =
     "identity-refreshed-first-run-completed";
+constexpr char kHatsSurveyTriggerFirstRunDesktopRevampCompleted[] =
+    "identity-revamp-first-run-completed";
+constexpr char
+    kHatsSurveyTriggerFirstRunDesktopRevampNoFeatureShowcaseCompleted[] =
+        "identity-revamp-no-feature-showcase-first-run-completed";
 constexpr char kHatsSurveyTriggerIdentitySigninInterceptProfileSeparation[] =
     "identity-signin-intercept-profile-separation";
 constexpr char kHatsSurveyTriggerIdentitySigninPromoBubbleDismissed[] =
@@ -200,6 +203,7 @@ constexpr char kHatsSurveyTriggerTesting[] = "testing";
 constexpr char kHatsNextSurveyTriggerIDTesting[] =
     "HLpeYy5Av0ugnJ3q1cK0XzzA8UHv";
 
+constexpr char kHatsSurveyTriggerAutofillAiFilling[] = "autofill-ai-filling";
 constexpr char kHatsSurveyTriggerPermissionsPrompt[] = "permissions-prompt";
 constexpr char kHatsSurveyTriggerOnFocusZpsSuggestionsHappiness[] =
     "omnibox-on-focus-happiness";
@@ -482,14 +486,6 @@ std::vector<hats::SurveyConfig> GetAllSurveyConfigs() {
           "Total number of fields"});
 
   survey_configs.emplace_back(
-      &::autofill::features::kAutofillAiFillingSurvey,
-      kHatsSurveyTriggerAutofillAiFilling,
-      /*presupplied_trigger_id=*/std::nullopt,
-      std::vector<std::string>{"User accepted suggestion"},
-      std::vector<std::string>{"Entity type", "Triggering field types",
-                               "Saved entities"});
-
-  survey_configs.emplace_back(
       &::autofill::features::kAutofillAiSavePromptSurvey,
       kHatsSurveyTriggerAutofillAiSavePrompt,
       /*presupplied_trigger_id=*/std::nullopt, std::vector<std::string>{},
@@ -556,7 +552,7 @@ std::vector<hats::SurveyConfig> GetAllSurveyConfigs() {
       data_management_psd_bits_fields);
 
   std::vector<std::string> autopip_string_psd_fields{
-      "AutoPip Reason", "Opener site URL", "Pip window duration"};
+      "AutoPip Reason", "Opener site domain", "Pip window duration"};
   survey_configs.emplace_back(&media::kAutoPictureInPictureSurveys,
                               kHatsSurveyTriggerAutoPipPermissionPromptIgnored,
                               /*presupplied_trigger_id=*/std::nullopt,
@@ -685,6 +681,28 @@ std::vector<hats::SurveyConfig> GetAllSurveyConfigs() {
       /*log_responses_to_ukm=*/false,
       hats::SurveyConfig::ProfileAgeRequirement::kAnyAge);
 
+  survey_configs.emplace_back(
+      &switches::kFirstRunDesktopRevampSurvey,
+      kHatsSurveyTriggerFirstRunDesktopRevampCompleted,
+      "VDqYHs99T0ugnJ3q1cK0Woy3NNEL",
+      /*product_specific_bits_data_fields=*/std::vector<std::string>{},
+      /*product_specific_string_data_fields=*/
+      std::vector<std::string>{"Channel"},
+      /*log_responses_to_uma=*/false,
+      /*log_responses_to_ukm=*/false,
+      hats::SurveyConfig::ProfileAgeRequirement::kAnyAge);
+
+  survey_configs.emplace_back(
+      &switches::kFirstRunDesktopRevampNoFeatureShowcaseSurvey,
+      kHatsSurveyTriggerFirstRunDesktopRevampNoFeatureShowcaseCompleted,
+      "o1LKfYgQ60ugnJ3q1cK0Ny2XhLRU",
+      /*product_specific_bits_data_fields=*/std::vector<std::string>{},
+      /*product_specific_string_data_fields=*/
+      std::vector<std::string>{"Channel"},
+      /*log_responses_to_uma=*/false,
+      /*log_responses_to_ukm=*/false,
+      hats::SurveyConfig::ProfileAgeRequirement::kAnyAge);
+
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 
 #if BUILDFLAG(ENABLE_COMPOSE)
@@ -806,17 +824,17 @@ std::vector<hats::SurveyConfig> GetAllSurveyConfigs() {
   survey_configs.emplace_back(
       &metrics::kHappinessTrackingSurveysForDownloadJourney,
       metrics::kHatsSurveyTriggerDownloadJourney,
-      /*presupplied_trigger_id=*/"Y2We4jMf70ugnJ3q1cK0QFVzpBEr");
+      /*presupplied_trigger_id=*/"mL46CjHkE0ugnJ3q1cK0NsAQJpTP");
 
   survey_configs.emplace_back(
       &metrics::kHappinessTrackingSurveysForPinExtensionJourney,
       metrics::kHatsSurveyTriggerPinExtensionJourney,
-      /*presupplied_trigger_id=*/"ZPGYEfdNz0ugnJ3q1cK0WdJNwYC3");
+      /*presupplied_trigger_id=*/"8RJXcn5t20ugnJ3q1cK0VLDGHPAz");
 
   survey_configs.emplace_back(
       &metrics::kHappinessTrackingSurveysForClearBrowsingHistory,
       metrics::kHatsSurveyTriggerClearBrowsingHistory,
-      /*presupplied_trigger_id=*/"uAmt8ZyqJ0ugnJ3q1cK0PAWUdnZB");
+      /*presupplied_trigger_id=*/"R8iDTcjjT0ugnJ3q1cK0TiRRjjy4");
 
   // Lens overlay surveys.
   survey_configs.emplace_back(
@@ -834,14 +852,15 @@ std::vector<hats::SurveyConfig> GetAllSurveyConfigs() {
   // profiles.
   survey_configs.emplace_back(
       &switches::kChromeAndroidIdentitySurveyFirstRun,
-      kHatsSurveyTriggerSigninFirstRun, std::nullopt,
+      kHatsSurveyTriggerSigninFirstRun, "HhgAhQYhw0tK1KeaPYj0NeTaRKBh",
       std::vector<std::string>{}, signin_string_psd_fields,
       /*log_responses_to_uma=*/false,
       /*log_responses_to_ukm=*/false,
       hats::SurveyConfig::ProfileAgeRequirement::kAnyAge);
   survey_configs.emplace_back(
       &switches::kChromeAndroidIdentitySurveyWeb, kHatsSurveyTriggerSigninWeb,
-      std::nullopt, std::vector<std::string>{}, signin_string_psd_fields);
+      "36F2N72TP0tK1KeaPYj0SdXcHEJ4", std::vector<std::string>{},
+      signin_string_psd_fields);
   survey_configs.emplace_back(
       &switches::kChromeAndroidIdentitySurveyNtpSigninButton,
       kHatsSurveyTriggerSigninNtpSigninButton, "yirfCKnhD0tK1KeaPYj0P9BTzPNw",
@@ -862,6 +881,13 @@ std::vector<hats::SurveyConfig> GetAllSurveyConfigs() {
 
 #endif  // #if !BUILDFLAG(IS_ANDROID)
 
+  survey_configs.emplace_back(
+      &::autofill::features::kAutofillAiFillingSurvey,
+      kHatsSurveyTriggerAutofillAiFilling,
+      /*presupplied_trigger_id=*/std::nullopt,
+      std::vector<std::string>{"User accepted suggestion"},
+      std::vector<std::string>{"Entity type", "Triggering field types",
+                               "Saved entities"});
 
   survey_configs.emplace_back(
       &omnibox_feature_configs::HappinessTrackingSurveyForOmniboxOnFocusZps::
@@ -979,30 +1005,6 @@ std::optional<uint64_t> SurveyConfig::ValidateHatsSurveyUkmId(
              : std::nullopt;
 }
 
-std::optional<base::TimeDelta> SurveyConfig::GetCooldownPeriodOverride(
-    Profile* profile) const {
-  if (!cooldown_period_override_) {
-    return std::nullopt;
-  }
-
-  GoogleGroupsManager* groups_manager =
-      GoogleGroupsManagerFactory::GetForBrowserContext(profile);
-
-  if (!groups_manager) {
-    return std::nullopt;
-  }
-
-  if (!groups_manager->IsFeatureEnabledForProfile(*survey_feature) ||
-      !groups_manager->IsFeatureGroupControlled(*survey_feature)) {
-    return std::nullopt;
-  }
-
-  return cooldown_period_override_;
-}
-
-bool SurveyConfig::IsCooldownOverrideEnabled(Profile* profile) const {
-  return GetCooldownPeriodOverride(profile).has_value();
-}
 
 void GetActiveSurveyConfigs(SurveyConfigs& survey_configs_by_triggers_) {
   auto surveys = GetAllSurveyConfigs();

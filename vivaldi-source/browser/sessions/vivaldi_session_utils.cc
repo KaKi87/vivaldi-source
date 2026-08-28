@@ -18,8 +18,8 @@
 #include "components/panel/panel_id.h"
 #include "components/prefs/pref_service.h"
 #include "components/sessions/vivaldi_session_service_commands.h"
-#include "extensions/api/sessions/vivaldi_sessions_api.h"
-#include "extensions/api/tabs/tabs_private_api.h"
+#include "extensions/api/tabs_private/tabs_private_api.h"
+#include "extensions/api/vivaldi_sessions/vivaldi_sessions_api.h"
 #include "sessions/index_codec.h"
 #include "sessions/index_model.h"
 #include "sessions/index_node.h"
@@ -489,8 +489,8 @@ int Open(Browser* browser,
          const ::vivaldi::SessionOptions& opts) {
   base::VivaldiScopedAllowBlocking allow_blocking;
 
-  base::FilePath path = GetPathFromNode(browser->profile(), node);
-  ::vivaldi::VivaldiSessionService service(browser->profile());
+  base::FilePath path = GetPathFromNode(browser->GetProfile(), node);
+  ::vivaldi::VivaldiSessionService service(browser->GetProfile());
   return base::PathExists(path) ? service.Load(path, browser, opts)
                                 : kErrorFileMissing;
 }

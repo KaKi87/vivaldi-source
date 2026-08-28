@@ -32,6 +32,7 @@ import org.chromium.base.test.util.TestAnimations;
 import org.chromium.content.common.ContentInternalFeatures;
 import org.chromium.content_public.browser.ContentFeatureList;
 import org.chromium.content_public.browser.test.ContentJUnit4ClassRunner;
+import org.chromium.ui.accessibility.AccessibilityFeatures;
 import org.chromium.ui.test.util.DeviceRestriction;
 
 /** Tests for WebContentsAccessibilityImpl integration with accessibility services. */
@@ -52,8 +53,13 @@ public class WebContentsAccessibilityTreeTest {
     private static final String BASE_ARIA_FILE_PATH = "content/test/data/accessibility/aria/";
     private static final String BASE_APG_PATTERN_FILE_PATH =
             "content/test/data/accessibility/aria/apg-patterns/";
+    private static final String BASE_APG_PATTERN_THIRDPARTY_INPUT_PATH =
+            "third_party/aria-practices/src/content/patterns/";
+    private static final String BASE_APG_PATTERN_THIRDPARTY_EXPECTATION_PATH =
+            "content/test/data/accessibility/aria/apg-patterns-thirdparty/";
     private static final String BASE_CSS_FILE_PATH = "content/test/data/accessibility/css/";
     private static final String BASE_HTML_FILE_PATH = "content/test/data/accessibility/html/";
+    private static final String BASE_MATHML_FILE_PATH = "content/test/data/accessibility/mathml/";
     private static final String DEFAULT_FILE_SUFFIX = "-expected-android-external.txt";
     private static final String ASSIST_DATA_FILE_SUFFIX = "-expected-android-assist-data.txt";
 
@@ -76,21 +82,29 @@ public class WebContentsAccessibilityTreeTest {
      * @param expectationFilePath directory that holds the test files
      */
     private void performTest(String inputFile, String expectationFile, String expectationFilePath) {
+        performTest(inputFile, expectationFilePath, expectationFile, expectationFilePath);
+    }
+
+    private void performTest(
+            String inputFile,
+            String inputFilePath,
+            String expectationFile,
+            String expectationFilePath) {
         // Build page from given file and enable testing framework.
-        mActivityTestRule.setupTestFromFile(expectationFilePath + inputFile);
+        mActivityTestRule.setupTestFromFile(inputFilePath + inputFile);
 
         // Create extra strings to print to logs along with potential error(s) for rebase tool.
         String accessibilityNodeInfoErrorPrefix =
                 String.format(
                         "\n\nTesting: %s%s\nExpected output: %s%s",
-                        expectationFilePath,
+                        inputFilePath,
                         inputFile,
                         expectationFilePath,
                         expectationFile + DEFAULT_FILE_SUFFIX);
         // String assistDataErrorPrefix =
         //         String.format(
         //                 "\n\nTesting: %s%s\nExpected output: %s%s",
-        //                 expectationFilePath,
+        //                 inputFilePath,
         //                 inputFile,
         //                 expectationFilePath,
         //                 expectationFile + ASSIST_DATA_FILE_SUFFIX);
@@ -181,6 +195,19 @@ public class WebContentsAccessibilityTreeTest {
         performTest(inputFile, expectationFile, BASE_APG_PATTERN_FILE_PATH);
     }
 
+    private void performApgPatternThirdPartyTest(String input) {
+        String filename = input.substring(input.lastIndexOf('/') + 1);
+        performApgPatternThirdPartyTest(input, removeHtmlSuffix(filename));
+    }
+
+    private void performApgPatternThirdPartyTest(String inputFile, String expectationFile) {
+        performTest(
+                inputFile,
+                BASE_APG_PATTERN_THIRDPARTY_INPUT_PATH,
+                expectationFile,
+                BASE_APG_PATTERN_THIRDPARTY_EXPECTATION_PATH);
+    }
+
     private void performCssTest(String input) {
         performCssTest(input, removeHtmlSuffix(input));
     }
@@ -195,6 +222,11 @@ public class WebContentsAccessibilityTreeTest {
 
     private void performHtmlTest(String inputFile, String expectationFile) {
         performTest(inputFile, expectationFile, BASE_HTML_FILE_PATH);
+    }
+
+    private void performMathmlTest(String input) {
+        String expectationFile = removeHtmlSuffix(input);
+        performTest(input, expectationFile, BASE_MATHML_FILE_PATH);
     }
 
     private String generateViewStructureTree() {
@@ -415,6 +447,13 @@ public class WebContentsAccessibilityTreeTest {
     @SmallTest
     public void test_ariaDescribedby() {
         performAriaTest("aria-describedby.html");
+    }
+
+    @Test
+    @SmallTest
+    @DisabledTest(message = "Mac-only test for fieldset description fallback")
+    public void test_ariaFieldsetDescribedby() {
+        performAriaTest("aria-fieldset-describedby.html");
     }
 
     @Test
@@ -648,6 +687,12 @@ public class WebContentsAccessibilityTreeTest {
     @SmallTest
     public void test_ariaList() {
         performAriaTest("aria-list.html");
+    }
+
+    @Test
+    @SmallTest
+    public void test_ariaListLabeled() {
+        performAriaTest("aria-list-labeled.html");
     }
 
     @Test
@@ -1359,6 +1404,12 @@ public class WebContentsAccessibilityTreeTest {
         performApgPatternTest("aria-treeview-file-directory-declared-properties.html");
     }
 
+    @Test
+    @SmallTest
+    public void test_ariaApgPatternThirdPartyMeter() {
+        performApgPatternThirdPartyTest("meter/examples/meter.html");
+    }
+
     // ------------------ CSS TESTS ------------------ //
 
     @Test
@@ -1440,6 +1491,12 @@ public class WebContentsAccessibilityTreeTest {
     @SmallTest
     public void test_aNameCalc() {
         performHtmlTest("a-name-calc.html");
+    }
+
+    @Test
+    @SmallTest
+    public void test_aEmptyPlaceholder() {
+        performHtmlTest("a-empty-placeholder.html");
     }
 
     @Test
@@ -1722,8 +1779,18 @@ public class WebContentsAccessibilityTreeTest {
 
     @Test
     @SmallTest
-    public void test_contenteditableDescendants() {
+    @DisableFeatures(ContentInternalFeatures.ACCESSIBILITY_EXPOSE_NON_ATOMIC_TEXT_FIELD_CHILDREN)
+    public void test_contenteditableDescendants_ExposeNonAtomicTextFieldChildrenFeatureDisabled() {
         performHtmlTest("contenteditable-descendants.html");
+    }
+
+    @Test
+    @SmallTest
+    @EnableFeatures(ContentInternalFeatures.ACCESSIBILITY_EXPOSE_NON_ATOMIC_TEXT_FIELD_CHILDREN)
+    public void test_contenteditableDescendants_ExposeNonAtomicTextFieldChildrenFeatureEnabled() {
+        performHtmlTest(
+                "contenteditable-descendants.html",
+                "contenteditable-descendants-expose-non-atomic-text-field-children-feature");
     }
 
     @Test
@@ -1734,7 +1801,17 @@ public class WebContentsAccessibilityTreeTest {
 
     @Test
     @SmallTest
-    public void test_contenteditableWithNoDescendants() {
+    @DisableFeatures(ContentInternalFeatures.ACCESSIBILITY_EXPOSE_NON_ATOMIC_TEXT_FIELD_CHILDREN)
+    public void
+            test_contenteditableWithNoDescendants_ExposeNonAtomicTextFieldChildrenFeatureDisabled() {
+        performHtmlTest("contenteditable-with-no-descendants.html");
+    }
+
+    @Test
+    @SmallTest
+    @EnableFeatures(ContentInternalFeatures.ACCESSIBILITY_EXPOSE_NON_ATOMIC_TEXT_FIELD_CHILDREN)
+    public void
+            test_contenteditableWithNoDescendants_ExposeNonAtomicTextFieldChildrenFeatureEnabled() {
         performHtmlTest("contenteditable-with-no-descendants.html");
     }
 
@@ -2201,6 +2278,12 @@ public class WebContentsAccessibilityTreeTest {
 
     @Test
     @SmallTest
+    public void test_inputRadioSiblingWithSpan() {
+        performHtmlTest("input-radio-sibling-with-span.html");
+    }
+
+    @Test
+    @SmallTest
     public void test_inputRadio() {
         performHtmlTest("input-radio.html");
     }
@@ -2426,6 +2509,14 @@ public class WebContentsAccessibilityTreeTest {
     @SmallTest
     public void test_math() {
         performHtmlTest("math.html");
+    }
+
+    @Test
+    @SmallTest
+    @EnableFeatures(AccessibilityFeatures.ACCESSIBILITY_ANDROID_MATH)
+    @MinAndroidSdkLevel(Build.VERSION_CODES.CINNAMON_BUN)
+    public void test_mathIntent() {
+        performMathmlTest("intent.html");
     }
 
     @Test

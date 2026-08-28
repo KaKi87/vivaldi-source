@@ -39,6 +39,7 @@
 #include "components/signin/public/identity_manager/identity_test_environment.h"
 #include "components/sync/service/sync_service.h"
 #include "components/sync/service/sync_service_impl.h"
+#include "components/sync/test/fake_server.h"
 #include "components/trusted_vault/test/mock_trusted_vault_throttling_connection.h"
 #include "components/trusted_vault/trusted_vault_connection.h"
 #include "components/webauthn/core/browser/passkey_model.h"
@@ -150,6 +151,7 @@ void EnclaveAuthenticatorTestBase::SetUpCommandLine(
     base::CommandLine* command_line) {
   SyncTest::SetUpCommandLine(command_line);
   command_line->AppendSwitch(switches::kIgnoreCertificateErrors);
+  command_line->AppendSwitch(switches::kDisableFakeServerFailureOutput);
 }
 
 void EnclaveAuthenticatorTestBase::SetUp() {
@@ -176,11 +178,11 @@ void EnclaveAuthenticatorTestBase::SetUpOnMainThread() {
 
   identity_test_env_adaptor_ =
       std::make_unique<IdentityTestEnvironmentProfileAdaptor>(
-          browser()->profile());
+          browser()->GetProfile());
   identity_test_env().SetAutomaticIssueOfAccessTokens(true);
 
   sync_harness_ = SyncServiceImplHarness::Create(
-      browser()->profile(), SyncServiceImplHarness::SigninType::FAKE_SIGNIN);
+      browser()->GetProfile(), SyncServiceImplHarness::SigninType::FAKE_SIGNIN);
   if (sync_feature_enabled_) {
     ASSERT_TRUE(sync_harness_->SetupSync());
   } else {
@@ -188,7 +190,7 @@ void EnclaveAuthenticatorTestBase::SetUpOnMainThread() {
   }
   syncer::SyncServiceImpl* sync_service =
       SyncServiceFactory::GetAsSyncServiceImplForProfileForTesting(
-          browser()->profile());
+          browser()->GetProfile());
   ASSERT_EQ(kSyncEmail, sync_service->GetAccountInfo().email);
   sync_service->GetUserSettings()->SetSelectedTypes(
       /*sync_everything=*/false,
@@ -210,13 +212,13 @@ EnclaveAuthenticatorTestBase::identity_test_env() {
 }
 
 webauthn::PasskeyModel& EnclaveAuthenticatorTestBase::passkey_model() {
-  return CHECK_DEREF(
-      PasskeyModelFactory::GetInstance()->GetForProfile(browser()->profile()));
+  return CHECK_DEREF(PasskeyModelFactory::GetInstance()->GetForProfile(
+      browser()->GetProfile()));
 }
 
 EnclaveManager& EnclaveAuthenticatorTestBase::enclave_manager() {
   return CHECK_DEREF(EnclaveManagerFactory::GetAsEnclaveManagerForProfile(
-      browser()->profile()));
+      browser()->GetProfile()));
 }
 
 void EnclaveAuthenticatorTestBase::EnableUVKeySupport(

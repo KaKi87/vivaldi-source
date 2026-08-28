@@ -5,7 +5,6 @@
 package org.chromium.components.omnibox;
 
 import android.text.TextUtils;
-import android.util.Range;
 
 import androidx.annotation.IntDef;
 import androidx.annotation.VisibleForTesting;
@@ -21,10 +20,13 @@ import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
+import org.chromium.components.search_engines.StarterPackId;
 import org.chromium.url.GURL;
 
+import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -65,6 +67,7 @@ public class AutocompleteInput implements UserData {
         AutocompleteState.STANDBY_NO_FOCUS
     })
     @Retention(RetentionPolicy.SOURCE)
+    @Target({ElementType.TYPE_USE})
     public @interface AutocompleteState {
         /** Fully disabled autocompletion. */
         int DISABLED = 0;
@@ -79,20 +82,29 @@ public class AutocompleteInput implements UserData {
         int STANDBY_NO_FOCUS = 3;
     }
 
-    /** Data class representing the active site search mode state in the Omnibox. */
     public static class SiteSearchData {
         public final String keyword;
         public final String fullName;
         public final boolean enteredViaSpace;
+        public final @StarterPackId int starterPackId;
 
         public SiteSearchData(String keyword, String fullName) {
-            this(keyword, fullName, false);
+            this(keyword, fullName, false, StarterPackId.NONE);
         }
 
         public SiteSearchData(String keyword, String fullName, boolean enteredViaSpace) {
+            this(keyword, fullName, enteredViaSpace, StarterPackId.NONE);
+        }
+
+        public SiteSearchData(
+                String keyword,
+                String fullName,
+                boolean enteredViaSpace,
+                @StarterPackId int starterPackId) {
             this.keyword = keyword;
             this.fullName = fullName;
             this.enteredViaSpace = enteredViaSpace;
+            this.starterPackId = starterPackId;
         }
 
         @Override
@@ -117,8 +129,10 @@ public class AutocompleteInput implements UserData {
     private String mPageTitle;
     private boolean mAllowExactKeywordMatch;
     private boolean mHasAttachments;
-    private @AutocompleteState int mAutocompleteState = AutocompleteState.ENABLED;
-    private Range<Integer> mSelection;
+    private final SettableNonNullObservableSupplier<@AutocompleteState Integer>
+            mAutocompleteStateSupplier =
+                    ObservableSuppliers.createNonNull(AutocompleteState.ENABLED);
+    private TextSelection mSelection;
     private @RefineActionUsage int mRefineActionUsage;
     private boolean mSuggestionsListScrolled;
     private @OmniboxFocusReason int mFocusReason;
@@ -135,11 +149,19 @@ public class AutocompleteInput implements UserData {
                     ObservableSuppliers.createNonNull(AutocompleteRequestType.SEARCH);
     private final SettableNullableObservableSupplier<SiteSearchData> mSiteSearchData =
             ObservableSuppliers.createNullable();
+    private final SettableNullableObservableSupplier<GURL> mPreviewMatchUrlSupplier =
+            ObservableSuppliers.createNullable();
 
     // LINT.ThenChange(:CopyFrom)
 
+    @VisibleForTesting
     public AutocompleteInput() {
         reset();
+    }
+
+    public AutocompleteInput(@OmniboxFocusReason int focusReason) {
+        reset();
+        mFocusReason = focusReason;
     }
 
     /**
@@ -167,8 +189,8 @@ public class AutocompleteInput implements UserData {
         mPageTitle = other.mPageTitle;
         mAllowExactKeywordMatch = other.mAllowExactKeywordMatch;
         mHasAttachments = other.mHasAttachments;
-        mAutocompleteState = other.mAutocompleteState;
-        mSelection = other.mSelection;
+        mAutocompleteStateSupplier.set(other.getAutocompleteState());
+        mSelection = other.mSelection; // Copied.
         mRefineActionUsage = other.mRefineActionUsage;
         mSuggestionsListScrolled = other.mSuggestionsListScrolled;
         mFocusReason = other.mFocusReason;
@@ -179,6 +201,7 @@ public class AutocompleteInput implements UserData {
         mInitialUserText = other.mInitialUserText;
         mRequestTypeSupplier.set(other.mRequestTypeSupplier.get());
         mSiteSearchData.set(other.mSiteSearchData.get());
+        mPreviewMatchUrlSupplier.set(other.mPreviewMatchUrlSupplier.get());
     }
 
     // LINT.ThenChange(:Members)
@@ -312,6 +335,11 @@ public class AutocompleteInput implements UserData {
         return mSiteSearchData;
     }
 
+    /** Returns the supplier of the preview match URL for this input. */
+    public SettableNullableObservableSupplier<GURL> getPreviewMatchUrlSupplier() {
+        return mPreviewMatchUrlSupplier;
+    }
+
     /**
      * Whether the given mode allows "conventional" fulfillment of a valid typed url, i.e.
      * navigating to that url directly. As an example of where this might return false: if if the
@@ -337,17 +365,26 @@ public class AutocompleteInput implements UserData {
      * When new text matches the existing text no action is taken.
      *
      * @param text The user-typed text. Null text is automatically replaced with empty string. Note
-     *     that if the site search is triggered, the text will only contains the content after the
+     *     that if the site search is triggered, the text will only contain the content after the
      *     keyword and space.
      * @return The AutocompleteInput object.
      */
     public AutocompleteInput setUserText(@Nullable String text) {
+        return setUserText(text, TextSelection.SELECT_END);
+    }
+
+    public AutocompleteInput setUserText(@Nullable String text, TextSelection selection) {
         if (text == null) text = "";
 
         mPreviewText = null;
 
         String oldText = mUserText.get();
-        if (TextUtils.equals(text, oldText)) return this;
+        if (TextUtils.equals(text, oldText)) {
+            mSelection = selection;
+            return this;
+        }
+
+        mSelection = selection;
 
         boolean oldTextUsesKeywordActivator = allowExactKeywordTrigger(oldText);
         boolean newTextUsesKeywordActivator = allowExactKeywordTrigger(text);
@@ -359,9 +396,14 @@ public class AutocompleteInput implements UserData {
         mAllowExactKeywordMatch &= !(oldTextUsesKeywordActivator && !newTextUsesKeywordActivator);
         } // End Vivaldi
 
+        // Notify text change FIRST to ensure new text is available during reparenting.
         mUserText.set(text);
-        // Place cursor at the end of text.
-        mSelection = Range.create(text.length(), text.length());
+
+        // Then notify state change (which triggers reparenting).
+        if (isStandby() && !TextUtils.equals(text, mInitialUserText)) {
+            setAutocompleteState(AutocompleteState.ENABLED);
+        }
+
         return this;
     }
 
@@ -413,15 +455,20 @@ public class AutocompleteInput implements UserData {
      * @return The adjusted cursor position.
      */
     public int getCursorPositionForAutocomplete(int currentCursorPosition) {
+        // A negative value means there is no focus, do not modify or clamp.
+        if (currentCursorPosition < 0) {
+            return currentCursorPosition;
+        }
+
+        // It's possible the UI text has not synchronously updated yet, meaning the reported cursor
+        // position is out of bounds for the logical text. Cap it to the length of the user text.
+        int safeCursorPosition = Math.min(currentCursorPosition, mUserText.get().length());
+
         SiteSearchData siteSearchData = getSiteSearchData();
-        if (siteSearchData != null && currentCursorPosition >= 0) {
-            // It's possible the UI text has not synchronously updated yet, meaning the reported
-            // cursor position is out of bounds for the logical text. Cap it to the length of the
-            // user text.
-            int safeCursorPosition = Math.min(currentCursorPosition, mUserText.get().length());
+        if (siteSearchData != null) {
             return safeCursorPosition + siteSearchData.keyword.length() + 1;
         }
-        return currentCursorPosition;
+        return safeCursorPosition;
     }
 
     /** Returns the text as currently typed by the User. */
@@ -465,11 +512,15 @@ public class AutocompleteInput implements UserData {
         return setPreviewText(null);
     }
 
-    /** Commits the preview text as the user text. */
+    /**
+     * Commits the preview text as the user text, retaining the selection of the committed preview
+     * text part.
+     */
     public AutocompleteInput commitPreviewText() {
-        if (hasPreviewText()) {
-            String textToCommit = mPreviewText;
-            setUserText(textToCommit);
+        if (mPreviewText != null) {
+            TextSelection selection =
+                    new TextSelection(mUserText.get().length(), mPreviewText.length());
+            setUserText(mPreviewText, selection);
         }
         return this;
     }
@@ -522,12 +573,12 @@ public class AutocompleteInput implements UserData {
         mHasAttachments = hasAttachments;
     }
 
-    public AutocompleteInput setSelection(int rangeStart, int rangeEnd) {
-        mSelection = Range.create(rangeStart, rangeEnd);
+    public AutocompleteInput setSelection(TextSelection selection) {
+        mSelection = selection;
         return this;
     }
 
-    public Range<Integer> getSelection() {
+    public TextSelection getSelection() {
         return mSelection;
     }
 
@@ -557,7 +608,7 @@ public class AutocompleteInput implements UserData {
         mPageTitle = "";
         mHasAttachments = false;
         // Selection after all text
-        mSelection = Range.create(Integer.MAX_VALUE, Integer.MAX_VALUE);
+        mSelection = TextSelection.SELECT_END;
         mRefineActionUsage = RefineActionUsage.NOT_USED;
         mPageClassification = PageClassification.BLANK_VALUE;
         mFocusReason = OmniboxFocusReason.OMNIBOX_TAP;
@@ -566,9 +617,10 @@ public class AutocompleteInput implements UserData {
         mAllowUserTextAutocompletion.set(true);
         mRequestTypeSupplier.set(AutocompleteRequestType.SEARCH);
         mSiteSearchData.set(null);
+        mPreviewMatchUrlSupplier.set(null);
         mUrlFocusTime = 0;
         mSuggestionsListScrolled = false;
-        mAutocompleteState = AutocompleteState.ENABLED;
+        mAutocompleteStateSupplier.set(AutocompleteState.ENABLED);
 
         return this;
     }
@@ -595,17 +647,29 @@ public class AutocompleteInput implements UserData {
      * reflect typing started.
      */
     public @AutocompleteState int getAutocompleteState() {
-        if ((mAutocompleteState == AutocompleteState.STANDBY
-                        || mAutocompleteState == AutocompleteState.STANDBY_NO_FOCUS)
-                && !TextUtils.equals(mUserText.get(), mInitialUserText)) {
-            mAutocompleteState = AutocompleteState.ENABLED;
-        }
-        return mAutocompleteState;
+        return mAutocompleteStateSupplier.get();
+    }
+
+    /**
+     * Returns the supplier for the AutocompleteState.
+     *
+     * <p>Use sparingly - to install/remove observers. Readers should use {@see
+     * getAutocompleteState()}. Writers should use {@see setAutocompleteState()}.
+     */
+    public NonNullObservableSupplier<@AutocompleteState Integer> getAutocompleteStateSupplier() {
+        return mAutocompleteStateSupplier;
+    }
+
+    /** Returns whether the current autocomplete state is a standby state. */
+    public boolean isStandby() {
+        @AutocompleteState int current = getAutocompleteState();
+        return current == AutocompleteState.STANDBY
+                || current == AutocompleteState.STANDBY_NO_FOCUS;
     }
 
     /** Sets the {@link AutocompleteState}. */
     public AutocompleteInput setAutocompleteState(@AutocompleteState int state) {
-        mAutocompleteState = state;
+        mAutocompleteStateSupplier.set(state);
         return this;
     }
 

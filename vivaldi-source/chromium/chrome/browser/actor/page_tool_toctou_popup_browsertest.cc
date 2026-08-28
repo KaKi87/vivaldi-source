@@ -101,7 +101,7 @@ class PageToolToctouPopupBypassTest : public ActorToolsTest {
     if (tab->GetBrowserWindowInterface()) {
       browser = tab->GetBrowserWindowInterface()->GetBrowserForMigrationOnly();
     }
-    if (browser && !browser->window()->IsFullscreen()) {
+    if (browser && !browser->GetWindow()->IsFullscreen()) {
       ui_test_utils::ToggleFullscreenModeAndWait(browser);
     }
 #endif
@@ -176,7 +176,7 @@ IN_PROC_BROWSER_TEST_F(PageToolToctouPopupBypassTest,
 
 IN_PROC_BROWSER_TEST_F(PageToolToctouPopupBypassTest,
                        PopupWindow_FrameSwapIsBlockedAfterFix) {
-  Browser* popup = CreateBrowserForPopup(browser()->profile());
+  Browser* popup = CreateBrowserForPopup(browser()->GetProfile());
   ASSERT_FALSE(popup->is_type_normal());
   tabs::TabInterface* popup_tab = popup->GetActiveTabInterface();
   ASSERT_TRUE(popup_tab);

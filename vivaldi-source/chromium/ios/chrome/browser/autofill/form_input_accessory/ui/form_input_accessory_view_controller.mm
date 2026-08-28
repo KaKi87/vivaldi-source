@@ -11,7 +11,9 @@
 #import "base/strings/sys_string_conversions.h"
 #import "components/autofill/core/browser/filling/filling_product.h"
 #import "components/autofill/core/common/autofill_features.h"
+#import "components/autofill/ios/browser/form_suggestion.h"
 #import "components/webauthn/ios/features.h"
+#import "ios/chrome/browser/autofill/form_input_accessory/public/autofill_suggestion_context_menu_handler.h"
 #import "ios/chrome/browser/autofill/form_input_accessory/ui/form_input_accessory_view_controller_delegate.h"
 #import "ios/chrome/browser/autofill/form_input_accessory/ui/form_suggestion_view.h"
 #import "ios/chrome/browser/autofill/manual_fill/public/manual_fill_constants.h"
@@ -78,7 +80,10 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
           "ManualFallback.VisibleSuggestions.ExpandIcon.OpenAddresses",
           suggestion_count);
       break;
-    case manual_fill::ManualFillDataType::kOther:
+    case ManualFillDataType::kAtMemory:
+      // TODO(crbug.com/522326512): Support kAtMemory.
+      NOTREACHED();
+    case ManualFillDataType::kOther:
       // The expand icon should only be available if the mapped `data_type` is
       // either associated with passwords, payment methods or addresses.
       NOTREACHED();
@@ -139,6 +144,7 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
 @synthesize creditCardButtonHidden = _creditCardButtonHidden;
 @synthesize navigationDelegate = _navigationDelegate;
 @synthesize passwordButtonHidden = _passwordButtonHidden;
+@synthesize atMemoryButtonHidden = _atMemoryButtonHidden;
 @synthesize mainFillingProduct = _mainFillingProduct;
 @synthesize currentFieldId = _currentFieldId;
 
@@ -221,10 +227,25 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
 #pragma mark - FormInputAccessoryConsumer
 
 - (void)showAccessorySuggestions:(NSArray<FormSuggestion*>*)suggestions {
+  BOOL hasSuggestions = suggestions.count > 0;
+  if (suggestions.count == 1 &&
+      suggestions.firstObject.type ==
+          autofill::SuggestionType::kAutocompleteAtMemoryButton) {
+    // If the only suggestion is kAutocompleteAtMemoryButton, the manual fill
+    // buttons should be shown.
+    hasSuggestions = NO;
+  }
+
   [self.formInputAccessoryView
-      showGroup:[self hasSingleManualFillButton:suggestions.count > 0]
+      showGroup:[self hasSingleManualFillButton:hasSuggestions]
                     ? FormInputAccessoryViewSubitemGroup::kExpandButton
                     : FormInputAccessoryViewSubitemGroup::kManualFillButtons];
+
+  if ([ManualFillUtil
+          manualFillDataTypeFromFillingProduct:_mainFillingProduct] ==
+      manual_fill::ManualFillDataType::kOther) {
+    self.formInputAccessoryView.manualFillButton.hidden = YES;
+  }
 
   if (suggestions.count > kKeyboardAccessorySuggestionsLimit) {
     suggestions = [suggestions
@@ -268,6 +289,12 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
                     forDataType:ManualFillDataType::kAddress];
 }
 
+- (void)atMemoryManualFillButtonPressed:(UIButton*)button {
+  base::RecordAction(base::UserMetricsAction("ManualFallback_OpenAtMemory"));
+  [self manualFillButtonPressed:button
+                    forDataType:ManualFillDataType::kAtMemory];
+}
+
 - (void)newOmniboxPositionIsBottom:(BOOL)isBottomOmnibox {
   _isBottomOmnibox = isBottomOmnibox;
   [self updateOmniboxTypingShieldVisibility];
@@ -306,7 +333,7 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
 
 - (BOOL)isFormAccessoryVisible {
   return !(self.addressButtonHidden && self.creditCardButtonHidden &&
-           self.passwordButtonHidden &&
+           self.passwordButtonHidden && self.atMemoryButtonHidden &&
            self.formSuggestionView.suggestions.count == 0);
 }
 
@@ -326,6 +353,13 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
 
 - (void)setCreditCardButtonHidden:(BOOL)creditCardButtonHidden {
   _creditCardButtonHidden = creditCardButtonHidden;
+  self.brandingViewController.keyboardAccessoryVisible =
+      self.formAccessoryVisible;
+}
+
+- (void)setAtMemoryButtonHidden:(BOOL)atMemoryButtonHidden {
+  _atMemoryButtonHidden = atMemoryButtonHidden;
+  self.formInputAccessoryView.atMemoryButtonHidden = atMemoryButtonHidden;
   self.brandingViewController.keyboardAccessoryVisible =
       self.formAccessoryVisible;
 }
@@ -350,10 +384,9 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
 // Invoked after the user taps any of the `manual fill` buttons.
 - (void)manualFillButtonPressed:(UIButton*)button
                     forDataType:(manual_fill::ManualFillDataType)dataType {
-  // Hide the keyboard accessory while the expanded view is visible (iPhone
-  // only).
-  self.formInputAccessoryView.hidden =
-      ui::GetDeviceFormFactor() != ui::DEVICE_FORM_FACTOR_TABLET;
+  // Hide the keyboard accessory while the expanded view is visible and not
+  // presented in a popover.
+  self.formInputAccessoryView.hidden = ![ManualFillUtil shouldUsePopover];
 
   [_formInputAccessoryViewControllerDelegate
       formInputAccessoryViewController:self
@@ -370,14 +403,14 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
       self.formAccessoryVisible;
 }
 
-// Returns the manual fill symbol used for the current device form factor.
+// Returns the manual fill symbol used for the manual fill menu (input view VS
+// popover).
 UIImage* GetManualFillSymbol() {
-  if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
-    return DefaultSymbolWithPointSize(kListBulletSymbol,
-                                      kManualFillSymbolPointSize);
+  if ([ManualFillUtil shouldUsePopover]) {
+    return SymbolWithPointSize(SymbolListBullet, kManualFillSymbolPointSize);
   }
 
-  return DefaultSymbolWithPointSize(kExpandSymbol, kSymbolActionPointSize);
+  return SymbolWithPointSize(SymbolExpand, kSymbolActionPointSize);
 }
 
 // Creates formInputAccessoryView if not done yet.
@@ -406,20 +439,14 @@ UIImage* GetManualFillSymbol() {
   BOOL isTabletFormFactor =
       ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET;
 
-  UIImage* closeButtonSymbol = nil;
-  // When using liquid glass (on iOS 26+), the close button symbol uses the
-  // default checkmark symbol with the exception that a two-bubble experiment
-  // can supply a parameter to use the keyboard down symbol.
-  bool useKeyboardDownSymbol =
-      !IsLiquidGlassEffectEnabled() ||
-      (IsIOSKeyboardAccessoryTwoBubbleEnabled() &&
-       kIOSKeyboardAccessoryTwoBubbleKeyboardIconParam.Get());
-  if (useKeyboardDownSymbol) {
-    closeButtonSymbol =
-        DefaultSymbolWithPointSize(kKeyboardDownSymbol, kSymbolActionPointSize);
-  }
+  UIImage* closeButtonSymbol =
+      SymbolWithPointSize(SymbolKeyboardDown, kSymbolActionPointSize);
 
   if (vivaldi::IsVivaldiRunning()) {
+    // TODO(crbug.com/522326512): Verify this parameter.
+    UIImage* atMemorySymbol = CustomSymbolWithPointSize(
+        kMagnifyingglassSparkSymbol, kSymbolActionPointSize);
+
     [formInputAccessoryView
               setUpWithLeadingView:self.leadingView
                 navigationDelegate:self.navigationDelegate
@@ -433,23 +460,26 @@ UIImage* GetManualFillSymbol() {
            addressManualFillSymbol:CustomSymbolWithPointSize(
                                        @"vivaldi_autofill_place",
                                        kSymbolActionPointSize)
+          atMemoryManualFillSymbol:atMemorySymbol
                  closeButtonSymbol:[UIImage
                                        imageNamed:@"vivaldi_autofill_keyboards"]
-                  splitViewEnabled:IsIOSKeyboardAccessoryTwoBubbleEnabled()
                 isTabletFormFactor:isTabletFormFactor];
   } else {
+  UIImage* atMemorySymbol = CustomSymbolWithPointSize(
+      kMagnifyingglassSparkSymbol, kSymbolActionPointSize);
+
   [formInputAccessoryView
             setUpWithLeadingView:self.leadingView
               navigationDelegate:self.navigationDelegate
                 manualFillSymbol:GetManualFillSymbol()
-        passwordManualFillSymbol:CustomSymbolWithPointSize(
-                                     kPasswordSymbol, kSymbolActionPointSize)
-      creditCardManualFillSymbol:DefaultSymbolWithPointSize(
-                                     kCreditCardSymbol, kSymbolActionPointSize)
-         addressManualFillSymbol:CustomSymbolWithPointSize(
-                                     kLocationSymbol, kSymbolActionPointSize)
+        passwordManualFillSymbol:SymbolWithPointSize(SymbolPassword,
+                                                     kSymbolActionPointSize)
+      creditCardManualFillSymbol:SymbolWithPointSize(SymbolCreditCard,
+                                                     kSymbolActionPointSize)
+         addressManualFillSymbol:SymbolWithPointSize(SymbolLocation,
+                                                     kSymbolActionPointSize)
+        atMemoryManualFillSymbol:atMemorySymbol
                closeButtonSymbol:closeButtonSymbol
-                splitViewEnabled:IsIOSKeyboardAccessoryTwoBubbleEnabled()
               isTabletFormFactor:isTabletFormFactor];
   } // End Vivaldi
 
@@ -476,6 +506,7 @@ UIImage* GetManualFillSymbol() {
   formInputAccessoryView.passThroughTouchesEnabled =
       base::FeatureList::IsEnabled(kFormInputAccessoryPassThroughTouches);
 
+  formInputAccessoryView.atMemoryButtonHidden = _atMemoryButtonHidden;
   self.formInputAccessoryView = formInputAccessoryView;
 }
 
@@ -659,11 +690,9 @@ UIImage* GetManualFillSymbol() {
     [self updateOmniboxTypingShieldVisibility];
   }
 
-  if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
-    BOOL isCompact = [self isCompact];
-    [self.formInputAccessoryView setIsCompact:isCompact];
-    [self.formSuggestionView setIsCompact:isCompact];
-  }
+  BOOL isCompact = [self isCompact];
+  [self.formInputAccessoryView setIsCompact:isCompact];
+  [self.formSuggestionView setIsCompact:isCompact];
 
   [self forceUserInterfaceStyle];
 }
@@ -704,6 +733,32 @@ UIImage* GetManualFillSymbol() {
                completion:^{
                  [weakFormSuggestionView setActivityIndicatorEnabled:NO];
                }];
+}
+
+- (void)openSettingsForSuggestion:(FormSuggestion*)suggestion {
+  [self.contextMenuHandler openSettingsForSuggestion:suggestion];
+}
+
+- (void)openEditForSuggestion:(FormSuggestion*)suggestion {
+  [self.contextMenuHandler openEditForSuggestion:suggestion];
+}
+
+- (NSString*)formSuggestionView:(FormSuggestionView*)formSuggestionView
+          usernameForSuggestion:(FormSuggestion*)suggestion {
+  return [self.formInputAccessoryViewControllerDelegate
+      formInputAccessoryViewController:self
+                 usernameForSuggestion:suggestion];
+}
+
+- (BOOL)formSuggestionView:(FormSuggestionView*)formSuggestionView
+            shouldShowRPId:(NSString*)rpId {
+  return [self.formInputAccessoryViewControllerDelegate
+      formInputAccessoryViewController:self
+                        shouldShowRPId:rpId];
+}
+
+- (BOOL)isPersonalContextSuggestion:(FormSuggestion*)suggestion {
+  return [self.contextMenuHandler isPersonalContextSuggestion:suggestion];
 }
 
 @end

@@ -270,7 +270,13 @@ views::Widget* ShowWebModalDialogViews(
   }
 
   views::Widget* widget = CreateWebModalDialogViews(dialog, web_contents);
+
+  // The widget should not be destroyed during the process of being shown.
+  auto weak_widget = widget->GetWeakPtr();
+
   ShowModalDialog(widget->GetNativeWindow(), web_contents);
+
+  CHECK(weak_widget);
   return widget;
 }
 

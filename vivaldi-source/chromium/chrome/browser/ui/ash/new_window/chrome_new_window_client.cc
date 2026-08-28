@@ -52,7 +52,6 @@
 #include "chrome/browser/ui/ash/shelf/chrome_shelf_controller.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_utils.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -64,7 +63,6 @@
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/webui/chrome_web_contents_handler.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
-#include "chrome/common/extensions/extension_constants.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
 #include "chromeos/ash/components/file_manager/app_id.h"
 #include "chromeos/ash/experiences/arc/intent_helper/arc_intent_helper_bridge.h"
@@ -253,7 +251,7 @@ void ChromeNewWindowClient::NewTab() {
       profile = profile->GetPrimaryOTRProfile(/*create_if_needed=*/true);
     }
     chrome::ScopedTabbedBrowserDisplayer displayer(profile);
-    browser = displayer.browser();
+    browser = displayer.browser_window_interface();
     chrome::NewTab(browser, NewTabTypes::kNewTabCommand);
   }
 
@@ -480,8 +478,11 @@ void ChromeNewWindowClient::ShowShortcutCustomizationApp() {
   ash::ShowShortcutCustomizationApp(ProfileManager::GetActiveUserProfile());
 }
 
-void ChromeNewWindowClient::ShowTaskManager() {
-  chrome::OpenTaskManager(nullptr, task_manager::StartAction::kShortcut);
+void ChromeNewWindowClient::ShowTaskManager(bool from_context_menu) {
+  ::task_manager::StartAction chrome_start_action =
+      from_context_menu ? ::task_manager::StartAction::kContextMenu
+                        : ::task_manager::StartAction::kShortcut;
+  chrome::OpenTaskManager(nullptr, chrome_start_action);
 }
 
 void ChromeNewWindowClient::OpenDiagnostics() {

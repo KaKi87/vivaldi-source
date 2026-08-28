@@ -29,9 +29,11 @@
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/enterprise/browser_management/management_service_factory.h"
 #include "chrome/browser/glic/glic_metrics_provider.h"
 #include "chrome/browser/google/google_brand.h"
 #include "chrome/browser/history/history_service_factory.h"
+#include "chrome/browser/policy/profile_policy_connector.h"
 #include "chrome/browser/metrics/accessibility_state_provider.h"
 #include "chrome/browser/metrics/cached_metrics_profile.h"
 #include "chrome/browser/metrics/chrome_browser_main_extra_parts_metrics.h"
@@ -47,6 +49,7 @@
 #include "chrome/browser/metrics/usertype_by_devicetype_metrics_provider.h"
 #include "chrome/browser/performance_manager/metrics/metrics_provider_common.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/profiles/profile_selections.h"
 #include "chrome/browser/profiles/profiles_state.h"
 #include "chrome/browser/regional_capabilities/regional_capabilities_metrics_provider.h"
 #include "chrome/browser/regional_capabilities/regional_capabilities_service_factory.h"
@@ -82,7 +85,6 @@
 #include "components/metrics/metrics_features.h"
 #include "components/metrics/metrics_log_uploader.h"
 #include "components/metrics/metrics_pref_names.h"
-#include "components/metrics/metrics_reporting_choice_service.h"
 #include "components/metrics/metrics_reporting_default_state.h"
 #include "components/metrics/metrics_service.h"
 #include "components/metrics/metrics_service_client.h"
@@ -100,9 +102,9 @@
 #include "components/metrics/ui/form_factor_metrics_provider.h"
 #include "components/metrics/ui/screen_info_metrics_provider.h"
 #include "components/metrics/version_utils.h"
-#include "components/metrics_services_manager/metrics_services_manager.h"
 #include "components/network_time/network_time_tracker.h"
 #include "components/omnibox/browser/omnibox_metrics_provider.h"
+#include "components/policy/core/common/enterprise_management_metrics_provider.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
@@ -115,6 +117,7 @@
 #include "components/sync/service/sync_service.h"
 #include "components/sync_device_info/device_count_metrics_provider.h"
 #include "components/ukm/field_trials_provider_helper.h"
+#include "components/ukm/observers/ukm_consent_state_observer.h"
 #include "components/ukm/ukm_service.h"
 #include "components/variations/synthetic_trial_registry.h"
 #include "components/version_info/version_info.h"
@@ -166,7 +169,7 @@
 #include "chrome/browser/metrics/chromeos_system_profile_provider.h"
 #include "chrome/browser/metrics/class_management_enabled_metrics_provider.h"
 #include "chrome/browser/metrics/cros_healthd_metrics_provider.h"
-#include "chrome/browser/metrics/cros_pre_consent_metrics_manager.h"
+#include "chrome/browser/metrics/cros_pre_choice_metrics_manager.h"
 #include "chrome/browser/metrics/family_user_metrics_provider.h"
 #include "chrome/browser/metrics/k12_age_classification_metrics_provider.h"
 #include "chrome/browser/metrics/per_user_state_manager_chromeos.h"
@@ -490,6 +493,28 @@ void UpdateMetricsServicesForPerUser(bool enabled) {
 }
 #endif
 
+std::vector<policy::EnterpriseManagementMetricsProvider::ProfileState>
+GetEnterpriseManagementProfileStates() {
+  std::vector<policy::EnterpriseManagementMetricsProvider::ProfileState> states;
+  if (g_browser_process && g_browser_process->profile_manager()) {
+    ProfileSelections selections = ProfileSelections::BuildForRegularProfile();
+    for (Profile* profile :
+         g_browser_process->profile_manager()->GetLoadedProfiles()) {
+      Profile* target_profile = selections.ApplyProfileSelection(profile);
+      if (!target_profile) {
+        continue;
+      }
+      policy::ProfilePolicyConnector* connector =
+          target_profile->GetProfilePolicyConnector();
+      states.push_back({
+          policy::ManagementServiceFactory::GetForProfile(target_profile),
+          connector ? connector->policy_service() : nullptr
+      });
+    }
+  }
+  return states;
+}
+
 }  // namespace
 
 ChromeMetricsServiceClient::ChromeMetricsServiceClient(
@@ -689,8 +714,8 @@ base::TimeDelta ChromeMetricsServiceClient::GetStandardUploadInterval() {
 std::optional<base::TimeDelta>
 ChromeMetricsServiceClient::GetCustomUploadInterval() const {
 #if BUILDFLAG(IS_CHROMEOS)
-  if (cros_pre_consent_manager_) {
-    return cros_pre_consent_manager_->GetUploadInterval();
+  if (cros_pre_choice_metrics_manager_) {
+    return cros_pre_choice_metrics_manager_->GetUploadInterval();
   }
 #endif
   return std::nullopt;
@@ -755,12 +780,12 @@ void ChromeMetricsServiceClient::Initialize() {
   // currently in Demo Mode.
   SetIsDemoMode(ash::demo_mode::IsDeviceInDemoMode());
 
-  // Conditionally create the CrOSPreConsentMetricsManager.
+  // Conditionally create the CrOSPreChoiceMetricsManager.
   //
-  // See //chrome/browser/metrics/cros_pre_consent_metrics_manager.cc for all
+  // See //chrome/browser/metrics/cros_pre_choice_metrics_manager.cc for all
   // conditions.
-  cros_pre_consent_manager_ =
-      metrics::CrOSPreConsentMetricsManager::MaybeCreate();
+  cros_pre_choice_metrics_manager_ =
+      metrics::CrOSPreChoiceMetricsManager::MaybeCreate();
 #endif
 }
 
@@ -1024,7 +1049,7 @@ void ChromeMetricsServiceClient::RegisterMetricsServiceProviders() {
   // Only register the RegionalCapabilitiesMetricsProvider if the dynamic
   // profile country feature is enabled. This is because that feature
   // significantly changes the cases under which the "Mixed" bucket is emitted.
-  if (base::FeatureList::IsEnabled(switches::kDynamicProfileCountry)) {
+  if (switches::IsDynamicProfileCountryEnabled()) {
     metrics_service_->RegisterMetricsProvider(
         std::make_unique<
             regional_capabilities::RegionalCapabilitiesMetricsProvider>());
@@ -1033,6 +1058,11 @@ void ChromeMetricsServiceClient::RegisterMetricsServiceProviders() {
   metrics_service_->RegisterMetricsProvider(
       std::make_unique<
           subscription_eligibility::SubscriptionEligibilityMetricsProvider>());
+
+  metrics_service_->RegisterMetricsProvider(
+      std::make_unique<policy::EnterpriseManagementMetricsProvider>(
+          policy::ManagementServiceFactory::GetForPlatform(),
+          base::BindRepeating(&GetEnterpriseManagementProfileStates)));
 }
 
 void ChromeMetricsServiceClient::RegisterUKMProviders() {
@@ -1283,14 +1313,6 @@ void ChromeMetricsServiceClient::OnHistoryDeleted() {
 void ChromeMetricsServiceClient::OnUkmAllowedStateChanged(
     bool total_purge,
     ukm::UkmConsentState previous_consent_state) {
-  // If the metrics consent restructure is enabled, UKM and DWA consent states
-  // are now managed by the metrics reporting level. Changes to these states
-  // are handled in OnMetricsReportingLevelChanged().
-  if (metrics::MetricsReportingChoiceService::
-          ShouldUseMetricsConsentRestructure(
-              g_browser_process->local_state())) {
-    return;
-  }
   const ukm::UkmConsentState consent_state = GetUkmConsentState();
   // Apply UKM consent changes to UKM service.
   if (ukm_service_) {
@@ -1439,26 +1461,10 @@ void ChromeMetricsServiceClient::SetIsProcessRunningForTesting(
 }
 
 bool ChromeMetricsServiceClient::IsUkmAllowedForAllProfiles() {
-  // Note: Incognito is handled separately, see
-  // MetricsServicesManager::UpdateUkmService().
-  PrefService* local_state = g_browser_process->local_state();
-  if (metrics::MetricsReportingChoiceService::
-          ShouldUseMetricsConsentRestructure(local_state)) {
-    return metrics::MetricsReportingChoiceService::
-        IsAdvancedMetricsReportingEnabled(local_state);
-  }
   return UkmConsentStateObserver::IsUkmAllowedForAllProfiles();
 }
 
 bool ChromeMetricsServiceClient::IsDwaAllowedForAllProfiles() {
-  // Note: Incognito is handled separately, see
-  // MetricsServicesManager::UpdateUkmService().
-  PrefService* local_state = g_browser_process->local_state();
-  if (metrics::MetricsReportingChoiceService::
-          ShouldUseMetricsConsentRestructure(local_state)) {
-    return metrics::MetricsReportingChoiceService::
-        IsAdvancedMetricsReportingEnabled(local_state);
-  }
   return UkmConsentStateObserver::IsDwaAllowedForAllProfiles();
 }
 
@@ -1527,25 +1533,24 @@ bool ChromeMetricsServiceClient::ShouldUploadMetricsForUserId(
   return user_id == metrics::MetricsLog::Hash(current_user_id.value());
 }
 
-void ChromeMetricsServiceClient::UpdateCurrentUserMetricsConsent(
-    bool user_metrics_consent) {
+void ChromeMetricsServiceClient::UpdateCurrentUserMetricsChoice(
+    bool user_choice) {
   DCHECK(per_user_state_manager_);
-  per_user_state_manager_->SetCurrentUserMetricsConsent(user_metrics_consent);
+  per_user_state_manager_->SetCurrentUserMetricsChoice(user_choice);
 }
 
 void ChromeMetricsServiceClient::InitPerUserMetrics() {
   per_user_state_manager_ =
       std::make_unique<metrics::PerUserStateManagerChromeOS>(
           this, g_browser_process->local_state());
-  per_user_consent_change_subscription_ = per_user_state_manager_->AddObserver(
+  per_user_choice_change_subscription_ = per_user_state_manager_->AddObserver(
       base::BindRepeating(&UpdateMetricsServicesForPerUser));
 }
 
-std::optional<bool> ChromeMetricsServiceClient::GetCurrentUserMetricsConsent()
+std::optional<bool> ChromeMetricsServiceClient::GetCurrentUserMetricsChoice()
     const {
   if (per_user_state_manager_) {
-    return per_user_state_manager_
-        ->GetCurrentUserReportingConsentIfApplicable();
+    return per_user_state_manager_->GetCurrentUserReportingChoiceIfApplicable();
   }
 
   return std::nullopt;

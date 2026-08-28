@@ -35,14 +35,14 @@
 #include "chrome/browser/ash/camera_mic/vm_camera_mic_manager.h"
 #include "chrome/browser/ash/extensions/media_player_api.h"
 #include "chrome/browser/ash/extensions/media_player_event_router.h"
-#include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
 #include "chrome/browser/notifications/system_notification_helper.h"
 #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
 #include "chrome/browser/profiles/profile_manager.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tab_contents/tab_contents_iterator.h"
 #include "chrome/grit/generated_resources.h"
+#include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
 #include "components/account_id/account_id.h"
 #include "components/services/app_service/public/cpp/app_capability_access_cache.h"
 #include "components/services/app_service/public/cpp/app_capability_access_cache_wrapper.h"
@@ -327,7 +327,7 @@ void MediaClientImpl::RequestCaptureState() {
   auto* manager = user_manager::UserManager::Get();
   for (user_manager::User* user : manager->GetLRULoggedInUsers()) {
     capture_states[user->GetAccountId()] = GetMediaCaptureStateOfAllWebContents(
-        ash::ProfileHelper::Get()->GetProfileByUser(user));
+        ash::BrowserContextHelper::Get()->GetBrowserContextByUser(user));
   }
 
   const user_manager::User* primary_user = manager->GetPrimaryUser();
@@ -359,7 +359,7 @@ void MediaClientImpl::OnRequestUpdate(int render_process_id,
 }
 
 void MediaClientImpl::OnBrowserActivated(ash::BrowserDelegate* browser) {
-  active_context_ = browser->GetBrowser().profile();
+  active_context_ = browser->GetBrowser().GetProfile();
   UpdateForceMediaClientKeyHandling();
 }
 

@@ -7,6 +7,7 @@
 #import "base/check_op.h"
 #import "ios/chrome/browser/net/model/crurl.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/common/string_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
@@ -27,9 +28,8 @@
 #pragma mark CollectionViewItem
 
 - (void)configureHeaderFooterView:
-            (TableViewAttributedStringHeaderFooterView*)headerFooter
-                       withStyler:(ChromeTableViewStyler*)styler {
-  [super configureHeaderFooterView:headerFooter withStyler:styler];
+    (TableViewAttributedStringHeaderFooterView*)headerFooter {
+  [super configureHeaderFooterView:headerFooter];
   headerFooter.attributedString = self.attributedString;
 }
 
@@ -68,10 +68,10 @@
                          constant:-kTableViewVerticalSpacing],
       [_textView.trailingAnchor
           constraintEqualToAnchor:self.contentView.trailingAnchor
-                         constant:-HorizontalPadding()],
+                         constant:-ChromeTableViewHorizontalPadding()],
       [_textView.leadingAnchor
           constraintEqualToAnchor:self.contentView.leadingAnchor
-                         constant:HorizontalPadding()],
+                         constant:ChromeTableViewHorizontalPadding()],
     ]];
   }
   return self;

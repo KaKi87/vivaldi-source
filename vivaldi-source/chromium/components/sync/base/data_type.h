@@ -198,9 +198,17 @@ enum DataType {
   // A theme object specifically for iOS devices.
   THEMES_IOS,
 
-
   // A theme object specifically for Android devices.
   THEMES_ANDROID,
+
+  // Encrypted tab context container.
+  ENCRYPTED_TAB_CONTEXT_CONTAINER,
+
+  // Encrypted tab context item.
+  ENCRYPTED_TAB_CONTEXT_ITEM,
+
+  // Information about a notebook.
+  NOTEBOOK,
 
   // Notes items
   NOTES,
@@ -315,6 +323,9 @@ enum class DataTypeForHistograms {
   kThemesIos = 78,
   // kDeprecatedAccessibilityAnnotation = 79,
   kThemesAndroid = 80,
+  kEncryptedTabContextContainer = 81,
+  kEncryptedTabContextItem = 82,
+  kNotebook = 83,
 
   // Vivaldi
   kNotes = 300,
@@ -340,7 +351,23 @@ DataTypeSet ProtocolTypes();
 DataTypeSet UserTypes();
 
 // User types which are not user-controlled.
-DataTypeSet AlwaysPreferredUserTypes();
+inline constexpr DataTypeSet AlwaysPreferredUserTypes() {
+  // TODO(crbug.com/477624427): add SKILL to a corresponding UserSelectableType
+  // or another toggle.
+  return {ACCOUNT_SETTING,
+          DEVICE_INFO,
+          USER_CONSENTS,
+          PLUS_ADDRESS,
+          PLUS_ADDRESS_SETTING,
+          PRIORITY_PREFERENCES,
+          SECURITY_EVENTS,
+          SEND_TAB_TO_SELF,
+          SUPERVISED_USER_SETTINGS,
+          SHARING_MESSAGE,
+          SKILL,
+          AI_THREAD,
+          GEMINI_THREAD};
+}
 
 // User types which are always encrypted.
 DataTypeSet AlwaysEncryptedUserTypes();
@@ -396,6 +423,9 @@ DataTypeSet TypesRequiringUnsyncedDataCheckOnSignout();
 // superset of AlwaysEncryptedUserTypes();
 DataTypeSet EncryptableUserTypes();
 
+// Returns the set of data types that support local sync.
+DataTypeSet LocalSyncSupportedTypes();
+
 // Determine a data type from the field number of its associated
 // EntitySpecifics field.  Returns UNSPECIFIED if the field number is
 // not recognized.
@@ -441,6 +471,11 @@ DataTypeForHistograms DataTypeHistogramValue(DataType data_type);
 // Returns for every data_type a positive unique integer that is stable over
 // time and thus can be used when persisting data.
 int DataTypeToStableIdentifier(DataType data_type);
+
+// Returns the DataType corresponding to `stable_identifier` (produced by
+// DataTypeToStableIdentifier()). Returns UNSPECIFIED if `stable_identifier`
+// does not match any known DataType.
+DataType GetDataTypeFromStableIdentifier(int stable_identifier);
 
 // This returns a string that is stable over time and thus can be used for local
 // persistence. It is guaranteed to be lowercase.

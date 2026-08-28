@@ -37,7 +37,6 @@
 <translation id="1601560923496285236">යොදන්න</translation>
 <translation id="1603914832182249871">(අප්‍රකට)</translation>
 <translation id="1627276047960621195">ගොනු විස්තර කරන්නන්</translation>
-<translation id="1654713139320245449">විකාශන ගමනාන්ත කිසිවක් හමු නොවීය. උදව් අවශ්‍යද?</translation>
 <translation id="166278006618318542">විෂය පොදු යතුරු ඇල්ගොරිතමය</translation>
 <translation id="1682548588986054654">නව අප්‍රකට කවුළුව</translation>
 <translation id="1708338024780164500">(අක්‍රියයි)</translation>
@@ -55,7 +54,6 @@
 <translation id="1901303067676059328">&amp;සියල්ල තෝරන්න</translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">අභිරුචි වෙබ් ලිපිනය ඇතුළත් කරන්න</translation>
-<translation id="1932098463447129402">පෙර නොවේ</translation>
 <translation id="1936931585862840749">මුද්‍රණය කළ යුතු පිටපත් ගණන දැක්වීමට අංකයක් භාවිත කරන්න (1 සිට <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">හඬ නව පටිත්තක අසන්න</translation>
 <translation id="2050339315714019657">පෝට්රේට්</translation>
@@ -91,7 +89,6 @@
 <translation id="253557089021624350">Keepalive ගණන් කිරීම</translation>
 <translation id="2550212893339833758">මාරු කළ මතකය</translation>
 <translation id="2553440850688409052">මෙම ප්ලගිනය සඟවන්න</translation>
-<translation id="2607101320794533334">විෂය පොදු යතුරු තොරතුරු</translation>
 <translation id="26224892172169984">කිසිදු අඩවියකට ප්‍රොටෝකෝල හැසිරවීමට ඉඩ නොදෙන්න</translation>
 <translation id="2653275834716714682">පෙළ ප්‍රතිස්ථාපනය</translation>
 <translation id="265390580714150011">ක්ෂේත්‍ර අගය</translation>
@@ -99,7 +96,6 @@
 <translation id="2678063897982469759">නැවත සක්රිය කරන්න</translation>
 <translation id="2719936478972253983">පහත කුකීස් අවහිර කරන ලදී.</translation>
 <translation id="2721037002783622288"><ph name="SEARCH_ENGINE" /> හි රූපය සොයන්න</translation>
-<translation id="2738771556149464852">පසුව නොවේ</translation>
 <translation id="2749881179542288782">අක්ෂර වින්‍යාසය සමඟ ව්‍යාකරණ පරීක්ෂා කරන්න</translation>
 <translation id="2785873697295365461">ගොනු විස්තර කරන්නන්</translation>
 <translation id="2825758591930162672">විෂයයේ පොදු යතුර</translation>
@@ -146,7 +142,6 @@
 <translation id="3387614642886316601">වැඩිදියුණු කළ අක්ෂර වින්‍යාස පරීක්ෂාව භාවිතා කරන්න</translation>
 <translation id="3390013585654699824">යෙදුම් විස්තර</translation>
 <translation id="345693547134384690">නව ටැබයක &amp;රූපය විවෘත කරන්න</translation>
-<translation id="3493881266323043047">වලංගුභාවය</translation>
 <translation id="3511307672085573050">සබැඳි ලිපිනය සහ ලිපිනය පිටපත් කරන්න</translation>
 <translation id="354068948465830244">මෙය අඩවි දත්ත කියවීමට සහ වෙනස් කිරීමට හැකිය</translation>
 <translation id="3560034655160545939">අකුරු වින්‍යාස පරීක්ෂාව</translation>
@@ -160,7 +155,6 @@
 <translation id="3760460896538743390">&amp;පසුබිම් පිටුව පරීක්ෂා කරන්න</translation>
 <translation id="3786224729726357296"><ph name="SITE" />සඳහා අඩවි දත්ත සහ අවසර මකන්න.</translation>
 <translation id="3797900183766075808">“<ph name="SEARCH_TERMS" />” සඳහා <ph name="SEARCH_ENGINE" /> සොයන්න</translation>
-<translation id="3798449238516105146">පිටපත</translation>
 <translation id="3810973564298564668">කළමනාකරණය කරන්න</translation>
 <translation id="3838085852053358637">දිගුව පූරණය කිරීමට අසමත් විය</translation>
 <translation id="383891835335927981">කිසිදු වෙබ් අඩවියක් විශාලනය කර හෝ පිටතට ගෙන නොමැත</translation>
@@ -240,7 +234,6 @@
 <translation id="5063480226653192405">භාවිතය</translation>
 <translation id="5116628073786783676">ශ්‍රව්‍ය ලෙස සුරකින්න...</translation>
 <translation id="5154108062446123722"><ph name="PRINTING_DESTINATION" />සඳහා වැඩිදුර සැකසුම්</translation>
-<translation id="5154702632169343078">විෂය</translation>
 <translation id="5171343362375269016">මාරු කළ මතකය</translation>
 <translation id="5233231016133573565">ක්‍රියාවලි ID</translation>
 <translation id="5233736638227740678">අලවන්න (&amp;P)</translation>
@@ -281,7 +274,6 @@
 <translation id="5780973441651030252">ක්‍රියාවලි ප්‍රමුඛතාවය</translation>
 <translation id="5804241973901381774">අවසර</translation>
 <translation id="5828633471261496623">මුද්‍රණය කරමින්...</translation>
-<translation id="5851868085455377790">නිකුත් කරන්නා</translation>
 <translation id="5860491529813859533">ක්රියාත්මක කරන්න</translation>
 <translation id="5910363049092958439">රූපය ලෙස සුරකින්න...</translation>
 <translation id="5914724413750400082">මොඩියුලස් (<ph name="MODULUS_NUM_BITS" /> බිටු):
@@ -422,7 +414,6 @@
 <translation id="862750493060684461">CSS හැඹිලිය</translation>
 <translation id="8661290697478713397">Inco&amp;gnito කවුළුව තුළ සබැඳිය විවෘත කරන්න</translation>
 <translation id="8664389313780386848">පිටුවේ මූලාශ්‍රය බලන්න</translation>
-<translation id="8705331520020532516">අන්රක්රමික අංකය</translation>
 <translation id="8708000541097332489">පිටවීමේදී මකන්න</translation>
 <translation id="8714838604780058252">පසුබිම් චිත්‍රණ</translation>
 <translation id="8725066075913043281">නැවත උත්සාහ කරන්න</translation>

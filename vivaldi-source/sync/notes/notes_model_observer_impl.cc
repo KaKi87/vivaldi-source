@@ -145,8 +145,7 @@ void NotesModelObserverImpl::NotesNodeMoved(const vivaldi::NoteNode* old_parent,
     return;
   }
 
-  const SyncedNoteTrackerEntity* entity =
-      note_tracker_->GetEntityForNoteNode(node);
+  SyncedNoteTrackerEntity* entity = note_tracker_->GetEntityForNoteNode(node);
   CHECK(entity);
 
   const base::Time modification_time = base::Time::Now();
@@ -156,10 +155,8 @@ void NotesModelObserverImpl::NotesNodeMoved(const vivaldi::NoteNode* old_parent,
   sync_pb::EntitySpecifics specifics =
       CreateSpecificsFromNoteNode(node, note_model_, unique_position.ToProto());
 
-  note_tracker_->Update(entity, entity->metadata().server_version(),
-                        modification_time, specifics);
   // Mark the entity that it needs to be committed.
-  note_tracker_->IncrementSequenceNumber(entity);
+  entity->RecordLocalUpdate(specifics, modification_time);
   nudge_for_commit_closure_.Run();
   note_tracker_->CheckAllNodesTracked(note_model_);
 }
@@ -186,7 +183,7 @@ void NotesModelObserverImpl::NotesNodeAdded(const vivaldi::NoteNode* parent,
   // It is possible that a created note was restored after deletion and
   // the tombstone was not committed yet. In that case the existing entity
   // should be updated.
-  const SyncedNoteTrackerEntity* entity =
+  SyncedNoteTrackerEntity* entity =
       note_tracker_->GetEntityForUuid(node->uuid());
   const base::Time creation_time = base::Time::Now();
   if (entity) {
@@ -194,17 +191,14 @@ void NotesModelObserverImpl::NotesNodeAdded(const vivaldi::NoteNode* parent,
     // the same note GUID), it must be a tombstone. Otherwise it means
     // the note model contains to notes with the same GUID.
     DCHECK(!entity->note_node()) << "Added note with duplicate GUID";
-    note_tracker_->UndeleteTombstoneForNoteNode(entity, node);
-    note_tracker_->Update(entity, entity->metadata().server_version(),
-                          creation_time, specifics);
+    note_tracker_->UndeleteTombstoneForNoteNode(entity, node, specifics,
+                                                creation_time);
+    entity->RecordLocalUpdate(specifics, creation_time);
   } else {
-    entity = note_tracker_->Add(node, node->uuid().AsLowercaseString(),
-                                syncer::kUncommittedVersion, creation_time,
-                                specifics);
+    entity = note_tracker_->AddLocalCreation(
+        node, node->uuid().AsLowercaseString(), creation_time, specifics);
   }
 
-  // Mark the entity that it needs to be committed.
-  note_tracker_->IncrementSequenceNumber(entity);
   nudge_for_commit_closure_.Run();
 
   // Do not check if all nodes are tracked because it's still possible that some
@@ -264,8 +258,7 @@ void NotesModelObserverImpl::NotesNodeChanged(const vivaldi::NoteNode* node) {
   // We shouldn't see changes to the top-level nodes.
   DCHECK(!note_model_->is_permanent_node(node));
 
-  const SyncedNoteTrackerEntity* entity =
-      note_tracker_->GetEntityForNoteNode(node);
+  SyncedNoteTrackerEntity* entity = note_tracker_->GetEntityForNoteNode(node);
   if (!entity) {
     // If the node hasn't been added to the tracker yet, we do nothing. It
     // will be added later. It's how NotesModel currently notifies observers,
@@ -292,10 +285,8 @@ void NotesModelObserverImpl::NotesNodeChanged(const vivaldi::NoteNode* node) {
     // Specifics haven't actually changed, so the local change can be ignored.
     return;
   }
-  note_tracker_->Update(entity, entity->metadata().server_version(),
-                        /*modification_time=*/base::Time::Now(), specifics);
   // Mark the entity that it needs to be committed.
-  note_tracker_->IncrementSequenceNumber(entity);
+  entity->RecordLocalUpdate(specifics, base::Time::Now());
   nudge_for_commit_closure_.Run();
 }
 
@@ -473,20 +464,16 @@ void NotesModelObserverImpl::ProcessDelete(const vivaldi::NoteNode* node,
     ProcessDelete(child.get(), location);
   }
   // Process the current node.
-  const SyncedNoteTrackerEntity* entity =
-      note_tracker_->GetEntityForNoteNode(node);
+  SyncedNoteTrackerEntity* entity = note_tracker_->GetEntityForNoteNode(node);
   // Shouldn't try to delete untracked entities.
   DCHECK(entity);
   // If the entity hasn't been committed and doesn't have an inflight commit
   // request, simply remove it from the tracker.
-  if (entity->metadata().server_version() == syncer::kUncommittedVersion &&
-      !entity->commit_may_have_started()) {
+  if (entity->IsUnsyncedLocalCreation() && !entity->commit_may_have_started()) {
     note_tracker_->Remove(entity);
     return;
   }
   note_tracker_->MarkDeleted(entity, location);
-  // Mark the entity that it needs to be committed.
-  note_tracker_->IncrementSequenceNumber(entity);
 }
 
 syncer::UniquePosition NotesModelObserverImpl::GetUniquePositionForNode(
@@ -507,8 +494,7 @@ syncer::UniquePosition NotesModelObserverImpl::UpdateUniquePositionForNode(
   CHECK(note_tracker_);
   CHECK(node);
 
-  const SyncedNoteTrackerEntity* entity =
-      note_tracker_->GetEntityForNoteNode(node);
+  SyncedNoteTrackerEntity* entity = note_tracker_->GetEntityForNoteNode(node);
   CHECK(entity);
   const syncer::UniquePosition::Suffix suffix =
       syncer::UniquePosition::GenerateSuffix(entity->GetClientTagHash());
@@ -525,11 +511,8 @@ syncer::UniquePosition NotesModelObserverImpl::UpdateUniquePositionForNode(
 
   sync_pb::EntitySpecifics specifics = CreateSpecificsFromNoteNode(
       node, note_model_, new_unique_position.ToProto());
-  note_tracker_->Update(entity, entity->metadata().server_version(),
-                        modification_time, specifics);
-
   // Mark the entity that it needs to be committed.
-  note_tracker_->IncrementSequenceNumber(entity);
+  entity->RecordLocalUpdate(specifics, modification_time);
   return new_unique_position;
 }
 

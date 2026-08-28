@@ -81,6 +81,7 @@
 #include "components/user_manager/user.h"
 #include "components/user_manager/user_manager.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/media_session_service.h"
 #include "third_party/blink/public/mojom/speech/speech_synthesis.mojom.h"
 #include "third_party/cros_system_api/dbus/update_engine/dbus-constants.h"
 #include "third_party/icu/source/i18n/unicode/timezone.h"
@@ -172,7 +173,7 @@ void Preferences::RegisterPrefs(PrefRegistrySimple* registry) {
       prefs::kLocalStateDevicePeripheralDataAccessEnabled, false);
   registry->RegisterBooleanPref(prefs::kDeviceI18nShortcutsEnabled, true);
   registry->RegisterBooleanPref(prefs::kLoginScreenWebUILazyLoading, false);
-  registry->RegisterBooleanPref(::prefs::kConsumerAutoUpdateToggle, true);
+  registry->RegisterBooleanPref(ash::prefs::kConsumerAutoUpdateToggle, true);
   registry->RegisterBooleanPref(prefs::kDeviceEphemeralNetworkPoliciesEnabled,
                                 false);
   registry->RegisterBooleanPref(prefs::kDeviceSwitchFunctionKeysBehaviorEnabled,
@@ -205,7 +206,7 @@ void Preferences::RegisterProfilePrefs(
     hardware_keyboard_id = "xkb:us::eng";  // only for testing.
   }
 
-  registry->RegisterBooleanPref(::prefs::kPerformanceTracingEnabled, false);
+  registry->RegisterBooleanPref(ash::prefs::kPerformanceTracingEnabled, false);
 
   registry->RegisterBooleanPref(
       prefs::kTapToClickEnabled, true,
@@ -253,7 +254,8 @@ void Preferences::RegisterProfilePrefs(
       prefs::kTouchpadHapticFeedback, true,
       user_prefs::PrefRegistrySyncable::SYNCABLE_OS_PRIORITY_PREF);
   registry->RegisterBooleanPref(::prefs::kLabsMediaplayerEnabled, false);
-  registry->RegisterBooleanPref(::prefs::kLabsAdvancedFilesystemEnabled, false);
+  registry->RegisterBooleanPref(::ash::prefs::kLabsAdvancedFilesystemEnabled,
+                                false);
   registry->RegisterBooleanPref(::prefs::kAppReinstallRecommendationEnabled,
                                 false);
 
@@ -576,7 +578,7 @@ void Preferences::RegisterProfilePrefs(
 
   registry->RegisterBooleanPref(::prefs::kCastReceiverEnabled, false);
   registry->RegisterBooleanPref(::prefs::kShowArcSettingsOnSessionStart, false);
-  registry->RegisterBooleanPref(::prefs::kShowSyncSettingsOnSessionStart,
+  registry->RegisterBooleanPref(::ash::prefs::kShowSyncSettingsOnSessionStart,
                                 false);
 
   // Text-to-speech prefs.
@@ -611,6 +613,10 @@ void Preferences::RegisterProfilePrefs(
       user_prefs::PrefRegistrySyncable::SYNCABLE_OS_PREF);
 
   registry->RegisterBooleanPref(prefs::kMagicBoostEnabled, true);
+
+  registry->RegisterBooleanPref(
+      ash::prefs::kAudioFocusEnforcementEnabled, true,
+      user_prefs::PrefRegistrySyncable::SYNCABLE_OS_PREF);
 
   registry->RegisterBooleanPref(prefs::kHmrEnabled, true);
   registry->RegisterIntegerPref(prefs::kHmrManagedSettings, 0);
@@ -674,12 +680,13 @@ void Preferences::RegisterProfilePrefs(
 
   registry->RegisterBooleanPref(prefs::kShowDisplaySizeScreenEnabled, true);
 
-  registry->RegisterDictionaryPref(::prefs::kTotalUniqueOsSettingsChanged);
+  registry->RegisterDictionaryPref(ash::prefs::kTotalUniqueOsSettingsChanged);
 
-  registry->RegisterBooleanPref(::prefs::kHasResetFirst7DaysSettingsUsedCount,
-                                false);
+  registry->RegisterBooleanPref(
+      ::ash::prefs::kHasResetFirst7DaysSettingsUsedCount, false);
 
-  registry->RegisterBooleanPref(::prefs::kHasEverRevokedMetricsConsent, true);
+  registry->RegisterBooleanPref(ash::prefs::kHasEverRevokedMetricsConsent,
+                                true);
 
   registry->RegisterBooleanPref(prefs::kShowHumanPresenceSensorScreenEnabled,
                                 true);
@@ -710,8 +717,8 @@ void Preferences::InitUserPrefs(sync_preferences::PrefServiceSyncable* prefs) {
   BooleanPrefMember::NamedChangeCallback callback = base::BindRepeating(
       &Preferences::OnPreferenceChanged, base::Unretained(this));
 
-  performance_tracing_enabled_.Init(::prefs::kPerformanceTracingEnabled, prefs,
-                                    callback);
+  performance_tracing_enabled_.Init(ash::prefs::kPerformanceTracingEnabled,
+                                    prefs, callback);
   tap_to_click_enabled_.Init(prefs::kTapToClickEnabled, prefs, callback);
   three_finger_click_enabled_.Init(prefs::kEnableTouchpadThreeFingerClick,
                                    prefs, callback);
@@ -777,8 +784,10 @@ void Preferences::InitUserPrefs(sync_preferences::PrefServiceSyncable* prefs) {
       prefs::kLocalStateDevicePeripheralDataAccessEnabled, &local_state_.get(),
       callback);
 
-  consumer_auto_update_toggle_pref_.Init(::prefs::kConsumerAutoUpdateToggle,
+  consumer_auto_update_toggle_pref_.Init(ash::prefs::kConsumerAutoUpdateToggle,
                                          &local_state_.get(), callback);
+  audio_focus_enforcement_enabled_.Init(
+      ash::prefs::kAudioFocusEnforcementEnabled, prefs, callback);
   pref_change_registrar_.Init(prefs);
   pref_change_registrar_.Add(ash::prefs::kUserGeolocationAccessLevel, callback);
   pref_change_registrar_.Add(ash::prefs::kUserPreviousGeolocationAccessLevel,
@@ -942,8 +951,9 @@ void Preferences::ApplyPreferences(ApplyReason reason,
   system::PointingStickSettings pointing_stick_settings;
   user_manager::KnownUser known_user(&local_state_.get());
 
-  if (user_is_primary_ && (reason == REASON_INITIALIZATION ||
-                           pref_name == ::prefs::kPerformanceTracingEnabled)) {
+  if (user_is_primary_ &&
+      (reason == REASON_INITIALIZATION ||
+       pref_name == ash::prefs::kPerformanceTracingEnabled)) {
     const bool enabled = performance_tracing_enabled_.GetValue();
     if (enabled) {
       tracing_manager_ = ContentTracingManager::Create();
@@ -951,6 +961,16 @@ void Preferences::ApplyPreferences(ApplyReason reason,
       tracing_manager_.reset();
     }
     SystemTrayClientImpl::Get()->SetPerformanceTracingIconVisible(enabled);
+  }
+  if (reason != REASON_PREF_CHANGED ||
+      pref_name == ash::prefs::kAudioFocusEnforcementEnabled) {
+    const bool enabled = audio_focus_enforcement_enabled_.GetValue();
+    EnsureAudioFocusManagerBound();
+    if (audio_focus_manager_.is_bound()) {
+      audio_focus_manager_->SetEnforcementMode(
+          enabled ? media_session::mojom::EnforcementMode::kDefault
+                  : media_session::mojom::EnforcementMode::kNone);
+    }
   }
   if (reason != REASON_PREF_CHANGED || pref_name == prefs::kTapToClickEnabled) {
     const bool enabled = tap_to_click_enabled_.GetValue();
@@ -1298,7 +1318,8 @@ void Preferences::ApplyPreferences(ApplyReason reason,
 
   if (pref_name == ash::prefs::kUserTimezone &&
       reason != REASON_ACTIVE_USER_CHANGED) {
-    system::UpdateSystemTimezone(ProfileHelper::Get()->GetProfileByUser(user_));
+    system::UpdateSystemTimezone(local_state_.get(),
+                                 ProfileHelper::Get()->GetProfileByUser(user_));
   }
 
   if (reason == REASON_INITIALIZATION ||
@@ -1314,16 +1335,17 @@ void Preferences::ApplyPreferences(ApplyReason reason,
       // Policy check is false here, because there is no owner for enterprise.
       local_state_->SetInteger(
           ash::prefs::kResolveDeviceTimezoneByGeolocationMethod,
-          static_cast<int>(system::TimeZoneResolverManager::
-                               GetEffectiveUserTimeZoneResolveMethod(
-                                   prefs_, false /* check_policy */)));
+          static_cast<int>(
+              system::TimeZoneResolverManager::
+                  GetEffectiveUserTimeZoneResolveMethod(
+                      local_state_.get(), prefs_, false /* check_policy */)));
     }
     if (user_is_primary_) {
       CHECK(timezone_resolver_manager_);
       timezone_resolver_manager_->UpdateTimezoneResolver();
       if (system::TimeZoneResolverManager::
                   GetEffectiveUserTimeZoneResolveMethod(
-                      prefs_, true /* check_policy */) ==
+                      local_state_.get(), prefs_, true /* check_policy */) ==
               system::TimeZoneResolverManager::TimeZoneResolveMethod::
                   DISABLED &&
           reason == REASON_PREF_CHANGED) {
@@ -1490,6 +1512,20 @@ void Preferences::OnIsConsumerAutoUpdateEnabled(std::optional<bool> enabled) {
     return;
   }
   consumer_auto_update_toggle_pref_.SetValue(enabled.value());
+}
+
+void Preferences::EnsureAudioFocusManagerBound() {
+  if (audio_focus_manager_.is_bound()) {
+    return;
+  }
+  content::GetMediaSessionService().BindAudioFocusManager(
+      audio_focus_manager_.BindNewPipeAndPassReceiver());
+  audio_focus_manager_.set_disconnect_handler(base::BindOnce(
+      &Preferences::OnAudioFocusManagerDisconnected, base::Unretained(this)));
+}
+
+void Preferences::OnAudioFocusManagerDisconnected() {
+  audio_focus_manager_.reset();
 }
 
 }  // namespace ash

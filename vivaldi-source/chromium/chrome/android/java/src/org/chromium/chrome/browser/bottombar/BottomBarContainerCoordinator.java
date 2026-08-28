@@ -17,16 +17,20 @@ import androidx.annotation.ColorInt;
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.base.supplier.NullableObservableSupplier;
+import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.browser_controls.BottomControlsStacker.LayerScrollBehavior;
+import org.chromium.chrome.browser.layouts.LayoutStateProvider;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.theme.ThemeColorProvider;
 import org.chromium.chrome.browser.toolbar.bottom.BottomControlsContentDelegate;
 import org.chromium.chrome.browser.toolbar.bottom.BottomControlsCoordinator.BottomControlsVisibilityController;
 import org.chromium.chrome.browser.ui.actions.ActionRegistry;
+import org.chromium.chrome.browser.ui.appmenu.AppMenuCoordinator;
 import org.chromium.chrome.browser.ui.bottombar.BottomBar;
+import org.chromium.chrome.browser.ui.bottombar.BottomBarConfigUtils;
 import org.chromium.chrome.browser.ui.bottombar.BottomBarCoordinator;
 import org.chromium.chrome.browser.ui.bottombar.BottomBarMediator;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
@@ -68,6 +72,7 @@ public class BottomBarContainerCoordinator
 
     private @Nullable BottomControlsVisibilityController mVisibilityController;
     private @Nullable Callback<Object> mOnModelTokenChange;
+    private @Nullable BottomBarAppMenuUpdateBadgeController mAppMenuUpdateBadgeController;
     private boolean mIsVisible = true;
     // Tracking if there is a pending visibility update to avoid scanning the whole queue.
     private boolean mPendingVisibilityUpdate;
@@ -81,8 +86,10 @@ public class BottomBarContainerCoordinator
      * @param themeColorProvider Theme color provider for the bottom bar.
      * @param homepageEnabledSupplier Supplier of whether the homepage is enabled.
      * @param profileSupplier Supplier of the current profile.
+     * @param countrySupplier Supplier of the latest variations country code.
      * @param omniboxFocusStateSupplier Supplier of the omnibox focus state.
      * @param modalDialogManagerSupplier Supplier of the {@link ModalDialogManager}.
+     * @param appMenuCoordinatorSupplier Supplier of the {@link AppMenuCoordinator}.
      */
     public BottomBarContainerCoordinator(
             FrameLayout bottomBarContainer,
@@ -92,8 +99,11 @@ public class BottomBarContainerCoordinator
             ThemeColorProvider themeColorProvider,
             NonNullObservableSupplier<Boolean> homepageEnabledSupplier,
             NullableObservableSupplier<Profile> profileSupplier,
+            OneshotSupplier<String> countrySupplier,
             NonNullObservableSupplier<Boolean> omniboxFocusStateSupplier,
-            NonNullObservableSupplier<ModalDialogManager> modalDialogManagerSupplier) {
+            NonNullObservableSupplier<ModalDialogManager> modalDialogManagerSupplier,
+            OneshotSupplier<AppMenuCoordinator> appMenuCoordinatorSupplier,
+            LayoutStateProvider layoutStateProvider) {
         mBottomBarContainer = bottomBarContainer;
         Context context = bottomBarContainer.getContext();
         mContext = context;
@@ -111,8 +121,16 @@ public class BottomBarContainerCoordinator
                         homepageEnabledSupplier,
                         this,
                         profileSupplier,
+                        countrySupplier,
                         omniboxFocusStateSupplier,
-                        modalDialogManagerSupplier);
+                        modalDialogManagerSupplier,
+                        layoutStateProvider);
+        if (BottomBarConfigUtils.shouldIncludeAppMenuButton()
+                && BottomBarConfigUtils.shouldShowAppMenuUpdateBadge()) {
+            mAppMenuUpdateBadgeController =
+                    new BottomBarAppMenuUpdateBadgeController(
+                            actionRegistry, profileSupplier, appMenuCoordinatorSupplier);
+        }
     }
 
     @Override
@@ -127,6 +145,9 @@ public class BottomBarContainerCoordinator
 
     @Override
     public void destroy() {
+        if (mAppMenuUpdateBadgeController != null) {
+            mAppMenuUpdateBadgeController.destroy();
+        }
         if (mPendingVisibilityUpdate) {
             mHandler.removeCallbacks(mModelTokenChangeRunnable);
             mPendingVisibilityUpdate = false;

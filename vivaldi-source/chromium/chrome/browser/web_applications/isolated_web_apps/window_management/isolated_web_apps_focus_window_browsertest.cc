@@ -11,6 +11,7 @@
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_builder.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/permissions/permission_request_manager.h"
 #include "content/public/browser/render_widget_host_view.h"
@@ -53,7 +54,7 @@ bool IsMainFrameFocused(Browser* browser) {
 }
 
 bool IsWindowActive(Browser* browser) {
-  return browser->window()->IsActive();
+  return browser->GetWindow()->IsActive();
 }
 
 // Struct to make test parameterization clearer than std::tuple.
@@ -153,11 +154,25 @@ class IsolatedWebAppFocusBrowserTest
     return testing::AssertionSuccess();
   }
 
+  Browser* OpenChildAppWindow(content::RenderFrameHost* iwa_frame) {
+    ui_test_utils::BrowserCreatedObserver browser_observer;
+
+    EXPECT_TRUE(content::ExecJs(
+        iwa_frame,
+        "window.newWinHandle = window.open('/popup.html','_blank');"));
+
+    Browser* new_browser = browser_observer.Wait();
+    EXPECT_TRUE(new_browser);
+
+    return new_browser;
+  }
+
   Browser* OpenPopup(content::RenderFrameHost* iwa_frame) {
     ui_test_utils::BrowserCreatedObserver browser_observer;
 
     EXPECT_TRUE(content::ExecJs(
-        iwa_frame, "window.newWinHandle = window.open('/popup.html');"));
+        iwa_frame,
+        "window.newWinHandle = window.open('/popup.html','_blank', 'popup');"));
 
     Browser* new_browser = browser_observer.Wait();
     EXPECT_TRUE(new_browser);
@@ -187,13 +202,13 @@ IN_PROC_BROWSER_TEST_P(IsolatedWebAppFocusBrowserTest,
   content::RenderFrameHost* iwa_frame = GetMainFrame(*iwa_browser);
   ASSERT_TRUE(iwa_frame);
 
-  Browser* new_browser = OpenPopup(iwa_frame);
+  Browser* new_browser = OpenChildAppWindow(iwa_frame);
 
   EXPECT_TRUE(WindowHasFocus(new_browser));
   EXPECT_TRUE(WindowHasNoFocus(iwa_browser));
 
   // Explicitly activate the original IWA window to shift focus back to it.
-  iwa_browser->window()->Activate();
+  iwa_browser->GetWindow()->Activate();
   EXPECT_TRUE(WindowHasFocus(iwa_browser));
   EXPECT_TRUE(WindowHasNoFocus(new_browser));
 
@@ -232,7 +247,7 @@ IN_PROC_BROWSER_TEST_P(IsolatedWebAppFocusBrowserTest,
   content::RenderFrameHost* iwa_frame = GetMainFrame(*iwa_browser);
   ASSERT_TRUE(iwa_frame);
 
-  Browser* new_browser = OpenPopup(iwa_frame);
+  Browser* new_browser = OpenChildAppWindow(iwa_frame);
 
   EXPECT_TRUE(WindowHasFocus(new_browser));
   EXPECT_TRUE(WindowHasNoFocus(iwa_browser));
@@ -250,6 +265,254 @@ IN_PROC_BROWSER_TEST_P(IsolatedWebAppFocusBrowserTest,
     EXPECT_TRUE(WindowHasFocus(new_browser));
     EXPECT_TRUE(WindowHasNoFocus(iwa_browser));
   }
+}
+
+// Tests that an IWA child window can self-focus without user activation, if and
+// only if the window-management permission is declared and granted.
+IN_PROC_BROWSER_TEST_P(IsolatedWebAppFocusBrowserTest,
+                       IwaChildWindowCanFocusItselfWithNoUserActivation) {
+#if BUILDFLAG(IS_LINUX)
+  // Skip this test if running on Wayland.
+  if (views::test::InteractionTestUtilSimulatorViews::IsWayland()) {
+    GTEST_SKIP() << "This test is not supported on Wayland due to the lack of "
+                    "Wayland support for window activation";
+  }
+#endif
+  IsolatedWebAppUrlInfo url_info =
+      InstallIwa(IsWindowManagementPermissionDeclared());
+  Browser* iwa_browser = LaunchWebAppBrowserAndWait(url_info.app_id());
+  ASSERT_TRUE(iwa_browser);
+  SetWindowManagementContentSetting(url_info.origin().GetURL());
+
+  content::RenderFrameHost* iwa_frame = GetMainFrame(*iwa_browser);
+  ASSERT_TRUE(iwa_frame);
+
+  Browser* new_browser = OpenChildAppWindow(iwa_frame);
+
+  EXPECT_TRUE(WindowHasFocus(new_browser));
+  EXPECT_TRUE(WindowHasNoFocus(iwa_browser));
+
+  // Explicitly activate the original IWA window to shift focus back to it.
+  // Now the child window is in the background.
+  iwa_browser->GetWindow()->Activate();
+  EXPECT_TRUE(WindowHasFocus(iwa_browser));
+  EXPECT_TRUE(WindowHasNoFocus(new_browser));
+
+  content::RenderFrameHost* new_frame = GetMainFrame(*new_browser);
+
+  ConsumeUserActivation(new_frame);
+
+  // The background child window tries to focus itself.
+  ASSERT_TRUE(content::ExecJs(new_frame, "window.focus();",
+                              content::EXECUTE_SCRIPT_NO_USER_GESTURE));
+
+  if (ShouldFocusWithoutUserActivationWork()) {
+    EXPECT_TRUE(WindowHasFocus(new_browser));
+    EXPECT_TRUE(WindowHasNoFocus(iwa_browser));
+  } else {
+    EXPECT_TRUE(WindowHasFocus(iwa_browser));
+    EXPECT_TRUE(WindowHasNoFocus(new_browser));
+  }
+}
+
+// Tests that an IWA popup child window can self-focus without user activation,
+// if and only if the window-management permission is declared and granted.
+IN_PROC_BROWSER_TEST_P(IsolatedWebAppFocusBrowserTest,
+                       IwaPopupWindowCanFocusItselfWithNoUserActivation) {
+#if BUILDFLAG(IS_LINUX)
+  // Skip this test if running on Wayland.
+  if (views::test::InteractionTestUtilSimulatorViews::IsWayland()) {
+    GTEST_SKIP() << "This test is not supported on Wayland due to the lack of "
+                    "Wayland support for window activation";
+  }
+#endif
+  IsolatedWebAppUrlInfo url_info =
+      InstallIwa(IsWindowManagementPermissionDeclared());
+  Browser* iwa_browser = LaunchWebAppBrowserAndWait(url_info.app_id());
+  ASSERT_TRUE(iwa_browser);
+  SetWindowManagementContentSetting(url_info.origin().GetURL());
+
+  content::RenderFrameHost* iwa_frame = GetMainFrame(*iwa_browser);
+  ASSERT_TRUE(iwa_frame);
+
+  Browser* new_browser = OpenPopup(iwa_frame);
+
+  EXPECT_TRUE(WindowHasFocus(new_browser));
+  EXPECT_TRUE(WindowHasNoFocus(iwa_browser));
+
+  // Explicitly activate the original IWA window to shift focus back to it.
+  // Now the popup window is in the background.
+  iwa_browser->GetWindow()->Activate();
+  EXPECT_TRUE(WindowHasFocus(iwa_browser));
+  EXPECT_TRUE(WindowHasNoFocus(new_browser));
+
+  content::RenderFrameHost* new_frame = GetMainFrame(*new_browser);
+
+  ConsumeUserActivation(new_frame);
+
+  // The background popup window tries to focus itself.
+  ASSERT_TRUE(content::ExecJs(new_frame, "window.focus();",
+                              content::EXECUTE_SCRIPT_NO_USER_GESTURE));
+
+  if (ShouldFocusWithoutUserActivationWork()) {
+    EXPECT_TRUE(WindowHasFocus(new_browser));
+    EXPECT_TRUE(WindowHasNoFocus(iwa_browser));
+  } else {
+    EXPECT_TRUE(WindowHasFocus(iwa_browser));
+    EXPECT_TRUE(WindowHasNoFocus(new_browser));
+  }
+}
+
+// Tests that an IWA child window cannot focus another sibling child
+// window from the same IWA without user activation, even if the
+// window-management permission is declared and granted.
+IN_PROC_BROWSER_TEST_P(IsolatedWebAppFocusBrowserTest,
+                       WindowCannotFocusSiblingWithoutUserActivation) {
+#if BUILDFLAG(IS_LINUX)
+  // Skip this test if running on Wayland.
+  if (views::test::InteractionTestUtilSimulatorViews::IsWayland()) {
+    GTEST_SKIP() << "This test is not supported on Wayland due to the lack of "
+                    "Wayland support for window activation";
+  }
+#endif
+  IsolatedWebAppUrlInfo url_info =
+      InstallIwa(IsWindowManagementPermissionDeclared());
+  Browser* iwa_browser = LaunchWebAppBrowserAndWait(url_info.app_id());
+  ASSERT_TRUE(iwa_browser);
+  SetWindowManagementContentSetting(url_info.origin().GetURL());
+
+  content::RenderFrameHost* iwa_frame = GetMainFrame(*iwa_browser);
+  ASSERT_TRUE(iwa_frame);
+
+  ui_test_utils::BrowserCreatedObserver observer_1;
+  ASSERT_TRUE(content::ExecJs(iwa_frame,
+                              "window.child1 = window.open('/popup.html');"));
+  Browser* browser_1 = observer_1.Wait();
+  ASSERT_TRUE(browser_1);
+
+  ui_test_utils::BrowserCreatedObserver observer_2;
+  ASSERT_TRUE(content::ExecJs(iwa_frame,
+                              "window.child2 = window.open('/popup.html');"));
+  Browser* browser_2 = observer_2.Wait();
+  ASSERT_TRUE(browser_2);
+
+  browser_1->GetWindow()->Activate();
+  EXPECT_TRUE(WindowHasFocus(browser_1));
+  EXPECT_TRUE(WindowHasNoFocus(browser_2));
+  EXPECT_TRUE(WindowHasNoFocus(iwa_browser));
+
+  content::RenderFrameHost* frame_1 = GetMainFrame(*browser_1);
+  ASSERT_TRUE(frame_1);
+
+  ConsumeUserActivation(frame_1);
+
+  // Child 1 tries to focus its sibling Child 2 via their parent's handle.
+  ASSERT_TRUE(content::ExecJs(frame_1, "window.opener.child2.focus();",
+                              content::EXECUTE_SCRIPT_NO_USER_GESTURE));
+
+  // Focus should remain on Child 1.
+  EXPECT_TRUE(WindowHasFocus(browser_1));
+  EXPECT_TRUE(WindowHasNoFocus(browser_2));
+}
+
+// Tests that an IWA child window cannot focus its parent (opener) window
+// without user activation even if the window-management permission is
+// declared and granted.
+IN_PROC_BROWSER_TEST_P(IsolatedWebAppFocusBrowserTest,
+                       WindowCannotFocusParentWithoutUserActivation) {
+#if BUILDFLAG(IS_LINUX)
+  // Skip this test if running on Wayland.
+  if (views::test::InteractionTestUtilSimulatorViews::IsWayland()) {
+    GTEST_SKIP() << "This test is not supported on Wayland due to the lack of "
+                    "Wayland support for window activation";
+  }
+#endif
+  IsolatedWebAppUrlInfo url_info =
+      InstallIwa(IsWindowManagementPermissionDeclared());
+  Browser* iwa_browser = LaunchWebAppBrowserAndWait(url_info.app_id());
+  ASSERT_TRUE(iwa_browser);
+  SetWindowManagementContentSetting(url_info.origin().GetURL());
+
+  content::RenderFrameHost* iwa_frame = GetMainFrame(*iwa_browser);
+  ASSERT_TRUE(iwa_frame);
+
+  Browser* new_browser = OpenChildAppWindow(iwa_frame);
+
+  EXPECT_TRUE(WindowHasFocus(new_browser));
+  EXPECT_TRUE(WindowHasNoFocus(iwa_browser));
+
+  content::RenderFrameHost* new_frame = GetMainFrame(*new_browser);
+  ASSERT_TRUE(new_frame);
+
+  ConsumeUserActivation(new_frame);
+
+  // The child window tries to focus its opener (parent).
+  ASSERT_TRUE(content::ExecJs(new_frame, "window.opener.focus();",
+                              content::EXECUTE_SCRIPT_NO_USER_GESTURE));
+
+  EXPECT_TRUE(WindowHasFocus(new_browser));
+  EXPECT_TRUE(WindowHasNoFocus(iwa_browser));
+}
+
+// Tests that a popup window spawned by an IWA that navigates to an out-of-scope
+// origin cannot self-focus without user activation, even if an external
+// origin has been granted the window-management permission.
+IN_PROC_BROWSER_TEST_P(
+    IsolatedWebAppFocusBrowserTest,
+    OutOfScopePopupWithPermissionCannotFocusWithoutActivation) {
+#if BUILDFLAG(IS_LINUX)
+  // Skip this test if running on Wayland.
+  if (views::test::InteractionTestUtilSimulatorViews::IsWayland()) {
+    GTEST_SKIP() << "This test is not supported on Wayland due to the lack of "
+                    "Wayland support for window activation";
+  }
+#endif
+  IsolatedWebAppUrlInfo url_info =
+      InstallIwa(IsWindowManagementPermissionDeclared());
+  Browser* iwa_browser = LaunchWebAppBrowserAndWait(url_info.app_id());
+  ASSERT_TRUE(iwa_browser);
+  SetWindowManagementContentSetting(url_info.origin().GetURL());
+
+  content::RenderFrameHost* iwa_frame = GetMainFrame(*iwa_browser);
+  ASSERT_TRUE(iwa_frame);
+
+  GURL external_url = embedded_https_test_server().GetURL("/empty.html");
+
+  ui_test_utils::BrowserCreatedObserver browser_observer;
+  ASSERT_TRUE(content::ExecJs(
+      iwa_frame, content::JsReplace("window.newWinHandle = window.open($1, "
+                                    "'_blank', 'popup,width=400,height=400');",
+                                    external_url)));
+  Browser* popup_browser = browser_observer.Wait();
+  ASSERT_TRUE(popup_browser);
+
+  content::WebContents* popup_contents =
+      popup_browser->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(popup_contents);
+
+  EXPECT_TRUE(content::WaitForLoadStop(popup_contents));
+  content::RenderFrameHost* popup_frame = GetMainFrame(*popup_browser);
+
+  // Explicitly grant the Window Management permission to the external origin.
+  HostContentSettingsMap* map =
+      HostContentSettingsMapFactory::GetForProfile(profile());
+  map->SetContentSettingDefaultScope(external_url, external_url,
+                                     ContentSettingsType::WINDOW_MANAGEMENT,
+                                     CONTENT_SETTING_ALLOW);
+
+  // Explicitly activate the original IWA window to shift focus back to it.
+  iwa_browser->GetWindow()->Activate();
+  EXPECT_TRUE(WindowHasFocus(iwa_browser));
+  EXPECT_TRUE(WindowHasNoFocus(popup_browser));
+
+  ConsumeUserActivation(popup_frame);
+
+  // The background external popup tries to focus itself.
+  ASSERT_TRUE(content::ExecJs(popup_frame, "window.focus();",
+                              content::EXECUTE_SCRIPT_NO_USER_GESTURE));
+
+  EXPECT_TRUE(WindowHasFocus(iwa_browser));
+  EXPECT_TRUE(WindowHasNoFocus(popup_browser));
 }
 
 INSTANTIATE_TEST_SUITE_P(

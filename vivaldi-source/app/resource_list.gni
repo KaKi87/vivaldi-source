@@ -3,6 +3,11 @@
 #   filemap in app/resources/po2xtb_batch.py
 import("//services/screen_ai/buildflags/features.gni")
 
+declare_args() {
+  # Required data is not available in source bundle
+  vivaldi_check_translations_list = true
+}
+
 CHROMIUM_VIVALDI_RESOURCE_LIST = [
   [
     "//ui/strings:ui_strings",
@@ -309,6 +314,21 @@ ANDROID_VIVALDI_RESOURCE_LIST = [
       source = "java/strings/android_ui_strings.grd"
       vivaldi_translation_dir_setting = "strings"
       string_file_prefix = "android_ui_strings_"
+      java_grd_name = true
+    },
+  ],
+  [
+    "//chrome/browser/tab_ui/android:java_strings_grd__grit",
+    "//vivaldi/app/resources/android_tab_ui/vivaldi_android_tab_ui_strings.grd",
+    {
+      have_strings_flag = true
+      translation_dir_setting = "java/strings/translations"
+      pak_file_locale_prefix = "values-"
+      pak_file_prefix = "android_tab_ui_strings"
+      pak_file_extension = "xml"
+      source = "java/strings/android_tab_ui_strings.grd"
+      vivaldi_translation_dir_setting = "strings"
+      string_file_prefix = "android_tab_ui_strings_"
       java_grd_name = true
     },
   ],

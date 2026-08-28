@@ -64,6 +64,7 @@ import org.chromium.blink.mojom.HandwritingGestureResult;
 import org.chromium.blink.mojom.InputCursorAnchorInfo;
 import org.chromium.blink.mojom.StylusWritingGestureData;
 import org.chromium.blink_public.web.WebInputEventModifier;
+import org.chromium.blink_public.web.WebTextInputFlags;
 import org.chromium.blink_public.web.WebTextInputMode;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -86,6 +87,7 @@ import org.chromium.content_public.common.ContentFeatures;
 import org.chromium.mojo.system.MessagePipeHandle;
 import org.chromium.mojo.system.MojoException;
 import org.chromium.mojo.system.impl.CoreImpl;
+import org.chromium.ui.base.DeviceInput;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.base.ime.TextInputAction;
@@ -138,7 +140,7 @@ public class ImeAdapterImpl
                 InputMethodManagerWrapper.Delegate,
                 AutocorrectManager.Delegate {
     private static final String TAG = "Ime";
-    private static final boolean DEBUG_LOGS = true; //!!
+    private static final boolean DEBUG_LOGS = false;
 
     private static final float SUGGESTION_HIGHLIGHT_BACKGROUND_TRANSPARENCY = 0.4f;
 
@@ -224,6 +226,7 @@ public class ImeAdapterImpl
             BuildConfig.IS_OEM_MERCEDES_BUILD
                     ? new VivaldiMultiDisplayFocusGuard()
                     : null;
+    private boolean mScrolledEditableIntoView;
 
     /**
      * {@ResultReceiver} passed in InputMethodManager#showSoftInput}. We need this to scroll to the
@@ -279,6 +282,14 @@ public class ImeAdapterImpl
         public void close() {
             mHandle.close();
         }
+    }
+
+    public static boolean isAccessibilityMagnificationFollowsFocusEnabled() {
+        if (DeviceInput.supportsKeyboard(ContextUtils.getApplicationContext())) {
+            return ContentFeatureList.sAccessibilityMagnificationFollowsFocusKeyboardAttached
+                    .isEnabled();
+        }
+        return ContentFeatureList.sAccessibilityMagnificationFollowsFocusNoKeyboard.isEnabled();
     }
 
     /**
@@ -433,6 +444,15 @@ public class ImeAdapterImpl
     public void previewGesture(StylusWritingGestureData gestureData) {
         adjustForWindowPosition(gestureData);
         getStylusWritingImeCallback().handleStylusWritingGestureAction(-1, gestureData);
+    }
+
+    /** Signals to Blink to cancel and clear any active handwriting preview spans. */
+    public void cancelPreviewGesture() {
+        if (mNativeImeAdapterAndroid == 0) {
+            Log.e(TAG, "cancelPreviewGesture called after native adapter was destroyed.");
+            return;
+        }
+        ImeAdapterImplJni.get().cancelPreviewGesture(mNativeImeAdapterAndroid);
     }
 
     void handleGesture(OngoingGesture request) {
@@ -629,6 +649,11 @@ public class ImeAdapterImpl
     }
 
     @Override
+    public InputMethodManagerWrapper getInputMethodManagerWrapper() {
+        return mInputMethodManagerWrapper;
+    }
+
+    @Override
     public void setAllowFullscreenIme(boolean allow) {
         mAllowFullscreenIme = allow;
     }
@@ -806,7 +831,10 @@ public class ImeAdapterImpl
             }
 
             boolean editable = focusedNodeEditable();
-            boolean password = textInputType == TextInputType.PASSWORD;
+            boolean password =
+                    textInputType == TextInputType.PASSWORD
+                            || (textInputFlags & WebTextInputFlags.HAS_BEEN_PASSWORD_FIELD) != 0
+                            || (textInputFlags & WebTextInputFlags.HAS_BEEN_CUSTOM_PASSWORD) != 0;
             updateNodeAttributes(editable, password);
             if (mCursorAnchorInfoController != null
                     && (!TextUtils.equals(mLastText, text)
@@ -816,17 +844,17 @@ public class ImeAdapterImpl
                             || mLastCompositionEnd != compositionEnd)) {
                 mCursorAnchorInfoController.invalidateLastCursorAnchorInfo();
             }
-            // Vivaldi - On automotive, scroll the focused editable node into view when the
-            // user types, in case it was scrolled out of view while the keyboard was open.
-            // This can happen for very narrow displays. Ref. AUTO-335.
-            if (BuildConfig.IS_OEM_AUTOMOTIVE_BUILD
-                    && focusedNodeEditable()
-                    && !hide
-                    && !alwaysHide
-                    && (!TextUtils.equals(mLastText, text)
-                    || mLastSelectionStart != selectionStart
-                    || mLastSelectionEnd != selectionEnd)) {
-                mWebContents.scrollFocusedEditableNodeIntoView();
+            // Vivaldi AUTO-335: on automotive with a narrow display, scroll the
+            // focused editable node into view once when it gains focus.
+            if (BuildConfig.IS_OEM_AUTOMOTIVE_BUILD) {
+                if (editable && !hide && !alwaysHide) {
+                    if (!mScrolledEditableIntoView) {
+                        mWebContents.scrollFocusedEditableNodeIntoView();
+                        mScrolledEditableIntoView = true;
+                    }
+                } else {
+                    mScrolledEditableIntoView = false;
+                }
             }
             mLastText = text;
             mLastSelectionStart = selectionStart;
@@ -1632,7 +1660,7 @@ public class ImeAdapterImpl
         // Note: `SDK_INT_FULL` added in `BAKLAVA`, hence two checks.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA
                 && Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1
-                && ContentFeatureList.sAccessibilityMagnificationFollowsFocus.isEnabled()) {
+                && isAccessibilityMagnificationFollowsFocusEnabled()) {
             Rect nodePix =
                     fromViewportDipToViewContentPix(
                             nodeLeftDip, nodeTopDip, nodeRightDip, nodeBottomDip, containerView);
@@ -1877,7 +1905,7 @@ public class ImeAdapterImpl
         // Request view system keep caret on screen when moved.
         if (isSelectionMove
                 && cursorAnchorInfo.insertionMarker != null
-                && ContentFeatureList.sAccessibilityMagnificationFollowsFocus.isEnabled()) {
+                && isAccessibilityMagnificationFollowsFocusEnabled()) {
             // Convert caret bounds from CSS pixels to device pixels relative to root view.
             var caretCss = cursorAnchorInfo.insertionMarker;
             Rect caretPix =
@@ -2258,6 +2286,8 @@ public class ImeAdapterImpl
         // Stylus Writing
         void handleStylusWritingGestureAction(
                 long nativeImeAdapterAndroid, int id, ByteBuffer gestureData);
+
+        void cancelPreviewGesture(long nativeImeAdapterAndroid);
 
         void performSpellCheck(long nativeImeAdapterAndroid);
 

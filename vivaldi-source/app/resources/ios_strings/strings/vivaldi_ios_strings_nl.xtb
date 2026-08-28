@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Vraag om links van andere apps in privémodus te openen</translation>
 <translation id="1624481300475123200">Wachtwoorden automatisch invullen</translation>
 <translation id="1743244221910283364">Wijzigingen niet doorvoeren</translation>
+<translation id="1972589975368876259">Groep bewerken</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {tabblad toevoegen aan groep}
         other {tabbladen toevoegen aan groep}}</translation>
@@ -48,7 +49,6 @@
 <translation id="4772190485302020393">Alle tabbladen en -groepen sluiten</translation>
 <translation id="4802185666270672526">Desktopsite opvragen verbergen</translation>
 <translation id="4828571836982833289">Tabgroep opheffen?</translation>
-<translation id="4838250035189612538">Tabgroep hernoemen</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 tabgroep afgesloten en opgeslagen}
             other {{count} tabgroepen afgesloten en opgeslagen}}</translation>
@@ -111,8 +111,8 @@ Handoff moet ook worden ingeschakeld in de sectie Algemeen van Instellingen en u
 <translation id="8345989863850359861">Tabblad verwijderen en -groep wissen?</translation>
 <translation id="8407986162266014185">Tabgroep delen</translation>
 <translation id="8412536526999793719">{count, plural,
-        =1 {tabblad toevoegen aan nieuw groep}
-        other {tabbladen toevoegen aan nieuw groep}}</translation>
+        =1 {tabblad toevoegen aan nieuwe groep}
+        other {tabbladen toevoegen aan nieuwe groep}}</translation>
 <translation id="8465550436083180511">Tabgroep inklappen.</translation>
 <translation id="8499954848910902473">Je kunt naar links vegen om Privé te browsen.</translation>
 <translation id="8685478989144570078">Tabgroepen</translation>

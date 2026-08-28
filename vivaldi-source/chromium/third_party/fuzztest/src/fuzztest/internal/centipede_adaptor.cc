@@ -135,7 +135,7 @@ absl::StatusOr<std::vector<std::string>> GetProcessArgs() {
                          start_pos - current_argv_pos);
     ++start_pos;
   }
-  return result;
+  return results;
 #elif defined(__linux__)
   const int fd = open("/proc/self/cmdline", O_RDONLY);
   if (fd < 0) {
@@ -269,8 +269,8 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
         std::string{test_name}};
     single_test_configuration.time_limit = total_time_limit;
     single_test_configuration.time_budget_type = TimeBudgetType::kTotal;
-    env.fuzztest_configuration =
-        absl::WebSafeBase64Escape(single_test_configuration.Serialize());
+    env.UpdateWithTargetConfig(single_test_configuration);
+    env.fuzztest_configuration = "(null)";
   }
 
   absl::StrAppend(&env.binary,
@@ -351,27 +351,35 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
   return env;
 }
 
+StopCondition global_stop_condition;
+
 void InstallCentipedeTerminationHandler() {
   [[maybe_unused]] static bool install_once = [] {
-    for (int signum : {SIGTERM, SIGHUP}) {
+    for (int signum : {SIGTERM, SIGHUP, SIGINT}) {
       struct sigaction new_sigact = {};
       sigemptyset(&new_sigact.sa_mask);
       new_sigact.sa_handler = [](int signum) {
         Runtime::instance().SetTerminationRequested();
-        RequestEarlyStop(EXIT_SUCCESS);
+        global_stop_condition.RequestEarlyStop(EXIT_SUCCESS);
         const int fd =
             GetStderrFdDup() != -1 ? GetStderrFdDup() : STDERR_FILENO;
         if (signum == SIGTERM) {
-          constexpr char msg[] = "\n[!] SIGTERM received - stopping fuzzing.\n";
-          write(fd, msg, sizeof(msg) - 1);
+          constexpr char kMsg[] =
+              "\n[!] SIGTERM received - stopping fuzzing.\n";
+          write(fd, kMsg, sizeof(kMsg) - 1);
           return;
         } else if (signum == SIGHUP) {
-          constexpr char msg[] = "\n[!] SIGHUP received - stopping fuzzing.\n";
-          write(fd, msg, sizeof(msg) - 1);
+          constexpr char kMsg[] = "\n[!] SIGHUP received - stopping fuzzing.\n";
+          write(fd, kMsg, sizeof(kMsg) - 1);
+          return;
+        } else if (signum == SIGINT) {
+          constexpr char kMsg[] = "\n[!] SIGINT received - stopping fuzzing.\n";
+          write(fd, kMsg, sizeof(kMsg) - 1);
           return;
         }
-        constexpr char msg[] = "\n[!] Unexpected signal received - aborting.\n";
-        write(fd, msg, sizeof(msg) - 1);
+        constexpr char kMsg[] =
+            "\n[!] Unexpected signal received - aborting.\n";
+        write(fd, kMsg, sizeof(kMsg) - 1);
         std::abort();
       };
 
@@ -390,6 +398,8 @@ void InstallCentipedeTerminationHandler() {
 
 int RunCentipede(const Environment& env,
                  const std::optional<std::string>& centipede_command) {
+  FUZZTEST_CHECK(!IsCentipedeRunner())
+      << "Unexpected RunCentipede() in runner mode.";
   if (Runtime::instance().termination_requested()) {
     absl::FPrintF(GetStderr(),
                   "Not running Centipede due to termination requested - "
@@ -426,9 +436,11 @@ int RunCentipede(const Environment& env,
         << "Termination status must be Exited if not Signaled";
     return static_cast<int>(std::get<ExitCodeT>(status.Status()));
   }
+  global_stop_condition.ClearEarlyStopRequest();
+  global_stop_condition.SetStopTime(absl::InfiniteFuture());
   static absl::NoDestructor<DefaultCallbacksFactory<CentipedeDefaultCallbacks>>
       factory;
-  return CentipedeMain(env, *factory);
+  return CentipedeMain(env, *factory, &global_stop_condition);
 }
 
 }  // namespace
@@ -908,11 +920,6 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
           CentipedeSetFailureDescription(std::string{crash_type}.c_str());
         });
   }
-  if (!configuration.corpus_database.empty() &&
-      configuration.crashing_input_to_reproduce.has_value() &&
-      configuration.replay_in_single_process) {
-    return ReplayCrashInSingleProcess(configuration);
-  }
   if (runner_mode) {
     std::optional<int> result;
     fuzzer_impl_.fixture_driver_->RunFuzzTest([&, this]() {
@@ -928,7 +935,13 @@ bool CentipedeFuzzerAdaptor::Run(int* argc, char*** argv, RunMode mode,
     FUZZTEST_CHECK(result.has_value())
         << "No result is set for running fuzz test";
     return *result == EXIT_SUCCESS;
-  } else if (is_running_property_function_in_this_process) {
+  }
+  if (!configuration.corpus_database.empty() &&
+      configuration.crashing_input_to_reproduce.has_value() &&
+      configuration.replay_in_single_process) {
+    return ReplayCrashInSingleProcess(configuration);
+  }
+  if (is_running_property_function_in_this_process) {
     // If `is_running_property_function_in_this_process` holds at this point. We
     // assume it is for `ReplayInputsIfAvailable` to handle `FUZZTEST_REPLAY`
     // and `FUZZTEST_MINIMIZE_REPRODUCER`, which Centipede does not support.
@@ -1076,7 +1089,8 @@ extern "C" const char* CentipedeGetRunnerFlags() {
 
   // Set the runner flags according to the FuzzTest default environment.
   const auto env = fuzztest::internal::CreateDefaultCentipedeEnvironment();
-  CentipedeCallbacksForRunnerFlagsExtraction callbacks(env);
+  CentipedeCallbacksForRunnerFlagsExtraction callbacks(
+      env, fuzztest::internal::global_stop_condition);
   const std::string runner_flags = callbacks.GetRunnerFlagsContent();
   ABSL_VLOG(1) << "[.] Centipede runner flags: " << runner_flags;
   return strdup(runner_flags.c_str());

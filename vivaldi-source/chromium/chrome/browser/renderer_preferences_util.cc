@@ -26,7 +26,6 @@
 #include "components/language/core/browser/pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/renderer_preferences_util.h"
-#include "content/public/common/content_features.h"
 #include "media/media_buildflags.h"
 #include "third_party/blink/public/common/peerconnection/webrtc_ip_handling_policy.h"
 #include "third_party/blink/public/common/renderer_preferences/renderer_preferences.h"
@@ -34,6 +33,7 @@
 #include "third_party/blink/public/public_buildflags.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/accessibility/platform/ax_platform.h"
+#include "ui/base/accelerators/command.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/native_theme/native_theme.h"
 
@@ -202,12 +202,29 @@ void UpdateFromSystemSettings(blink::RendererPreferences* prefs,
 #endif
   prefs->caret_browsing_enabled =
       pref_service->GetBoolean(prefs::kCaretBrowsingEnabled);
-#if BUILDFLAG(IS_ANDROID)
-  if (!base::FeatureList::IsEnabled(features::kAndroidCaretBrowsing)) {
-    // ensures caret browsing is disabled on Clank if the feature flag is off
-    prefs->caret_browsing_enabled = false;
+
+  const base::DictValue& autofill_trigger_info =
+      pref_service->GetDict(autofill::prefs::kAutofillAtMemoryTriggerInfo);
+  if (autofill_trigger_info.FindBool("is_shortcut").value_or(false)) {
+    if (const std::string* trigger_string =
+            autofill_trigger_info.FindString("trigger")) {
+      ui::Accelerator accelerator =
+          ui::Command::StringToAccelerator(*trigger_string);
+      prefs->autofill_shortcut_key_code = accelerator.key_code();
+      prefs->autofill_shortcut_modifiers = accelerator.modifiers();
+      prefs->autofill_trigger_string = "";
+    }
+  } else {
+    prefs->autofill_shortcut_key_code = ui::VKEY_UNKNOWN;
+    prefs->autofill_shortcut_modifiers = 0;
+    if (const std::string* trigger_string =
+            autofill_trigger_info.FindString("trigger")) {
+      prefs->autofill_trigger_string = *trigger_string;
+    } else {
+      prefs->autofill_trigger_string = "";
+    }
   }
-#endif
+
   ui::AXPlatform::GetInstance().SetCaretBrowsingState(
       prefs->caret_browsing_enabled);
   if (PrefService* const local_state = g_browser_process->local_state()) {

@@ -60,7 +60,7 @@ class PDFExtensionJSTestBase : public PDFExtensionTestBase {
         pak_path, ui::kScaleFactorNone);
 
     // Register the chrome://webui-test data source.
-    webui::CreateAndAddWebUITestDataSource(browser()->profile());
+    webui::CreateAndAddWebUITestDataSource(browser()->GetProfile());
 
     base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
     if (command_line->HasSwitch(switches::kDevtoolsCodeCoverage)) {
@@ -347,7 +347,7 @@ class PDFExtensionContentSettingJSTest : public PDFExtensionJSTest {
  protected:
   void SetPdfJavaScript(bool enabled) {
     auto* map =
-        HostContentSettingsMapFactory::GetForProfile(browser()->profile());
+        HostContentSettingsMapFactory::GetForProfile(browser()->GetProfile());
     map->SetContentSettingCustomScope(
         ContentSettingsPattern::Wildcard(), ContentSettingsPattern::Wildcard(),
         ContentSettingsType::JAVASCRIPT,
@@ -644,6 +644,10 @@ IN_PROC_BROWSER_TEST_P(PDFExtensionJSInk2Test, CaretBrowsingMode) {
   RunTestsInJsModule("caret_browsing_mode_test.js", "test-bookmarks.pdf");
 }
 
+IN_PROC_BROWSER_TEST_P(PDFExtensionJSInk2Test, InkTextAnnotationUtils) {
+  RunTestsInJsModule("ink_text_annotation_utils_test.js", "test.pdf");
+}
+
 class PDFExtensionJSInk2TextTest : public PDFExtensionJSTest {
  protected:
   std::vector<base::test::FeatureRefAndParams> GetEnabledFeatures()
@@ -694,6 +698,10 @@ IN_PROC_BROWSER_TEST_P(PDFExtensionJSInk2TextTest, Ink2TextSidePanel) {
 
 IN_PROC_BROWSER_TEST_P(PDFExtensionJSInk2TextTest, Ink2TextStylesSelector) {
   RunTestsInJsModule("ink2_text_styles_selector_test.js", "test.pdf");
+}
+
+IN_PROC_BROWSER_TEST_P(PDFExtensionJSInk2TextTest, InkTextAnnotations) {
+  RunTestsInJsModule("ink2_text_annotations_test.js", "test.pdf");
 }
 
 class PDFExtensionJSInk2BeforeUnloadTest : public PDFExtensionJSTestBase {

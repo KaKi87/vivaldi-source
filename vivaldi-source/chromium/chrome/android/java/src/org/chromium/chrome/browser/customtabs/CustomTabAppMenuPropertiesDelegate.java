@@ -23,6 +23,7 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.DefaultBrowserMenuUtils;
+import org.chromium.chrome.browser.app.appmenu.AppMenuItemUtils;
 import org.chromium.chrome.browser.app.appmenu.AppMenuPropertiesDelegateImpl;
 import org.chromium.chrome.browser.bookmarks.BookmarkModel;
 import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
@@ -40,6 +41,7 @@ import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.toolbar.ToolbarManager;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuHandler;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuItemProperties;
+import org.chromium.components.browser_ui.accessibility.PageZoomManager;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.ui.modelutil.MVCListAdapter;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -107,6 +109,7 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
             MonotonicObservableSupplier<ReadAloudController> readAloudControllerSupplier,
             Supplier<ContextualPageActionController> contextualPageActionControllerSupplier,
             boolean hasClientPackage,
+            @Nullable PageZoomManager pageZoomManager,
             @Nullable OpenInAppMenuItemProvider openInAppMenuItemProvider) {
         super(
                 context,
@@ -118,6 +121,7 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
                 null,
                 bookmarkModelSupplier,
                 readAloudControllerSupplier,
+                pageZoomManager,
                 openInAppMenuItemProvider);
         mVerifier = verifier;
         mUiType = uiType;
@@ -165,7 +169,6 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
         boolean addToHomeScreenVisible = true;
         boolean requestDesktopSiteVisible = true;
         boolean tryAddingReadAloud = false; // Vivaldi VAB-12795
-        boolean readerModePrefsVisible = false;
         boolean translateVisible = true;
         // When the icon row is visible, site info is a button in that row.
         // This is a separate menu item row for the site info shown within the icon row.
@@ -199,15 +202,6 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
             requestDesktopSiteVisible = false;
             addToHomeScreenVisible = false;
             tryAddingReadAloud = false;
-        } else if (mUiType == CustomTabsUiType.READER_MODE) {
-            // Only 'find in page' and the reader mode preference are shown for Reader Mode UI.
-            iconRowVisible = false;
-            bookmarkItemVisible = false; // Set to skip initialization.
-            downloadItemVisible = false; // Set to skip initialization.
-            requestDesktopSiteVisible = false;
-            addToHomeScreenVisible = false;
-            tryAddingReadAloud = false;
-            readerModePrefsVisible = true;
         } else if (mUiType == CustomTabsUiType.MINIMAL_UI_WEBAPP) {
             requestDesktopSiteVisible = false;
             // For Webapps & WebAPKs Verifier#wasPreviouslyVerified() performs verification
@@ -319,7 +313,8 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
             modelList.add(
                     new MVCListAdapter.ListItem(
                             AppMenuHandler.AppMenuItemType.BUTTON_ROW,
-                            buildModelForIconRow(R.id.icon_row_menu_id, iconModels)));
+                            AppMenuItemUtils.buildModelForIconRow(
+                                    R.id.icon_row_menu_id, iconModels, isMenuIconAtStart())));
         }
 
         // --- App Specific Items / Divider ---
@@ -342,7 +337,8 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
             modelList.add(
                     new MVCListAdapter.ListItem(
                             AppMenuHandler.AppMenuItemType.STANDARD,
-                            buildBaseModelForTextItem(id)
+                            AppMenuItemUtils.buildBaseModelForTextItem(
+                                            getAppMenuItemTheme(), id, isMenuIconAtStart())
                                     .with(AppMenuItemProperties.TITLE, mMenuEntries.get(i))
                                     .build()));
             mItemIdToIndexMap.put(id, i);
@@ -352,7 +348,7 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
             modelList.add(
                     new MVCListAdapter.ListItem(
                             AppMenuHandler.AppMenuItemType.DIVIDER,
-                            buildModelForDivider(R.id.divider_line_id)));
+                            AppMenuItemUtils.buildModelForDivider(R.id.divider_line_id)));
         }
 
         // --- App info row ---
@@ -360,8 +356,13 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
             modelList.add(
                     new MVCListAdapter.ListItem(
                             AppMenuHandler.AppMenuItemType.STANDARD,
-                            buildModelForStandardMenuItem(
-                                    R.id.info_menu_id, R.string.menu_app_info, 0)));
+                            AppMenuItemUtils.buildModelForStandardMenuItem(
+                                    mContext,
+                                    getAppMenuItemTheme(),
+                                    R.id.info_menu_id,
+                                    R.string.menu_app_info,
+                                    0,
+                                    isMenuIconAtStart())));
         }
 
         // --- Open in browser ---
@@ -382,8 +383,9 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
         }
 
         // --- Reader Mode ---
+        boolean shouldShowIconBeforeItem = shouldShowIconBeforeItem();
         if (shouldShowReaderModeItem()) {
-            modelList.add(buildReaderModeItem(currentTab));
+            modelList.add(buildReaderModeItem(currentTab, shouldShowIconBeforeItem));
         }
 
         // --- Share ---
@@ -396,8 +398,13 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
             modelList.add(
                     new MVCListAdapter.ListItem(
                             AppMenuHandler.AppMenuItemType.STANDARD,
-                            buildModelForStandardMenuItem(
-                                    R.id.open_history_menu_id, R.string.chrome_history, 0)));
+                            AppMenuItemUtils.buildModelForStandardMenuItem(
+                                    mContext,
+                                    getAppMenuItemTheme(),
+                                    R.id.open_history_menu_id,
+                                    R.string.chrome_history,
+                                    0,
+                                    isMenuIconAtStart())));
         }
 
         // --- Find in Page ---
@@ -405,13 +412,13 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
             modelList.add(
                     new MVCListAdapter.ListItem(
                             AppMenuHandler.AppMenuItemType.STANDARD,
-                            buildModelForStandardMenuItem(
-                                    R.id.find_in_page_id, R.string.menu_find_in_page, 0)));
-        }
-
-        // --- Reader Mode Prefs ---
-        if (readerModePrefsVisible) {
-            modelList.add(buildReaderModePrefsItem());
+                            AppMenuItemUtils.buildModelForStandardMenuItem(
+                                    mContext,
+                                    getAppMenuItemTheme(),
+                                    R.id.find_in_page_id,
+                                    R.string.menu_find_in_page,
+                                    0,
+                                    isMenuIconAtStart())));
         }
 
         // --- Price Tracking / Price Insights ---
@@ -427,10 +434,13 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
                 modelList.add(
                         new MVCListAdapter.ListItem(
                                 AppMenuHandler.AppMenuItemType.STANDARD,
-                                buildModelForStandardMenuItem(
+                                AppMenuItemUtils.buildModelForStandardMenuItem(
+                                        mContext,
+                                        getAppMenuItemTheme(),
                                         R.id.price_insights_menu_id,
                                         R.string.price_insights_title,
-                                        R.drawable.ic_trending_down_24dp)));
+                                        R.drawable.ic_trending_down_24dp,
+                                        isMenuIconAtStart())));
             }
         }
 
@@ -457,8 +467,9 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
         if (simplifiedViewItem != null) modelList.add(simplifiedViewItem);
 
         // Vivaldi: Reader Mode Prefs (Appearance)
-        if (shouldShowReaderModePrefs(currentTab)) {
-            MVCListAdapter.ListItem readerModePrefsItem = buildReaderModePrefsItem();
+        if (shouldShowReaderModeItem()) {
+            MVCListAdapter.ListItem readerModePrefsItem =
+                    buildReaderModeItem(currentTab, shouldShowReaderModeItem());
             modelList.add(readerModePrefsItem);
         }
 
@@ -469,7 +480,7 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
 
         // --- Site controls ---
         if (shouldShowPageInfoItem()) {
-            modelList.add(buildPageInfoItem(currentTab));
+            modelList.add(buildPageInfoItem(currentTab, shouldShowIconBeforeItem));
         }
 
         // --- Open with ---
@@ -484,11 +495,9 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
 
         // --- Zoom ---
         if (zoomVisible) {
-            modelList.add(
-                    new MVCListAdapter.ListItem(
-                            AppMenuHandler.AppMenuItemType.STANDARD,
-                            buildModelForStandardMenuItem(
-                                    R.id.page_zoom_id, R.string.page_zoom_menu_title, 0)));
+            if (shouldShowPageZoomItem(currentTab)) {
+                modelList.add(buildPageZoomItem(currentTab));
+            }
         }
         return modelList;
     }
@@ -500,10 +509,11 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
                    .getString(R.string.app_name);
            String title = ContextUtils.getApplicationContext()
                    .getString(R.string.cct_open_in_vivaldi_template, appName);
-           PropertyModel model =
-                   buildBaseModelForTextItem(R.id.open_in_browser_id)
-                           .with(AppMenuItemProperties.TITLE, title)
-                           .build();
+           PropertyModel model = AppMenuItemUtils
+                                         .buildBaseModelForTextItem(getAppMenuItemTheme(),
+                                                 R.id.open_in_browser_id, isMenuIconAtStart())
+                                         .with(AppMenuItemProperties.TITLE, title)
+                                         .build();
            modelList.add(
                    new MVCListAdapter.ListItem(AppMenuHandler.AppMenuItemType.STANDARD, model));
         } else { // Vivaldi
@@ -517,7 +527,8 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
             title = DefaultBrowserMenuUtils.getTitleOpenInDefaultBrowser(false);
         }
         PropertyModel model =
-                buildBaseModelForTextItem(R.id.open_in_browser_id)
+                AppMenuItemUtils.buildBaseModelForTextItem(
+                                getAppMenuItemTheme(), R.id.open_in_browser_id, isMenuIconAtStart())
                         .with(AppMenuItemProperties.TITLE, title)
                         .build();
         if (showIcon) {

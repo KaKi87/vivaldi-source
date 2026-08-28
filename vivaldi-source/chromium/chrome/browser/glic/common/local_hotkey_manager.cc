@@ -10,7 +10,6 @@
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
-#include "chrome/browser/background/glic/glic_launcher_configuration.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/profiles/profile.h"
@@ -23,24 +22,41 @@ namespace glic {
 
 namespace {
 
-#if BUILDFLAG(IS_MAC)
 constexpr int kFocusToggleAcceleratorModifiers =
+#if BUILDFLAG(IS_MAC)
     ui::EF_CONTROL_DOWN | ui::EF_COMMAND_DOWN;
 #elif BUILDFLAG(IS_CHROMEOS)
 // ui::EF_COMMAND_DOWN is the search key for ChromeOS.
-constexpr int kFocusToggleAcceleratorModifiers =
     ui::EF_COMMAND_DOWN | ui::EF_ALT_DOWN;
 #else
-constexpr int kFocusToggleAcceleratorModifiers =
     ui::EF_ALT_DOWN | ui::EF_SHIFT_DOWN;
 #endif
 
+constexpr int kCaptureRegionAcceleratorModifiers =
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS)
+    ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN;
+#else
+    ui::EF_ALT_DOWN | ui::EF_CONTROL_DOWN;
+#endif
+
+constexpr int kPanelToggleAcceleratorModifiers =
+#if BUILDFLAG(IS_MAC)
+    ui::EF_CONTROL_DOWN;
+#elif BUILDFLAG(IS_CHROMEOS)
+    // ui::EF_COMMAND_DOWN is the search key for ChromeOS.
+    ui::EF_COMMAND_DOWN;
+#else
+        ui::EF_ALT_DOWN;
+#endif
+
 constexpr auto kCommandToPrefMap =
-    base::MakeFixedFlatMap<LocalHotkeyManager::Command, const char*>(
-        {{LocalHotkeyManager::Command::kFocusToggle,
-          prefs::kGlicFocusToggleHotkey},
-         {LocalHotkeyManager::Command::kCaptureRegion,
-          prefs::kGlicSelectionHotkey}});
+    base::MakeFixedFlatMap<LocalHotkeyManager::Command, const char*>({
+        {LocalHotkeyManager::Command::kFocusToggle,
+         prefs::kGlicFocusToggleHotkey},
+        {LocalHotkeyManager::Command::kCaptureRegion,
+         prefs::kGlicSelectionHotkey},
+        {LocalHotkeyManager::Command::kPanelToggle, prefs::kGlicLauncherHotkey},
+    });
 
 constexpr std::array kCloseAccelerators = {
     ui::Accelerator{ui::VKEY_ESCAPE, ui::EF_NONE},
@@ -64,28 +80,34 @@ constexpr int kZoomModifier = ui::EF_CONTROL_DOWN;
 
 constexpr std::array kZoomInAccelerators = {
     ui::Accelerator{ui::VKEY_OEM_PLUS, kZoomModifier},
-    ui::Accelerator{ui::VKEY_ADD, kZoomModifier}};
+    ui::Accelerator{ui::VKEY_OEM_PLUS, kZoomModifier | ui::EF_SHIFT_DOWN},
+    ui::Accelerator{ui::VKEY_ADD, kZoomModifier},
+    ui::Accelerator{ui::VKEY_ADD, kZoomModifier | ui::EF_SHIFT_DOWN}};
 
 constexpr std::array kZoomOutAccelerators = {
     ui::Accelerator{ui::VKEY_OEM_MINUS, kZoomModifier},
-    ui::Accelerator{ui::VKEY_SUBTRACT, kZoomModifier}};
+    ui::Accelerator{ui::VKEY_OEM_MINUS, kZoomModifier | ui::EF_SHIFT_DOWN},
+    ui::Accelerator{ui::VKEY_SUBTRACT, kZoomModifier},
+    ui::Accelerator{ui::VKEY_SUBTRACT, kZoomModifier | ui::EF_SHIFT_DOWN}};
 
 constexpr std::array kZoomResetAccelerators = {
     ui::Accelerator{ui::VKEY_0, kZoomModifier},
-    ui::Accelerator{ui::VKEY_NUMPAD0, kZoomModifier}};
+    ui::Accelerator{ui::VKEY_0, kZoomModifier | ui::EF_SHIFT_DOWN},
+    ui::Accelerator{ui::VKEY_NUMPAD0, kZoomModifier},
+    ui::Accelerator{ui::VKEY_NUMPAD0, kZoomModifier | ui::EF_SHIFT_DOWN}};
 
 constexpr auto kCommandToStaticAcceleratorsMap =
     base::MakeFixedFlatMap<LocalHotkeyManager::Command,
-                           base::span<const ui::Accelerator>>(
-        {{LocalHotkeyManager::Command::kClose, kCloseAccelerators},
-         {LocalHotkeyManager::Command::kZoomIn, kZoomInAccelerators},
-         {LocalHotkeyManager::Command::kZoomOut, kZoomOutAccelerators},
-         {LocalHotkeyManager::Command::kZoomReset, kZoomResetAccelerators},
+                           base::span<const ui::Accelerator>>({
+        {LocalHotkeyManager::Command::kClose, kCloseAccelerators},
+        {LocalHotkeyManager::Command::kZoomIn, kZoomInAccelerators},
+        {LocalHotkeyManager::Command::kZoomOut, kZoomOutAccelerators},
+        {LocalHotkeyManager::Command::kZoomReset, kZoomResetAccelerators},
 #if BUILDFLAG(IS_WIN)
-         {LocalHotkeyManager::Command::kTitleBarContextMenu,
-          kTitleBarContextMenuAccelerators}
+        {LocalHotkeyManager::Command::kTitleBarContextMenu,
+         kTitleBarContextMenuAccelerators},
 #endif
-        });
+    });
 
 // Compile-time helper to check if the keys in two maps are disjoint.
 // It checks if any key from map1 exists in map2.
@@ -149,7 +171,9 @@ ui::Accelerator LocalHotkeyManager::GetDefaultAccelerator(Command command) {
     case Command::kFocusToggle:
       return ui::Accelerator{ui::VKEY_G, kFocusToggleAcceleratorModifiers};
     case Command::kCaptureRegion:
-      return GlicLauncherConfiguration::GetDefaultSelectionHotkey();
+      return ui::Accelerator{ui::VKEY_G, kCaptureRegionAcceleratorModifiers};
+    case Command::kPanelToggle:
+      return ui::Accelerator{ui::VKEY_G, kPanelToggleAcceleratorModifiers};
     default:
       NOTREACHED();
   }
@@ -169,7 +193,6 @@ ui::Accelerator LocalHotkeyManager::GetConfigurableAccelerator(
   auto pref_name_iter = kCommandToPrefMap.find(command);
   CHECK(pref_name_iter != kCommandToPrefMap.end());
 
-  // NEEDS_ANDROID_IMPL: StringToAccelerator does not work on Android.
   const ui::Accelerator accelerator = ui::Command::StringToAccelerator(
       g_browser_process->local_state()->GetString(pref_name_iter->second));
 
@@ -225,8 +248,20 @@ bool LocalHotkeyManager::CanHandleAccelerators() const {
   return event_handler_->CanHandleAccelerators();
 }
 
+bool LocalHotkeyManager::IsRegisteredAccelerator(
+    const ui::Accelerator& accelerator) const {
+  for (Command command : supported_commands_) {
+    for (const ui::Accelerator& registered_accel : GetAccelerators(command)) {
+      if (registered_accel == accelerator) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 std::vector<ui::Accelerator> LocalHotkeyManager::GetAccelerators(
-    Command command) {
+    Command command) const {
   std::vector<ui::Accelerator> accelerators_to_register;
   if (kCommandToPrefMap.contains(command)) {
     // Configurable hotkey
@@ -267,6 +302,10 @@ void LocalHotkeyManager::RegisterCommand(Command command) {
   if (!new_registrations.empty()) {
     command_registrations_.emplace(command, std::move(new_registrations));
   }
+}
+
+BrowserWindowInterface* LocalHotkeyManager::Panel::GetBrowserWindowInterface() {
+  return nullptr;
 }
 
 }  // namespace glic

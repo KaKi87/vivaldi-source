@@ -321,7 +321,7 @@ IN_PROC_BROWSER_TEST_F(BackToOpenerBrowserTest, OpenerMovedToAnotherWindow) {
       browser()->tab_strip_model()->DetachWebContentsAtForInsertion(
           opener_index);
   Browser* new_browser =
-      Browser::Create(Browser::CreateParams(browser()->profile(), true));
+      Browser::Create(Browser::CreateParams(browser()->GetProfile(), true));
   new_browser->tab_strip_model()->InsertWebContentsAt(0, std::move(detached),
                                                       AddTabTypes::ADD_ACTIVE);
 
@@ -343,7 +343,7 @@ IN_PROC_BROWSER_TEST_F(BackToOpenerBrowserTest, OpenerMovedToAnotherWindow) {
 IN_PROC_BROWSER_TEST_F(BackToOpenerBrowserTest,
                        TabOpenedWithoutOpenerNoRelationship) {
   // Open a new tab directly (not from a link click)
-  chrome::NewTab(browser());
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
   content::WebContents* new_tab_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
 

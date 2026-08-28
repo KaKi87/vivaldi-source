@@ -14,6 +14,8 @@
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
+#include "base/i18n/language_tag.h"
+#include "base/i18n/tag_converters.h"
 #include "base/path_service.h"
 #include "base/system/sys_info.h"
 #include "base/task/thread_pool.h"
@@ -29,7 +31,6 @@
 #include "chrome/browser/ui/ash/login/login_display_host.h"
 #include "chrome/browser/ui/ash/login/login_display_host_common.h"
 #include "chrome/common/chrome_paths.h"
-#include "chrome/common/pref_names.h"
 #include "chromeos/ash/components/dbus/oobe_config/oobe_configuration_client.h"
 #include "chromeos/ash/components/install_attributes/install_attributes.h"
 #include "chromeos/ash/experiences/arc/arc_prefs.h"
@@ -62,7 +63,7 @@ void SaveIntegerPreferenceForced(PrefService& local_state,
 // Saves string "Local State" preference and forces its persistence to disk.
 void SaveStringPreferenceForced(PrefService& local_state,
                                 const char* pref_name,
-                                const std::string& value) {
+                                std::string_view value) {
   local_state.SetString(pref_name, value);
   local_state.CommitPendingWrite();
 }
@@ -136,6 +137,8 @@ void StartupUtils::RegisterPrefs(PrefRegistrySimple* registry) {
       constants::kDefaultAuthenticationFlowAutoReloadInterval);
 
   registry->RegisterBooleanPref(prefs::kAutoEnrollmentCheckExited, false);
+  registry->RegisterIntegerPref(prefs::kDeviceOnlinePasswordMismatchBehavior,
+                                0);
 }
 
 // static
@@ -251,7 +254,9 @@ bool StartupUtils::IsDeviceRegistered(PrefService& local_state) {
   if (value > 0) {
     // Recreate flag file in case it was lost.
     base::ThreadPool::PostTask(
-        FROM_HERE, {base::TaskPriority::BEST_EFFORT, base::MayBlock()},
+        FROM_HERE,
+        {base::TaskPriority::USER_VISIBLE, base::MayBlock(),
+         base::TaskShutdownBehavior::BLOCK_SHUTDOWN},
         base::BindOnce(&CreateOobeCompleteFlagFile));
     return true;
   } else if (value == 0) {
@@ -292,11 +297,15 @@ void StartupUtils::MarkDeviceRegistered(PrefService& local_state,
 
   if (done_callback.is_null()) {
     base::ThreadPool::PostTask(
-        FROM_HERE, {base::TaskPriority::BEST_EFFORT, base::MayBlock()},
+        FROM_HERE,
+        {base::TaskPriority::USER_VISIBLE, base::MayBlock(),
+         base::TaskShutdownBehavior::BLOCK_SHUTDOWN},
         base::BindOnce(&CreateOobeCompleteFlagFile));
   } else {
     base::ThreadPool::PostTaskAndReply(
-        FROM_HERE, {base::TaskPriority::BEST_EFFORT, base::MayBlock()},
+        FROM_HERE,
+        {base::TaskPriority::USER_VISIBLE, base::MayBlock(),
+         base::TaskShutdownBehavior::BLOCK_SHUTDOWN},
         base::BindOnce(&CreateOobeCompleteFlagFile), std::move(done_callback));
   }
 }
@@ -308,18 +317,22 @@ void StartupUtils::MarkEnrollmentRecoveryRequired(PrefService& local_state) {
 }
 
 // static
-std::string StartupUtils::GetInitialLocale(const PrefService& local_state) {
+base::i18n::LanguageTag StartupUtils::GetInitialLocale(
+    const PrefService& local_state) {
   std::string locale = local_state.GetString(ash::prefs::kInitialLocale);
-  if (!l10n_util::IsValidLocaleSyntax(locale))
-    locale = "en-US";
-  return locale;
+  return base::i18n::LanguageTagConverter::GetInstance()
+      .FromString(locale)
+      .value_or(base::i18n::GetKnownLanguageTag("en-US"));
 }
 
 // static
 void StartupUtils::SetInitialLocale(PrefService& local_state,
                                     const std::string& locale) {
-  if (l10n_util::IsValidLocaleSyntax(locale)) {
-    SaveStringPreferenceForced(local_state, ash::prefs::kInitialLocale, locale);
+  if (std::optional<base::i18n::LanguageTag> language_tag =
+          base::i18n::LanguageTagConverter::GetInstance().FromString(locale);
+      language_tag) {
+    SaveStringPreferenceForced(local_state, ash::prefs::kInitialLocale,
+                               language_tag->tag_string());
   } else {
     NOTREACHED();
   }

@@ -9,11 +9,11 @@
   <release seq="1">
     <includes>
       <include name="IDR_VIVALDI_EXTENSION_API_FEATURES" file="api/_api_features.json" type="BINDATA" />
-      <include name="IDR_WEB_VIEW_PRIVATE_API_IMPL_JS" file="api/guest_view/web_view_private_impl.js" type="BINDATA" />
-      <include name="IDR_WEB_VIEW_PRIVATE_API_METHODS_JS" file="api/guest_view/web_view_private_methods.js" type="BINDATA" />
-      <include name="IDR_WEB_VIEW_PRIVATE_EVENTS_JS" file="api/guest_view/web_view_private_events.js" type="BINDATA" />
-      <include name="IDR_WEB_VIEW_PRIVATE_ATTRIBUTES_JS" file="api/guest_view/web_view_private_attributes.js" type="BINDATA" />
-      <include name="IDR_WEB_VIEW_PRIVATE_CONSTANTS_JS" file="api/guest_view/web_view_private_constants.js" type="BINDATA" />
+      <include name="IDR_WEB_VIEW_PRIVATE_API_IMPL_JS" file="api/web_view_private/web_view_private_impl.js" type="BINDATA" />
+      <include name="IDR_WEB_VIEW_PRIVATE_API_METHODS_JS" file="api/web_view_private/web_view_private_methods.js" type="BINDATA" />
+      <include name="IDR_WEB_VIEW_PRIVATE_EVENTS_JS" file="api/web_view_private/web_view_private_events.js" type="BINDATA" />
+      <include name="IDR_WEB_VIEW_PRIVATE_ATTRIBUTES_JS" file="api/web_view_private/web_view_private_attributes.js" type="BINDATA" />
+      <include name="IDR_WEB_VIEW_PRIVATE_CONSTANTS_JS" file="api/web_view_private/web_view_private_constants.js" type="BINDATA" />
       <if expr="is_macosx">
         <include name="IDR_NACL_SANDBOX_PROFILE" file="nacl_loader.sb" type="BINDATA" />
       </if>

@@ -11,6 +11,9 @@
 #include "components/embedder_support/user_agent_utils.h"
 #include "components/prefs/pref_service.h"
 #include "components/user_agent/vivaldi_user_agent.h"
+
+#include "components/user_agent/vivaldi_ua_config_holder.h"
+
 #include "components/version_info/version_info.h"
 #include "components/version_info/version_info_values.h"
 
@@ -21,7 +24,6 @@
 namespace vivaldi {
 
 namespace {
-PrefService* g_client_hints_prefs(nullptr);
 
 const BrandConfiguration* g_brand_override(nullptr);
 
@@ -42,20 +44,17 @@ BrandOverride::~BrandOverride() {
   g_brand_override = nullptr;
 }
 
-void ClientHintsBrandRegisterProfilePrefs(PrefService* prefs) {
-  g_client_hints_prefs = prefs;
-}
-
 void SelectClientHintsBrand(std::optional<std::string>& brand,
                             std::string& major_version,
                             std::string& full_version) {
-  if (!IsVivaldiRunning() || (!g_client_hints_prefs && !g_brand_override))
+  if (!IsVivaldiRunning())
     return;
 
+  ::vivaldi_user_agent::mojom::BrandConfiguration config =
+      vivaldi_user_agent::UAConfigHolder::GetInstance()->GetConfig();
+
   BrandSelection brand_selection =
-      g_brand_override ? g_brand_override->brand
-                       : BrandSelection(g_client_hints_prefs->GetInteger(
-                             vivaldiprefs::kVivaldiClientHintsBrand));
+      g_brand_override ? g_brand_override->brand : BrandSelection(config.brand);
 
   switch (brand_selection) {
     case BrandSelection::kChromeBrand:
@@ -77,13 +76,11 @@ void SelectClientHintsBrand(std::optional<std::string>& brand,
       std::string custom_brand =
           g_brand_override
               ? g_brand_override->custom_brand
-              : g_client_hints_prefs->GetString(
-                    vivaldiprefs::kVivaldiClientHintsBrandCustomBrand);
+              : config.custom_brand;
       std::string custom_brand_version =
           g_brand_override
               ? g_brand_override->custom_brand_version
-              : g_client_hints_prefs->GetString(
-                    vivaldiprefs::kVivaldiClientHintsBrandCustomBrandVersion);
+              : config.custom_brand_version;
 
       if (!custom_brand.empty() && !custom_brand_version.empty()) {
         brand.emplace(custom_brand);
@@ -102,21 +99,20 @@ void UpdateBrands(
   if (additional_brand_version.has_value())
     return;
 
-  if (!IsVivaldiRunning() || (!g_client_hints_prefs && !g_brand_override))
+  if (!IsVivaldiRunning())
     return;
 
+  ::vivaldi_user_agent::mojom::BrandConfiguration config =
+      vivaldi_user_agent::UAConfigHolder::GetInstance()->GetConfig();
+
   BrandSelection brand_selection =
-      g_brand_override ? g_brand_override->brand
-                       : BrandSelection(g_client_hints_prefs->GetInteger(
-                             vivaldiprefs::kVivaldiClientHintsBrand));
+      g_brand_override ? g_brand_override->brand : BrandSelection(config.brand);
 
   if (brand_selection == BrandSelection::kVivaldiBrand)
     return;
 
-  if (!(g_brand_override
-            ? g_brand_override->specify_vivaldi_brand
-            : g_client_hints_prefs->GetBoolean(
-                  vivaldiprefs::kVivaldiClientHintsBrandAppendVivaldi)))
+  if (!(g_brand_override ? g_brand_override->specify_vivaldi_brand
+                         : config.specify_vivaldi_brand))
     return;
 
   additional_brand_version =
@@ -124,13 +120,15 @@ void UpdateBrands(
 }
 
 std::string GetBrandFullVersion() {
-  if (!IsVivaldiRunning() || (!g_client_hints_prefs && !g_brand_override))
+  if (!IsVivaldiRunning())
     return std::string(version_info::GetVersionNumber());
+
+  ::vivaldi_user_agent::mojom::BrandConfiguration config =
+      vivaldi_user_agent::UAConfigHolder::GetInstance()->GetConfig();
 
   BrandSelection brand_selection =
       g_brand_override ? g_brand_override->brand
-                       : BrandSelection(g_client_hints_prefs->GetInteger(
-                             vivaldiprefs::kVivaldiClientHintsBrand));
+                       : BrandSelection(config.brand);
 
   switch (brand_selection) {
     case BrandSelection::kEdgeBrand:

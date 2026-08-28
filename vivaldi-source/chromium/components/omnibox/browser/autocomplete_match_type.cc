@@ -71,6 +71,7 @@ std::string AutocompleteMatchType::ToString(AutocompleteMatchType::Type type) {
     "bookmark-nickname",
     "direct-match",
     "recent-typed-history",
+    "vivaldi-calculator",
   });
   // clang-format on
   static_assert(strings.size() == AutocompleteMatchType::NUM_TYPES,
@@ -173,6 +174,7 @@ std::u16string GetAccessibilityBaseLabel(const AutocompleteMatch& match,
       0,                                     // bookmark-nickname
       0,                                     // direct-match
       0,                                     // recent-typed-history
+      0,                                     // vivaldi-calculator
   });
   static_assert(std::size(message_ids) == AutocompleteMatchType::NUM_TYPES,
                 "message_ids must have NUM_TYPES elements");

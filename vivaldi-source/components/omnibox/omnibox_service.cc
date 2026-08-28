@@ -61,7 +61,7 @@ void OmniboxService::StartSearch(
     autocomplete_input.set_in_keyword_mode(true);
     if (template_url->starter_pack_id() >
         template_url_starter_pack_data::StarterPackId::kNone) {
-      autocomplete_input.set_prefer_keyword(true);
+      autocomplete_input.set_in_keyword_mode(true);
       autocomplete_input.set_allow_exact_keyword_match(true);
     }
   } else {

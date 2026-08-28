@@ -376,6 +376,10 @@ AndroidSRPZpsSection::AndroidSRPZpsSection(
                          OmniboxFieldTrial::kOmniboxNumSrpZpsRecentSearches
                              .Get()},
                     }),
+              Group(1,
+                    {
+                        {omnibox::GROUP_CONTEXTUAL_SEARCH_ACTION, 1},
+                    }),
           },
           group_configs) {}
 
@@ -397,6 +401,10 @@ AndroidWebZpsSection::AndroidWebZpsSection(
                         {omnibox::GROUP_MOBILE_MOST_VISITED,
                          OmniboxFieldTrial::kOmniboxNumWebZpsMostVisitedUrls
                              .Get()},
+                    }),
+              Group(1,
+                    {
+                        {omnibox::GROUP_CONTEXTUAL_SEARCH_ACTION, 1},
                     }),
               Group(OmniboxFieldTrial::kOmniboxNumWebZpsRelatedSearches.Get(),
                     {

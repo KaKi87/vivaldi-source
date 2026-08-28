@@ -95,6 +95,9 @@ class IsolatedWebAppDevInstallManager {
       base::RepeatingCallback<void(MaybeInstallIsolatedWebAppCommandSuccess)>
           on_report_installation_result) {
     on_report_installation_result_ = std::move(on_report_installation_result);
+    if (last_installation_result_.has_value()) {
+      on_report_installation_result_.Run(*last_installation_result_);
+    }
   }
 
   // if `expected_bundle_id` is non null, then the installation
@@ -121,11 +124,6 @@ class IsolatedWebAppDevInstallManager {
   static void GetIsolatedWebAppInstallSourceFromCommandLine(
       const base::CommandLine& command_line,
       base::OnceCallback<void(MaybeIwaInstallSource)> callback);
-
-  const base::OneShotEvent&
-  on_garbage_collect_storage_partitions_done_for_testing() {
-    return on_garbage_collect_storage_partitions_done_for_testing_;
-  }
 
  private:
   FRIEND_TEST_ALL_PREFIXES(IsolatedWebAppDevInstallManagerTest,
@@ -185,8 +183,6 @@ class IsolatedWebAppDevInstallManager {
   void ReportInstallationResult(
       MaybeInstallIsolatedWebAppCommandSuccess result);
 
-  void MaybeScheduleGarbageCollection();
-
   void DownloadWebBundleToFile(
       const GURL& web_bundle_url,
       InstallSurface install_surface,
@@ -215,8 +211,9 @@ class IsolatedWebAppDevInstallManager {
       base::expected<InstallIsolatedWebAppCommandSuccess, std::string>)>
       on_report_installation_result_ = base::DoNothing();
 
-  // Signals when `GarbageCollectStoragePartitionsCommand` completes.
-  base::OneShotEvent on_garbage_collect_storage_partitions_done_for_testing_;
+  std::optional<
+      base::expected<InstallIsolatedWebAppCommandSuccess, std::string>>
+      last_installation_result_;
 
   base::WeakPtrFactory<IsolatedWebAppDevInstallManager> weak_ptr_factory_{this};
 };

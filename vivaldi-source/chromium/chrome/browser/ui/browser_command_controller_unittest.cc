@@ -20,11 +20,13 @@
 #include "chrome/browser/prefs/incognito_mode_prefs.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profiles_state.h"
+#include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window_state.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_context.h"
 #include "chrome/browser/ui/fullscreen/browser_window_fullscreen_controller.h"
+#include "chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_service_initialized_observer.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
@@ -58,6 +60,14 @@
 class BrowserCommandControllerTest : public BrowserWithTestWindowTest {
  public:
   BrowserCommandControllerTest() = default;
+
+  void WaitForTabGroupSyncServiceInitialized() {
+    auto observer =
+        std::make_unique<tab_groups::TabGroupSyncServiceInitializedObserver>(
+            tab_groups::TabGroupSyncServiceFactory::GetForProfile(
+                browser()->GetProfile()));
+    observer->Wait();
+  }
 };
 
 TEST_F(BrowserCommandControllerTest, IsReservedCommandOrKey) {
@@ -193,7 +203,7 @@ TEST_F(BrowserWithTestWindowTest, IncognitoCommands) {
   EXPECT_TRUE(chrome::IsCommandEnabled(browser(), IDC_IMPORT_SETTINGS));
   EXPECT_TRUE(chrome::IsCommandEnabled(browser(), IDC_PERFORMANCE));
 
-  TestingProfile* testprofile = browser()->profile()->AsTestingProfile();
+  TestingProfile* testprofile = browser()->GetProfile()->AsTestingProfile();
   EXPECT_TRUE(testprofile);
   testprofile->SetGuestSession(true);
   chrome::BrowserCommandController ::
@@ -205,7 +215,7 @@ TEST_F(BrowserWithTestWindowTest, IncognitoCommands) {
 
   testprofile->SetGuestSession(false);
   IncognitoModePrefs::SetAvailability(
-      browser()->profile()->GetPrefs(),
+      browser()->GetProfile()->GetPrefs(),
       policy::IncognitoModeAvailability::kForced);
   chrome::BrowserCommandController ::
       UpdateSharedCommandsForIncognitoAvailability(
@@ -360,7 +370,7 @@ void FullscreenTestBrowserWindow::ExitFullscreen() {
 }
 
 Profile* FullscreenTestBrowserWindow::GetProfile() {
-  return test_browser_->GetBrowser()->profile();
+  return test_browser_->GetBrowser()->GetProfile();
 }
 
 content::WebContents*
@@ -398,7 +408,7 @@ TEST_F(BrowserCommandControllerFullscreenTest,
     { IDC_FOCUS_NEXT_PANE,         true,     false,     false,     false    },
     { IDC_FOCUS_PREVIOUS_PANE,     true,     false,     false,     false    },
     { IDC_FOCUS_BOOKMARKS,         true,     false,     false,     false    },
-    { IDC_DEVELOPER_MENU,          true,     false,     false,     false    },
+    { kDeveloperMenuId,            true,     false,     false,     false    },
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
     { IDC_FEEDBACK,                true,     false,     false,     false    },
     { IDC_REPORT_UNSAFE_SITE,      true,     false,     false,     false    },
@@ -417,6 +427,8 @@ TEST_F(BrowserCommandControllerFullscreenTest,
     { IDC_NEW_WINDOW,              true,     true,      true,      false    },
     { IDC_SELECT_NEXT_TAB,         true,     true,      true,      false    },
     { IDC_SELECT_PREVIOUS_TAB,     true,     true,      true,      false    },
+    { IDC_CYCLE_TO_NEXT_TAB,       true,     true,      true,      false    },
+    { IDC_CYCLE_TO_PREV_TAB,       true,     true,      true,      false    },
     { IDC_EXIT,                    true,     true,      true,      true     },
     { IDC_SHOW_AS_TAB,             false,    false,     false,     false    },
       // clang-format on
@@ -436,7 +448,7 @@ TEST_F(BrowserCommandControllerFullscreenTest,
 
   // Simulate going fullscreen.
   chrome::ToggleFullscreenMode(browser());
-  ASSERT_TRUE(browser()->window()->IsFullscreen());
+  ASSERT_TRUE(browser()->GetWindow()->IsFullscreen());
   browser()->command_controller()->FullscreenStateChanged();
 
   // By default, in fullscreen mode, the toolbar should be hidden; and all
@@ -473,7 +485,7 @@ TEST_F(BrowserCommandControllerFullscreenTest,
 
   // Exit fullscreen.
   chrome::ToggleFullscreenMode(browser());
-  ASSERT_FALSE(browser()->window()->IsFullscreen());
+  ASSERT_FALSE(browser()->GetWindow()->IsFullscreen());
   browser()->command_controller()->FullscreenStateChanged();
 
   for (auto& command : commands) {
@@ -486,7 +498,7 @@ TEST_F(BrowserCommandControllerFullscreenTest,
   }
 
   // Guest Profiles disallow some options.
-  TestingProfile* testprofile = browser()->profile()->AsTestingProfile();
+  TestingProfile* testprofile = browser()->GetProfile()->AsTestingProfile();
   EXPECT_TRUE(testprofile);
   testprofile->SetGuestSession(true);
 
@@ -499,12 +511,12 @@ TEST_F(BrowserCommandControllerFullscreenTest,
 // the order of entering fullscreen and forced incognito modes. See
 // http://crbug.com/40507396.
 TEST_F(BrowserWithTestWindowTest, OptionsConsistency) {
-  TestingProfile* profile = browser()->profile()->AsTestingProfile();
+  TestingProfile* profile = browser()->GetProfile()->AsTestingProfile();
   // Setup guest session.
   profile->SetGuestSession(true);
   // Setup forced incognito mode.
   IncognitoModePrefs::SetAvailability(
-      browser()->profile()->GetPrefs(),
+      browser()->GetProfile()->GetPrefs(),
       policy::IncognitoModeAvailability::kForced);
   EXPECT_TRUE(chrome::IsCommandEnabled(browser(), IDC_OPTIONS));
   // Enter fullscreen.
@@ -516,10 +528,10 @@ TEST_F(BrowserWithTestWindowTest, OptionsConsistency) {
   // Reenter incognito mode, this should trigger
   // UpdateSharedCommandsForIncognitoAvailability() again.
   IncognitoModePrefs::SetAvailability(
-      browser()->profile()->GetPrefs(),
+      browser()->GetProfile()->GetPrefs(),
       policy::IncognitoModeAvailability::kDisabled);
   IncognitoModePrefs::SetAvailability(
-      browser()->profile()->GetPrefs(),
+      browser()->GetProfile()->GetPrefs(),
       policy::IncognitoModeAvailability::kForced);
   EXPECT_TRUE(chrome::IsCommandEnabled(browser(), IDC_OPTIONS));
 }
@@ -643,7 +655,11 @@ TEST_F(BrowserCommandControllerWithBookmarksTest,
   EXPECT_TRUE(command_controller.IsCommandEnabled(
       IDC_BOOKMARK_BAR_SUBMENU_ONLY_ON_NTP));
 
+  base::UserActionTester user_action_tester;
+
   // Test executing visibility commands updates the pref correctly.
+  EXPECT_EQ(0, user_action_tester.GetActionCount(
+                   "WrenchMenu_Bookmarks_AlwaysShowBookmarkBar"));
   command_controller.ExecuteCommand(
       IDC_BOOKMARK_BAR_SUBMENU_ALWAYS_SHOW,
       blink::WebInputEvent::GetStaticTimeStampForTests());
@@ -651,7 +667,11 @@ TEST_F(BrowserCommandControllerWithBookmarksTest,
       profile()->GetPrefs()->GetInteger(
           bookmarks::prefs::kBookmarkBarVisibilityState),
       static_cast<int>(bookmarks::BookmarkBarVisibilityState::kAlwaysShow));
+  EXPECT_EQ(1, user_action_tester.GetActionCount(
+                   "WrenchMenu_Bookmarks_AlwaysShowBookmarkBar"));
 
+  EXPECT_EQ(0, user_action_tester.GetActionCount(
+                   "WrenchMenu_Bookmarks_AlwaysHideBookmarkBar"));
   command_controller.ExecuteCommand(
       IDC_BOOKMARK_BAR_SUBMENU_ALWAYS_HIDE,
       blink::WebInputEvent::GetStaticTimeStampForTests());
@@ -659,7 +679,11 @@ TEST_F(BrowserCommandControllerWithBookmarksTest,
       profile()->GetPrefs()->GetInteger(
           bookmarks::prefs::kBookmarkBarVisibilityState),
       static_cast<int>(bookmarks::BookmarkBarVisibilityState::kAlwaysHide));
+  EXPECT_EQ(1, user_action_tester.GetActionCount(
+                   "WrenchMenu_Bookmarks_AlwaysHideBookmarkBar"));
 
+  EXPECT_EQ(0, user_action_tester.GetActionCount(
+                   "WrenchMenu_Bookmarks_OnlyShowBookmarkBarOnNtp"));
   command_controller.ExecuteCommand(
       IDC_BOOKMARK_BAR_SUBMENU_ONLY_ON_NTP,
       blink::WebInputEvent::GetStaticTimeStampForTests());
@@ -667,6 +691,8 @@ TEST_F(BrowserCommandControllerWithBookmarksTest,
       profile()->GetPrefs()->GetInteger(
           bookmarks::prefs::kBookmarkBarVisibilityState),
       static_cast<int>(bookmarks::BookmarkBarVisibilityState::kOnlyShowOnNtp));
+  EXPECT_EQ(1, user_action_tester.GetActionCount(
+                   "WrenchMenu_Bookmarks_OnlyShowBookmarkBarOnNtp"));
 }
 
 TEST_F(BrowserCommandControllerTest,
@@ -686,6 +712,39 @@ TEST_F(BrowserCommandControllerTest,
       1, user_action_tester.GetActionCount("TabGroups_GroupAllUngroupedTabs"));
 }
 
+TEST_F(BrowserCommandControllerTest,
+       GroupAllUngroupedTabsDisabledWhenNoUngroupedTabs) {
+  chrome::BrowserCommandController command_controller(browser());
+  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  ASSERT_TRUE(tab_strip_model->SupportsTabGroups());
+  const GURL url("https://google.com");
+
+  // Ensure the service is initialized before making any changes to tab groups.
+  WaitForTabGroupSyncServiceInitialized();
+
+  AddTab(browser(), url);
+  EXPECT_TRUE(command_controller.IsCommandEnabled(IDC_GROUP_UNGROUPED_TABS));
+
+  tab_strip_model->SetTabPinned(0, true);
+  EXPECT_FALSE(command_controller.IsCommandEnabled(IDC_GROUP_UNGROUPED_TABS));
+
+  tab_strip_model->SetTabPinned(0, false);
+  EXPECT_TRUE(command_controller.IsCommandEnabled(IDC_GROUP_UNGROUPED_TABS));
+
+  tab_strip_model->AddToNewGroup({0});
+  EXPECT_FALSE(command_controller.IsCommandEnabled(IDC_GROUP_UNGROUPED_TABS));
+
+  AddTab(browser(), url);
+  tab_strip_model->SetTabPinned(0, true);
+  EXPECT_FALSE(command_controller.IsCommandEnabled(IDC_GROUP_UNGROUPED_TABS));
+
+  AddTab(browser(), url);
+  EXPECT_TRUE(command_controller.IsCommandEnabled(IDC_GROUP_UNGROUPED_TABS));
+
+  tab_strip_model->SetTabPinned(1, true);
+  EXPECT_FALSE(command_controller.IsCommandEnabled(IDC_GROUP_UNGROUPED_TABS));
+}
+
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
 class CreateShortcutBrowserCommandControllerTest
     : public BrowserCommandControllerTest {
@@ -701,11 +760,11 @@ class CreateShortcutBrowserCommandControllerTest
     // Simulate installing the extension.
     extensions::TestExtensionSystem* extension_system =
         static_cast<extensions::TestExtensionSystem*>(
-            extensions::ExtensionSystem::Get(browser()->profile()));
+            extensions::ExtensionSystem::Get(browser()->GetProfile()));
     extension_system->CreateExtensionService(
         base::CommandLine::ForCurrentProcess(),
         /*install_directory=*/base::FilePath(), /*autoupdate_enabled=*/false);
-    extensions::ExtensionRegistrar::Get(browser()->profile())
+    extensions::ExtensionRegistrar::Get(browser()->GetProfile())
         ->AddExtension(extension);
 
     return extension;
@@ -734,7 +793,7 @@ TEST_F(CreateShortcutBrowserCommandControllerTest, DisabledForOTRProfile) {
 }
 
 TEST_F(CreateShortcutBrowserCommandControllerTest, DisabledForGuestProfile) {
-  TestingProfile* test_profile = browser()->profile()->AsTestingProfile();
+  TestingProfile* test_profile = browser()->GetProfile()->AsTestingProfile();
   EXPECT_TRUE(test_profile);
   test_profile->SetGuestSession(true);
 
@@ -742,7 +801,7 @@ TEST_F(CreateShortcutBrowserCommandControllerTest, DisabledForGuestProfile) {
 }
 
 TEST_F(CreateShortcutBrowserCommandControllerTest, DisabledForSystemProfile) {
-  TestingProfile* test_profile = browser()->profile()->AsTestingProfile();
+  TestingProfile* test_profile = browser()->GetProfile()->AsTestingProfile();
   EXPECT_TRUE(test_profile);
 
   EXPECT_FALSE(chrome::IsCommandEnabled(browser(), IDC_CREATE_SHORTCUT));

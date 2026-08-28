@@ -14,18 +14,23 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import {abortOnIframe} from "../utils/execution.js";
 import {profile} from "../introspection/profile.js";
 
 /**
- * Patches a list of properties on the iframes' window object to abort execution
+ * @description Patches a list of properties on the
+ * iframes' window object to abort execution
  * when the property is read.
  *
  * No error is printed to the console.
- * @alias module:content/snippets.abort-on-iframe-property-read
+ * @memberof module:snippets/behavioral
  *
  * @param {...string} properties The list with the properties.
+ * @example
+ * abort-on-iframe-property-read atob => The code that reads/calls
+ * the atob function inside any iframe throws an exception.
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69960149/abort-on-iframe-property-read} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/behavioral-snippets/abort-on-iframe-property-read} for external documentation.
  *
  * @since Adblock Plus 3.10.1
  */

@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Kysy, avataanko linkit muista sovelluksista yksityistilassa</translation>
 <translation id="1624481300475123200">Täytä salasanat automaattisesti</translation>
 <translation id="1743244221910283364">Hylkää muutokset</translation>
+<translation id="1972589975368876259">Muokkaa nippua</translation>
 <translation id="2010481384079864967">{count, plural,
 =1 {Lisää välilehti nippuun}
 other {Lisää välilehdet nippuun}}</translation>
@@ -48,7 +49,6 @@ other {Lisää välilehdet nippuun}}</translation>
 <translation id="4772190485302020393">Sulje kaikki välilehdet ja niput</translation>
 <translation id="4802185666270672526">Piilota ”Pyydä työpöytäsivustoa”</translation>
 <translation id="4828571836982833289">Irrotetaanko välilehtinipusta?</translation>
-<translation id="4838250035189612538">Nimeä välilehtinippu uudelleen</translation>
 <translation id="4873540827942947151">{count, plural,
 =1 {Välilehtinippu suljettiin ja tallennettiin}
 other {{count} välilehtinippua suljettiin ja tallennettiin}}</translation>

@@ -4,7 +4,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/ext_data/tab_ext_data.h"
-#include "extensions/api/guest_view/parent_tab_user_data.h"
+#include "extensions/api/web_view_private/parent_tab_user_data.h"
 
 namespace vivaldi {
 

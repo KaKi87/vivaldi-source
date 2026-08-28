@@ -4,11 +4,15 @@ update_target("//chrome/browser:browser") {
 
 update_target("//chrome/browser/ui:ui") {
   sources -= [
+    "views/profiles/feature_showcase/gemini_step_eligibility_checker.cc",
+    "views/profiles/feature_showcase/gemini_step_eligibility_checker.h",
     "views/tabs/tab_strip_action_container.cc",
     "views/tabs/tab_strip_action_container.h",
-    "webui/settings/glic_handler.cc",
-    "webui/settings/glic_handler.h",
   ]
+}
+
+update_target("//chrome/browser/ui/webui/settings:impl") {
+  sources -= [ "glic_handler.cc" ]
 }
 
 update_target("//chrome/browser/ui/views/toolbar:impl") {
@@ -18,13 +22,32 @@ update_target("//chrome/browser/ui/views/toolbar:impl") {
   ]
 }
 
+update_target("//chrome/browser/ui/webui/feature_showcase:feature_showcase") {
+  sources -= [
+    "gemini_handler.cc",
+    "gemini_handler.h",
+  ]
+}
+
 update_template_instance("//chrome/browser/resources/settings:build") {
   web_component_files -= [
+    "ai_page/ai_info_card.ts",
+    "ai_page/ai_logging_info_bullet.ts",
+    "ai_page/ai_mode_search_page.ts",
+    "ai_page/ai_page.ts",
     "ai_page/ai_page_index.ts",
+    "ai_page/ai_policy_indicator.ts",
+    "ai_page/ai_site_add_dialog.ts",
+    "ai_page/ai_suggestions_page.ts",
+    "ai_page/history_search_page.ts",
+    "ai_page/offer_writing_help_page.ts",
+    "ai_page/skills_page.ts",
+    "autofill_page/autofill_ai_add_or_edit_dialog.ts",
+    "autofill_page/autofill_ai_entries_list.ts",
+    "autofill_page/autofill_ai_section.ts",
     "glic_page/glic_page.ts",
     "glic_page/glic_login_permissions_page.ts",
     "glic_page/glic_subpage.ts",
-    "privacy_page/privacy_guide/privacy_guide_ad_topics_fragment.ts",
     "privacy_page/privacy_guide/privacy_guide_completion_fragment.ts",
     "privacy_page/privacy_guide/privacy_guide_cookies_fragment.ts",
     "privacy_page/privacy_guide/privacy_guide_dialog.ts",
@@ -35,12 +58,6 @@ update_template_instance("//chrome/browser/resources/settings:build") {
     "privacy_page/privacy_guide/privacy_guide_safe_browsing_fragment.ts",
     "privacy_page/privacy_guide/privacy_guide_welcome_fragment.ts",
     "privacy_page/privacy_guide/step_indicator.ts",
-    "privacy_sandbox/privacy_sandbox_ad_measurement_subpage.ts",
-    "privacy_sandbox/privacy_sandbox_fledge_subpage.ts",
-    "privacy_sandbox/privacy_sandbox_interest_item.ts",
-    "privacy_sandbox/privacy_sandbox_page.ts",
-    "privacy_sandbox/privacy_sandbox_manage_topics_subpage.ts",
-    "privacy_sandbox/privacy_sandbox_topics_subpage.ts",
     "search_page/search_engines_page.ts",
     "search_page/search_page_index.ts",
     "search_page/search_page.ts",
@@ -59,10 +76,6 @@ update_target("//chrome/browser/ui/omnibox:impl") {
   sources -= [ "ai_mode_page_action_controller.cc" ]
 }
 
-update_target("//chrome/browser/ui/views/location_bar:impl") {
-  sources -= [ "ai_mode_page_action_icon_view.cc" ]
-}
-
 update_target("//chrome/browser/ui/tabs:tab_menu_impl") {
   sources -= [ "glic_tab_sub_menu_model.cc" ]
 }
@@ -79,8 +92,8 @@ update_template_instance("//chrome/browser/extensions/api:api_registration") {
   ]
 }
 
-update_target("//chrome/browser/ui/tabs/projects:impl") {
-  sources -= [ "projects_panel_state_controller.cc" ]
+update_target("//chrome/browser/ui/tabs/organizer:impl") {
+  sources -= [ "organizer_panel_state_controller.cc" ]
 }
 
 update_target("//chrome/browser/skills:skills") {

@@ -74,24 +74,24 @@ using OwnershipStatus = ash::DeviceSettingsService::OwnershipStatus;
 class TestUserMetricsServiceClient
     : public ::metrics::TestMetricsServiceClient {
  public:
-  std::optional<bool> GetCurrentUserMetricsConsent() const override {
-    if (should_use_user_consent_) {
-      return current_user_metrics_consent_;
+  std::optional<bool> GetCurrentUserMetricsChoice() const override {
+    if (should_use_user_choice_) {
+      return current_user_choice_;
     }
     return std::nullopt;
   }
 
-  void UpdateCurrentUserMetricsConsent(bool metrics_consent) override {
-    current_user_metrics_consent_ = metrics_consent;
+  void UpdateCurrentUserMetricsChoice(bool user_choice) override {
+    current_user_choice_ = user_choice;
   }
 
-  void SetShouldUseUserConsent(bool should_use_user_consent) {
-    should_use_user_consent_ = should_use_user_consent;
+  void SetShouldUseUserChoice(bool should_use_user_choice) {
+    should_use_user_choice_ = should_use_user_choice;
   }
 
  private:
-  bool should_use_user_consent_ = false;
-  bool current_user_metrics_consent_ = false;
+  bool should_use_user_choice_ = false;
+  bool current_user_choice_ = false;
 };
 
 class MockErrorDelegate : public ArcSupportHost::ErrorDelegate {
@@ -102,6 +102,10 @@ class MockErrorDelegate : public ArcSupportHost::ErrorDelegate {
   MOCK_METHOD0(OnRunNetworkTestsClicked, void());
   MOCK_METHOD1(OnErrorPageShown, void(bool network_tests_shown));
 };
+
+PrefService* local_state() {
+  return TestingBrowserProcess::GetGlobal()->local_state();
+}
 
 }  // namespace
 
@@ -135,21 +139,19 @@ class ArcTermsOfServiceDefaultNegotiatorTest
     BrowserWithTestWindowTest::SetUp();
 
     ::ash::DeviceSettingsService::Get()->StartProcessing(
-        TestingBrowserProcess::GetGlobal()->local_state(),
-        &session_manager_client_, owner_key_util_);
+        local_state(), &session_manager_client_, owner_key_util_);
 
     // MetricsService.
-    metrics::MetricsService::RegisterPrefs(local_state_.registry());
     test_enabled_state_provider_ =
         std::make_unique<metrics::TestEnabledStateProvider>(true, true);
     test_metrics_state_manager_ = metrics::MetricsStateManager::Create(
-        &local_state_, test_enabled_state_provider_.get(), std::wstring(),
+        local_state(), test_enabled_state_provider_.get(), std::wstring(),
         base::FilePath());
     test_metrics_service_client_ =
         std::make_unique<TestUserMetricsServiceClient>();
     test_metrics_service_ = std::make_unique<metrics::MetricsService>(
         test_metrics_state_manager_.get(), test_metrics_service_client_.get(),
-        &local_state_);
+        local_state());
 
     // Needs to be set for metrics service.
     base::SetRecordActionTaskRunner(
@@ -159,9 +161,7 @@ class ArcTermsOfServiceDefaultNegotiatorTest
         IdentityManagerFactory::GetForProfile(profile()), "testing@account.com",
         signin::ConsentLevel::kSync);
 
-    ash::StatsReportingController::RegisterLocalStatePrefs(
-        local_state_.registry());
-    ash::StatsReportingController::Initialize(&local_state_);
+    ash::StatsReportingController::Initialize(local_state());
 
     support_host_ = std::make_unique<ArcSupportHost>(
         TestingBrowserProcess::GetGlobal()->local_state(),
@@ -217,7 +217,7 @@ class ArcTermsOfServiceDefaultNegotiatorTest
   }
 
   bool GetUserMetricsState() {
-    return *metrics_service_client()->GetCurrentUserMetricsConsent();
+    return *metrics_service_client()->GetCurrentUserMetricsChoice();
   }
 
   // BrowserWithTestWindowTest:
@@ -232,8 +232,6 @@ class ArcTermsOfServiceDefaultNegotiatorTest
   policy::DevicePolicyBuilder device_policy_;
   scoped_refptr<ownership::MockOwnerKeyUtil> owner_key_util_;
   ::ash::FakeSessionManagerClient session_manager_client_;
-
-  TestingPrefServiceSimple local_state_;
 
   // MetricsService.
   std::unique_ptr<metrics::MetricsStateManager> test_metrics_state_manager_;
@@ -616,7 +614,7 @@ TEST_P(ArcTermsOfServiceDefaultNegotiatorForNonOwnerTest,
   negotiator()->StartNegotiation(UpdateStatusCallback(&status));
 
   // Setup metrics service to use user metrics.
-  metrics_service_client()->SetShouldUseUserConsent(true);
+  metrics_service_client()->SetShouldUseUserChoice(true);
 
   // TERMS page should be shown.
   EXPECT_EQ(status, Status::PENDING);

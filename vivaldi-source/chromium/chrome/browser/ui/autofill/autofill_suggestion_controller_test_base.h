@@ -24,11 +24,14 @@
 #include "components/autofill/core/browser/suggestions/suggestion_hiding_reason.h"
 #include "components/autofill/core/browser/ui/autofill_external_delegate.h"
 #include "components/autofill/core/browser/ui/autofill_suggestion_delegate.h"
-#include "components/autofill/core/browser/ui/suggestion_button_action.h"
 #include "components/autofill/core/browser/ui/tabbed_pane_enums.h"
 #include "components/autofill/core/common/autofill_test_utils.h"
+#include "content/public/browser/render_frame_host.h"
+#include "content/public/test/navigation_simulator.h"
+#include "content/public/test/test_renderer_host.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "url/gurl.h"
 
 #if BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/autofill/mock_manual_filling_view.h"
@@ -45,7 +48,6 @@
 namespace autofill {
 
 class AutofillExternalDelegateForPopupTest;
-class AutofillSuggestionControllerForTest;
 
 // A `BrowserAutofillManager` with a modified `AutofillExternalDelegate` that
 // allows verifying interactions with the popup.
@@ -197,8 +199,42 @@ class AutofillSuggestionControllerTestBase
     return event;
   }
 
+  // Helper function to create a child frame, navigate it to `url`, and return
+  // it.
+  static content::RenderFrameHost* CreateAndNavigateChildFrame(
+      content::RenderFrameHost* parent,
+      const GURL& url,
+      std::string_view name) {
+    content::RenderFrameHost* rfh =
+        content::RenderFrameHostTester::For(parent)->AppendChild(
+            std::string(name));
+    // ContentAutofillDriverFactory::DidFinishNavigation() creates a driver for
+    // subframes only if
+    // `NavigationHandle::HasSubframeNavigationEntryCommitted()` is true. This
+    // is not the case for the first navigation. (In non-unit-tests, the first
+    // navigation creates a driver in
+    // ContentAutofillDriverFactory::BindAutofillDriver().) Therefore,
+    // we simulate *two* navigations here, and explicitly set the transition
+    // type for the second navigation.
+    std::unique_ptr<content::NavigationSimulator> simulator;
+    // First navigation: `HasSubframeNavigationEntryCommitted() == false`.
+    // Must be a different URL from the second navigation.
+    GURL about_blank("about:blank");
+    CHECK_NE(about_blank, url);
+    simulator =
+        content::NavigationSimulator::CreateRendererInitiated(about_blank, rfh);
+    simulator->Commit();
+    rfh = simulator->GetFinalRenderFrameHost();
+    // Second navigation: `HasSubframeNavigationEntryCommitted() == true`.
+    // Must set the transition type to ui::PAGE_TRANSITION_MANUAL_SUBFRAME.
+    simulator = content::NavigationSimulator::CreateRendererInitiated(url, rfh);
+    simulator->SetTransition(ui::PAGE_TRANSITION_MANUAL_SUBFRAME);
+    simulator->Commit();
+    return simulator->GetFinalRenderFrameHost();
+  }
+
  private:
-  ::autofill::test::AutofillUnitTestEnvironment autofill_test_environment_;
+  test::AutofillUnitTestEnvironment autofill_test_environment_;
 
   TestAutofillClientInjector<Client> autofill_client_injector_;
   TestAutofillDriverInjector<Driver> autofill_driver_injector_;
@@ -227,7 +263,9 @@ class AutofillExternalDelegateForPopupTest : public AutofillExternalDelegate {
   MOCK_METHOD(void, ClearPreviewedForm, (), (override));
   MOCK_METHOD(void,
               OnSuggestionsShown,
-              (base::span<const Suggestion>),
+              (base::span<const Suggestion>,
+               base::optional_ref<
+                   const AutofillSuggestionDelegate::SuggestionMetadata>),
               (override));
   MOCK_METHOD(void, OnSuggestionsHidden, (SuggestionHidingReason), (override));
   MOCK_METHOD(void, DidSelectSuggestion, (const Suggestion&), (override));
@@ -235,10 +273,6 @@ class AutofillExternalDelegateForPopupTest : public AutofillExternalDelegate {
               DidAcceptSuggestion,
               (const Suggestion&,
                const AutofillSuggestionDelegate::SuggestionMetadata&),
-              (override));
-  MOCK_METHOD(void,
-              DidPerformButtonActionForSuggestion,
-              (const Suggestion&, const SuggestionButtonAction&),
               (override));
   MOCK_METHOD(bool, RemoveSuggestion, (const Suggestion&), (override));
   MOCK_METHOD(void, OnTabSelected, (TabbedPaneTabType), (override));
@@ -257,8 +291,8 @@ class AutofillSuggestionControllerForTest
   AutofillSuggestionControllerForTest(
       base::WeakPtr<AutofillExternalDelegate> external_delegate,
       content::WebContents* web_contents,
-      const gfx::RectF& element_bounds
-  );
+      const LocalFrameToken& frame_token,
+      const gfx::RectF& element_bounds);
   ~AutofillSuggestionControllerForTest() override;
 
   // Making protected functions public for testing

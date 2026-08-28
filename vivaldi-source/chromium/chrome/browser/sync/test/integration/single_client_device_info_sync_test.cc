@@ -15,6 +15,7 @@
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/sync/device_info_sync_service_factory.h"
 #include "chrome/browser/sync/test/integration/bookmarks_helper.h"
+#include "chrome/browser/sync/test/integration/committed_all_nudged_changes_checker.h"
 #include "chrome/browser/sync/test/integration/device_info_helper.h"
 #include "chrome/browser/sync/test/integration/sync_service_impl_harness.h"
 #include "chrome/browser/sync/test/integration/sync_test.h"
@@ -35,6 +36,7 @@
 #include "components/sync_device_info/device_info_sync_service.h"
 #include "components/sync_device_info/device_info_tracker.h"
 #include "components/sync_device_info/device_info_util.h"
+#include "components/sync_device_info/device_name_util.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_launcher.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -345,6 +347,58 @@ IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest, DownloadRemoteDevices) {
                            ModelEntryHasCacheGuid(CacheGuidForSuffix(1)),
                            ModelEntryHasCacheGuid(CacheGuidForSuffix(2))));
 }
+
+class SingleClientDeviceInfoSyncTestWithServerDeterminedName
+    : public SingleClientDeviceInfoSyncTest {
+ public:
+  SingleClientDeviceInfoSyncTestWithServerDeterminedName() {
+    feature_list_.InitWithFeatures(
+        /*enabled_features=*/{syncer::kSyncSimplifyDeviceNaming,
+                              syncer::kSyncUseServerDeterminedDeviceName},
+        /*disabled_features=*/{});
+  }
+
+ protected:
+  static constexpr char kServerDeterminedModelName[] = "Galaxy S22 Ultra";
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTestWithServerDeterminedName,
+                       UseServerDeterminedDeviceName) {
+  // Inject a remote Android device with a server-determined model name.
+  sync_pb::DeviceInfoSpecifics specifics = CreateSpecifics(/*suffix=*/1);
+  specifics.set_os_type(sync_pb::SyncEnums_OsType_OS_TYPE_ANDROID);
+  specifics.set_device_form_factor(
+      sync_pb::SyncEnums_DeviceFormFactor_DEVICE_FORM_FACTOR_PHONE);
+  specifics.set_server_determined_model_name(kServerDeterminedModelName);
+  InjectDeviceInfoSpecificsToServer(specifics);
+
+  ASSERT_TRUE(SetupSync());
+
+  // Verify the remote device is downloaded.
+  ASSERT_THAT(
+      GetDeviceInfoTracker()->GetAllDeviceInfo(),
+      UnorderedElementsAre(ModelEntryHasCacheGuid(GetLocalCacheGuid()),
+                           ModelEntryHasCacheGuid(CacheGuidForSuffix(1))));
+
+  // Get the remote device info.
+  const syncer::DeviceInfo* remote_device =
+      GetDeviceInfoTracker()->GetDeviceInfo(CacheGuidForSuffix(1));
+  ASSERT_TRUE(remote_device);
+  EXPECT_EQ(remote_device->server_determined_model_name(),
+            kServerDeterminedModelName);
+
+  // Verify the display name uses the server-determined name.
+  EXPECT_EQ(syncer::GetDeviceDisplayName(remote_device),
+            kServerDeterminedModelName);
+}
+
+INSTANTIATE_TEST_SUITE_P(,
+                         SingleClientDeviceInfoSyncTestWithServerDeterminedName,
+                         GetSyncTestModes(),
+                         testing::PrintToStringParamName());
 
 IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
                        DownloadRemoteDeviceWithoutChromeVersion) {
@@ -706,50 +760,27 @@ IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
 // PRE_* tests aren't supported on Android browser tests.
 #if !BUILDFLAG(IS_ANDROID)
 
-// TODO(crbug.com/40846416): Re-enable this test on Windows.
-#if BUILDFLAG(IS_WIN)
-#define MAYBE_PRE_ShouldNotSendDeviceInfoAfterBrowserRestart \
-  DISABLED_PRE_ShouldNotSendDeviceInfoAfterBrowserRestart
-#define MAYBE_ShouldNotSendDeviceInfoAfterBrowserRestart \
-  DISABLED_ShouldNotSendDeviceInfoAfterBrowserRestart
-#else
-#define MAYBE_PRE_ShouldNotSendDeviceInfoAfterBrowserRestart \
-  PRE_ShouldNotSendDeviceInfoAfterBrowserRestart
-#define MAYBE_ShouldNotSendDeviceInfoAfterBrowserRestart \
-  ShouldNotSendDeviceInfoAfterBrowserRestart
-#endif
-
 IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
-                       MAYBE_PRE_ShouldNotSendDeviceInfoAfterBrowserRestart) {
+                       PRE_ShouldNotSendDeviceInfoAfterBrowserRestart) {
   ASSERT_TRUE(SetupSync());
 }
 
 IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
-                       MAYBE_ShouldNotSendDeviceInfoAfterBrowserRestart) {
+                       ShouldNotSendDeviceInfoAfterBrowserRestart) {
   const std::vector<sync_pb::SyncEntity> entities_before =
       fake_server_->GetSyncEntitiesByDataType(syncer::DEVICE_INFO);
   ASSERT_TRUE(SetupClients());
-  ASSERT_TRUE(GetClient(0)->AwaitEngineInitialization());
   ASSERT_TRUE(GetClient(0)->AwaitSyncTransportActive());
   ASSERT_TRUE(GetClient(0)->AwaitInvalidationsStatus(/*expected_status=*/true));
 
-  bool has_local_changes = false;
-  base::RunLoop run_loop;
-  GetSyncService(0)->HasUnsyncedItemsForTest(
-      base::BindLambdaForTesting([&has_local_changes, &run_loop](bool result) {
-        has_local_changes = result;
-        run_loop.Quit();
-      }));
-  run_loop.Run();
+  // Ensure any pending local changes are committed.
+  CommittedAllNudgedChangesChecker(GetSyncService(0)).Wait();
 
+  // Verify that no DeviceInfo has been committed to the server.
   const std::vector<sync_pb::SyncEntity> entities_after =
       fake_server_->GetSyncEntitiesByDataType(syncer::DEVICE_INFO);
   ASSERT_EQ(1U, entities_before.size());
   ASSERT_EQ(1U, entities_after.size());
-
-  // Check that there are no local changes and nothing has been committed to the
-  // server.
-  EXPECT_FALSE(has_local_changes);
   EXPECT_EQ(entities_before.front().mtime(), entities_after.front().mtime());
 }
 #endif  // !BUILDFLAG(IS_ANDROID)

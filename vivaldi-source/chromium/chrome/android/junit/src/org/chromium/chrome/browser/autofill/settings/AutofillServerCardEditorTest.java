@@ -59,6 +59,7 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Features.DisableFeatures;
+import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeStringConstants;
@@ -94,6 +95,7 @@ import org.chromium.url.GURL;
     ChromeFeatureList.AUTOFILL_ENABLE_WALLET_BRANDING_V2,
     ChromeFeatureList.SETTINGS_MULTI_COLUMN
 })
+@EnableFeatures(ChromeFeatureList.CCT_DONT_OVERRIDE_INTENT_MIME_TYPE)
 public class AutofillServerCardEditorTest {
 
     private static final long NATIVE_AUTOFILL_PAYMENTS_METHODS_DELEGATE = 100L;
@@ -113,7 +115,7 @@ public class AutofillServerCardEditorTest {
     private static final CreditCard SAMPLE_VIRTUAL_CARD_ENROLLED_CARD =
             new CreditCard(
                     /* guid= */ "1",
-                    /* origin= */ "",
+                    /* isUserConfirmed= */ false,
                     /* isLocal= */ false,
                     /* isVirtual= */ false,
                     /* name= */ "John Doe",
@@ -141,7 +143,7 @@ public class AutofillServerCardEditorTest {
     private static final CreditCard SAMPLE_VIRTUAL_CARD_UNENROLLED_AND_ELIGIBLE_CARD =
             new CreditCard(
                     /* guid= */ "2",
-                    /* origin= */ "",
+                    /* isUserConfirmed= */ false,
                     /* isLocal= */ false,
                     /* isVirtual= */ false,
                     /* name= */ "John Doe",
@@ -170,7 +172,7 @@ public class AutofillServerCardEditorTest {
     private static final CreditCard SAMPLE_VIRTUAL_CARD_UNENROLLED_AND_NOT_ELIGIBLE_CARD =
             new CreditCard(
                     /* guid= */ "3",
-                    /* origin= */ "",
+                    /* isUserConfirmed= */ false,
                     /* isLocal= */ false,
                     /* isVirtual= */ false,
                     /* name= */ "John Doe",
@@ -334,9 +336,7 @@ public class AutofillServerCardEditorTest {
         fakeVirtualCardEnrollmentFields.mGoogleLegalMessages.add(new LegalMessageLine("google"));
         fakeVirtualCardEnrollmentFields.mIssuerLegalMessages.add(new LegalMessageLine("issuer"));
         ThreadUtils.runOnUiThreadBlocking(
-                () ->
-                        virtualCardEnrollmentFieldsCallback.onResult(
-                                fakeVirtualCardEnrollmentFields));
+                virtualCardEnrollmentFieldsCallback.bind(fakeVirtualCardEnrollmentFields));
 
         // Verify that the dialog was displayed.
         onView(withId(R.id.dialog_title)).inRoot(isDialog()).check(matches(isDisplayed()));
@@ -387,8 +387,7 @@ public class AutofillServerCardEditorTest {
         // Return enrollment update status "successful" via the callback.
         Callback<Boolean> virtualCardEnrollmentUpdateResponseCallback =
                 booleanCallbackArgumentCaptor.getValue();
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> virtualCardEnrollmentUpdateResponseCallback.onResult(true));
+        ThreadUtils.runOnUiThreadBlocking(virtualCardEnrollmentUpdateResponseCallback.bind(true));
 
         // Verify that the Virtual Card enrollment button now allows unenrollment.
         onView(withId(R.id.virtual_card_enrollment_button))
@@ -447,9 +446,7 @@ public class AutofillServerCardEditorTest {
         fakeVirtualCardEnrollmentFields.mGoogleLegalMessages.add(new LegalMessageLine("google"));
         fakeVirtualCardEnrollmentFields.mIssuerLegalMessages.add(new LegalMessageLine("issuer"));
         ThreadUtils.runOnUiThreadBlocking(
-                () ->
-                        virtualCardEnrollmentFieldsCallback.onResult(
-                                fakeVirtualCardEnrollmentFields));
+                virtualCardEnrollmentFieldsCallback.bind(fakeVirtualCardEnrollmentFields));
 
         // Verify that the dialog was displayed.
         onView(withId(R.id.dialog_title)).inRoot(isDialog()).check(matches(isDisplayed()));
@@ -468,8 +465,7 @@ public class AutofillServerCardEditorTest {
         // Return enrollment update status "failure" via the callback.
         Callback<Boolean> virtualCardEnrollmentUpdateResponseCallback =
                 booleanCallbackArgumentCaptor.getValue();
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> virtualCardEnrollmentUpdateResponseCallback.onResult(false));
+        ThreadUtils.runOnUiThreadBlocking(virtualCardEnrollmentUpdateResponseCallback.bind(false));
 
         // Verify that the Virtual Card enrollment button again allows enrollment.
         onView(withId(R.id.virtual_card_enrollment_button))
@@ -527,9 +523,7 @@ public class AutofillServerCardEditorTest {
         fakeVirtualCardEnrollmentFields.mGoogleLegalMessages.add(new LegalMessageLine("google"));
         fakeVirtualCardEnrollmentFields.mIssuerLegalMessages.add(new LegalMessageLine("issuer"));
         ThreadUtils.runOnUiThreadBlocking(
-                () ->
-                        virtualCardEnrollmentFieldsCallback.onResult(
-                                fakeVirtualCardEnrollmentFields));
+                virtualCardEnrollmentFieldsCallback.bind(fakeVirtualCardEnrollmentFields));
 
         // Verify that the dialog was displayed.
         onView(withId(R.id.dialog_title)).inRoot(isDialog()).check(matches(isDisplayed()));
@@ -595,9 +589,7 @@ public class AutofillServerCardEditorTest {
         fakeVirtualCardEnrollmentFields.mGoogleLegalMessages.add(new LegalMessageLine("google"));
         fakeVirtualCardEnrollmentFields.mIssuerLegalMessages.add(new LegalMessageLine("issuer"));
         ThreadUtils.runOnUiThreadBlocking(
-                () ->
-                        virtualCardEnrollmentFieldsCallback.onResult(
-                                fakeVirtualCardEnrollmentFields));
+                virtualCardEnrollmentFieldsCallback.bind(fakeVirtualCardEnrollmentFields));
 
         // Verify that the dialog was displayed.
         onView(withId(R.id.dialog_title)).inRoot(isDialog()).check(matches(isDisplayed()));
@@ -622,8 +614,7 @@ public class AutofillServerCardEditorTest {
         // Return enrollment update status "successful" via the callback.
         Callback<Boolean> virtualCardEnrollmentUpdateResponseCallback =
                 booleanCallbackArgumentCaptor.getValue();
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> virtualCardEnrollmentUpdateResponseCallback.onResult(true));
+        ThreadUtils.runOnUiThreadBlocking(virtualCardEnrollmentUpdateResponseCallback.bind(true));
 
         // Ensure that the callback is run after receiving the server response and that the native
         // delegate is cleaned up.
@@ -761,8 +752,7 @@ public class AutofillServerCardEditorTest {
         // Return enrollment update status "successful" via the callback.
         Callback<Boolean> virtualCardEnrollmentUpdateResponseCallback =
                 booleanCallbackArgumentCaptor.getValue();
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> virtualCardEnrollmentUpdateResponseCallback.onResult(true));
+        ThreadUtils.runOnUiThreadBlocking(virtualCardEnrollmentUpdateResponseCallback.bind(true));
 
         // Verify that the Virtual Card enrollment button now allows enrollment.
         onView(withId(R.id.virtual_card_enrollment_button))
@@ -820,8 +810,7 @@ public class AutofillServerCardEditorTest {
         // Return enrollment update status "failure" via the callback.
         Callback<Boolean> virtualCardEnrollmentUpdateResponseCallback =
                 booleanCallbackArgumentCaptor.getValue();
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> virtualCardEnrollmentUpdateResponseCallback.onResult(false));
+        ThreadUtils.runOnUiThreadBlocking(virtualCardEnrollmentUpdateResponseCallback.bind(false));
 
         // Verify that the Virtual Card enrollment button still allows unenrollment.
         onView(withId(R.id.virtual_card_enrollment_button))
@@ -884,8 +873,7 @@ public class AutofillServerCardEditorTest {
         // Return enrollment update status "successful" via the callback.
         Callback<Boolean> virtualCardEnrollmentUpdateResponseCallback =
                 booleanCallbackArgumentCaptor.getValue();
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> virtualCardEnrollmentUpdateResponseCallback.onResult(true));
+        ThreadUtils.runOnUiThreadBlocking(virtualCardEnrollmentUpdateResponseCallback.bind(true));
         // Ensure that the callback is run after receiving the server response and that the native
         // delegate is cleaned up.
         verify(mNativeMock).cleanup(NATIVE_AUTOFILL_PAYMENTS_METHODS_DELEGATE);

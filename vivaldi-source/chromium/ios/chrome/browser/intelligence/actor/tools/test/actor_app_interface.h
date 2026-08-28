@@ -16,6 +16,8 @@ typedef NS_ENUM(NSInteger, ActorAppInterfaceErrorCode) {
   ActorToolExecutionResultNoService = 2,
   ActorToolExecutionResultInvalidProto = 3,
   ActorToolExecutionResultNoActuationResults = 4,
+  ActorToolExecutionResultNoWebState = 5,
+  ActorToolExecutionResultNoMainFrame = 6,
 };
 
 // App interface to interact with the ActorService from integration tests.
@@ -26,9 +28,17 @@ typedef NS_ENUM(NSInteger, ActorAppInterfaceErrorCode) {
 + (void)executeActionWithProto:(NSData*)actionProto
                     completion:(void (^)(NSError* error))completion;
 
+// Executes a list of Actions defined by the serialized Actions proto.
+// The completion block is called when all actions finish or any action fails.
++ (void)executeActionsWithProto:(NSData*)actionsProto
+                     completion:(void (^)(NSError* error))completion;
+
 // Fetches the latest Annotated Page Content (APC) via the PageContextWrapper
 // and returns the serialized optimization_guide::proto::PageContext.
 + (NSData*)fetchLatestAPC;
+
+// Waits for page stability in the current main frame.
++ (void)waitForPageStabilityWithCompletion:(void (^)(NSError* error))completion;
 
 @end
 

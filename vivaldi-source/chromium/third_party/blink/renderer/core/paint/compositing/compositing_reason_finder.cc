@@ -7,6 +7,7 @@
 #include "third_party/blink/renderer/core/css/css_property_names.h"
 #include "third_party/blink/renderer/core/css/properties/css_bitset.h"
 #include "third_party/blink/renderer/core/dom/document.h"
+#include "third_party/blink/renderer/core/dom/flat_tree_traversal.h"
 #include "third_party/blink/renderer/core/dom/node.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
@@ -261,9 +262,10 @@ CompositingReasons CompositingReasonsForViewportScrollEffect(
     return CompositingReason::kNone;
 
   CompositingReasons reasons = CompositingReason::kNone;
-  // This ensures that the scroll_translation_for_fixed will be initialized in
-  // FragmentPaintPropertyTreeBuilder::UpdatePaintOffsetTranslation which in
-  // turn ensures that a TransformNode is created (for fixed elements) in cc.
+  // This ensures that the scroll_parent_scroll_translation will be initialized
+  // in FragmentPaintPropertyTreeBuilder::UpdatePaintOffsetTranslation which in
+  // turn ensures that a TransformNode is created (for fixed/backdrop elements)
+  // in cc.
   if (frame->GetPage()->GetVisualViewport().GetOverscrollType() ==
       OverscrollType::kTransform) {
     reasons |= CompositingReason::kFixedPosition;
@@ -380,15 +382,16 @@ CompositingReasons CompositingReasonFinder::DirectReasonsForPaintProperties(
                      object.GetDocument().GetExecutionContext())) {
     if (element->IsInCanvasSubtree() &&
         !object.StyleRef().IsRenderedInTopLayer(*element)) [[unlikely]] {
-      auto* canvas_parent =
-          DynamicTo<HTMLCanvasElement>(element->parentElement());
+      const Element* parent =
+          FlatTreeTraversal::ParentElementSkippingSlots(*element);
+      auto* canvas_parent = DynamicTo<HTMLCanvasElement>(parent);
       if (IsA<LayoutBox>(object) && canvas_parent &&
-          canvas_parent->layoutSubtree() &&
-          !canvas_parent->IsInCanvasSubtree()) {
+          canvas_parent->layoutSubtree() && canvas_parent->GetLayoutObject() &&
+          canvas_parent->GetLayoutObject()->IsCanvas()) {
         reasons |= CompositingReason::kCanvasChild;
       } else {
         // Disable compositing for elements in canvas subtrees other than the
-        // direct children of the outermost canvas element.
+        // direct children of canvas elements.
         return CompositingReason::kNone;
       }
     }
@@ -474,6 +477,10 @@ CompositingReasons CompositingReasonFinder::DirectReasonsForPaintProperties(
     }
   }
 
+  if (object.IsBackdropForOverscrollAreaParent()) {
+    reasons |= CompositingReason::kFixedBackdropInOverscrollAreaParent;
+  }
+
   return reasons;
 }
 
@@ -483,11 +490,9 @@ bool CompositingReasonFinder::ShouldForcePreferCompositingToLCDText(
   DCHECK_EQ(reasons, DirectReasonsForPaintProperties(object));
 
   if (RuntimeEnabledFeatures::CanvasDrawElementEnabled(
-          object.GetDocument().GetExecutionContext())) {
-    const auto* element = DynamicTo<Element>(object.GetNode());
-    if (element && element->IsInCanvasSubtree()) {
-      return false;
-    }
+          object.GetDocument().GetExecutionContext()) &&
+      object.IsInCanvasSubtree()) {
+    return false;
   }
 
   if (reasons != CompositingReason::kNone) {

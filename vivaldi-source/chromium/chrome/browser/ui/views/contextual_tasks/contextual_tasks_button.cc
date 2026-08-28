@@ -7,27 +7,26 @@
 #include <string>
 
 #include "base/check_op.h"
-#include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/user_metrics.h"
 #include "base/metrics/user_metrics_action.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
+#include "chrome/browser/contextual_tasks/contextual_tasks_utils.h"
 #include "chrome/browser/contextual_tasks/entry_point_eligibility_manager.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/immersive/immersive_mode_controller.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/ui/views/frame/immersive_mode_controller.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_ink_drop_util.h"
 #include "chrome/common/pref_names.h"
@@ -45,7 +44,6 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
-#include "ui/base/resource/resource_bundle.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_owner.h"
@@ -315,20 +313,48 @@ void ContextualTasksButton::OnButtonPress() {
   CHECK(controller);
   // TODO(crbug.com/480218994): Clean up the ToggleContextualTasksSidePanel
   // browser action, since the logic is now handled in this method.
+  bool is_pinned = contextual_tasks::GetEffectivePinState(
+      browser_window_interface_->GetProfile());
+
   if (controller->IsPanelOpenForContextualTask()) {
     base::RecordAction(base::UserMetricsAction(
         "ContextualTasks.ToolbarButton.UserAction.CloseSidePanel"));
     base::UmaHistogramBoolean(
         "ContextualTasks.ToolbarButton.UserAction.CloseSidePanel", true);
+
+    const char* sub_action =
+        is_pinned
+            ? "ContextualTasks.PermanentToolbarButton.UserAction.CloseSidePanel"
+            : "ContextualTasks.EphemeralToolbarButton.UserAction."
+              "CloseSidePanel";
+    base::RecordAction(base::UserMetricsAction(sub_action));
+    base::UmaHistogramBoolean(sub_action, true);
+
     controller->Close();
   } else {
     base::RecordAction(base::UserMetricsAction(
         "ContextualTasks.ToolbarButton.UserAction.OpenSidePanel"));
     base::UmaHistogramBoolean(
         "ContextualTasks.ToolbarButton.UserAction.OpenSidePanel", true);
-    controller->Show(
-        /*transition_from_tab=*/false,
-        omnibox::ChromeAimEntryPoint::DESKTOP_CHROME_COBROWSE_TOOLBAR_BUTTON);
+
+    const char* sub_action =
+        is_pinned
+            ? "ContextualTasks.PermanentToolbarButton.UserAction.OpenSidePanel"
+            : "ContextualTasks.EphemeralToolbarButton.UserAction.OpenSidePanel";
+    base::RecordAction(base::UserMetricsAction(sub_action));
+    base::UmaHistogramBoolean(sub_action, true);
+
+    if (contextual_tasks::kShowEntryPoint.Get() ==
+        contextual_tasks::EntryPointOption::kToolbarEphemeralBranded) {
+      omnibox::ChromeAimEntryPoint entry_point =
+          is_pinned ? omnibox::ChromeAimEntryPoint::
+                          DESKTOP_CHROME_COBROWSE_PINNED_TOOLBAR_BUTTON
+                    : omnibox::ChromeAimEntryPoint::
+                          DESKTOP_CHROME_COBROWSE_TOOLBAR_BUTTON;
+      controller->Show(/*transition_from_tab=*/false, entry_point);
+    } else {
+      controller->OpenInZeroState();
+    }
   }
 }
 
@@ -380,26 +406,7 @@ void ContextualTasksButton::UpdateColorsAndInsets() {
       *GetProperty(views::kInternalPaddingKey);
   SetLayoutInsets(insets);
 
-  if (drop_shadow_painted_layer_) {
-    views::View::RemoveLayerFromRegions(drop_shadow_painted_layer_->layer());
-  }
-
-  auto contextual_tasks_button_background_painter =
-      std::make_unique<ContextualTasksButtonBackgroundPainter>(
-          color_provider->GetColor(kColorToolbar),
-          color_provider->GetColor(kColorToolbarContextualTasksButtonShadow),
-          ShouldApplyCircularBackgroundShadow());
-
-  drop_shadow_painted_layer_ = views::Painter::CreatePaintedLayer(
-      std::move(contextual_tasks_button_background_painter));
-  ui::Layer* const drop_shadow_layer = drop_shadow_painted_layer_->layer();
-  drop_shadow_layer->SetFillsBoundsOpaquely(false);
-
-  // Use the views version of AddLayerToRegion because the LabelButton already
-  // overrides AddLayerToRegion() to support painting labels. As a result, the
-  // unqualified version will result in the shadow being rendered incorrectly.
-  views::View::AddLayerToRegion(drop_shadow_layer, views::LayerRegion::kBelow);
-  UpdateDropShadowLayerBounds();
+  UpdateDropShadow();
 }
 
 void ContextualTasksButton::OnViewLayerBoundsSet(views::View* observed_view) {
@@ -444,29 +451,75 @@ bool ContextualTasksButton::ShouldApplyCircularBackgroundShadow() const {
 }
 
 void ContextualTasksButton::MaybeUpdateVisibility() {
+  if (contextual_tasks::kShowEntryPoint.Get() !=
+      contextual_tasks::EntryPointOption::kToolbarEphemeralBranded) {
+    return;
+  }
+
   const bool is_button_eligible =
       contextual_tasks::EntryPointEligibilityManager::From(
           browser_window_interface_)
           ->AreEntryPointsEligible();
 
-  if (contextual_tasks::kShowEntryPoint.Get() ==
-      contextual_tasks::EntryPointOption::kToolbarEphemeralBranded) {
-    ContextualTasksEphemeralButtonController* const controller =
-        ContextualTasksEphemeralButtonController::From(
-            browser_window_interface_);
-    const bool was_visible = GetVisible();
-    SetVisible(is_button_eligible && controller->ShouldShowEphemeralButton());
-    if (!was_visible && GetVisible()) {
-      layer()->SetOpacity(0.0f);
-      drop_shadow_painted_layer_->layer()->SetOpacity(0.0f);
-      views::AnimationBuilder()
-          .Once()
-          .SetDuration(
-              base::Milliseconds(features::kSidePanelFlyoverDurationMs.Get()))
-          .SetOpacity(layer(), 1.0f)
-          .SetOpacity(drop_shadow_painted_layer_->layer(), 1.0f);
+  ContextualTasksEphemeralButtonController* const controller =
+      ContextualTasksEphemeralButtonController::From(browser_window_interface_);
+
+  const bool was_visible = GetVisible();
+  const bool will_be_visible = is_button_eligible && controller &&
+                               controller->ShouldShowEphemeralButton();
+
+  if (!was_visible && will_be_visible) {
+    if (layer()) {
+      layer()->SetOpacity(0.0f);  // Silence the flash before it becomes visible
+    }
+    SetVisible(true);
+    AnimateShow();
+    base::RecordAction(base::UserMetricsAction(
+        "ContextualTasks.EphemeralToolbarButton.Shown"));
+    base::UmaHistogramBoolean("ContextualTasks.EphemeralToolbarButton.Shown",
+                              true);
+  } else {
+    SetVisible(will_be_visible);
+    if (was_visible && !will_be_visible) {
+      ClearDropShadow();
     }
   }
+}
+
+void ContextualTasksButton::UpdateDropShadow(bool force_paint,
+                                             float initial_opacity) {
+  if (!GetVisible() && !force_paint) {
+    return;
+  }
+
+  const auto* color_provider = GetColorProvider();
+  if (!color_provider) {
+    return;
+  }
+
+  float target_opacity = drop_shadow_painted_layer_
+                             ? drop_shadow_painted_layer_->layer()->opacity()
+                             : initial_opacity;
+
+  ClearDropShadow();
+
+  auto contextual_tasks_button_background_painter =
+      std::make_unique<ContextualTasksButtonBackgroundPainter>(
+          color_provider->GetColor(kColorToolbar),
+          color_provider->GetColor(kColorToolbarContextualTasksButtonShadow),
+          ShouldApplyCircularBackgroundShadow());
+
+  drop_shadow_painted_layer_ = views::Painter::CreatePaintedLayer(
+      std::move(contextual_tasks_button_background_painter));
+  ui::Layer* const drop_shadow_layer = drop_shadow_painted_layer_->layer();
+  drop_shadow_layer->SetFillsBoundsOpaquely(false);
+  drop_shadow_layer->SetOpacity(target_opacity);
+
+  // Use the views version of AddLayerToRegion because the LabelButton already
+  // overrides AddLayerToRegion() to support painting labels. As a result, the
+  // unqualified version will result in the shadow being rendered incorrectly.
+  views::View::AddLayerToRegion(drop_shadow_layer, views::LayerRegion::kBelow);
+  UpdateDropShadowLayerBounds();
 }
 
 void ContextualTasksButton::UpdateDropShadowLayerBounds() {
@@ -475,6 +528,31 @@ void ContextualTasksButton::UpdateDropShadowLayerBounds() {
   layer_bounds.Outset(kShadowOutset);
   layer_bounds.Offset(layer()->bounds().OffsetFromOrigin());
   drop_shadow_painted_layer_->layer()->SetBounds(layer_bounds);
+}
+
+void ContextualTasksButton::AnimateShow() {
+  UpdateDropShadow(/*force_paint=*/true, /*initial_opacity=*/0.0f);
+  if (!layer()) {
+    return;
+  }
+  views::AnimationBuilder builder;
+  auto& sequence =
+      builder.Once()
+          .SetDuration(
+              base::Milliseconds(features::kSidePanelFlyoverDurationMs.Get()))
+          .SetOpacity(layer(), 1.0f);
+
+  if (drop_shadow_painted_layer_) {
+    drop_shadow_painted_layer_->layer()->SetOpacity(0.0f);
+    sequence.SetOpacity(drop_shadow_painted_layer_->layer(), 1.0f);
+  }
+}
+
+void ContextualTasksButton::ClearDropShadow() {
+  if (drop_shadow_painted_layer_) {
+    views::View::RemoveLayerFromRegions(drop_shadow_painted_layer_->layer());
+    drop_shadow_painted_layer_.reset();
+  }
 }
 
 ui::ImageModel ContextualTasksButton::GetButtonImage() {

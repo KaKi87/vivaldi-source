@@ -24,7 +24,7 @@ class NoteLocalChangesBuilder {
   NoteLocalChangesBuilder& operator=(const NoteLocalChangesBuilder&) = delete;
 
   // Builds the commit requests list.
-  syncer::CommitRequestDataList BuildCommitRequests(size_t max_entries) const;
+  syncer::CommitRequestDataList BuildCommitRequests(size_t max_entries);
 
  private:
   const raw_ptr<SyncedNoteTracker> note_tracker_;

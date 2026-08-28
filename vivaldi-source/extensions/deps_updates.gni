@@ -27,12 +27,6 @@ if (!is_android) {
       "//vivaldi/extensions/schema",
       "//vivaldi/extensions/tools",
     ]
-    allow_circular_includes_from += [
-      "//vivaldi/extensions/api:apis",
-      "//vivaldi/extensions/helper",
-      "//vivaldi/extensions/helper:app_helper",
-      "//vivaldi/extensions/tools",
-    ]
   }
   update_target("//chrome/browser/extensions:extensions") {
     deps += [
@@ -40,7 +34,6 @@ if (!is_android) {
       "//vivaldi/extensions/schema",
       "//vivaldi/prefs:prefs_files_generator",
     ]
-    allow_circular_includes_from += [ "//components/bookmarks/browser" ]
   }
 }
 
@@ -49,10 +42,6 @@ update_target("//chrome/browser/ui:ui") {
     "//components/sessions",
     "//vivaldi/extensions/api:apis",
     "//vivaldi/extensions/schema",
-    "//vivaldi/extensions/tools",
-  ]
-  allow_circular_includes_from += [
-    "//vivaldi/extensions/api:apis",
     "//vivaldi/extensions/tools",
   ]
 }

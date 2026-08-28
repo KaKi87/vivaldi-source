@@ -154,6 +154,86 @@ void FuseAndSplit() {
   }
 }
 
+#ifndef XNNPACK_USE_YNNPACK
+// A large fuse/split axis makes `axis + count` wrap past SIZE_MAX, so the
+// `> XNN_MAX_TENSOR_DIMS` range check used to pass. For fuse_dims the oversized
+// count then writes past the end of a XNN_MAX_TENSOR_DIMS stack array, and the
+// wrapped axis is stored as the fuse start dimension. The define must reject it.
+TEST(FuseDims, large_axis_rejected) {
+  ASSERT_EQ(xnn_status_success, xnn_initialize(nullptr));
+
+  xnn_subgraph_t subgraph = nullptr;
+  ASSERT_EQ(xnn_status_success, xnn_create_subgraph(2, 0, &subgraph));
+
+  const size_t dims[] = {2, 3};
+  uint32_t input_id = XNN_INVALID_VALUE_ID;
+  ASSERT_EQ(xnn_status_success,
+            xnn_define_tensor_value(subgraph, xnn_datatype_fp32, 2, dims,
+                                    nullptr, 0, XNN_VALUE_FLAG_EXTERNAL_INPUT,
+                                    &input_id));
+  uint32_t output_id = XNN_INVALID_VALUE_ID;
+  ASSERT_EQ(xnn_status_success,
+            xnn_define_tensor_value(subgraph, xnn_datatype_fp32, 2, dims,
+                                    nullptr, 1, XNN_VALUE_FLAG_EXTERNAL_OUTPUT,
+                                    &output_id));
+
+  EXPECT_NE(xnn_status_success,
+            xnn_define_fuse_dims(subgraph, /*first_dim=*/SIZE_MAX,
+                                 /*num_dims=*/2, input_id, output_id,
+                                 /*flags=*/0));
+
+  xnn_delete_subgraph(subgraph);
+}
+
+TEST(SplitDim, large_axis_rejected) {
+  ASSERT_EQ(xnn_status_success, xnn_initialize(nullptr));
+
+  xnn_subgraph_t subgraph = nullptr;
+  ASSERT_EQ(xnn_status_success, xnn_create_subgraph(2, 0, &subgraph));
+
+  const size_t dims[] = {2, 3};
+  uint32_t input_id = XNN_INVALID_VALUE_ID;
+  ASSERT_EQ(xnn_status_success,
+            xnn_define_tensor_value(subgraph, xnn_datatype_fp32, 2, dims,
+                                    nullptr, 0, XNN_VALUE_FLAG_EXTERNAL_INPUT,
+                                    &input_id));
+  uint32_t output_id = XNN_INVALID_VALUE_ID;
+  ASSERT_EQ(xnn_status_success,
+            xnn_define_tensor_value(subgraph, xnn_datatype_fp32, 2, dims,
+                                    nullptr, 1, XNN_VALUE_FLAG_EXTERNAL_OUTPUT,
+                                    &output_id));
+
+  const size_t splits[] = {2, 3};
+  EXPECT_NE(xnn_status_success,
+            xnn_define_split_dim(subgraph, /*axis=*/SIZE_MAX, /*num_splits=*/2,
+                                 splits, input_id, output_id, /*flags=*/0));
+
+  xnn_delete_subgraph(subgraph);
+}
+
+// A split axis at or beyond the input rank has no dimension to split. Before
+// it was rejected the reshape read input_shape->dim[axis] from past the live
+// rank and emitted an output element count that no longer matched the input,
+// which the copy kernel then overran.
+TEST(SplitDims, RejectsAxisOutOfRange) {
+  ASSERT_EQ(xnn_status_success, xnn_initialize(nullptr /* allocator */));
+
+  const std::vector<size_t> input_shape = {4, 4};
+  Tensor<float> input(input_shape, XnnExtraBytes);
+  Tensor<float> output({4, 4});
+
+  SubgraphTester subgraph(2);
+  subgraph.AddInputTensor(input_shape, input.data(), /*external_id=*/0)
+      .AddOutputTensor(output.shape(), output.data(), /*external_id=*/1)
+      .AddSplitDim(/*axis=*/3, /*splits=*/{2, 2}, /*input_id=*/0,
+                   /*output_id=*/1);
+  ASSERT_EQ(xnn_status_success, subgraph.CreateRuntime());
+
+  subgraph.ReshapeExternalTensor(input_shape, input.data(), 0).ReshapeRuntime();
+  EXPECT_EQ(subgraph.Status(), xnn_status_invalid_parameter);
+}
+#endif  // XNNPACK_USE_YNNPACK
+
 TEST(FuseAndSplitQS8, test) { FuseAndSplit<quantized<int8_t>>(); }
 TEST(FuseAndSplitQU8, test) { FuseAndSplit<quantized<uint8_t>>(); }
 TEST(FuseAndSplitBF16, test) { FuseAndSplit<xnn_bfloat16>(); }

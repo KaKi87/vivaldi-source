@@ -62,17 +62,20 @@ BASE_DECLARE_FEATURE(kAiModeSpaceDoesNotActivate);
 BASE_DECLARE_FEATURE(kWebUIOmniboxDisableCaretColorAnimation);
 BASE_DECLARE_FEATURE(kWebUIOmniboxAimPopupDisableAnimation);
 BASE_DECLARE_FEATURE(kWebUIOmniboxFullPopup);
-BASE_DECLARE_FEATURE(kWebUIOmniboxFullPopupV2);
+BASE_DECLARE_FEATURE(kWebUIOmniboxFullPopupDoubleClick);
+BASE_DECLARE_FEATURE(kOmniboxEverywhere);
 BASE_DECLARE_FEATURE(kWebUIOmniboxPopupDebug);
 BASE_DECLARE_FEATURE(kWebUIOmniboxPopupSelectionControl);
 // Caret animation for omnibox
 BASE_DECLARE_FEATURE(kOmniboxAnimatedCaret);
 // Enables energy effect in the omnibox.
 BASE_DECLARE_FEATURE(kEnergyEffectInOmnibox);
-BASE_DECLARE_FEATURE(kWebUIOmniboxAskGAboutThisPage);
 BASE_DECLARE_FEATURE(kWebUIOmniboxDynamicAiModeButton);
+// Prevents closing popup while file chooser is open.
+BASE_DECLARE_FEATURE(kOmniboxKeepOpenOnFileSelection);
 
 extern const base::FeatureParam<bool> kWebUIOmniboxPopupDebugSxSParam;
+extern const base::FeatureParam<bool> kOmniboxEverywhereProfilePickerParam;
 
 // The serialized base64 encoded `omnibox::NTPComposeboxConfig`.
 extern const base::FeatureParam<std::string> kConfigParam;
@@ -104,8 +107,6 @@ extern const base::FeatureParam<bool> kShowSmartCompose;
 extern const base::FeatureParam<bool> kShowToolsAndModels;
 // Whether to show section headers in the context menu.
 extern const base::FeatureParam<bool> kShowContextMenuHeaders;
-// Whether to use the composebox fork.
-extern const base::FeatureParam<bool> kUseComposeboxFork;
 // Whether to use the grey oblong background for context menu entrypoint.
 extern const base::FeatureParam<bool> kContextButtonHasBackground;
 // Whether the button should be an oblong shape vs circular.
@@ -114,18 +115,21 @@ extern const base::FeatureParam<bool> kContextButtonShapeIsOblong;
 extern const base::FeatureParam<bool> kContextButtonShowSuggestionLabel;
 // If enabled, then the WebUI Omnibox will be rendered in a WebView in the
 // BrowserView.
-extern const base::FeatureParam<bool> kWebUIOmniboxFullPopupV2UseBrowserView;
-// Whether to open the next panel with cobrowse.
-extern const base::FeatureParam<bool> kAskGCoBrowse;
-// Whether to open the next panel with cobrowse and visual selection.
-extern const base::FeatureParam<bool> kAskGCoBrowseWithVisualSelection;
+extern const base::FeatureParam<bool> kWebUIOmniboxFullPopupUseBrowserView;
+extern const base::FeatureParam<bool> kWebUIOmniboxFullPopupMultiline;
+// Whether to enable dynamic animation for the WebUI Omnibox.
+extern const base::FeatureParam<bool> kWebUIOmniboxDynamicAnimation;
+// Whether to enable dynamic color scheme for the WebUI Omnibox.
+extern const base::FeatureParam<bool> kWebUIOmniboxDynamicColorScheme;
 
 // Returns true if `kWebUIOmniboxPopup` is enabled.
 bool IsWebUIOmniboxPopupEnabled();
 
-// Returns true if either `kWebUIOmniboxFullPopup` or `kWebUIOmniboxFullPopupV2`
-// is enabled.
+// Returns true if `kWebUIOmniboxFullPopup` is enabled.
 bool IsWebUIOmniboxFullPopupEnabled();
+
+// Returns true if the webui omnibox should use the WebuiOmniboxFullHandler
+bool ShouldUseWebUIOmniboxFullHandler();
 
 // Returns true if `kWebUIOmniboxInBrowserView` is enabled.
 bool IsWebUIOmniboxInBrowserViewEnabled();
@@ -141,6 +145,11 @@ bool IsAimPopupFeatureEnabled();
 // eligibility.
 bool IsAimPopupEnabled(Profile* profile);
 bool ShouldShowAimContextMenuOption(Profile* profile);
+
+// Returns true if the Omnibox Everywhere feature is fully enabled for the given
+// `profile`. This checks both the base::Feature flag and that Google is the
+// default search provider.
+bool IsOmniboxEverywhereEnabled(Profile* profile);
 
 // Returns true if search content sharing is permitted by enterprise policy.
 bool IsContentSharingEnabled(

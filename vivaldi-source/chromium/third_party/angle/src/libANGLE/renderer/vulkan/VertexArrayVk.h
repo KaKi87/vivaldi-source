@@ -48,11 +48,13 @@ class VertexArrayVk : public VertexArrayImpl
     angle::Result updateStreamedAttribs(const gl::Context *context,
                                         GLint firstVertex,
                                         GLsizei vertexOrIndexCount,
-                                        GLsizei baseInstance,
+                                        GLuint baseInstance,
                                         GLsizei instanceCount,
                                         gl::DrawElementsType indexTypeOrInvalid,
                                         const void *indices,
                                         gl::AttributesMask *strideDirtyAttribMaskOut);
+
+    void resetInactiveStreamedAttribs(const gl::Context *context);
 
     angle::Result handleLineLoop(ContextVk *contextVk,
                                  GLint firstVertex,

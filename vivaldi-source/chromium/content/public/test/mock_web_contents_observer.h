@@ -121,6 +121,7 @@ class MockWebContentsObserver : public WebContentsObserver {
               ResourceLoadComplete,
               (RenderFrameHost* render_frame_host,
                const GlobalRequestID& request_id,
+               const GURL& original_url,
                const blink::mojom::ResourceLoadInfo& resource_load_info),
               (override));
   MOCK_METHOD(void, OnFedCmFederatedLogin, (bool success), (override));
@@ -221,8 +222,9 @@ class MockWebContentsObserver : public WebContentsObserver {
               (override));
   MOCK_METHOD(void,
               DidUpdateFaviconURL,
-              (RenderFrameHost* render_frame_host,
-               const std::vector<blink::mojom::FaviconURLPtr>& candidates),
+              (RenderFrameHost * render_frame_host,
+               const std::vector<blink::mojom::FaviconURLPtr>& candidates,
+               blink::mojom::FaviconUpdateReason reason),
               (override));
   MOCK_METHOD(void, OnAudioStateChanged, (bool audible), (override));
   MOCK_METHOD(void,

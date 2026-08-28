@@ -9,6 +9,8 @@
 
 #import "base/ios/block_types.h"
 
+enum class CustomLeadingViewType;
+
 // Commands for focusing the omnibox in various ways.
 @protocol OmniboxCommands
 // Give focus to the omnibox, if it is visible. No-op if it is not visible.
@@ -27,6 +29,8 @@
 // Cancels the omnibox edit session. The completion block is executed
 // once the cancellation (and any dismissal animation) has finished.
 - (void)cancelOmniboxEditWithCompletion:(ProceduralBlock)completion;
+// Sets the type of custom leading view to display in the location bar.
+- (void)setCustomLeadingViewType:(CustomLeadingViewType)type;
 
 // Sets the custom leading view visibility, optionally animated.
 - (void)setCustomLeadingViewVisible:(BOOL)visible animated:(BOOL)animated;

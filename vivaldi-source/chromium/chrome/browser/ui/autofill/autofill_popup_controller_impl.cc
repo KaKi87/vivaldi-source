@@ -31,14 +31,14 @@
 #include "chrome/browser/ui/autofill/autofill_suggestion_controller_utils.h"
 #include "chrome/browser/ui/autofill/next_idle_barrier.h"
 #include "chrome/browser/ui/autofill/popup_controller_common.h"
-#include "components/accessibility_annotator/core/accessibility_query_service.h"
-#include "components/accessibility_annotator/core/annotation_reducer/memory_search_result.h"
 #include "components/autofill/content/browser/content_autofill_client.h"
+#include "components/autofill/content/browser/renderer_forms_from_browser_form.h"
 #include "components/autofill/core/browser/at_memory/at_memory_data_type.h"
 #include "components/autofill/core/browser/data_manager/personal_data_manager.h"
-#include "components/autofill/core/browser/data_model/autofill_ai/from_accessibility_annotator.h"
 #include "components/autofill/core/browser/filling/filling_product.h"
 #include "components/autofill/core/browser/foundations/autofill_manager.h"
+#include "components/autofill/core/browser/integrators/at_memory/at_memory_query_service.h"
+#include "components/autofill/core/browser/integrators/at_memory/memory_data_type_util.h"
 #include "components/autofill/core/browser/metrics/autofill_metrics.h"
 #include "components/autofill/core/browser/metrics/autofill_metrics_utils.h"
 #include "components/autofill/core/browser/suggestions/suggestion.h"
@@ -82,17 +82,65 @@ namespace autofill {
 
 namespace {
 
-// Trigger sources for which no paint checks are enforced on the popup row
-// level.
-constexpr DenseSet<AutofillSuggestionTriggerSource>
-    kTriggerSourcesExemptFromPaintChecks = {
-        AutofillSuggestionTriggerSource::kPlusAddressUpdatedInBrowserProcess};
+// Paint checks (i.e. mouse hover checks) are normally enforced on the popup row
+// level to prevent accidental acceptances. Returns whether `trigger_source`
+// enforces these paint checks.
+bool ShouldEnforcePaintChecks(AutofillSuggestionTriggerSource trigger_source) {
+  switch (trigger_source) {
+    case AutofillSuggestionTriggerSource::kPlusAddressUpdatedInBrowserProcess:
+    case AutofillSuggestionTriggerSource::kAtMemoryContextMenu:
+    case AutofillSuggestionTriggerSource::kAtMemoryInactivityNudge:
+    case AutofillSuggestionTriggerSource::kAtMemoryKeyboardShortcut:
+    case AutofillSuggestionTriggerSource::kAtMemoryTriggerString:
+      return false;
+    case AutofillSuggestionTriggerSource::kUnspecified:
+    case AutofillSuggestionTriggerSource::kFormControlElementClicked:
+    case AutofillSuggestionTriggerSource::kTextareaFocusedWithoutClick:
+    case AutofillSuggestionTriggerSource::kContentEditableClicked:
+    case AutofillSuggestionTriggerSource::kTextFieldValueChanged:
+    case AutofillSuggestionTriggerSource::kTextFieldDidReceiveKeyDown:
+    case AutofillSuggestionTriggerSource::kOpenTextDataListChooser:
+    case AutofillSuggestionTriggerSource::kPasswordManager:
+    case AutofillSuggestionTriggerSource::kiOS:
+    case AutofillSuggestionTriggerSource::kManualFallbackPasswords:
+    case AutofillSuggestionTriggerSource::kComposeDialogLostFocus:
+    case AutofillSuggestionTriggerSource::kComposeDelayedProactiveNudge:
+    case AutofillSuggestionTriggerSource::kPasswordManagerProcessedFocusedField:
+    case AutofillSuggestionTriggerSource::kProactivePasswordRecovery:
+    case AutofillSuggestionTriggerSource::kGlic:
+      return true;
+  }
+}
 
-// Trigger sources for which the `NextIdleBarrier` is not reset. Note that this
-// requires that the trigger sources is only used to update the popup.
-constexpr DenseSet<AutofillSuggestionTriggerSource>
-    kTriggerSourcesExemptFromTimeReset = {
-        AutofillSuggestionTriggerSource::kPlusAddressUpdatedInBrowserProcess};
+// When suggestions update in an open popup, a 500ms lockout against accidental
+// clicks is normally restarted. Returns whether `trigger_source` restarts this
+// lockout.
+bool ShouldResetIdleBarrier(AutofillSuggestionTriggerSource trigger_source) {
+  switch (trigger_source) {
+    case AutofillSuggestionTriggerSource::kPlusAddressUpdatedInBrowserProcess:
+    case AutofillSuggestionTriggerSource::kAtMemoryContextMenu:
+    case AutofillSuggestionTriggerSource::kAtMemoryInactivityNudge:
+    case AutofillSuggestionTriggerSource::kAtMemoryKeyboardShortcut:
+    case AutofillSuggestionTriggerSource::kAtMemoryTriggerString:
+      return false;
+    case AutofillSuggestionTriggerSource::kUnspecified:
+    case AutofillSuggestionTriggerSource::kFormControlElementClicked:
+    case AutofillSuggestionTriggerSource::kTextareaFocusedWithoutClick:
+    case AutofillSuggestionTriggerSource::kContentEditableClicked:
+    case AutofillSuggestionTriggerSource::kTextFieldValueChanged:
+    case AutofillSuggestionTriggerSource::kTextFieldDidReceiveKeyDown:
+    case AutofillSuggestionTriggerSource::kOpenTextDataListChooser:
+    case AutofillSuggestionTriggerSource::kPasswordManager:
+    case AutofillSuggestionTriggerSource::kiOS:
+    case AutofillSuggestionTriggerSource::kManualFallbackPasswords:
+    case AutofillSuggestionTriggerSource::kComposeDialogLostFocus:
+    case AutofillSuggestionTriggerSource::kComposeDelayedProactiveNudge:
+    case AutofillSuggestionTriggerSource::kPasswordManagerProcessedFocusedField:
+    case AutofillSuggestionTriggerSource::kProactivePasswordRecovery:
+    case AutofillSuggestionTriggerSource::kGlic:
+      return true;
+  }
+}
 
 struct SuggestionFiltrationResult {
   void AddSuggestion(
@@ -177,49 +225,64 @@ void MaybeRecordAddressDeletedMetric(content::WebContents* web_contents,
   }
 }
 
+std::optional<AutofillPopupView::SubPopupConfig> GetSubPopupConfig(
+    AutofillSuggestionTriggerSource trigger_source) {
+  switch (trigger_source) {
+    case AutofillSuggestionTriggerSource::kAtMemoryContextMenu:
+    case AutofillSuggestionTriggerSource::kAtMemoryInactivityNudge:
+    case AutofillSuggestionTriggerSource::kAtMemoryKeyboardShortcut:
+    case AutofillSuggestionTriggerSource::kAtMemoryTriggerString:
+      return AutofillPopupView::SubPopupConfig{.no_selection_hide_delay =
+                                                   base::Seconds(1)};
+    case AutofillSuggestionTriggerSource::kManualFallbackPasswords:
+    case AutofillSuggestionTriggerSource::kFormControlElementClicked:
+    case AutofillSuggestionTriggerSource::kTextareaFocusedWithoutClick:
+    case AutofillSuggestionTriggerSource::kContentEditableClicked:
+    case AutofillSuggestionTriggerSource::kTextFieldValueChanged:
+    case AutofillSuggestionTriggerSource::kTextFieldDidReceiveKeyDown:
+    case AutofillSuggestionTriggerSource::kOpenTextDataListChooser:
+    case AutofillSuggestionTriggerSource::kPasswordManager:
+    case AutofillSuggestionTriggerSource::kiOS:
+    case AutofillSuggestionTriggerSource::kComposeDialogLostFocus:
+    case AutofillSuggestionTriggerSource::kComposeDelayedProactiveNudge:
+    case AutofillSuggestionTriggerSource::kPasswordManagerProcessedFocusedField:
+    case AutofillSuggestionTriggerSource::kPlusAddressUpdatedInBrowserProcess:
+    case AutofillSuggestionTriggerSource::kProactivePasswordRecovery:
+    case AutofillSuggestionTriggerSource::kGlic:
+    case AutofillSuggestionTriggerSource::kUnspecified:
+      return std::nullopt;
+  }
+  NOTREACHED();
+}
+
 }  // namespace
 
-#if !BUILDFLAG(IS_MAC) && !BUILDFLAG(IS_ANDROID)
-// static
-base::WeakPtr<AutofillSuggestionController>
-AutofillSuggestionController::GetOrCreate(
-    base::WeakPtr<AutofillSuggestionController> previous,
+
+bool AutofillPopupControllerImpl::MayRecycle(
     base::WeakPtr<AutofillSuggestionDelegate> delegate,
     content::WebContents* web_contents,
-    PopupControllerCommon controller_common,
-    int32_t form_control_ax_id,
-    AutofillSuggestionTriggerSource trigger_source) {
-  // All controllers on Desktop derive from `AutofillPopupControllerImpl`.
-  if (AutofillPopupControllerImpl* previous_impl =
-          static_cast<AutofillPopupControllerImpl*>(previous.get());
-      previous_impl && previous_impl->delegate_.get() == delegate.get() &&
-      previous_impl->container_view() == web_contents->GetNativeView() &&
-      previous_impl->GetSuggestionTriggerSource() == trigger_source) {
-    if (previous_impl->self_deletion_weak_ptr_factory_.HasWeakPtrs()) {
-      previous_impl->self_deletion_weak_ptr_factory_.InvalidateWeakPtrs();
-    }
-    previous_impl->controller_common_ = std::move(controller_common);
-    previous_impl->form_control_ax_id_ = form_control_ax_id;
-    previous_impl->ClearState();
-    return previous_impl->GetWeakPtr();
-  }
-
-  if (previous) {
-    previous->Hide(SuggestionHidingReason::kViewDestroyed);
-  }
-  auto* controller = new AutofillPopupControllerImpl(
-      delegate, web_contents, std::move(controller_common), form_control_ax_id,
-      /*parent=*/std::nullopt);
-  return controller->GetWeakPtr();
+    AutofillSuggestionTriggerSource trigger_source) const {
+  return delegate_.get() == delegate.get() &&
+         container_view() == web_contents->GetNativeView() &&
+         GetSuggestionTriggerSource() == trigger_source;
 }
-#endif
+
+void AutofillPopupControllerImpl::Recycle(
+    PopupControllerCommon controller_common,
+    int32_t form_control_ax_id) {
+  if (self_deletion_weak_ptr_factory_.HasWeakPtrs()) {
+    self_deletion_weak_ptr_factory_.InvalidateWeakPtrs();
+  }
+  controller_common_ = std::move(controller_common);
+  form_control_ax_id_ = form_control_ax_id;
+  ClearState();
+}
 
 AutofillPopupControllerImpl::AutofillPopupControllerImpl(
     base::WeakPtr<AutofillSuggestionDelegate> delegate,
     content::WebContents* web_contents,
     PopupControllerCommon controller_common,
-    int32_t form_control_ax_id,
-    std::optional<base::WeakPtr<ExpandablePopupParentControllerImpl>> parent)
+    std::optional<base::WeakPtr<AutofillPopupControllerImpl>> parent)
     : web_contents_(web_contents->GetWeakPtr()),
       controller_common_(std::move(controller_common)),
       delegate_(delegate),
@@ -272,19 +335,40 @@ void AutofillPopupControllerImpl::Show(
     return;
   }
 
-  // The focused frame may be a different frame than the one the delegate is
-  // associated with. This happens in two scenarios:
-  // - With frame-transcending forms: the focused frame is subframe, whose
-  //   form has been flattened into an ancestor form.
-  // - With race conditions: while Autofill parsed the form, the focused may
-  //   have moved to another frame.
-  // We support the case where the focused frame is a descendant of the
-  // `delegate_`'s frame. We observe the focused frame's RenderFrameDeleted()
-  // event.
-  content::RenderFrameHost* rfh = web_contents_->GetFocusedFrame();
-  if (!should_ignore_focus_loss &&
-      (!rfh || !delegate_ ||
-       !IsAncestorOf(GetRenderFrameHost(*delegate_), rfh))) {
+  content::RenderFrameHost* rfh = nullptr;
+  if (base::FeatureList::IsEnabled(features::kAutofillSimplifyFocusCheck)) {
+    rfh = FindRenderFrameHostByToken(*web_contents_,
+                                     controller_common_.frame_token);
+  } else {
+    // The focused frame may be different from the one one the controller is
+    // anchored to. This happens in two scenarios:
+    // - With frame-transcending forms: the focused frame is a subframe whose
+    //   form has been flattened into an ancestor form.
+    // - With race conditions: while Autofill parsed the form, the focus may
+    //   have moved to another frame.
+    // We support the case where the focused frame is a descendant of the
+    // `delegate_`'s frame. We observe the focused frame's RenderFrameDeleted()
+    // event.
+    rfh = web_contents_->GetFocusedFrame();
+    content::RenderFrameHost* anchor_rfh = FindRenderFrameHostByToken(
+        *web_contents_, controller_common_.frame_token);
+
+    const bool focus_is_in_descendant =
+        rfh && delegate_ && IsAncestorOf(anchor_rfh, rfh);
+
+    // If the focused frame is null or not a descendant of the delegate's frame,
+    // we either hide the popup, or fall back to the delegate's frame if focus
+    // loss should be ignored (e.g. when typing in a popup search bar).
+    if (!focus_is_in_descendant) {
+      if (!should_ignore_focus_loss) {
+        Hide(SuggestionHidingReason::kNoFrameHasFocus);
+        return;
+      }
+      rfh = delegate_ ? GetRenderFrameHost_DoNotUse(*delegate_) : nullptr;
+    }
+  }
+
+  if (!rfh) {
     Hide(SuggestionHidingReason::kNoFrameHasFocus);
     return;
   }
@@ -313,8 +397,8 @@ void AutofillPopupControllerImpl::Show(
   SetSuggestions(std::move(suggestions));
 
   should_ignore_mouse_observed_outside_item_bounds_check_ =
-      kTriggerSourcesExemptFromPaintChecks.contains(trigger_source_);
-  if (!kTriggerSourcesExemptFromTimeReset.contains(trigger_source_)) {
+      !ShouldEnforcePaintChecks(trigger_source_);
+  if (ShouldResetIdleBarrier(trigger_source_)) {
     barrier_for_accepting_.reset();
   }
 
@@ -322,6 +406,7 @@ void AutofillPopupControllerImpl::Show(
     OnSuggestionsChanged();
   } else {
     bool has_parent = parent_controller_ && parent_controller_->get();
+    is_tabbed_popup_ = controller_common_.show_tabbed_popup;
     auto tabbed_pane_config =
         controller_common_.show_tabbed_popup
             ? std::make_optional<AutofillPopupView::TabbedPaneConfig>(
@@ -335,7 +420,8 @@ void AutofillPopupControllerImpl::Show(
                 ? parent_controller_->get()->CreateSubPopupView(GetWeakPtr())
                 : AutofillPopupView::Create(GetWeakPtr(),
                                             GetSearchBarConfig(trigger_source),
-                                            std::move(tabbed_pane_config));
+                                            std::move(tabbed_pane_config),
+                                            GetSubPopupConfig(trigger_source));
 
     // It is possible to fail to create the popup, in this case
     // treat the popup as hiding right away.
@@ -357,7 +443,7 @@ void AutofillPopupControllerImpl::Show(
     // TODO(crbug.com/41486228): Consider not to recycle views or controllers
     // and only permit a single call to `Show`.
     key_press_observer_.Reset();
-    key_press_observer_.Observe(web_contents_->GetFocusedFrame());
+    key_press_observer_.Observe(rfh);
 
     if (non_filtered_suggestions_.size() == 1 &&
         non_filtered_suggestions_[0].type ==
@@ -368,9 +454,13 @@ void AutofillPopupControllerImpl::Show(
           base::BindOnce(&AutofillSuggestionController::Hide, GetWeakPtr(),
                          SuggestionHidingReason::kFadeTimerExpired));
     }
-
-    delegate_->OnSuggestionsShown(non_filtered_suggestions_);
   }
+  delegate_->OnSuggestionsShown(
+      non_filtered_suggestions_,
+      IsRootPopup()
+          ? std::nullopt
+          : std::optional<AutofillSuggestionDelegate::SuggestionMetadata>(
+                {.multi_index = GetParentMultiRowIndex()}));
 
   if (autofill_metrics::ShouldLogAutofillSuggestionShown(trigger_source_)) {
     AutofillMetrics::LogPopupInteraction(suggestions_filling_product_,
@@ -394,10 +484,10 @@ void AutofillPopupControllerImpl::UpdateDataListValues(
   non_filtered_suggestions_ = UpdateSuggestionsFromDataList(
       options, std::move(non_filtered_suggestions_));
   UpdateFilteredSuggestions();
-  if (HasSuggestions()) {
-    OnSuggestionsChanged();
-  } else {
+  if (HasEmptySuggestionContent()) {
     Hide(SuggestionHidingReason::kNoSuggestions);
+  } else {
+    OnSuggestionsChanged();
   }
 }
 
@@ -424,8 +514,10 @@ void AutofillPopupControllerImpl::Hide(SuggestionHidingReason reason) {
       *ignore_focus_loss_ || (view_ && view_->HasFocus());
   // The end editing signal is sent when the currently focused field in the
   // renderer loses focus.
-  if (ignore_focus_loss && (reason == SuggestionHidingReason::kFocusChanged ||
-                            reason == SuggestionHidingReason::kEndEditing)) {
+  if (ignore_focus_loss &&
+      (reason == SuggestionHidingReason::kFocusChanged ||
+       reason == SuggestionHidingReason::kEndEditing ||
+       reason == SuggestionHidingReason::kSearchBarFocusLost)) {
     return;
   }
 
@@ -462,6 +554,7 @@ bool AutofillPopupControllerImpl::HasCreditCardSuggestions() const {
 void AutofillPopupControllerImpl::ViewDestroyed() {
   // The view has already been destroyed so clear the reference to it.
   view_ = nullptr;
+  is_tabbed_popup_ = false;
   Hide(SuggestionHidingReason::kViewDestroyed);
 }
 
@@ -474,7 +567,6 @@ void AutofillPopupControllerImpl::AcceptSuggestion(
     int index,
     AutofillMetrics::SuggestionAcceptedMethod accept_method) {
   CHECK_LT(base::checked_cast<size_t>(index), GetSuggestions().size());
-  CHECK(IsAcceptableSuggestionType(GetSuggestions()[index].type));
 
   // Ignore clicks immediately after the popup was shown. This is to prevent
   // users accidentally accepting suggestions (crbug.com/40058217).
@@ -506,11 +598,28 @@ void AutofillPopupControllerImpl::AcceptSuggestion(
                                        PopupInteraction::kSuggestionAccepted);
   base::UmaHistogramEnumeration("Autofill.SuggestionAccepted.Method",
                                 accept_method);
+
+  std::vector<size_t> multi_row_index = GetParentMultiRowIndex();
+  multi_row_index.push_back(index);
   delegate_->DidAcceptSuggestion(suggestion,
                                  AutofillSuggestionDelegate::SuggestionMetadata{
-                                     .row = index,
-                                     .sub_popup_level = GetPopupLevel(),
+                                     .multi_index = std::move(multi_row_index),
                                      .from_search_result = !!filter_});
+}
+
+std::vector<size_t> AutofillPopupControllerImpl::GetParentMultiRowIndex()
+    const {
+  const int popup_level = GetPopupLevel();
+  std::vector<size_t> multi_row_index(popup_level, 0);
+  base::WeakPtr<AutofillPopupControllerImpl> controller =
+      parent_controller_.value_or({});
+  for (int i = popup_level - 1; i >= 0 && controller && controller->view_;
+       --i) {
+    multi_row_index[i] =
+        controller->view_->GetIndexOfSubPopupAnchorSuggestion().value_or(0);
+    controller = controller->parent_controller_.value_or({});
+  }
+  return multi_row_index;
 }
 
 gfx::NativeView AutofillPopupControllerImpl::container_view() const {
@@ -554,7 +663,8 @@ std::optional<AutofillPopupView::SearchBarConfig>
 AutofillPopupControllerImpl::GetSearchBarConfig(
     AutofillSuggestionTriggerSource trigger_source) const {
   switch (trigger_source) {
-    case AutofillSuggestionTriggerSource::kAtMemory:
+    case AutofillSuggestionTriggerSource::kAtMemoryKeyboardShortcut:
+    case AutofillSuggestionTriggerSource::kAtMemoryTriggerString:
     case AutofillSuggestionTriggerSource::kAtMemoryContextMenu:
       return AutofillPopupView::SearchBarConfig{
           .placeholder = l10n_util::GetStringUTF16(
@@ -686,13 +796,13 @@ bool AutofillPopupControllerImpl::RemoveSuggestion(
                                     list_index);
   }
 
-  if (HasSuggestions()) {
+  if (HasEmptySuggestionContent()) {
+    Hide(SuggestionHidingReason::kNoSuggestions);
+  } else {
     delegate_->ClearPreviewedForm();
     should_ignore_mouse_observed_outside_item_bounds_check_ =
         suggestion_type == SuggestionType::kAutocompleteEntry;
     OnSuggestionsChanged();
-  } else {
-    Hide(SuggestionHidingReason::kNoSuggestions);
   }
 
   return true;
@@ -707,9 +817,10 @@ AutofillPopupControllerImpl::GetSuggestionTriggerSource() const {
   return trigger_source_;
 }
 
-bool AutofillPopupControllerImpl::HasSuggestions() const {
-  return std::ranges::any_of(GetSuggestions(), &IsStandaloneSuggestionType,
-                             &Suggestion::type);
+bool AutofillPopupControllerImpl::HasEmptySuggestionContent() const {
+  return std::ranges::none_of(GetSuggestions(), &IsStandaloneSuggestionType,
+                              &Suggestion::type) &&
+         !IsAtMemoryTriggerSource(trigger_source_);
 }
 
 void AutofillPopupControllerImpl::SetSuggestions(
@@ -724,8 +835,18 @@ AutofillPopupControllerImpl::GetWeakPtr() {
 }
 
 void AutofillPopupControllerImpl::ClearState() {
-  // Don't clear view_, because otherwise the popup will have to get
-  // regenerated and this will cause flickering.
+  // If the tabbed state changed since the last `Show()`, then `view_` is
+  // cleared to trigger popup regeneration. Otherwise, don't clear `view_` to
+  // avoid unnecessary flickering from popup regeneration.
+  if (is_tabbed_popup_ != controller_common_.show_tabbed_popup) {
+    if (view_) {
+      base::WeakPtr<AutofillPopupView> view = std::move(view_);
+      view->Hide();
+    }
+    view_ = nullptr;
+    is_tabbed_popup_ = false;
+  }
+
   filtered_suggestions_.clear();
   non_filtered_suggestions_.clear();
   any_suggestion_selected_ = false;
@@ -746,6 +867,7 @@ void AutofillPopupControllerImpl::HideViewAndDie() {
     FireControlsChangedEvent(false);
     view_->Hide();
     view_ = nullptr;
+    is_tabbed_popup_ = false;
   }
 
   if (self_deletion_weak_ptr_factory_.HasWeakPtrs()) {
@@ -885,14 +1007,13 @@ void AutofillPopupControllerImpl::KeyPressObserver::Reset() {
 
 void AutofillPopupControllerImpl::SelectSuggestion(int index) {
   CHECK_LT(base::checked_cast<size_t>(index), GetSuggestions().size());
-  CHECK(IsAcceptableSuggestionType(GetSuggestions()[index].type));
 
   if (IsPointerLocked(web_contents_.get())) {
     Hide(SuggestionHidingReason::kMouseLocked);
     return;
   }
 
-  const autofill::Suggestion& suggestion = GetSuggestionAt(index);
+  const Suggestion& suggestion = GetSuggestionAt(index);
   if (!suggestion.IsAcceptable()) {
     UnselectSuggestion();
     return;
@@ -926,7 +1047,6 @@ AutofillPopupControllerImpl::OpenSubPopup(
   new_controller_common.element_bounds = anchor_bounds;
   AutofillPopupControllerImpl* controller = new AutofillPopupControllerImpl(
       delegate_, web_contents_.get(), std::move(new_controller_common),
-      /*form_control_ax_id=*/form_control_ax_id_,
       /*parent=*/weak_ptr_factory_.GetWeakPtr());
 
   // Show() can fail and cause controller deletion. Therefore store the weak
@@ -950,14 +1070,6 @@ bool AutofillPopupControllerImpl::
     ShouldIgnoreMouseObservedOutsideItemBoundsCheck() const {
   return should_ignore_mouse_observed_outside_item_bounds_check_ ||
          !IsRootPopup();
-}
-
-void AutofillPopupControllerImpl::PerformButtonActionForSuggestion(
-    int index,
-    const SuggestionButtonAction& button_action) {
-  CHECK_LE(base::checked_cast<size_t>(index), GetSuggestions().size());
-  delegate_->DidPerformButtonActionForSuggestion(GetSuggestions()[index],
-                                                 button_action);
 }
 
 const std::vector<

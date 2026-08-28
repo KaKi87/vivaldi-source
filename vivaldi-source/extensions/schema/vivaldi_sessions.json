@@ -5,7 +5,7 @@
     "namespace": "sessionsPrivate",
     "description": "Vivaldi sessions support api.",
     "compiler_options": {
-      "implemented_in": "extensions/api/sessions/vivaldi_sessions_api.h"
+      "implemented_in": "extensions/api/vivaldi_sessions/vivaldi_sessions_api.h"
     },
     "types": [
       {

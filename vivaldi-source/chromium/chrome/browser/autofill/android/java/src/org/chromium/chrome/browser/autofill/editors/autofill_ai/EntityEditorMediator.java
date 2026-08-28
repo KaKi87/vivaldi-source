@@ -65,7 +65,7 @@ import org.chromium.components.autofill.autofill_ai.AttributeType;
 import org.chromium.components.autofill.autofill_ai.DataType;
 import org.chromium.components.autofill.autofill_ai.EntityInstance;
 import org.chromium.components.autofill.autofill_ai.RecordType;
-import org.chromium.components.signin.base.CoreAccountInfo;
+import org.chromium.components.signin.base.AccountInfo;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.ui.modelutil.ListModel;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -304,7 +304,7 @@ class EntityEditorMediator {
                                 IS_REQUIRED,
                                 entityInstance.getEntityType().isRequiredAttribute(attributeType))
                         .build();
-        itemModel.set(VALUE_CHANGED_CALLBACK, (unused) -> onFieldValueChanged(itemModel));
+        itemModel.set(VALUE_CHANGED_CALLBACK, _ -> onFieldValueChanged(itemModel));
         return new EditorItem(TEXT_INPUT, itemModel, /* isFullLine= */ true);
     }
 
@@ -325,7 +325,7 @@ class EntityEditorMediator {
                                 entityInstance.getEntityType().isRequiredAttribute(attributeType))
                         .with(VALUE, value)
                         .build();
-        itemModel.set(VALUE_CHANGED_CALLBACK, (unused) -> onFieldValueChanged(itemModel));
+        itemModel.set(VALUE_CHANGED_CALLBACK, _ -> onFieldValueChanged(itemModel));
         return new EditorItem(DROPDOWN, itemModel, /* isFullLine= */ true);
     }
 
@@ -351,7 +351,7 @@ class EntityEditorMediator {
                                                 R.string
                                                         .autofill_ai_entity_editor_invalid_date_error_message)))
                         .build();
-        itemModel.set(VALUE_CHANGED_CALLBACK, (unused) -> onFieldValueChanged(itemModel));
+        itemModel.set(VALUE_CHANGED_CALLBACK, _ -> onFieldValueChanged(itemModel));
         return new EditorItem(DATE, itemModel, /* isFullLine= */ true);
     }
 
@@ -501,8 +501,7 @@ class EntityEditorMediator {
     }
 
     private @Nullable String getUserEmail() {
-        CoreAccountInfo accountInfo = mIdentityManager.getPrimaryAccountInfo();
-        return CoreAccountInfo.getEmailFrom(accountInfo);
+        return AccountInfo.getEmailFrom(mIdentityManager.getPrimaryAccountInfo());
     }
 
     private void onOpenHelpAndFeedback(Activity activity) {

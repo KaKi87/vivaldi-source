@@ -7,15 +7,14 @@
 #include "build/build_config.h"
 #include "chrome/browser/ui/passwords/credential_manager_dialog_controller.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
-#include "chrome/browser/ui/views/chrome_typography.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/constrained_window/constrained_window_views.h"
 #include "components/strings/grit/components_strings.h"
+#include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/base/mojom/ui_base_types.mojom-shared.h"
-#include "ui/views/border.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/fill_layout.h"
 #include "ui/views/widget/widget.h"
@@ -23,7 +22,7 @@
 AutoSigninFirstRunDialogView::AutoSigninFirstRunDialogView(
     CredentialManagerDialogController* controller,
     content::WebContents* web_contents)
-    : controller_(controller), web_contents_(web_contents) {
+    : controller_(controller), web_contents_(web_contents->GetWeakPtr()) {
   SetButtonLabel(ui::mojom::DialogButton::kOk,
                  l10n_util::GetStringUTF16(IDS_AUTO_SIGNIN_FIRST_RUN_OK));
   SetButtonLabel(ui::mojom::DialogButton::kCancel,
@@ -53,7 +52,7 @@ AutoSigninFirstRunDialogView::~AutoSigninFirstRunDialogView() = default;
 
 void AutoSigninFirstRunDialogView::ShowAutoSigninPrompt() {
   InitWindow();
-  constrained_window::ShowWebModalDialogViews(this, web_contents_);
+  constrained_window::ShowWebModalDialogViews(this, web_contents_.get());
 }
 
 void AutoSigninFirstRunDialogView::ControllerGone() {
@@ -69,7 +68,7 @@ std::u16string AutoSigninFirstRunDialogView::GetWindowTitle() const {
 
 void AutoSigninFirstRunDialogView::WindowClosing() {
   if (controller_) {
-    controller_->OnCloseDialog();
+    controller_.ExtractAsDangling()->OnCloseDialog();
   }
 }
 

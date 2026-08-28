@@ -15,13 +15,14 @@
 #include "base/types/expected.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
 #include "chrome/browser/web_applications/isolated_web_apps/signed_web_bundle_metadata.h"
-#include "chrome/browser/web_applications/isolated_web_apps/test/fake_chrome_iwa_runtime_data_provider.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_builder.h"
 #include "chrome/browser/web_applications/test/fake_web_app_provider.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
 #include "chrome/browser/web_applications/test/web_app_test.h"
 #include "chrome/browser/web_applications/web_app_command_scheduler.h"
 #include "chrome/common/chrome_features.h"
+#include "components/webapps/isolated_web_apps/public/iwa_runtime_data_provider.h"
+#include "components/webapps/isolated_web_apps/test_support/fake_iwa_runtime_data_provider.h"
 #include "components/webapps/isolated_web_apps/types/source.h"
 #include "components/webapps/isolated_web_apps/types/storage_location.h"
 #include "content/public/common/content_features.h"
@@ -38,8 +39,7 @@ class CheckIsolatedWebAppBundleUserInstallabilityCommandTest
     : public WebAppTest {
  protected:
   void SetUp() override {
-    resetter_ =
-        ChromeIwaRuntimeDataProvider::SetInstanceForTesting(&data_provider_);
+    resetter_ = IwaRuntimeDataProvider::SetInstanceForTesting(&data_provider_);
     WebAppTest::SetUp();
     test::AwaitStartWebAppProviderAndSubsystems(profile());
   }
@@ -63,7 +63,7 @@ class CheckIsolatedWebAppBundleUserInstallabilityCommandTest
       if (add_to_user_install_allowlist) {
         update.AddToUserInstallAllowlist(
             app->web_bundle_id(),
-            ChromeIwaRuntimeDataProvider::UserInstallAllowlistItemData(
+            IwaRuntimeDataProvider::UserInstallAllowlistItemData(
                 /*enterprise_name=*/"fancy comp"));
       }
 
@@ -103,7 +103,7 @@ class CheckIsolatedWebAppBundleUserInstallabilityCommandTest
   web_package::test::KeyPair key_pair_ =
       web_package::test::Ed25519KeyPair::CreateRandom();
   FakeIwaRuntimeDataProvider data_provider_;
-  std::optional<base::AutoReset<ChromeIwaRuntimeDataProvider*>> resetter_;
+  std::optional<base::AutoReset<IwaRuntimeDataProvider*>> resetter_;
 };
 
 TEST_F(CheckIsolatedWebAppBundleUserInstallabilityCommandTest,

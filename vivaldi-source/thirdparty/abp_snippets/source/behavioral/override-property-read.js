@@ -14,10 +14,11 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 
-import {formatArguments} from "../utils/general.js";
+import {
+  formatArguments, sendSnippetHitEvent
+} from "../utils/general.js";
 import {getDebugger} from "../introspection/log.js";
 import {profile} from "../introspection/profile.js";
 import {overrideValue, wrapPropertyAccess} from "../utils/execution.js";
@@ -25,32 +26,40 @@ import {overrideValue, wrapPropertyAccess} from "../utils/execution.js";
 let {Error} = $(window);
 
 /**
- * Overrides a property's value on the window object with a set of
+ * @description Overrides a property's value on the window object with a set of
  * available properties.
  *
  * Possible values to override the property with:
  *   undefined
  *   false
  *   true
+ *   falseStr - false as a string
+ *   trueStr - true as a string
  *   null
  *   noopFunc   - function with empty body
  *   trueFunc   - function returning true
  *   falseFunc  - function returning false
  *   emptyArray  - an array with no elements
- *   emptyObject - an object with no properties
+ *   emptyObj - an object with no properties
  *   ''         - empty string
  *   positive decimal integer, no sign, with maximum value of 0x7FFF
+ *   Any arbitrary string that doesn't match the values above
  *
  * The idea originates from
  * [uBlock Origin](https://github.com/uBlockOrigin/uAssets/blob/80b195436f8f8d78ba713237bfc268ecfc9d9d2b/filters/resources.txt#L2105).
- * @alias module:content/snippets.override-property-read
+ * @memberof module:snippets/behavioral
  *
  * @param {string} property The name of the property.
  * @param {string} value The value to override the property with.
  * @param {?string} setConfigurable Value of the configurable attribute. Sets
  *   the flag to false if "false" is given, the flag is set to true
  *   for all other cases.
+ * @example
+ * override-property-read adConfig undefined false => adConfig has
+ * the value of undefined and it is no longer configurable
  *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69970948/override-property-read} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/behavioral-snippets/override-property-read} for external documentation.
  * @since Adblock Plus 3.9.4
  */
 export function overridePropertyRead(property, value, setConfigurable) {
@@ -69,8 +78,13 @@ export function overridePropertyRead(property, value, setConfigurable) {
 
   let cValue = overrideValue(value);
 
+  let hitEventSent = false;
   let newGetter = () => {
     debugLog("success", `${property} override done.`, "\nFILTER: override-property-read", formattedArguments);
+    if (!hitEventSent) {
+      hitEventSent = true;
+      sendSnippetHitEvent("override-property-read " + formattedArguments);
+    }
     return cValue;
   };
 

@@ -14,14 +14,13 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 /* global browser, checkElement:readonly */
 
 import $ from "../$.js";
 import {apply, bind} from "proxy-pants/function";
 import {debug} from "../introspection/debug.js";
-
-import {libEnvironment} from "../environment.js";
+import {toRegExp} from "../utils/general.js";
+import getLibEnvironment from "../environment.js";
 
 let {
   console,
@@ -32,6 +31,7 @@ let {
   Array,
   MutationObserver,
   Object,
+  DOMMatrix,
   XPathEvaluator,
   XPathExpression,
   XPathResult
@@ -42,8 +42,8 @@ const {querySelectorAll} = document;
 const document$$ = querySelectorAll && bind(querySelectorAll, document);
 
 /**
- * Gets the open or closed shadow root hosted by the specified element.
- *
+ * @description Gets the open or closed shadow root hosted by the
+ * specified element.
  * @param {Element} element - The HTML element for which the shadow root
  *  is to be retrieved.
  * @param {boolean} [failSilently=false] - If true, we don't log errors
@@ -68,7 +68,7 @@ function $openOrClosedShadowRoot(element, failSilently = false) {
 }
 
 /**
- * Entry point for querying elements with support
+ * @description Entry point for querying elements with support
  * for shadow roots and SVG use patterns.
  *
  * @param {string} selector - The selector to be parsed.
@@ -148,8 +148,8 @@ function executeShadowRootCommand(nestedCommands, rootParent) {
 }
 
 /**
-  This function serves as a wrapper around document$$ (querySelectorAll).
-  It takes a selector and parses it.
+  @description This function serves as a wrapper around document$$
+  (querySelectorAll) It takes a selector and parses it.
    - When encountering the ^^sh^^ special demarcator, it splits the query there.
   It executes the 1st part of the query. If the result is null, it returns null;
   otherwise it accesses the closed shadow root with
@@ -351,6 +351,7 @@ export function hideElement(element) {
   let {style} = $(element);
   let $style = $(style, "CSSStyleDeclaration");
   let properties = $([]);
+  const libEnvironment = getLibEnvironment();
   let {debugCSSProperties} = libEnvironment;
 
   for (let [key, value] of (debugCSSProperties || [["display", "none"]])) {
@@ -572,4 +573,190 @@ export function getComputedCSSText(element) {
     cssText += `${property}: ${style[property]}; `;
 
   return $(cssText).trim();
+}
+
+/**
+ * Retrieves the current CSS transformation matrix of an element.
+ * @param {Element} element - The DOM element to inspect.
+ * @param {string|null} [pseudo=null] - Optional pseudo-element selector.
+ * @returns {DOMMatrix} A DOMMatrix object representing
+ * the element's transformation state.
+ */
+export function getTransformMatrix(element, pseudo = null) {
+  const style = getComputedStyle(element, pseudo);
+  let transform = style.transform;
+  return (transform === "none") ? new DOMMatrix() : new DOMMatrix(transform);
+}
+
+// To be used for caching canvas used during font visibility checks
+let fontVisibilityCanvas = null;
+let fontVisibilityCtx = null;
+/**
+ * Detects if an element's text is rendered using invisible/zero-width font.
+ * @param {Element} element The element to inspect.
+ * @param {CSSStyleDeclaration} style The computed style of element.
+ * @param {?String} overrideText Text content to use forcefully when provided.
+ * @returns {boolean} Returns false if the font is evasive/invisible.
+ */
+export function isFontVisible(element, style, overrideText = null) {
+  try {
+    let text = overrideText || element.innerText;
+    if (!text)
+      return false;
+
+    text = text.trim();
+    if (!fontVisibilityCanvas || !fontVisibilityCtx) {
+      fontVisibilityCanvas = document.createElement("canvas");
+      fontVisibilityCtx = fontVisibilityCanvas.getContext("2d", {
+        alpha: true,
+        willReadFrequently: true
+      });
+    }
+    let fontString = style.font || [
+      style.fontStyle,
+      style.fontVariant,
+      style.fontWeight,
+      style.fontSize,
+      style.fontFamily
+    ].join(" ");
+    fontVisibilityCtx.font = fontString;
+    const metrics = fontVisibilityCtx.measureText(text);
+
+    // 1. Check for Zero-Width Evasion
+    if (metrics.width <= 0)
+      return false;
+
+    // 2. Check for Blank Glyph Evasion (Pixel Analysis)
+    // We only need a small sample area to save performance
+    fontVisibilityCanvas.width =
+      Math.min(metrics.width, 800);
+    fontVisibilityCanvas.height =
+      Math.max(1, parseInt(style.fontSize, 10) * 1.5 || 20);
+    // Reset context font as setting width/height deletes previous value
+    fontVisibilityCtx.font = fontString;
+    fontVisibilityCtx.fillStyle = "#000";
+    fontVisibilityCtx.textBaseline = "top";
+    fontVisibilityCtx.fillText(text, 0, 0);
+
+    const data = fontVisibilityCtx.getImageData(0, 0, fontVisibilityCanvas.width, fontVisibilityCanvas.height).data; // eslint-disable-line max-len
+
+    // Check alpha channel for any non-transparent pixels
+    for (let i = 3; i < data.length; i += 4) {
+      // If visible pixel found, font is likely fine
+      if (data[i] > 0)
+        return true;
+    }
+
+    return false; // No pixels found despite text existing
+  }
+  catch (error) {
+    if (debug())
+      console.log("Font visibility check failed:", element, error.message);
+    // Fallback to visible if font visibility check fails
+    return true;
+  }
+}
+
+/**
+ * @description Determines if the text inside the element is visible.
+ *
+ * @param {Element} element The element we are checking.
+ * @param {?CSSStyleDeclaration} style The computed style of element. If
+ *   falsey it will be queried.
+ * @param {?Map} attributesMap Map of CSS property names and values that
+ * indicate the text is hidden.
+ * @returns {bool} Whether the text is visible.
+ * @private
+ */
+export function isTextVisible(element,
+                              style,
+                              attributesMap,
+                              {bgColorCheck = true,
+                               pseudoElemCheck = false,
+                               fontCheck = true} = {}) {
+  if (!style)
+    style = getComputedStyle(element);
+  style = $(style);
+  for (const [key, value] of attributesMap) {
+    let valueAsRegex = toRegExp(value);
+    if (valueAsRegex.test(style.getPropertyValue(key)))
+      return false;
+  }
+  const color = style.getPropertyValue("color");
+  if (bgColorCheck && style.getPropertyValue("background-color") === color)
+    return false;
+  // Handle edge cases with ::first-line pseudo-element
+  if (!pseudoElemCheck) {
+    const firstLineStyle = getComputedStyle(element, "::first-line");
+    if (firstLineStyle) {
+      return isTextVisible(element,
+                           firstLineStyle,
+                           attributesMap,
+                           {bgColorCheck,
+                            pseudoElemCheck: true,
+                            fontCheck});
+    }
+  }
+  // Check font visibility
+  if (fontCheck && !isFontVisible(element, style))
+    return false;
+  // Only consider text-shadow if it significantly affects visibility
+  const textShadow = style.getPropertyValue("text-shadow");
+  if (color.includes("rgba(0, 0, 0, 0)") &&
+      (textShadow === "none" ||
+      textShadow.includes("rgba(0, 0, 0, 0)"))
+  )
+    return false;
+  return true;
+}
+
+/**
+ * @description Checks if child element is 100% included in
+ * the parent element.
+ *
+ * @param {Element} childNode
+ * @param {Element} parentNode
+ * @param {Object?} conf
+ * @param {Number?} conf.boxMargin
+ * @param {boolean?} conf.ignorePadding
+ * @returns {boolean}
+ */
+export function isContained(childNode, parentNode, {
+  boxMargin = 2,
+  ignorePadding = false
+} = {}) {
+  let child = $(childNode).getBoundingClientRect();
+  if (ignorePadding) {
+    const style = getComputedStyle(childNode);
+    const paddingTop = parseFloat(style.paddingTop) || 0;
+    const paddingRight = parseFloat(style.paddingRight) || 0;
+    const paddingBottom = parseFloat(style.paddingBottom) || 0;
+    const paddingLeft = parseFloat(style.paddingLeft) || 0;
+
+    child = {
+      left: child.left + paddingLeft,
+      right: child.right - paddingRight,
+      top: child.top + paddingTop,
+      bottom: child.bottom - paddingBottom
+    };
+  }
+
+  const parent = $(parentNode).getBoundingClientRect();
+  const stretchedParent = {
+    left: parent.left - boxMargin,
+    right: parent.right + boxMargin,
+    top: parent.top - boxMargin,
+    bottom: parent.bottom + boxMargin
+  };
+
+  return (
+    (stretchedParent.left <= child.left &&
+        child.left <= stretchedParent.right &&
+      stretchedParent.top <= child.top &&
+        child.top <= stretchedParent.bottom) &&
+    (stretchedParent.top <= child.bottom &&
+        child.bottom <= stretchedParent.bottom &&
+      stretchedParent.left <= child.right &&
+        child.right <= stretchedParent.right)
+  );
 }

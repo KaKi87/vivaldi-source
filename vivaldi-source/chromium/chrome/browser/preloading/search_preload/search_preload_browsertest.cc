@@ -22,12 +22,14 @@
 #include "chrome/browser/preloading/scoped_prewarm_feature_list.h"
 #include "chrome/browser/preloading/search_preload/search_preload_features.h"
 #include "chrome/browser/preloading/search_preload/search_preload_service.h"
+#include "chrome/browser/preloading/search_preload/search_preload_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/test/base/chrome_test_utils.h"
 #include "chrome/test/base/platform_browser_test.h"
 #include "chrome/test/base/search_test_utils.h"
+#include "chrome/test/base/testing_profile.h"
 #include "components/omnibox/browser/autocomplete_input.h"
 #include "components/omnibox/browser/autocomplete_result.h"
 #include "components/omnibox/browser/omnibox.mojom.h"
@@ -1150,17 +1152,11 @@ IN_PROC_BROWSER_TEST_F(
 //   - Prefetch matching fails due to lack of No-Vary-Search hint and "pf=cs"
 //     param.
 // - Prefetch is not used.
-// TODO(crbug.com/434918482): Re-enable this test on Mac, Linux, and Windows.
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
-#define MAYBE_TriggersPrefetchAndPrerenderButPrerenderFailsDueToNoVarySearchHint \
-  DISABLED_TriggersPrefetchAndPrerenderButPrerenderFailsDueToNoVarySearchHint
-#else
-#define MAYBE_TriggersPrefetchAndPrerenderButPrerenderFailsDueToNoVarySearchHint \
-  TriggersPrefetchAndPrerenderButPrerenderFailsDueToNoVarySearchHint
-#endif
+//
+// TODO(crbug.com/434918482): Re-enable this test.
 IN_PROC_BROWSER_TEST_F(
     SearchPreloadBrowserTest,
-    MAYBE_TriggersPrefetchAndPrerenderButPrerenderFailsDueToNoVarySearchHint) {
+    DISABLED_TriggersPrefetchAndPrerenderButPrerenderFailsDueToNoVarySearchHint) {
   HistogramTesterWrapper uma_tester;
   SetUpTemplateURLService();
   SetUpSearchPreloadService({
@@ -1949,6 +1945,181 @@ IN_PROC_BROWSER_TEST_F(SearchPreloadBrowserTest_Throttle,
   uma_tester.ExpectUma(
       "Omnibox.DsePreload.SignalResult.OnPress.Prefetch",
       {SearchPreloadSignalResult::kNotTriggeredThrottledByPrewarm});
+}
+
+// Verifies that the No-Vary-Search hint is persisted to Prefs.
+//
+// Scenario:
+//
+// 1. Trigger a prefetch request for a search suggestion.
+// 2. Receive a prefetch response containing a No-Vary-Search header.
+// 3. Verify that the No-Vary-Search hint is saved to the profile's
+//    preferences.
+IN_PROC_BROWSER_TEST_F(SearchPreloadBrowserTest, PersistNoVarySearchHint) {
+  SetUpTemplateURLService();
+
+  std::string pref_val = GetProfile().GetPrefs()->GetString(
+      prefs::kSearchPreloadNoVarySearchHintCache);
+  EXPECT_TRUE(pref_val.empty());
+
+  ASSERT_TRUE(content::NavigateToURL(
+      &GetWebContents(), embedded_test_server()->GetURL("/empty.html")));
+
+  std::string original_query = "he";
+  std::string search_terms = "hello";
+  SearchUrls urls = GetSearchUrls(search_terms);
+
+  {
+    content::test::TestPrefetchWatcher watcher;
+    ChangeAutocompleteResult(original_query, search_terms,
+                             PrefetchHint::kEnabled, PrerenderHint::kDisabled);
+    watcher.WaitUntilPrefetchResponseCompleted(std::nullopt,
+                                               urls.prefetch_on_suggest);
+  }
+
+  pref_val = GetProfile().GetPrefs()->GetString(
+      prefs::kSearchPreloadNoVarySearchHintCache);
+  EXPECT_EQ(pref_val, R"(key-order, params, except=("q"))");
+}
+
+// Verifies that the No-Vary-Search hint is loaded from Prefs.
+//
+// Scenario:
+//
+// 1. Create a new profile and set a No-Vary-Search hint in its preferences.
+// 2. Initialize `SearchPreloadService` for this profile.
+// 3. Verify that the No-Vary-Search hint cache is initialized with the value
+//    from Prefs.
+IN_PROC_BROWSER_TEST_F(SearchPreloadBrowserTest,
+                       LoadNoVarySearchHintFromPrefs) {
+  std::string pref_val = R"(key-order, params, except=("q"))";
+
+  TestingProfile::Builder builder;
+  builder.AddTestingFactory(
+      TemplateURLServiceFactory::GetInstance(),
+      base::BindRepeating(&TemplateURLServiceFactory::BuildInstanceFor));
+  std::unique_ptr<TestingProfile> new_profile = builder.Build();
+  new_profile->GetPrefs()->SetString(prefs::kSearchPreloadNoVarySearchHintCache,
+                                     pref_val);
+
+  SearchPreloadService* new_service =
+      SearchPreloadServiceFactory::GetForProfile(new_profile.get());
+  ASSERT_TRUE(new_service);
+
+  std::optional<net::HttpNoVarySearchData> expected =
+      ParseNoVarySearchData(pref_val);
+  ASSERT_TRUE(expected.has_value());
+  EXPECT_EQ(new_service->GetNoVarySearchDataCacheForTesting(), expected);
+}
+
+// Browser tests for Search Preload with initial No-Vary-Search hint.
+class SearchPreloadBrowserTest_InitialNoVarySearch
+    : public SearchPreloadBrowserTestBase {
+  void InitFeatures(
+      base::test::ScopedFeatureList& scoped_feature_list) override {
+    scoped_feature_list.InitWithFeaturesAndParameters(
+        {
+            {
+                features::kDsePreload2,
+                {
+                    {"kDsePreload2DeviceMemoryThresholdMiB", "0"},
+                    {"dse_preload2_initial_no_vary_search_hint",
+                     "key-order, params, except=(\"q\")"},
+                },
+            },
+        },
+        /*disabled_features=*/{});
+  }
+};
+
+// Verifies that the initial No-Vary-Search hint is loaded from the feature
+// parameter.
+IN_PROC_BROWSER_TEST_F(SearchPreloadBrowserTest_InitialNoVarySearch,
+                       InitialHintLoaded) {
+  std::optional<net::HttpNoVarySearchData> expected =
+      ParseNoVarySearchData(R"(key-order, params, except=("q"))");
+  ASSERT_TRUE(expected.has_value());
+  EXPECT_EQ(GetSearchPreloadService().GetNoVarySearchDataCacheForTesting(),
+            expected);
+}
+
+// Verifies that the No-Vary-Search hint in Prefs is prioritized over the
+// feature parameter.
+IN_PROC_BROWSER_TEST_F(SearchPreloadBrowserTest_InitialNoVarySearch,
+                       PrefsPrioritizedOverFeatureParam) {
+  std::string pref_val = R"(key-order, params, except=("a"))";
+
+  TestingProfile::Builder builder;
+  builder.AddTestingFactory(
+      TemplateURLServiceFactory::GetInstance(),
+      base::BindRepeating(&TemplateURLServiceFactory::BuildInstanceFor));
+  std::unique_ptr<TestingProfile> new_profile = builder.Build();
+  new_profile->GetPrefs()->SetString(prefs::kSearchPreloadNoVarySearchHintCache,
+                                     pref_val);
+
+  SearchPreloadService* new_service =
+      SearchPreloadServiceFactory::GetForProfile(new_profile.get());
+  ASSERT_TRUE(new_service);
+
+  std::optional<net::HttpNoVarySearchData> expected =
+      ParseNoVarySearchData(pref_val);
+  ASSERT_TRUE(expected.has_value());
+  EXPECT_EQ(new_service->GetNoVarySearchDataCacheForTesting(), expected);
+}
+
+// Verifies that the No-Vary-Search hint cache (both in memory and Prefs)
+// is cleared when the Default Search Provider changes.
+//
+// Scenario:
+//
+// 1. Initialize `TemplateURLService` and Default Search Provider.
+// 2. Set a No-Vary-Search hint cache in both memory and Prefs.
+// 3. Change the Default Search Provider to a different one.
+// 4. Verify that the No-Vary-Search hint cache is cleared.
+IN_PROC_BROWSER_TEST_F(
+    SearchPreloadBrowserTest,
+    ClearNoVarySearchDataCacheOnDefaultSearchProviderChange) {
+  SetUpTemplateURLService();
+
+  // Set initial No-Vary-Search hint cache in Prefs and memory.
+  std::string pref_val = R"(key-order, params, except=("q"))";
+  auto& pref_service = *GetProfile().GetPrefs();
+  pref_service.SetString(prefs::kSearchPreloadNoVarySearchHintCache, pref_val);
+
+  SearchPreloadService& search_preload_service = GetSearchPreloadService();
+  std::optional<net::HttpNoVarySearchData> nvs_data =
+      ParseNoVarySearchData(pref_val);
+  ASSERT_TRUE(nvs_data.has_value());
+  search_preload_service.SetNoVarySearchDataCacheForTesting(nvs_data.value());
+
+  // Verify initial state.
+  EXPECT_EQ(search_preload_service.GetNoVarySearchDataCacheForTesting(),
+            nvs_data);
+  EXPECT_EQ(pref_service.GetString(prefs::kSearchPreloadNoVarySearchHintCache),
+            pref_val);
+
+  // Change DSP to a new one.
+  TemplateURLService* model =
+      TemplateURLServiceFactory::GetForProfile(&GetProfile());
+  ASSERT_TRUE(model);
+
+  TemplateURLData data;
+  data.SetShortName(u"new_dse");
+  data.SetKeyword(data.short_name());
+  data.SetURL("https://new.dse.com/search?q={searchTerms}");
+  TemplateURL* new_template_url =
+      model->Add(std::make_unique<TemplateURL>(data));
+  ASSERT_TRUE(new_template_url);
+
+  // This should trigger OnTemplateURLServiceChanged.
+  model->SetUserSelectedDefaultSearchProvider(new_template_url);
+
+  // Verify that the No-Vary-Search hint cache is cleared in both memory and
+  // Prefs.
+  EXPECT_FALSE(
+      search_preload_service.GetNoVarySearchDataCacheForTesting().has_value());
+  EXPECT_TRUE(pref_service.GetString(prefs::kSearchPreloadNoVarySearchHintCache)
+                  .empty());
 }
 
 }  // namespace

@@ -7,6 +7,7 @@
 #include "base/test/test_future.h"
 #include "base/version.h"
 #include "base/version_info/version_info.h"
+#include "build/build_config.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/chrome_test_extension_loader.h"
@@ -19,6 +20,7 @@
 #include "chrome/browser/signin/signin_util.h"
 #include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/extensions/extension_post_install_dialog.h"
 #include "chrome/browser/ui/hats/hats_service_factory.h"
 #include "chrome/browser/ui/hats/mock_hats_service.h"
@@ -28,6 +30,7 @@
 #include "chrome/browser/ui/signin/promos/bubble_signin_promo_signin_button_view.h"
 #include "chrome/browser/ui/signin/promos/bubble_signin_promo_view.h"
 #include "chrome/browser/ui/signin/promos/signin_promo_tab_helper.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/autofill/address_sign_in_promo_view.h"
 #include "chrome/browser/ui/views/autofill/save_address_profile_view.h"
 #include "chrome/browser/ui/views/bookmarks/bookmark_bubble_view.h"
@@ -96,6 +99,32 @@ std::unique_ptr<KeyedService> BuildTestSyncService(
   return std::make_unique<testing::NiceMock<syncer::TestSyncService>>();
 }
 
+// TODO(crbug.com/528193769): Re-enable this test on Mac.
+#if !BUILDFLAG(IS_MAC)
+// UI variations of the password save/update bubble to test.
+enum PasswordBubbleTestFeature : uint32_t {
+  // Standard 2-button dialog (Save/Update and Cancel).
+  kNone = 0,
+  // 3-button dialog variant featuring an explicit "Never" button.
+  kThreeButtonSaveDialog = 1,
+  // Split-button variant replacing Cancel with a dropdown menu offering
+  // "Never".
+  kDropdownMenuExperiment = 2,
+};
+
+std::string GetPasswordSignInPromoSaveUiInteractiveUITestName(
+    const testing::TestParamInfo<PasswordBubbleTestFeature>& info) {
+  switch (info.param) {
+    case kNone:
+      return "Default";
+    case kThreeButtonSaveDialog:
+      return "ThreeButtonSaveDialog";
+    case kDropdownMenuExperiment:
+      return "DropdownMenuExperiment";
+  }
+}
+#endif  // !BUILDFLAG(IS_MAC)
+
 }  // namespace
 
 class BubbleSignInPromoInteractiveUITest : public ManagePasswordsTest {
@@ -135,7 +164,8 @@ class BubbleSignInPromoInteractiveUITest : public ManagePasswordsTest {
 
     mock_hats_service_ = static_cast<MockHatsService*>(
         HatsServiceFactory::GetInstance()->SetTestingFactoryAndUse(
-            browser()->profile(), base::BindRepeating(&BuildMockHatsService)));
+            browser()->GetProfile(),
+            base::BindRepeating(&BuildMockHatsService)));
   }
 
   void TearDownOnMainThread() override {
@@ -220,7 +250,7 @@ class BubbleSignInPromoInteractiveUITest : public ManagePasswordsTest {
 
   syncer::TestSyncService& test_sync_service() {
     return *static_cast<syncer::TestSyncService*>(
-        SyncServiceFactory::GetForProfile(browser()->profile()));
+        SyncServiceFactory::GetForProfile(browser()->GetProfile()));
   }
 
   network::TestURLLoaderFactory* test_url_loader_factory() {
@@ -228,7 +258,7 @@ class BubbleSignInPromoInteractiveUITest : public ManagePasswordsTest {
   }
 
   signin::IdentityManager* identity_manager() {
-    return IdentityManagerFactory::GetForProfile(browser()->profile());
+    return IdentityManagerFactory::GetForProfile(browser()->GetProfile());
   }
 
  protected:
@@ -326,10 +356,11 @@ BubbleSignInPromoInteractiveUITest::SaveAndShowBookmarkBubble(
     const bookmarks::BookmarkNode* parent) {
   const GURL kUrl("http://test.com");
   bookmarks::BookmarkModel* model =
-      BookmarkModelFactory::GetForBrowserContext(browser()->profile());
+      BookmarkModelFactory::GetForBrowserContext(browser()->GetProfile());
   const bookmarks::BookmarkNode* bookmark =
       model->AddURL(parent, 0, std::u16string(), kUrl);
-  browser()->window()->ShowBookmarkBubble(bookmark->url(), false);
+  BrowserWindow::FromBrowser(browser())->ShowBookmarkBubble(bookmark->url(),
+                                                            false);
 
   // Adds the new bookmarks into the local storage to be retrieved from the
   // Sync Service.
@@ -353,7 +384,8 @@ BubbleSignInPromoInteractiveUITest::InstallLocalExtension() {
   base::PathService::Get(chrome::DIR_TEST_DATA, &test_data_dir);
   test_data_dir = test_data_dir.AppendASCII("extensions");
 
-  extensions::ChromeTestExtensionLoader extension_loader(browser()->profile());
+  extensions::ChromeTestExtensionLoader extension_loader(
+      browser()->GetProfile());
   extension_loader.set_pack_extension(true);
 
   scoped_refptr<const Extension> extension = extension_loader.LoadExtension(
@@ -426,7 +458,53 @@ void BubbleSignInPromoInteractiveUITest::ExtendAccountInfo(AccountInfo& info) {
 /////////////////////////////////////////////////////////////////
 ///// Password Sign in Promo
 
-IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
+/**
+ * Tests for the password sign in promo.
+ *
+ * The tests are parameterized by the password save UI feature because the
+ * width of the sign-in promo changes depending on which feature flag is
+ * enabled (e.g., kThreeButtonPasswordSaveDialog or
+ * kPasswordSaveUpdateDropdownMenuExperiment). Parameterizing the test suite
+ * ensures that pixel tests (Screenshot) verify promo rendering across all
+ * possible bubble width variations.
+ */
+// TODO(crbug.com/528193769): Re-enable this test on Mac.
+#if !BUILDFLAG(IS_MAC)
+class BubbleSignInPromoPasswordSaveUiInteractiveUITest
+    : public BubbleSignInPromoInteractiveUITest,
+      public ::testing::WithParamInterface<PasswordBubbleTestFeature> {
+ public:
+  BubbleSignInPromoPasswordSaveUiInteractiveUITest() {
+    switch (GetParam()) {
+      case kNone:
+        scoped_feature_list_.InitWithFeatures(
+            /*enabled_features=*/{},
+            /*disabled_features=*/{
+                features::kThreeButtonPasswordSaveDialog,
+                features::kPasswordSaveUpdateDropdownMenuExperiment});
+        break;
+      case kThreeButtonSaveDialog:
+        scoped_feature_list_.InitWithFeatures(
+            /*enabled_features=*/{features::kThreeButtonPasswordSaveDialog},
+            /*disabled_features=*/{
+                features::kPasswordSaveUpdateDropdownMenuExperiment});
+        break;
+      case kDropdownMenuExperiment:
+        scoped_feature_list_.InitWithFeatures(
+            /*enabled_features=*/
+            {features::kPasswordSaveUpdateDropdownMenuExperiment},
+            /*disabled_features=*/{features::kThreeButtonPasswordSaveDialog});
+        break;
+    }
+  }
+
+  ~BubbleSignInPromoPasswordSaveUiInteractiveUITest() override = default;
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
+IN_PROC_BROWSER_TEST_P(BubbleSignInPromoPasswordSaveUiInteractiveUITest,
                        PasswordSignInPromoNoAccountPresent) {
   base::HistogramTester histogram_tester;
 
@@ -504,7 +582,7 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
       signin_metrics::AccessPoint::kPasswordBubble, 0);
 }
 
-IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
+IN_PROC_BROWSER_TEST_P(BubbleSignInPromoPasswordSaveUiInteractiveUITest,
                        PasswordSignInPromoWithWebSignedInAccount) {
   base::HistogramTester histogram_tester;
 
@@ -566,7 +644,8 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
   // Signin metrics - WebSignin (WithDefault) metrics are also recorded.
   histogram_tester.ExpectBucketCount(
       "Signin.SignIn.Offered", signin_metrics::AccessPoint::kPasswordBubble, 1);
-  histogram_tester.ExpectTotalCount("Signin.SignIn.Started", 0);
+  histogram_tester.ExpectBucketCount(
+      "Signin.SignIn.Started", signin_metrics::AccessPoint::kPasswordBubble, 1);
   histogram_tester.ExpectBucketCount(
       "Signin.SignIn.Completed", signin_metrics::AccessPoint::kPasswordBubble,
       1);
@@ -590,7 +669,7 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
       signin_metrics::AccessPoint::kPasswordBubble, 0);
 }
 
-IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
+IN_PROC_BROWSER_TEST_P(BubbleSignInPromoPasswordSaveUiInteractiveUITest,
                        PasswordSignInPromoWithAccountSignInPending) {
   // Sign in with an account, and put its refresh token into an error
   // state. This simulates the "sign in pending" state.
@@ -666,6 +745,14 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
       "Signin.SigninPending.Offered",
       signin_metrics::AccessPoint::kPasswordBubble, 1);
 }
+
+INSTANTIATE_TEST_SUITE_P(All,
+                         BubbleSignInPromoPasswordSaveUiInteractiveUITest,
+                         testing::Values(kNone,
+                                         kThreeButtonSaveDialog,
+                                         kDropdownMenuExperiment),
+                         GetPasswordSignInPromoSaveUiInteractiveUITestName);
+#endif  // !BUILDFLAG(IS_MAC)
 
 /////////////////////////////////////////////////////////////////
 ///// Address Sign in Promo
@@ -812,7 +899,8 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
   // Signin metrics - WebSignin (WithDefault) metrics are also recorded.
   histogram_tester.ExpectBucketCount(
       "Signin.SignIn.Offered", signin_metrics::AccessPoint::kAddressBubble, 1);
-  histogram_tester.ExpectTotalCount("Signin.SignIn.Started", 0);
+  histogram_tester.ExpectBucketCount(
+      "Signin.SignIn.Started", signin_metrics::AccessPoint::kAddressBubble, 1);
   histogram_tester.ExpectBucketCount(
       "Signin.SignIn.Completed", signin_metrics::AccessPoint::kAddressBubble,
       1);
@@ -1011,7 +1099,7 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
 
   // Trigger the bookmark bubble.
   bookmarks::BookmarkModel* model =
-      BookmarkModelFactory::GetForBrowserContext(browser()->profile());
+      BookmarkModelFactory::GetForBrowserContext(browser()->GetProfile());
   const bookmarks::BookmarkNode* bookmark =
       SaveAndShowBookmarkBubble(/*parent=*/model->other_node());
 
@@ -1100,7 +1188,7 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
 
   // Trigger the bookmark bubble.
   bookmarks::BookmarkModel* model =
-      BookmarkModelFactory::GetForBrowserContext(browser()->profile());
+      BookmarkModelFactory::GetForBrowserContext(browser()->GetProfile());
   const bookmarks::BookmarkNode* bookmark =
       SaveAndShowBookmarkBubble(/*parent=*/model->other_node());
 
@@ -1147,7 +1235,8 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
   // Signin metrics - WebSignin (WithDefault) metrics are also recorded.
   histogram_tester.ExpectBucketCount(
       "Signin.SignIn.Offered", signin_metrics::AccessPoint::kBookmarkBubble, 1);
-  histogram_tester.ExpectTotalCount("Signin.SignIn.Started", 0);
+  histogram_tester.ExpectBucketCount(
+      "Signin.SignIn.Started", signin_metrics::AccessPoint::kBookmarkBubble, 1);
   histogram_tester.ExpectBucketCount(
       "Signin.SignIn.Completed", signin_metrics::AccessPoint::kBookmarkBubble,
       1);
@@ -1187,7 +1276,7 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
 
   // Trigger the bookmark bubble.
   bookmarks::BookmarkModel* model =
-      BookmarkModelFactory::GetForBrowserContext(browser()->profile());
+      BookmarkModelFactory::GetForBrowserContext(browser()->GetProfile());
   model->CreateAccountPermanentFolders();
   const bookmarks::BookmarkNode* bookmark =
       SaveAndShowBookmarkBubble(/*parent=*/model->account_other_node());
@@ -1269,7 +1358,7 @@ IN_PROC_BROWSER_TEST_F(
 
   // Trigger the bookmark bubble.
   bookmarks::BookmarkModel* model =
-      BookmarkModelFactory::GetForBrowserContext(browser()->profile());
+      BookmarkModelFactory::GetForBrowserContext(browser()->GetProfile());
   const bookmarks::BookmarkNode* bookmark =
       SaveAndShowBookmarkBubble(/*parent=*/model->other_node());
 
@@ -1329,7 +1418,7 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
   scoped_refptr<const Extension> extension = InstallLocalExtension();
   ASSERT_TRUE(extension);
   ASSERT_EQ(AccountExtensionTracker::AccountExtensionType::kLocal,
-            AccountExtensionTracker::Get(browser()->profile())
+            AccountExtensionTracker::Get(browser()->GetProfile())
                 ->GetAccountExtensionType(extension->id()));
   // Extensions are disabled.
   ASSERT_FALSE(test_sync_service().GetUserSettings()->GetSelectedTypes().Has(
@@ -1339,7 +1428,7 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
       HasLocalDataItemId(syncer::DataType::EXTENSIONS, extension->id()));
 
   extensions::TriggerPostInstallDialog(
-      browser()->profile(), extension, SkBitmap(),
+      browser()->GetProfile(), extension, SkBitmap(),
       base::BindOnce(
           [](Browser* b) {
             return b->tab_strip_model()->GetActiveWebContents();
@@ -1425,7 +1514,7 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
   scoped_refptr<const Extension> extension = InstallLocalExtension();
   ASSERT_TRUE(extension);
   ASSERT_EQ(AccountExtensionTracker::AccountExtensionType::kLocal,
-            AccountExtensionTracker::Get(browser()->profile())
+            AccountExtensionTracker::Get(browser()->GetProfile())
                 ->GetAccountExtensionType(extension->id()));
   // Extensions are disabled.
   ASSERT_FALSE(test_sync_service().GetUserSettings()->GetSelectedTypes().Has(
@@ -1435,7 +1524,7 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
       HasLocalDataItemId(syncer::DataType::EXTENSIONS, extension->id()));
 
   extensions::TriggerPostInstallDialog(
-      browser()->profile(), extension, SkBitmap(),
+      browser()->GetProfile(), extension, SkBitmap(),
       base::BindOnce(
           [](Browser* b) {
             return b->tab_strip_model()->GetActiveWebContents();
@@ -1480,7 +1569,9 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
   histogram_tester.ExpectBucketCount(
       "Signin.SignIn.Offered",
       signin_metrics::AccessPoint::kExtensionInstallBubble, 1);
-  histogram_tester.ExpectTotalCount("Signin.SignIn.Started", 0);
+  histogram_tester.ExpectBucketCount(
+      "Signin.SignIn.Started",
+      signin_metrics::AccessPoint::kExtensionInstallBubble, 1);
   histogram_tester.ExpectBucketCount(
       "Signin.SignIn.Completed",
       signin_metrics::AccessPoint::kExtensionInstallBubble, 1);
@@ -1517,7 +1608,7 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
   ASSERT_TRUE(extension);
   ASSERT_EQ(
       AccountExtensionTracker::AccountExtensionType::kAccountInstalledSignedIn,
-      AccountExtensionTracker::Get(browser()->profile())
+      AccountExtensionTracker::Get(browser()->GetProfile())
           ->GetAccountExtensionType(extension->id()));
 
   // Extensions are enabled.
@@ -1531,7 +1622,7 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
       HasLocalDataItemId(syncer::DataType::EXTENSIONS, extension->id()));
 
   extensions::TriggerPostInstallDialog(
-      browser()->profile(), extension, SkBitmap(),
+      browser()->GetProfile(), extension, SkBitmap(),
       base::BindOnce(
           [](Browser* b) {
             return b->tab_strip_model()->GetActiveWebContents();
@@ -1612,13 +1703,13 @@ IN_PROC_BROWSER_TEST_F(
   scoped_refptr<const Extension> extension = InstallLocalExtension();
   ASSERT_TRUE(extension);
   ASSERT_EQ(AccountExtensionTracker::AccountExtensionType::kLocal,
-            AccountExtensionTracker::Get(browser()->profile())
+            AccountExtensionTracker::Get(browser()->GetProfile())
                 ->GetAccountExtensionType(extension->id()));
   ASSERT_TRUE(
       HasLocalDataItemId(syncer::DataType::EXTENSIONS, extension->id()));
 
   extensions::TriggerPostInstallDialog(
-      browser()->profile(), extension, SkBitmap(),
+      browser()->GetProfile(), extension, SkBitmap(),
       base::BindOnce(
           [](Browser* b) {
             return b->tab_strip_model()->GetActiveWebContents();
@@ -1669,8 +1760,16 @@ IN_PROC_BROWSER_TEST_F(
 /////////////////////////////////////////////////////////////////
 ///// Other tests
 
+#if BUILDFLAG(IS_MAC)
+// TODO(crbug.com/532726834): Re-enable this test on Mac.
+#define MAYBE_PasswordSignInPromoAccountDisallowedByPattern \
+  DISABLED_PasswordSignInPromoAccountDisallowedByPattern
+#else
+#define MAYBE_PasswordSignInPromoAccountDisallowedByPattern \
+  PasswordSignInPromoAccountDisallowedByPattern
+#endif
 IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
-                       PasswordSignInPromoAccountDisallowedByPattern) {
+                       MAYBE_PasswordSignInPromoAccountDisallowedByPattern) {
   // Set the signin pattern
   g_browser_process->local_state()->SetString(
       prefs::kGoogleServicesUsernamePattern, "*@signinallowed.com");
@@ -1697,6 +1796,7 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITest,
   // Wait for the bubble to be replaced with the sign in promo and click the
   // sign in button.
   RunTestSequence(
+      WaitForShow(BubbleSignInPromoSignInButtonView::kPromoSignInButton),
       WaitForEvent(BubbleSignInPromoSignInButtonView::kPromoSignInButton,
                    kBubbleSignInPromoSignInButtonHasCallback),
       EnsurePresent(PasswordSaveUpdateView::kPasswordBubbleElementId),
@@ -1763,10 +1863,10 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITestWithoutPhase2FollowUp,
   // Trigger the bookmark bubble.
   const GURL kUrl("http://test.com");
   bookmarks::BookmarkModel* model =
-      BookmarkModelFactory::GetForBrowserContext(browser()->profile());
+      BookmarkModelFactory::GetForBrowserContext(browser()->GetProfile());
   const bookmarks::BookmarkNode* bookmark =
       model->AddURL(model->other_node(), 0, std::u16string(), kUrl);
-  browser()->window()->ShowBookmarkBubble(kUrl, false);
+  BrowserWindow::FromBrowser(browser())->ShowBookmarkBubble(kUrl, false);
   ASSERT_EQ(1u, model->other_node()->children().size());
   SetLocalDataDescription(syncer::DataType::BOOKMARKS, bookmark->id());
 
@@ -1851,10 +1951,10 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITestWithoutPhase2FollowUp,
   // Trigger the bookmark bubble.
   const GURL kUrl("http://test.com");
   bookmarks::BookmarkModel* model =
-      BookmarkModelFactory::GetForBrowserContext(browser()->profile());
+      BookmarkModelFactory::GetForBrowserContext(browser()->GetProfile());
   const bookmarks::BookmarkNode* bookmark =
       model->AddURL(model->other_node(), 0, std::u16string(), kUrl);
-  browser()->window()->ShowBookmarkBubble(kUrl, false);
+  BrowserWindow::FromBrowser(browser())->ShowBookmarkBubble(kUrl, false);
   ASSERT_EQ(1u, model->other_node()->children().size());
   SetLocalDataDescription(syncer::DataType::BOOKMARKS, bookmark->id());
 
@@ -1896,7 +1996,8 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITestWithoutPhase2FollowUp,
   // Signin metrics - WebSignin (WithDefault) metrics are also recorded.
   histogram_tester.ExpectBucketCount(
       "Signin.SignIn.Offered", signin_metrics::AccessPoint::kBookmarkBubble, 1);
-  histogram_tester.ExpectTotalCount("Signin.SignIn.Started", 0);
+  histogram_tester.ExpectBucketCount(
+      "Signin.SignIn.Started", signin_metrics::AccessPoint::kBookmarkBubble, 1);
   histogram_tester.ExpectBucketCount(
       "Signin.SignIn.Completed", signin_metrics::AccessPoint::kBookmarkBubble,
       1);
@@ -1933,10 +2034,10 @@ IN_PROC_BROWSER_TEST_F(BubbleSignInPromoInteractiveUITestWithoutPhase2FollowUp,
   // Trigger the bookmark bubble.
   const GURL kUrl("http://test.com");
   bookmarks::BookmarkModel* model =
-      BookmarkModelFactory::GetForBrowserContext(browser()->profile());
+      BookmarkModelFactory::GetForBrowserContext(browser()->GetProfile());
   const bookmarks::BookmarkNode* bookmark =
       model->AddURL(model->other_node(), 0, std::u16string(), kUrl);
-  browser()->window()->ShowBookmarkBubble(kUrl, false);
+  BrowserWindow::FromBrowser(browser())->ShowBookmarkBubble(kUrl, false);
   ASSERT_EQ(1u, model->other_node()->children().size());
   SetLocalDataDescription(syncer::DataType::BOOKMARKS, bookmark->id());
 

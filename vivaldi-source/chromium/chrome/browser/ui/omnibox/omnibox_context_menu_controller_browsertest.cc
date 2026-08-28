@@ -7,11 +7,13 @@
 #include "base/run_loop.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/metrics/user_action_tester.h"
+#include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.h"
+#include "chrome/browser/contextual_tasks/active_task_context_provider.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -27,6 +29,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/drive_picker_host/drive_picker_result_handler.mojom.h"
 #include "chrome/browser/ui/views/location_bar/omnibox_popup_file_selector.h"
+#include "chrome/browser/ui/views/omnibox/omnibox_context_menu.h"
 #include "chrome/browser/ui/webui/cr_components/composebox/composebox_handler.h"
 #include "chrome/browser/ui/webui/omnibox_popup/omnibox_popup_ui.h"
 #include "chrome/browser/ui/webui/omnibox_popup/omnibox_popup_web_contents_helper.h"
@@ -36,6 +39,7 @@
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/contextual_tasks/public/features.h"
 #include "components/omnibox/browser/aim_eligibility_service_features.h"
 #include "components/omnibox/browser/autocomplete_input.h"
 #include "components/omnibox/common/composebox_features.h"
@@ -45,6 +49,7 @@
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_controller.h"
 #include "content/public/test/browser_test.h"
+#include "content/public/test/browser_test_utils.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "third_party/omnibox_proto/tool_mode.pb.h"
@@ -52,6 +57,8 @@
 #include "ui/base/ui_base_features.h"
 #include "ui/gfx/native_ui_types.h"
 #include "ui/menus/simple_menu_model.h"
+#include "ui/views/controls/menu/menu_item_view.h"
+#include "ui/views/controls/menu/submenu_view.h"
 
 namespace {
 
@@ -76,6 +83,38 @@ void OpenClassicPopup(Profile* profile, OmniboxController* omnibox_controller) {
   omnibox_controller->StartAutocomplete(input);
 }
 
+// Dummy bytes representing tab contextual input data in tests.
+constexpr uint8_t kDummyTabContextBytes[] = {1, 2, 3};
+
+ui::UserDataFactory::ScopedOverride
+CreateMockTabContextualizationControllerOverride() {
+  return tabs::TabFeatures::GetUserDataFactoryForTesting()
+      .AddOverrideForTesting(base::BindRepeating(
+          [](tabs::TabInterface& tab)
+              -> std::unique_ptr<lens::TabContextualizationController> {
+            auto mock =
+                std::make_unique<MockTabContextualizationController>(&tab);
+            EXPECT_CALL(*mock, GetPageContext)
+                .WillRepeatedly([&tab](lens::TabContextualizationController::
+                                           GetPageContextCallback callback) {
+                  auto data = std::make_unique<lens::ContextualInputData>();
+                  data->is_page_context_eligible = true;
+                  data->page_url = tab.GetContents()->GetLastCommittedURL();
+                  data->page_title = "Title";
+                  data->primary_content_type =
+                      lens::MimeType::kAnnotatedPageContent;
+                  std::vector<lens::ContextualInput> inputs;
+                  inputs.emplace_back(
+                      std::vector<uint8_t>(std::begin(kDummyTabContextBytes),
+                                           std::end(kDummyTabContextBytes)),
+                      lens::MimeType::kAnnotatedPageContent);
+                  data->context_input = std::move(inputs);
+                  std::move(callback).Run(std::move(data));
+                });
+            return mock;
+          }));
+}
+
 }  // namespace
 
 class OmniboxContextMenuControllerBrowserTest : public InProcessBrowserTest {
@@ -89,10 +128,12 @@ class OmniboxContextMenuControllerBrowserTest : public InProcessBrowserTest {
            {omnibox::kShowToolsAndModels.name, "true"}}},
          {omnibox::internal::kWebUIOmniboxPopup, {}},
          {omnibox::kContextManagementInComposebox, {}},
-         {omnibox::kContextManagementInOmnibox, {}}},
+         {omnibox::kContextManagementInOmnibox, {}},
+         {contextual_tasks::kContextualTasks, {}}},
         /*disabled_features=*/{omnibox::kAimServerEligibilityEnabled,
                                omnibox::kAimFuseboxEligibilityCheckEnabled,
-                               omnibox::kAimUsePecApi});
+                               omnibox::kAimUsePecApi,
+                               contextual_tasks::kContextualTasksContext});
   }
 
   OmniboxContextMenuControllerBrowserTest(
@@ -106,7 +147,65 @@ class OmniboxContextMenuControllerBrowserTest : public InProcessBrowserTest {
     InProcessBrowserTest::SetUpOnMainThread();
 
     OmniboxPopupWebContentsHelper::CreateForWebContents(GetWebContents());
-    LocationBar* location_bar = browser()->window()->GetLocationBar();
+    LocationBar* location_bar =
+        BrowserWindow::FromBrowser(browser())->GetLocationBar();
+    OmniboxPopupWebContentsHelper::FromWebContents(GetWebContents())
+        ->set_omnibox_controller(location_bar->GetOmniboxController());
+  }
+
+  content::WebContents* GetWebContents() {
+    return browser()->tab_strip_model()->GetActiveWebContents();
+  }
+
+  tabs::TabInterface* AddTabToBrowser(int index, const GURL& url) {
+    if (!AddTabAtIndexToBrowser(browser(), index, url,
+                                ui::PAGE_TRANSITION_TYPED,
+                                /*check_navigation_success=*/false)) {
+      return nullptr;
+    }
+    return browser()->tab_strip_model()->GetTabAtIndex(index);
+  }
+
+  base::TimeTicks ActivateTabAndGetRecentTime(
+      tabs::TabInterface* tab,
+      base::TimeTicks previous_time = base::TimeTicks()) {
+    int index = browser()->tab_strip_model()->GetIndexOfTab(tab);
+    browser()->tab_strip_model()->ActivateTabAt(index);
+    auto get_last_active_time = [](tabs::TabInterface* t) {
+      content::WebContents* wc = t->GetContents();
+      return std::max(wc->GetLastActiveTimeTicks(),
+                      wc->GetLastInteractionTimeTicks());
+    };
+    if (previous_time != base::TimeTicks()) {
+      EXPECT_TRUE(base::test::RunUntil(
+          [&]() { return get_last_active_time(tab) > previous_time; }));
+    }
+    return get_last_active_time(tab);
+  }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
+class OmniboxInlineTabsContextMenuBrowserTest : public InProcessBrowserTest {
+ public:
+  OmniboxInlineTabsContextMenuBrowserTest() {
+    scoped_feature_list_.InitWithFeaturesAndParameters(
+        /*enabled_features=*/
+        {{omnibox::internal::kWebUIOmniboxAimPopup, {}},
+         {omnibox::internal::kWebUIOmniboxPopup, {}},
+         {omnibox::kContextManagementInComposebox, {}}},
+        /*disabled_features=*/{omnibox::kContextManagementInOmnibox});
+  }
+
+  void SetUpOnMainThread() override {
+    host_resolver()->AddRule("*", "127.0.0.1");
+    ASSERT_TRUE(embedded_test_server()->Start());
+    InProcessBrowserTest::SetUpOnMainThread();
+
+    OmniboxPopupWebContentsHelper::CreateForWebContents(GetWebContents());
+    LocationBar* location_bar =
+        BrowserWindow::FromBrowser(browser())->GetLocationBar();
     OmniboxPopupWebContentsHelper::FromWebContents(GetWebContents())
         ->set_omnibox_controller(location_bar->GetOmniboxController());
   }
@@ -147,6 +246,8 @@ IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerBrowserTest,
   GURL url2(embedded_test_server()->GetURL("/title2.html"));
   ASSERT_TRUE(AddTabAtIndex(2, url2, ui::PAGE_TRANSITION_TYPED));
 
+  browser()->tab_strip_model()->ActivateTabAt(0);
+
   OmniboxContextMenuController controller(omnibox_popup_file_selector.get(),
                                           web_contents);
   model = controller.menu_model();
@@ -162,6 +263,53 @@ IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerBrowserTest,
   EXPECT_EQ(7u, GetVisibleItemCount(model));
   ASSERT_TRUE(controller.shared_tabs_menu_model());
   EXPECT_EQ(2u, GetVisibleItemCount(controller.shared_tabs_menu_model()));
+  EXPECT_EQ(l10n_util::GetStringUTF16(IDS_NTP_COMPOSEBOX_RECENT_TAB_SUFFIX),
+            controller.shared_tabs_menu_model()->GetMinorTextAt(0));
+  EXPECT_EQ(std::u16string(),
+            controller.shared_tabs_menu_model()->GetMinorTextAt(1));
+}
+
+IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerBrowserTest,
+                       RecentAndCurrentTabLabelsWithFeatureEnabled) {
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      browser(), GURL(chrome::kChromeUIOmniboxPopupURL)));
+  auto* web_contents = GetWebContents();
+
+  GURL url1(embedded_test_server()->GetURL("/title1.html"));
+  ASSERT_TRUE(AddTabAtIndex(1, url1, ui::PAGE_TRANSITION_TYPED));
+
+  GURL url2(embedded_test_server()->GetURL("/title2.html"));
+  ASSERT_TRUE(AddTabAtIndex(2, url2, ui::PAGE_TRANSITION_TYPED));
+
+  auto owning_window = gfx::NativeWindow();
+  auto omnibox_popup_file_selector =
+      std::make_unique<OmniboxPopupFileSelector>(owning_window);
+
+  // Case 1: Active tab is tab 1, which is a tab that can be added
+  // as context. Therefore, label it as 'current tab'.
+  browser()->tab_strip_model()->ActivateTabAt(1);
+  {
+    OmniboxContextMenuController controller(omnibox_popup_file_selector.get(),
+                                            web_contents);
+    ASSERT_TRUE(controller.shared_tabs_menu_model());
+    EXPECT_EQ(l10n_util::GetStringUTF16(IDS_COMPOSE_CURRENT_TAB),
+              controller.shared_tabs_menu_model()->GetMinorTextAt(0));
+    EXPECT_EQ(std::u16string(),
+              controller.shared_tabs_menu_model()->GetMinorTextAt(1));
+  }
+
+  // Case 2: Active tab is tab 0 (non-addable tab for context), so tab label
+  // should say 'recent tab' instead for other most recent tab.
+  browser()->tab_strip_model()->ActivateTabAt(0);
+  {
+    OmniboxContextMenuController controller(omnibox_popup_file_selector.get(),
+                                            web_contents);
+    ASSERT_TRUE(controller.shared_tabs_menu_model());
+    EXPECT_EQ(l10n_util::GetStringUTF16(IDS_NTP_COMPOSEBOX_RECENT_TAB_SUFFIX),
+              controller.shared_tabs_menu_model()->GetMinorTextAt(0));
+    EXPECT_EQ(std::u16string(),
+              controller.shared_tabs_menu_model()->GetMinorTextAt(1));
+  }
 }
 
 // TODO(crbug.com/460910010): Flaky, especially on ASAN/LSAN bots and certain
@@ -209,7 +357,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerBrowserTest,
   ASSERT_TRUE(AddTabAtIndex(1, url, ui::PAGE_TRANSITION_TYPED));
 
   // The controller should be associated with the popup web contents.
-  auto owning_window = browser()->window()->GetNativeWindow();
+  auto owning_window = browser()->GetWindow()->GetNativeWindow();
   auto omnibox_popup_file_selector =
       std::make_unique<OmniboxPopupFileSelector>(owning_window);
   OmniboxContextMenuController controller(omnibox_popup_file_selector.get(),
@@ -281,7 +429,7 @@ IN_PROC_BROWSER_TEST_P(OmniboxContextMenuControllerBrowserTestWithCommand,
   ASSERT_TRUE(omnibox_controller);
 
   // Start with the popup in Classic state.
-  OpenClassicPopup(browser()->profile(), omnibox_controller);
+  OpenClassicPopup(browser()->GetProfile(), omnibox_controller);
 
   // Executing the command should record that AIM was NOT open.
   controller.ExecuteCommand(GetCommandId(), 0);
@@ -329,7 +477,8 @@ class OmniboxContextMenuControllerPecBrowserTest : public InProcessBrowserTest {
     InProcessBrowserTest::SetUpOnMainThread();
 
     OmniboxPopupWebContentsHelper::CreateForWebContents(GetWebContents());
-    LocationBar* location_bar = browser()->window()->GetLocationBar();
+    LocationBar* location_bar =
+        BrowserWindow::FromBrowser(browser())->GetLocationBar();
     OmniboxPopupWebContentsHelper::FromWebContents(GetWebContents())
         ->set_omnibox_controller(location_bar->GetOmniboxController());
   }
@@ -702,7 +851,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerPecBrowserTest,
       OmniboxPopupWebContentsHelper::FromWebContents(web_contents)
           ->get_omnibox_controller();
   ASSERT_TRUE(omnibox_controller);
-  OpenClassicPopup(browser()->profile(), omnibox_controller);
+  OpenClassicPopup(browser()->GetProfile(), omnibox_controller);
 
   ASSERT_NE(command_id, -1) << "Drive option not found in menu";
   controller.ExecuteCommand(command_id, 0);
@@ -813,7 +962,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerPecBrowserTest,
   ASSERT_TRUE(handler->input_state_model());
   handler->input_state_model()->set_state_for_testing(input_state);
 
-  auto owning_window = browser()->window()->GetNativeWindow();
+  auto owning_window = browser()->GetWindow()->GetNativeWindow();
   auto omnibox_popup_file_selector =
       std::make_unique<OmniboxPopupFileSelector>(owning_window);
 
@@ -954,33 +1103,12 @@ IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerBrowserTest,
   // Set up an override to construct `MockTabContextualizationController`
   // to mock the context of the tab.
   ui::UserDataFactory::ScopedOverride controller_override =
-      tabs::TabFeatures::GetUserDataFactoryForTesting().AddOverrideForTesting(
-          base::BindRepeating(
-              [](GURL url, tabs::TabInterface& tab)
-                  -> std::unique_ptr<lens::TabContextualizationController> {
-                auto mock =
-                    std::make_unique<MockTabContextualizationController>(&tab);
-                EXPECT_CALL(*mock, GetPageContext)
-                    .WillOnce([url](lens::TabContextualizationController::
-                                        GetPageContextCallback callback) {
-                      auto data = std::make_unique<lens::ContextualInputData>();
-                      data->is_page_context_eligible = true;
-                      data->page_url = url;
-                      data->page_title = "Title 1";
-                      data->primary_content_type =
-                          lens::MimeType::kAnnotatedPageContent;
-                      std::move(callback).Run(std::move(data));
-                    });
-                return mock;
-              },
-              url));
+      CreateMockTabContextualizationControllerOverride();
 
   // Add a recent tab (created with the mock controller) in the background.
-  ASSERT_TRUE(AddTabAtIndexToBrowser(browser(), 1, url,
-                                     ui::PAGE_TRANSITION_TYPED,
-                                     /*check_navigation_success=*/false));
+  ASSERT_TRUE(AddTabToBrowser(1, url));
 
-  auto owning_window = browser()->window()->GetNativeWindow();
+  auto owning_window = browser()->GetWindow()->GetNativeWindow();
   auto omnibox_popup_file_selector =
       std::make_unique<OmniboxPopupFileSelector>(owning_window);
 
@@ -1021,7 +1149,9 @@ IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerBrowserTest,
     ASSERT_TRUE(handler);
 
     // Stage the tab directly via C++ handler.
-    handler->AddTabContext(tab_id, /*delay_upload=*/false, base::DoNothing());
+    handler->AddTabContext(tab_id, /*delay_upload=*/false,
+                           searchbox::mojom::TabAttachmentSource::kContextMenu,
+                           base::DoNothing());
 
     // Verify the tab is staged for upload in C++ tracking.
     EXPECT_EQ(1u, handler->selected_tabs.size());
@@ -1099,55 +1229,27 @@ IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerBrowserTest,
   // Set up an override to construct `MockTabContextualizationController`
   // for all tabs in this test.
   ui::UserDataFactory::ScopedOverride controller_override =
-      tabs::TabFeatures::GetUserDataFactoryForTesting().AddOverrideForTesting(
-          base::BindRepeating(
-              [](tabs::TabInterface& tab)
-                  -> std::unique_ptr<lens::TabContextualizationController> {
-                auto mock =
-                    std::make_unique<MockTabContextualizationController>(&tab);
-                EXPECT_CALL(*mock, GetPageContext)
-                    .WillRepeatedly([&tab](
-                                        lens::TabContextualizationController::
-                                            GetPageContextCallback callback) {
-                      auto data = std::make_unique<lens::ContextualInputData>();
-                      data->is_page_context_eligible = true;
-                      data->page_url = tab.GetContents()->GetLastCommittedURL();
-                      data->page_title = "Title";
-                      data->primary_content_type =
-                          lens::MimeType::kAnnotatedPageContent;
-                      std::move(callback).Run(std::move(data));
-                    });
-                return mock;
-              }));
+      CreateMockTabContextualizationControllerOverride();
 
   // Add three tabs.
-  GURL url1(embedded_test_server()->GetURL("/title2.html"));
-  ASSERT_TRUE(AddTabAtIndexToBrowser(browser(), 1, url1,
-                                     ui::PAGE_TRANSITION_TYPED,
-                                     /*check_navigation_success=*/false));
-
-  GURL url2(embedded_test_server()->GetURL("/title3.html"));
-  ASSERT_TRUE(AddTabAtIndexToBrowser(browser(), 2, url2,
-                                     ui::PAGE_TRANSITION_TYPED,
-                                     /*check_navigation_success=*/false));
-
-  GURL url3(embedded_test_server()->GetURL("/simple.html"));
-  ASSERT_TRUE(AddTabAtIndexToBrowser(browser(), 3, url3,
-                                     ui::PAGE_TRANSITION_TYPED,
-                                     /*check_navigation_success=*/false));
+  tabs::TabInterface* tab1 =
+      AddTabToBrowser(1, embedded_test_server()->GetURL("/title2.html"));
+  tabs::TabInterface* tab2 =
+      AddTabToBrowser(2, embedded_test_server()->GetURL("/title3.html"));
+  tabs::TabInterface* tab3 =
+      AddTabToBrowser(3, embedded_test_server()->GetURL("/simple.html"));
+  ASSERT_TRUE(tab1 && tab2 && tab3);
 
   // Order of activation/recency: 3, then 2, then 1 (making 1 active/most
   // recent).
-  browser()->tab_strip_model()->ActivateTabAt(3);
-  browser()->tab_strip_model()->ActivateTabAt(2);
-  browser()->tab_strip_model()->ActivateTabAt(1);
+  base::TimeTicks t3 = ActivateTabAndGetRecentTime(tab3);
+  base::TimeTicks t2 = ActivateTabAndGetRecentTime(tab2, t3);
+  ActivateTabAndGetRecentTime(tab1, t2);
 
-  tabs::TabInterface* tab2 = browser()->tab_strip_model()->GetTabAtIndex(2);
   int32_t tab2_id = tab2->GetHandle().raw_value();
-  tabs::TabInterface* tab3 = browser()->tab_strip_model()->GetTabAtIndex(3);
   int32_t tab3_id = tab3->GetHandle().raw_value();
 
-  auto owning_window = browser()->window()->GetNativeWindow();
+  auto owning_window = browser()->GetWindow()->GetNativeWindow();
   auto omnibox_popup_file_selector =
       std::make_unique<OmniboxPopupFileSelector>(owning_window);
 
@@ -1190,7 +1292,9 @@ IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerBrowserTest,
   }
 
   // Click on tab 3, making its checkmark appear.
-  handler->AddTabContext(tab3_id, /*delay_upload=*/false, base::DoNothing());
+  handler->AddTabContext(tab3_id, /*delay_upload=*/false,
+                         searchbox::mojom::TabAttachmentSource::kContextMenu,
+                         base::DoNothing());
 
   // Now, Tab 3 should be sorted second since tab 2
   // is also checked (selected) but more recent than tab 3. Tab 1 is most
@@ -1211,7 +1315,9 @@ IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerBrowserTest,
   }
 
   // Stage (check/select) Tab 2 for upload as well.
-  handler->AddTabContext(tab2_id, /*delay_upload=*/false, base::DoNothing());
+  handler->AddTabContext(tab2_id, /*delay_upload=*/false,
+                         searchbox::mojom::TabAttachmentSource::kContextMenu,
+                         base::DoNothing());
 
   // Now, both Tab 2 and Tab 3 are checked.
   // Tab 2 is more recent than Tab 3, so order should be: Tab 2, Tab 3, Tab 1.
@@ -1255,6 +1361,86 @@ IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerBrowserTest,
     EXPECT_EQ(tab_items[2].first, u"Title Of More Awesomeness");
     EXPECT_FALSE(tab_items[2].second);
   }
+}
+
+class TestActiveTaskContextProviderObserver
+    : public contextual_tasks::ActiveTaskContextProvider::Observer {
+ public:
+  void OnContextTabsChanged(
+      const std::set<tabs::TabHandle>& context_tabs) override {
+    last_context_tabs_ = context_tabs;
+  }
+  const std::set<tabs::TabHandle>& last_context_tabs() const {
+    return last_context_tabs_;
+  }
+
+ private:
+  std::set<tabs::TabHandle> last_context_tabs_;
+};
+
+IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerBrowserTest,
+                       UnderlinesNotClearedOnOtherTabsOpeningOrClosing) {
+  // Start with tab 1 (index 0) active.
+  tabs::TabInterface* tab1 = browser()->tab_strip_model()->GetTabAtIndex(0);
+
+  // Add tab 2 (index 1) with a normal web URL.
+  GURL url2(embedded_test_server()->GetURL("/title2.html"));
+  ASSERT_TRUE(AddTabAtIndexToBrowser(browser(), 1, url2,
+                                     ui::PAGE_TRANSITION_TYPED,
+                                     /*check_navigation_success=*/false));
+  browser()->tab_strip_model()->ActivateTabAt(0);
+
+  // Tab 1 is active.
+  ASSERT_EQ(tab1, browser()->tab_strip_model()->GetActiveTab());
+
+  tabs::TabInterface* tab2 = browser()->tab_strip_model()->GetTabAtIndex(1);
+
+  // Register test observer.
+  auto* active_task_context_provider =
+      contextual_tasks::ActiveTaskContextProvider::From(browser());
+  ASSERT_TRUE(active_task_context_provider);
+  TestActiveTaskContextProviderObserver observer;
+  active_task_context_provider->AddObserver(&observer);
+  base::ScopedClosureRunner remove_observer(base::BindOnce(
+      &contextual_tasks::ActiveTaskContextProvider::RemoveObserver,
+      base::Unretained(active_task_context_provider), &observer));
+
+  // Add tab 2 context directly to tab 1's local underlines (since tab 1 is
+  // active).
+  active_task_context_provider->AddLocalTabUnderline(tab2->GetHandle());
+  EXPECT_TRUE(base::test::RunUntil([&]() {
+    return observer.last_context_tabs().contains(tab2->GetHandle());
+  }));
+
+  // Open tab 3 with a normal web URL.
+  GURL url3(embedded_test_server()->GetURL("/title3.html"));
+  ASSERT_TRUE(AddTabAtIndexToBrowser(browser(), 2, url3,
+                                     ui::PAGE_TRANSITION_TYPED,
+                                     /*check_navigation_success=*/false));
+  tabs::TabInterface* tab3 = browser()->tab_strip_model()->GetTabAtIndex(2);
+
+  // Ensure tab 1 is active, then add tab 3 to tab 1's local underlines list.
+  browser()->tab_strip_model()->ActivateTabAt(0);
+  active_task_context_provider->AddLocalTabUnderline(tab3->GetHandle());
+  EXPECT_TRUE(base::test::RunUntil([&]() {
+    return observer.last_context_tabs().contains(tab2->GetHandle()) &&
+           observer.last_context_tabs().contains(tab3->GetHandle());
+  }));
+
+  // Switch active tab to tab 3.
+  browser()->tab_strip_model()->ActivateTabAt(2);
+  ASSERT_EQ(3, browser()->tab_strip_model()->count());
+
+  // Close tab 3, removing it from tab 1's underlines.
+  browser()->tab_strip_model()->CloseWebContentsAt(
+      2, TabCloseTypes::CLOSE_USER_GESTURE);
+
+  // Switch back to tab 1 (index 0).
+  browser()->tab_strip_model()->ActivateTabAt(0);
+
+  // Verify that tab 2 is still in the local underlines of tab 1, instead of
+  // being deselected (due to tab 3 being deselected) like in previous bugs.
+  EXPECT_TRUE(observer.last_context_tabs().contains(tab2->GetHandle()));
 }
 
 class OmniboxContextMenuControllerPecBrowserTestWithFlagsDisabled
@@ -1304,7 +1490,7 @@ IN_PROC_BROWSER_TEST_F(
   ASSERT_TRUE(handler->input_state_model());
   handler->input_state_model()->set_state_for_testing(input_state);
 
-  auto owning_window = browser()->window()->GetNativeWindow();
+  auto owning_window = browser()->GetWindow()->GetNativeWindow();
   auto omnibox_popup_file_selector =
       std::make_unique<OmniboxPopupFileSelector>(owning_window);
 
@@ -1376,7 +1562,7 @@ IN_PROC_BROWSER_TEST_F(
   ASSERT_TRUE(handler->input_state_model());
   handler->input_state_model()->set_state_for_testing(input_state);
 
-  auto owning_window = browser()->window()->GetNativeWindow();
+  auto owning_window = browser()->GetWindow()->GetNativeWindow();
   auto omnibox_popup_file_selector =
       std::make_unique<OmniboxPopupFileSelector>(owning_window);
 
@@ -1437,44 +1623,19 @@ IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerContextManagementBrowserTest,
   // Set up an override to construct `MockTabContextualizationController`
   // for all tabs in this test.
   ui::UserDataFactory::ScopedOverride controller_override =
-      tabs::TabFeatures::GetUserDataFactoryForTesting().AddOverrideForTesting(
-          base::BindRepeating(
-              [](tabs::TabInterface& tab)
-                  -> std::unique_ptr<lens::TabContextualizationController> {
-                auto mock =
-                    std::make_unique<MockTabContextualizationController>(&tab);
-                EXPECT_CALL(*mock, GetPageContext)
-                    .WillRepeatedly([&tab](
-                                        lens::TabContextualizationController::
-                                            GetPageContextCallback callback) {
-                      auto data = std::make_unique<lens::ContextualInputData>();
-                      data->is_page_context_eligible = true;
-                      data->page_url = tab.GetContents()->GetLastCommittedURL();
-                      data->page_title = "Title";
-                      data->primary_content_type =
-                          lens::MimeType::kAnnotatedPageContent;
-                      std::move(callback).Run(std::move(data));
-                    });
-                return mock;
-              }));
+      CreateMockTabContextualizationControllerOverride();
 
   // Add two tabs.
-  GURL url1(embedded_test_server()->GetURL("/title2.html"));
-  ASSERT_TRUE(AddTabAtIndexToBrowser(browser(), 1, url1,
-                                     ui::PAGE_TRANSITION_TYPED,
-                                     /*check_navigation_success=*/false));
+  tabs::TabInterface* tab1 =
+      AddTabToBrowser(1, embedded_test_server()->GetURL("/title2.html"));
+  tabs::TabInterface* tab2 =
+      AddTabToBrowser(2, embedded_test_server()->GetURL("/title3.html"));
+  ASSERT_TRUE(tab1 && tab2);
 
-  GURL url2(embedded_test_server()->GetURL("/title3.html"));
-  ASSERT_TRUE(AddTabAtIndexToBrowser(browser(), 2, url2,
-                                     ui::PAGE_TRANSITION_TYPED,
-                                     /*check_navigation_success=*/false));
-
-  tabs::TabInterface* tab1 = browser()->tab_strip_model()->GetTabAtIndex(1);
   int32_t tab1_id = tab1->GetHandle().raw_value();
-  tabs::TabInterface* tab2 = browser()->tab_strip_model()->GetTabAtIndex(2);
   int32_t tab2_id = tab2->GetHandle().raw_value();
 
-  auto owning_window = browser()->window()->GetNativeWindow();
+  auto owning_window = browser()->GetWindow()->GetNativeWindow();
   auto omnibox_popup_file_selector =
       std::make_unique<OmniboxPopupFileSelector>(owning_window);
 
@@ -1500,10 +1661,306 @@ IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerContextManagementBrowserTest,
             l10n_util::GetStringUTF16(IDS_COMPOSE_ADD_TABS));
 
   // 1 tab selected/checked. Title should be "Sharing 1 tab".
-  handler->AddTabContext(tab1_id, /*delay_upload=*/false, base::DoNothing());
+  handler->AddTabContext(tab1_id, /*delay_upload=*/false,
+                         searchbox::mojom::TabAttachmentSource::kContextMenu,
+                         base::DoNothing());
   EXPECT_EQ(get_submenu_label(), u"Sharing 1 tab");
 
   // 2 tabs selected/checked. Title should be "Sharing 2 tabs".
-  handler->AddTabContext(tab2_id, /*delay_upload=*/false, base::DoNothing());
+  handler->AddTabContext(tab2_id, /*delay_upload=*/false,
+                         searchbox::mojom::TabAttachmentSource::kContextMenu,
+                         base::DoNothing());
   EXPECT_EQ(get_submenu_label(), u"Sharing 2 tabs");
+}
+
+IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerPecBrowserTest,
+                       TabsSubmenuDisabledWhenTabContextDisabled) {
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      browser(), GURL(chrome::kChromeUIOmniboxPopupAimURL)));
+
+  auto* web_contents = GetWebContents();
+  auto owning_window = gfx::NativeWindow();
+  TestOmniboxPopupFileSelector file_selector(owning_window);
+
+  auto* web_ui = web_contents->GetWebUI();
+  auto* popup_ui = web_ui->GetController()->GetAs<OmniboxPopupUI>();
+  auto* handler = popup_ui->composebox_handler();
+
+  // Set input state where BROWSER_TAB is allowed but disabled.
+  omnibox::InputState test_state;
+  test_state.allowed_input_types.emplace_back(
+      omnibox::InputType::INPUT_TYPE_BROWSER_TAB);
+  test_state.disabled_input_types.emplace_back(
+      omnibox::InputType::INPUT_TYPE_BROWSER_TAB);
+  handler->input_state_model()->set_state_for_testing(test_state);
+
+  GURL url1(embedded_test_server()->GetURL("/title1.html"));
+  ASSERT_TRUE(AddTabAtIndex(1, url1, ui::PAGE_TRANSITION_TYPED));
+
+  OmniboxContextMenuController controller(&file_selector, web_contents);
+
+  // The submenu command ID should be disabled.
+  EXPECT_FALSE(
+      controller.IsCommandIdEnabled(IDC_OMNIBOX_CONTEXT_SHARED_TABS_SUBMENU));
+
+  // The submenu label and icon should be styled as disabled.
+  auto* menu_model = controller.menu_model();
+  std::optional<size_t> submenu_index =
+      menu_model->GetIndexOfCommandId(IDC_OMNIBOX_CONTEXT_SHARED_TABS_SUBMENU);
+  ASSERT_TRUE(submenu_index.has_value());
+  EXPECT_EQ(menu_model->GetForegroundColorId(submenu_index.value()),
+            ui::kColorMenuItemForegroundDisabled);
+  EXPECT_EQ(menu_model->GetSelectedBackgroundColorId(submenu_index.value()),
+            ui::kColorMenuItemBackgroundSelected);
+  EXPECT_EQ(
+      menu_model->GetIconAt(submenu_index.value()),
+      ui::ImageModel::FromVectorIcon(kTabOldIcon, ui::kColorMenuIconDisabled,
+                                     ui::SimpleMenuModel::kDefaultIconSize));
+}
+
+IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerBrowserTest,
+                       VerifyTabEnablementWhenLimitReached_NonPec) {
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      browser(), GURL(chrome::kChromeUIOmniboxPopupAimURL)));
+  auto* popup_web_contents = GetWebContents();
+
+  // Add two additional tabs.
+  GURL url1(embedded_test_server()->GetURL("/title1.html"));
+  ASSERT_TRUE(AddTabAtIndex(1, url1, ui::PAGE_TRANSITION_TYPED));
+
+  GURL url2(embedded_test_server()->GetURL("/title2.html"));
+  ASSERT_TRUE(AddTabAtIndex(2, url2, ui::PAGE_TRANSITION_TYPED));
+
+  auto owning_window = browser()->GetWindow()->GetNativeWindow();
+  auto omnibox_popup_file_selector =
+      std::make_unique<OmniboxPopupFileSelector>(owning_window);
+
+  auto* web_ui = popup_web_contents->GetWebUI();
+  ASSERT_TRUE(web_ui);
+  auto* popup_ui = web_ui->GetController()->GetAs<OmniboxPopupUI>();
+  ASSERT_TRUE(popup_ui);
+  auto* handler = popup_ui->composebox_handler();
+  ASSERT_TRUE(handler);
+
+  // Set max limit to 0 (so any unchecked tab is disabled).
+  omnibox::InputState test_state;
+  test_state.allowed_models.emplace_back(
+      omnibox::ModelMode::MODEL_MODE_GEMINI_PRO);
+  test_state.max_total_inputs = 0;
+  handler->input_state_model()->set_state_for_testing(test_state);
+
+  auto* omnibox_controller =
+      OmniboxPopupWebContentsHelper::FromWebContents(popup_web_contents)
+          ->get_omnibox_controller();
+  ASSERT_TRUE(omnibox_controller);
+  omnibox_controller->popup_state_manager()->SetPopupState(
+      OmniboxPopupState::kAim);
+
+  // Get the tab IDs.
+  auto* tab_strip_model = browser()->tab_strip_model();
+  auto* tab1 = tab_strip_model->GetTabAtIndex(1);
+  int32_t tab1_id = tab1->GetHandle().raw_value();
+
+  // Manually add tab 1 to composebox_handler->selected_tabs to mark it checked.
+  auto token1 = base::UnguessableToken::Create();
+  handler->selected_tabs[token1] = tab1_id;
+
+  // Construct controller.
+  OmniboxContextMenuController controller(omnibox_popup_file_selector.get(),
+                                          popup_web_contents);
+
+  // Tab 1 (checked) sorted first (33000) -> should be enabled.
+  // Tab 2 (unchecked) sorted second (33001) -> should be disabled.
+  EXPECT_TRUE(controller.IsCommandIdEnabled(33000));
+  EXPECT_FALSE(controller.IsCommandIdEnabled(33001));
+}
+
+// TODO(crbug.com/530351886): Times out flakily on Linux, Win, Mac and ChromeOS.
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || \
+    BUILDFLAG(IS_CHROMEOS)
+#define MAYBE_VerifyTabEnablementWhenMaxInputsReached \
+  DISABLED_VerifyTabEnablementWhenMaxInputsReached
+#else
+#define MAYBE_VerifyTabEnablementWhenMaxInputsReached \
+  VerifyTabEnablementWhenMaxInputsReached
+#endif
+IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerPecBrowserTest,
+                       MAYBE_VerifyTabEnablementWhenMaxInputsReached) {
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      browser(), GURL(chrome::kChromeUIOmniboxPopupAimURL)));
+  auto* popup_web_contents = GetWebContents();
+
+  // Add two additional tabs.
+  GURL url1(embedded_test_server()->GetURL("/title1.html"));
+  ASSERT_TRUE(AddTabAtIndex(1, url1, ui::PAGE_TRANSITION_TYPED));
+
+  GURL url2(embedded_test_server()->GetURL("/title2.html"));
+  ASSERT_TRUE(AddTabAtIndex(2, url2, ui::PAGE_TRANSITION_TYPED));
+
+  auto owning_window = browser()->GetWindow()->GetNativeWindow();
+  auto omnibox_popup_file_selector =
+      std::make_unique<OmniboxPopupFileSelector>(owning_window);
+
+  auto* web_ui = popup_web_contents->GetWebUI();
+  ASSERT_TRUE(web_ui);
+  auto* popup_ui = web_ui->GetController()->GetAs<OmniboxPopupUI>();
+  ASSERT_TRUE(popup_ui);
+  auto* handler = popup_ui->composebox_handler();
+  ASSERT_TRUE(handler);
+
+  // Set input state where BROWSER_TAB is allowed but disabled (limit reached).
+  omnibox::InputState test_state;
+  test_state.allowed_input_types.emplace_back(
+      omnibox::InputType::INPUT_TYPE_BROWSER_TAB);
+  test_state.disabled_input_types.emplace_back(
+      omnibox::InputType::INPUT_TYPE_BROWSER_TAB);
+  handler->input_state_model()->set_state_for_testing(test_state);
+
+  auto* omnibox_controller =
+      OmniboxPopupWebContentsHelper::FromWebContents(popup_web_contents)
+          ->get_omnibox_controller();
+  ASSERT_TRUE(omnibox_controller);
+  omnibox_controller->popup_state_manager()->SetPopupState(
+      OmniboxPopupState::kAim);
+
+  // Initially, both tabs are unchecked. Since tab context is disabled, both
+  // should be disabled.
+  {
+    OmniboxContextMenuController controller(omnibox_popup_file_selector.get(),
+                                            popup_web_contents);
+    EXPECT_FALSE(controller.IsCommandIdEnabled(33000));
+    EXPECT_FALSE(controller.IsCommandIdEnabled(33001));
+  }
+
+  // Step 1: Start with tab context enabled.
+  test_state.disabled_input_types.clear();
+  handler->input_state_model()->set_state_for_testing(test_state);
+
+  // Step 2: Select tab 1.
+  {
+    OmniboxContextMenuController controller(omnibox_popup_file_selector.get(),
+                                            popup_web_contents);
+    controller.ExecuteCommand(33000, 0);
+    EXPECT_TRUE(base::test::RunUntil(
+        [&]() { return !handler->selected_tabs.empty(); }));
+  }
+
+  // Step 3: Disable tab context.
+  test_state.disabled_input_types.push_back(
+      omnibox::InputType::INPUT_TYPE_BROWSER_TAB);
+  handler->input_state_model()->set_state_for_testing(test_state);
+
+  // Step 4: Verify.
+  {
+    OmniboxContextMenuController controller(omnibox_popup_file_selector.get(),
+                                            popup_web_contents);
+    // Tab 1 (checked) sorted first (33000) -> should be enabled.
+    // Tab 2 (unchecked) sorted second (33001) -> should be disabled.
+    EXPECT_TRUE(controller.IsCommandIdEnabled(33000));
+    EXPECT_FALSE(controller.IsCommandIdEnabled(33001));
+  }
+}
+
+// Recent tab/Current tab should not show since context management flag is
+// disabled by default.
+IN_PROC_BROWSER_TEST_F(OmniboxInlineTabsContextMenuBrowserTest,
+                       InlineTabsDoNotRenderRecentOrCurrentTabLabel) {
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      browser(), GURL(chrome::kChromeUIOmniboxPopupURL)));
+  auto* web_contents = GetWebContents();
+
+  // Add two tabs: active tab and a background (recent) tab.
+  GURL url1(embedded_test_server()->GetURL("/title1.html"));
+  ASSERT_TRUE(AddTabAtIndex(1, url1, ui::PAGE_TRANSITION_TYPED));
+
+  GURL url2(embedded_test_server()->GetURL("/title2.html"));
+  ASSERT_TRUE(AddTabAtIndex(2, url2, ui::PAGE_TRANSITION_TYPED));
+
+  browser()->tab_strip_model()->ActivateTabAt(0);
+
+  auto owning_window = gfx::NativeWindow();
+  auto omnibox_popup_file_selector =
+      std::make_unique<OmniboxPopupFileSelector>(owning_window);
+
+  OmniboxContextMenuController controller(omnibox_popup_file_selector.get(),
+                                          web_contents);
+  ui::SimpleMenuModel* model = controller.menu_model();
+
+  // Without the flag enabled (kContextManagementInOmnibox disabled), no shared
+  // tabs submenu is created.
+  EXPECT_FALSE(controller.shared_tabs_menu_model());
+
+  // Verify that neither 'Recent tab' nor 'Current tab' label is rendered
+  // on any item in the menu model.
+  std::u16string recent_tab_label =
+      l10n_util::GetStringUTF16(IDS_NTP_COMPOSEBOX_RECENT_TAB_SUFFIX);
+  std::u16string current_tab_label =
+      l10n_util::GetStringUTF16(IDS_COMPOSE_CURRENT_TAB);
+
+  for (size_t i = 0; i < model->GetItemCount(); ++i) {
+    EXPECT_NE(model->GetMinorTextAt(i), recent_tab_label);
+    EXPECT_NE(model->GetMinorTextAt(i), current_tab_label);
+    EXPECT_EQ(model->GetMinorTextAt(i), std::u16string());
+  }
+}
+
+// Context menu omnibox flag is on.
+IN_PROC_BROWSER_TEST_F(OmniboxContextMenuControllerBrowserTest,
+                       VerifySubmenuContextMenuMaxWidth) {
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      browser(), GURL(chrome::kChromeUIOmniboxPopupURL)));
+  auto* web_contents = GetWebContents();
+
+  GURL url1(embedded_test_server()->GetURL("/title1.html"));
+  ASSERT_TRUE(AddTabAtIndex(1, url1, ui::PAGE_TRANSITION_TYPED));
+
+  auto owning_window = browser()->GetWindow()->GetNativeWindow();
+  auto omnibox_popup_file_selector =
+      std::make_unique<OmniboxPopupFileSelector>(owning_window);
+
+  OmniboxContextMenu context_menu(nullptr, omnibox_popup_file_selector.get(),
+                                  web_contents);
+
+  // Direct `GetMinimumMenuWidth` test for main menu ("menu == menu_").
+  EXPECT_EQ(context_menu.GetMinimumMenuWidth(context_menu.menu()), 240);
+  EXPECT_EQ(context_menu.GetMaxWidthForMenu(context_menu.menu()), 240);
+
+  // Direct `GetMinimumMenuWidth` test for submenu item (where "menu != menu_").
+  views::MenuItemView* submenu_item = context_menu.menu()->GetMenuItemByID(
+      IDC_OMNIBOX_CONTEXT_SHARED_TABS_SUBMENU);
+  ASSERT_TRUE(submenu_item);
+  EXPECT_EQ(context_menu.GetMinimumMenuWidth(submenu_item), 320);
+  EXPECT_EQ(context_menu.GetMaxWidthForMenu(submenu_item), 320);
+
+  // Verify `set_minimum_preferred_width` behavior on `SubmenuView`.
+  context_menu.menu()->GetSubmenu()->set_minimum_preferred_width(
+      context_menu.GetMinimumMenuWidth(context_menu.menu()));
+  EXPECT_GE(context_menu.menu()->GetSubmenu()->GetPreferredSize({}).width(),
+            240);
+
+  submenu_item->GetSubmenu()->set_minimum_preferred_width(
+      context_menu.GetMinimumMenuWidth(submenu_item));
+  EXPECT_GE(submenu_item->GetSubmenu()->GetPreferredSize({}).width(), 320);
+}
+
+// Context menu omnibox flag is off.
+IN_PROC_BROWSER_TEST_F(OmniboxInlineTabsContextMenuBrowserTest,
+                       InlineTabsUseDefaultMenuWidth) {
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      browser(), GURL(chrome::kChromeUIOmniboxPopupURL)));
+  auto* web_contents = GetWebContents();
+
+  GURL url1(embedded_test_server()->GetURL("/title1.html"));
+  ASSERT_TRUE(AddTabAtIndex(1, url1, ui::PAGE_TRANSITION_TYPED));
+
+  auto owning_window = browser()->GetWindow()->GetNativeWindow();
+  auto omnibox_popup_file_selector =
+      std::make_unique<OmniboxPopupFileSelector>(owning_window);
+
+  OmniboxContextMenu context_menu(nullptr, omnibox_popup_file_selector.get(),
+                                  web_contents);
+
+  // When tabs are inline (no submenu), main menu width is 320px.
+  EXPECT_EQ(context_menu.GetMinimumMenuWidth(context_menu.menu()), 320);
+  EXPECT_EQ(context_menu.GetMaxWidthForMenu(context_menu.menu()), 320);
 }

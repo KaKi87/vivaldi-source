@@ -90,7 +90,7 @@ void OmniboxController::StopAutocomplete(bool clear_result) const {
 void OmniboxController::StartZeroSuggestPrefetch() {
   TRACE_EVENT0("omnibox", "OmniboxController::StartZeroSuggestPrefetch");
   if (base::FeatureList::IsEnabled(features::kPrewarm) &&
-      features::kPrewarmZeroSuggestTrigger.Get()) {
+      base::FeatureList::IsEnabled(features::kPrewarmZeroSuggestTrigger)) {
     client_->MaybePrewarmForDefaultSearchEngine(PrewarmTrigger::kZeroSuggest);
   }
 
@@ -120,7 +120,7 @@ void OmniboxController::OnResultChanged(AutocompleteController* controller,
   // OnResultChanged will be also called upon the first user interaction
   // with the omnibox to show a new result.
   if (base::FeatureList::IsEnabled(features::kPrewarm) &&
-      features::kPrewarmUserInteractionTrigger.Get()) {
+      !base::FeatureList::IsEnabled(features::kPrewarmZeroSuggestTrigger)) {
     client_->MaybePrewarmForDefaultSearchEngine(
         PrewarmTrigger::kUserInteraction);
   }
@@ -189,7 +189,7 @@ bool OmniboxController::IsSuggestionHidden(
 }
 
 bool OmniboxController::IsPopupOpen() const {
-  if (base::FeatureList::IsEnabled(omnibox::kWebUIOmniboxFullPopupV2)) {
+  if (base::FeatureList::IsEnabled(omnibox::kWebUIOmniboxFullPopup)) {
     return !autocomplete_controller()->result().empty();
   }
 

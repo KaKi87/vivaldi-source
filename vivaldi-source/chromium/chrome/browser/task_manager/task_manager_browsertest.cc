@@ -39,7 +39,6 @@
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
-#include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/chrome_test_utils.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -1543,7 +1542,7 @@ class PrerenderTaskBrowserTest : public TaskManagerBrowserTest {
 
   predictors::AutocompleteActionPredictor* GetAutocompleteActionPredictor() {
     return predictors::AutocompleteActionPredictorFactory::GetForProfile(
-        browser()->profile());
+        browser()->GetProfile());
   }
 
   void WaitForAutocompleteActionPredictorInitialization() {
@@ -1642,7 +1641,7 @@ IN_PROC_BROWSER_TEST_F(PrerenderTaskBrowserTest, MAYBE_ProperlyShowsTasks) {
   ASSERT_NO_FATAL_FAILURE(
       WaitForTaskManagerRows(1, MatchTab(base::UTF16ToUTF8(tab_title))));
   if (content::SiteIsolationPolicy::AreOriginKeyedProcessesEnabledByDefault(
-          browser()->profile()) &&
+          browser()->GetProfile()) &&
       !server_port.empty()) {
     // When kOriginKeyedProcessesByDefault is enabled, we need to include the
     // port number as the SiteInstance's site_url will include it.
@@ -2013,7 +2012,7 @@ class FencedFrameTaskBrowserTest : public TaskManagerBrowserTest {
     replacements.ClearPath();
     replacements.ClearRef();
     if (!content::SiteIsolationPolicy::AreOriginKeyedProcessesEnabledByDefault(
-            browser()->profile())) {
+            browser()->GetProfile())) {
       // Only include the port for origin-isolated urls.
       replacements.ClearPort();
     }

@@ -303,19 +303,19 @@ SessionStore::WriteBatch::DeleteForeignEntityAndUpdateTracker(
         deleted_storage_keys.insert(GetTabScreenshotStorageKey(
             session_tag, cascading_screenshot_tab_node_id));
       }
-      // NOTE(ondrej@vivaldi): deleting header basically means deleting
-      // everything. So we should also clean the panels and workspaces.
-      // VB-129443
-      deleted_storage_keys.insert(EncodeStorageKey(
-          session_tag, TabNodePool::kVivaldiTabNodeID, EntityType::kVivaldi));
-      // NOTE(ondrej@vivaldi): Older Vivaldi builds stored this as
-      // Pickle(session_tag, -2). New writes use Pickle(session_tag, -2,
-      // kVivaldi), so delete both local storage keys.
-      {
-      base::Pickle pickle;
-      pickle.WriteString(session_tag);
-      pickle.WriteInt(TabNodePool::kVivaldiTabNodeID);
-      deleted_storage_keys.insert(std::string(pickle.AsStringView()));
+      if (vivaldi::IsVivaldiRunning()) {
+        // NOTE(ondrej@vivaldi): deleting header basically means deleting
+        // everything. So we should also clean the panels and workspaces.
+        // VB-129443
+        deleted_storage_keys.insert(EncodeStorageKey(
+            session_tag, TabNodePool::kVivaldiTabNodeID, EntityType::kVivaldi));
+        // NOTE(ondrej@vivaldi): Older Vivaldi builds stored this as
+        // Pickle(session_tag, -2). New writes use Pickle(session_tag, -2,
+        // kVivaldi), so delete both local storage keys.
+        base::Pickle pickle;
+        pickle.WriteString(session_tag);
+        pickle.WriteInt(TabNodePool::kVivaldiTabNodeID);
+        deleted_storage_keys.insert(std::string(pickle.AsStringView()));
       } // Vivaldi
 
       // Delete session itself.

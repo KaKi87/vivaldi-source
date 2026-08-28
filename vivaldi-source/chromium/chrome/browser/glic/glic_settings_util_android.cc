@@ -6,25 +6,36 @@
 
 #include <string>
 
+#include "base/feature_list.h"
 #include "base/notimplemented.h"
 #include "chrome/browser/glic/android/glic_navigation_utils_android.h"
+#include "components/password_manager/core/browser/features/password_features.h"
 
 namespace glic {
 
 void OpenGlicSettingsPage(Profile* profile) {
-  ShowGlicSettings();
+  ShowGlicSettings(GlicSettingsPage::kMain);
 }
 
 void OpenGlicOsToggleSetting(Profile* profile) {
-  ShowGlicSettings();
+  ShowGlicSettings(GlicSettingsPage::kMain);
 }
 
 void OpenGlicKeyboardShortcutSetting(Profile* profile) {
-  ShowGlicSettings();
+  ShowGlicSettings(GlicSettingsPage::kMain);
+}
+
+void OpenGlicLocationSetting(Profile* profile) {
+  ShowGlicSettings(GlicSettingsPage::kMain, "location_permission");
 }
 
 void OpenPasswordManagerSettingsPage(Profile* profile) {
-  NOTIMPLEMENTED();
+  if (base::FeatureList::IsEnabled(
+          password_manager::features::kActorLoginPermissionsUi)) {
+    ShowGlicSettings(GlicSettingsPage::kActorLoginPermissions);
+  } else {
+    NOTIMPLEMENTED();
+  }
 }
 
 std::string_view GetPlatformHelpSuffix() {

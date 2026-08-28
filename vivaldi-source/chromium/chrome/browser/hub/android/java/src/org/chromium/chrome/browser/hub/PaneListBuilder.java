@@ -100,7 +100,7 @@ public class PaneListBuilder {
         for (@PaneId int paneId : mPaneOrderController.getPaneOrder()) {
             LazyOneshotSupplier<Pane> paneSupplier = mRegisteredPanes.get(paneId);
             if (paneSupplier == null) {
-                Log.d(TAG, "No Pane was registered for " + paneId);
+                Log.d(TAG, "No Pane was registered for %d", paneId);
                 continue;
             }
             panesBuilder.put(paneId, paneSupplier);
@@ -111,7 +111,8 @@ public class PaneListBuilder {
         if (!mRegisteredPanes.isEmpty()) {
             Log.d(
                     TAG,
-                    "Some registered panes were not used. PaneIds: " + mRegisteredPanes.keySet());
+                    "Some registered panes were not used. PaneIds: %s",
+                    mRegisteredPanes.keySet());
         }
         mRegisteredPanes = null;
 

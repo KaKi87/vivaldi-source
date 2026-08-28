@@ -70,8 +70,8 @@ export function userCanChangeEnablement(
       item.disableReasons.updateRequired ||
       item.disableReasons.publishedInStoreRequired ||
       item.disableReasons.blockedByPolicy ||
-      item.disableReasons.unsupportedDeveloperExtension /*|| // Vivaldi
-      item.disableReasons.unsupportedManifestVersion*/) {
+      item.disableReasons.unsupportedDeveloperExtension ||
+      item.disableReasons.unsupportedManifestVersion) {
     return false;
   }
   // An item with dependent extensions can't be disabled (it would bork the
@@ -319,5 +319,6 @@ export function createDummyExtensionInfo():
         chrome.developerPrivate.SafetyCheckWarningReason.UNPUBLISHED,
     isAffectedByMV2Deprecation: false,
     canUploadAsAccountExtension: false,
+    isManifestV2: false,
   };
 }

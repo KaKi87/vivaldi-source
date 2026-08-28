@@ -3,7 +3,6 @@
 #import "ios/ui/table_view/cells/vivaldi_table_view_illustrated_item.h"
 
 #import "base/apple/foundation_util.h"
-#import "ios/chrome/browser/shared/ui/table_view/legacy_chrome_table_view_styler.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/text_view_util.h"
 #import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
@@ -27,9 +26,8 @@ const CGFloat kImageViewHeight = 80.0;
   return self;
 }
 
-- (void)configureCell:(LegacyTableViewCell*)tableCell
-           withStyler:(ChromeTableViewStyler*)styler {
-  [super configureCell:tableCell withStyler:styler];
+- (void)configureCell:(LegacyTableViewCell*)tableCell {
+  [super configureCell:tableCell];
   VivaldiTableViewIllustratedCell* cell =
       base::apple::ObjCCastStrict<VivaldiTableViewIllustratedCell>(tableCell);
   if ([self.accessibilityIdentifier length]) {
@@ -53,9 +51,7 @@ const CGFloat kImageViewHeight = 80.0;
   }
   cell.backgroundColor = nil;
 
-  if (styler.cellTitleColor) {
-    cell.titleLabel.textColor = styler.cellTitleColor;
-  }
+  cell.titleLabel.textColor = [UIColor colorNamed:kTextPrimaryColor];
 }
 
 @end

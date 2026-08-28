@@ -5,8 +5,6 @@
 package org.chromium.chrome.browser.omnibox.styles;
 
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 
@@ -17,11 +15,14 @@ import androidx.annotation.VisibleForTesting;
 import org.chromium.build.annotations.NullMarked;
 
 // Vivaldi
+import android.graphics.Bitmap;
+import android.graphics.drawable.BitmapDrawable;
 import androidx.annotation.NonNull;
 
 /** Represents graphical decoration for the suggestion components. */
 @NullMarked
 public class OmniboxDrawableState {
+
     /** Embedded drawable object. */
     public final Drawable drawable;
 
@@ -110,13 +111,12 @@ public class OmniboxDrawableState {
     /**
      * Create OmniboxDrawableState representing a site favicon.
      *
-     * @param context current context
-     * @param bitmap bitmap with decoded site favicon
+     * @param drawable Drawable of the favicon
      * @return newly created OmniboxDrawableState
      */
-    public static OmniboxDrawableState forFavIcon(Context context, Bitmap bitmap) {
+    public static OmniboxDrawableState forFavIcon(Drawable drawable) {
         return new OmniboxDrawableState(
-                new BitmapDrawable(context.getResources(), bitmap),
+                drawable,
                 /* useRoundedCorners= */ true,
                 /* isLarge= */ false,
                 /* allowTint= */ false);
@@ -125,13 +125,12 @@ public class OmniboxDrawableState {
     /**
      * Create OmniboxDrawableState with dedicated image decoration.
      *
-     * @param context current context
-     * @param bitmap dedicated bitmap
+     * @param drawable dedicated drawable
      * @return newly created OmniboxDrawableState
      */
-    public static OmniboxDrawableState forImage(Context context, Bitmap bitmap) {
+    public static OmniboxDrawableState forImage(Drawable drawable) {
         return new OmniboxDrawableState(
-                new BitmapDrawable(context.getResources(), bitmap),
+                drawable,
                 /* useRoundedCorners= */ true,
                 /* isLarge= */ true,
                 /* allowTint= */ false);
@@ -184,9 +183,6 @@ public class OmniboxDrawableState {
     public static @NonNull OmniboxDrawableState forImage(
             @NonNull Context context, @NonNull Bitmap bitmap, boolean isLarge) {
         return new OmniboxDrawableState(
-                new BitmapDrawable(context.getResources(), bitmap),
-                /* useRoundedCorners= */ true,
-                /* isLarge= */ isLarge, // Vivaldi VAB-10102
-                /* allowTint= */ false);
+                new BitmapDrawable(context.getResources(), bitmap), true, isLarge, false);
     }
 }

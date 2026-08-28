@@ -15,6 +15,7 @@
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/mock_callback.h"
+#include "chrome/browser/ash/browser_delegate/browser_delegate.h"
 #include "chrome/browser/ash/file_manager/file_manager_test_util.h"
 #include "chrome/browser/ash/file_manager/open_util.h"
 #include "chrome/browser/ash/file_manager/path_util.h"
@@ -69,23 +70,27 @@ class FilesPolicyDialogBrowserTest
     InProcessBrowserTest::SetUpOnMainThread();
 
     // Setup the Files app.
-    ash::SystemWebAppManager::GetForTest(browser()->profile())
+    ash::SystemWebAppManager::GetForTest(browser()->GetProfile())
         ->InstallSystemAppsForTesting();
     file_manager::test::AddDefaultComponentExtensionsOnMainThread(
-        browser()->profile());
+        browser()->GetProfile());
   }
 
  protected:
   Browser* FindFilesApp() {
-    return FindSystemWebAppBrowser(browser()->profile(),
-                                   ash::SystemWebAppType::FILE_MANAGER);
+    ash::BrowserDelegate* delegate = FindSystemWebAppBrowser(
+        browser()->GetProfile(), ash::SystemWebAppType::FILE_MANAGER,
+        ash::BrowserType::kApp);
+    return delegate ? delegate->GetBrowser().GetBrowserForMigrationOnly()
+                    : nullptr;
   }
 
   Browser* OpenFilesApp() {
     base::RunLoop run_loop;
     file_manager::util::ShowItemInFolder(
-        browser()->profile(),
-        file_manager::util::GetDownloadsFolderForProfile(browser()->profile()),
+        browser()->GetProfile(),
+        file_manager::util::GetDownloadsFolderForProfile(
+            browser()->GetProfile()),
         base::BindLambdaForTesting(
             [&run_loop](platform_util::OpenOperationResult result) {
               EXPECT_EQ(platform_util::OpenOperationResult::OPEN_SUCCEEDED,
@@ -162,7 +167,7 @@ IN_PROC_BROWSER_TEST_P(WarningDialogBrowserTest, WithParent) {
   ASSERT_EQ(files_app, FindFilesApp());
 
   auto* widget = FilesPolicyDialog::CreateWarnDialog(
-      cb_.Get(), action, files_app->window()->GetNativeWindow(),
+      cb_.Get(), action, files_app->GetWindow()->GetNativeWindow(),
       FilesPolicyDialog::Info::Warn(FilesPolicyDialog::BlockReason::kDlp,
                                     warning_paths_));
   ASSERT_TRUE(widget);
@@ -173,7 +178,7 @@ IN_PROC_BROWSER_TEST_P(WarningDialogBrowserTest, WithParent) {
 
   EXPECT_EQ(dialog->GetModalType(), ui::mojom::ModalType::kWindow);
   EXPECT_EQ(widget->parent()->GetNativeWindow(),
-            files_app->window()->GetNativeWindow());
+            files_app->GetWindow()->GetNativeWindow());
   // Cancel.
   EXPECT_CALL(cb_, Run(/*user_justification=*/std::optional<std::u16string>(),
                        /*should_proceed=*/false))
@@ -360,7 +365,7 @@ IN_PROC_BROWSER_TEST_P(ErrorDialogBrowserTest, WithParent) {
   ASSERT_EQ(files_app, FindFilesApp());
 
   auto* widget = FilesPolicyDialog::CreateErrorDialog(
-      dialog_info_map_, action, files_app->window()->GetNativeWindow());
+      dialog_info_map_, action, files_app->GetWindow()->GetNativeWindow());
   ASSERT_TRUE(widget);
 
   FilesPolicyErrorDialog* dialog = static_cast<FilesPolicyErrorDialog*>(
@@ -369,7 +374,7 @@ IN_PROC_BROWSER_TEST_P(ErrorDialogBrowserTest, WithParent) {
 
   EXPECT_EQ(dialog->GetModalType(), ui::mojom::ModalType::kWindow);
   EXPECT_EQ(widget->parent()->GetNativeWindow(),
-            files_app->window()->GetNativeWindow());
+            files_app->GetWindow()->GetNativeWindow());
   // Accept -> dismiss.
   dialog->AcceptDialog();
   EXPECT_TRUE(widget->IsClosed());

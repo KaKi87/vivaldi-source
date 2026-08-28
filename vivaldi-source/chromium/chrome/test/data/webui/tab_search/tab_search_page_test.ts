@@ -7,9 +7,10 @@ import 'chrome://tab-search.top-chrome/tab_search.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {MetricsReporterImpl} from 'chrome://resources/js/metrics_reporter/metrics_reporter.js';
 import type {ProfileData, RecentlyClosedTab, Tab, TabSearchItemElement, TabSearchPageElement} from 'chrome://tab-search.top-chrome/tab_search.js';
-import {SEARCH_QUERY_MAX_LENGTH, SplitTabLayout, SplitViewData, TabGroupColor, TabSearchApiProxyImpl, tokenToString} from 'chrome://tab-search.top-chrome/tab_search.js';
+import {SEARCH_QUERY_MAX_LENGTH, SplitTabLayout, SplitViewData, TabGroupColor, TabSearchApiProxyImpl, TabSearchUserAction, tokenToString} from 'chrome://tab-search.top-chrome/tab_search.js';
 import {assertDeepEquals, assertEquals, assertFalse, assertGT, assertNotEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {keyDownOn} from 'chrome://webui-test/keyboard_mock_interactions.js';
+import {fakeMetricsPrivate} from 'chrome://webui-test/metrics_test_support.js';
 import {MockedMetricsReporter} from 'chrome://webui-test/mocked_metrics_reporter.js';
 import {eventToPromise, microtasksFinished} from 'chrome://webui-test/test_util.js';
 
@@ -277,12 +278,11 @@ suite('TabSearchAppTest', () => {
     const tabSearchItem = tabSearchPage.$.tabsList.querySelector<HTMLElement>(
         'tab-search-item[id="100"]')!;
     tabSearchItem.click();
-    const [tabId, withSearch, isTab, index] =
+    const [tabId, withSearch, isTab] =
         await testProxy.whenCalled('openRecentlyClosedEntry');
     assertEquals(tabData.tabId, tabId);
     assertFalse(withSearch);
     assertTrue(isTab);
-    assertEquals(0, index);
   });
 
   test('Click on recently closed tab group item triggers action', async () => {
@@ -314,12 +314,11 @@ suite('TabSearchAppTest', () => {
     const tabSearchItem =
         tabSearchPage.$.tabsList.querySelector('tab-search-group-item')!;
     tabSearchItem.click();
-    const [id, withSearch, isTab, index] =
+    const [id, withSearch, isTab] =
         await testProxy.whenCalled('openRecentlyClosedEntry');
     assertEquals(tabGroupData.sessionId, id);
     assertFalse(withSearch);
     assertFalse(isTab);
-    assertEquals(0, index);
   });
 
   test('Keyboard navigation on an empty list', async () => {
@@ -605,11 +604,12 @@ suite('TabSearchAppTest', () => {
   });
 
   test('Verify tab switch is called correctly', async () => {
+    const metrics = fakeMetricsPrivate();
     await setupTest(createProfileData());
-    // Make sure that tab data has been recieved.
+    // Make sure that tab data has been received.
     verifyTabIds(queryRows(), [1, 5, 6, 2, 3, 4]);
 
-    // Click the first element with tabId 1.
+    // Click the first element with tabId 1 (current window tab).
     let tabSearchItem = tabSearchPage.$.tabsList.querySelector<HTMLElement>(
         'tab-search-item[id="1"]')!;
     tabSearchItem.click();
@@ -617,16 +617,26 @@ suite('TabSearchAppTest', () => {
     // Assert switchToTab() was called appropriately for an unfiltered tab list.
     let [tabInfo] = await testProxy.whenCalled('switchToTab');
     assertEquals(1, tabInfo.tabId);
+    assertEquals(
+        1,
+        metrics.count(
+            'Tabs.TabSearch.WebUI.Action',
+            TabSearchUserAction.IN_UNFILTERED_LIST_SWITCHED_TAB));
 
     testProxy.reset();
-    // Click the first element with tabId 6.
+    // Click element with tabId 2 (other window tab).
     tabSearchItem = tabSearchPage.$.tabsList.querySelector<HTMLElement>(
-        'tab-search-item[id="6"]')!;
+        'tab-search-item[id="2"]')!;
     tabSearchItem.click();
 
     // Assert switchToTab() was called appropriately for an unfiltered tab list.
     [tabInfo] = await testProxy.whenCalled('switchToTab');
-    assertEquals(6, tabInfo.tabId);
+    assertEquals(2, tabInfo.tabId);
+    assertEquals(
+        1,
+        metrics.count(
+            'Tabs.TabSearch.WebUI.Action',
+            TabSearchUserAction.IN_UNFILTERED_LIST_SWITCHED_OTHER_WINDOW_TAB));
 
     // Force a change to filtered tab data that would result in a
     // re-render.
@@ -635,15 +645,39 @@ suite('TabSearchAppTest', () => {
     verifyTabIds(queryRows(), [2]);
 
     testProxy.reset();
-    // Click the only remaining element with tabId 2.
+    // Click the only remaining element with tabId 2 (other window tab, in
+    // filtered list).
     tabSearchItem = tabSearchPage.$.tabsList.querySelector<HTMLElement>(
         'tab-search-item[id="2"]')!;
     tabSearchItem.click();
 
-    // Assert switchToTab() was called appropriately for a tab list fitlered by
+    // Assert switchToTab() was called appropriately for a tab list filtered by
     // the search query.
     [tabInfo] = await testProxy.whenCalled('switchToTab');
     assertEquals(2, tabInfo.tabId);
+    assertEquals(
+        1,
+        metrics.count(
+            'Tabs.TabSearch.WebUI.Action',
+            TabSearchUserAction.IN_FILTERED_LIST_SWITCHED_OTHER_WINDOW_TAB));
+
+    setSearchText('google');
+    await microtasksFinished();
+    verifyTabIds(queryRows(), [1]);
+
+    testProxy.reset();
+    // Click element with tabId 1 (current window tab, in filtered list).
+    tabSearchItem = tabSearchPage.$.tabsList.querySelector<HTMLElement>(
+        'tab-search-item[id="1"]')!;
+    tabSearchItem.click();
+
+    [tabInfo] = await testProxy.whenCalled('switchToTab');
+    assertEquals(1, tabInfo.tabId);
+    assertEquals(
+        1,
+        metrics.count(
+            'Tabs.TabSearch.WebUI.Action',
+            TabSearchUserAction.IN_FILTERED_LIST_SWITCHED_TAB));
   });
 
   test('Verify maybeShowUi() is called correctly', async () => {
@@ -1149,5 +1183,67 @@ suite('TabSearchAppTest', () => {
     closeButton.click();
     const [closedTabIds] = await testProxy.whenCalled('closeTabs');
     assertDeepEquals([10, 20], closedTabIds);
+  });
+
+  test('aria-activedescendant updates', async () => {
+    await setupTest(createProfileData());
+    const searchInput = tabSearchPage.$.searchInput;
+
+    // Initially, aria-activedescendant is not set.
+    assertFalse(searchInput.hasAttribute('aria-activedescendant'));
+
+    // Type in search input, it should still not be set.
+    setSearchText('Apple');
+    await microtasksFinished();
+    assertFalse(searchInput.hasAttribute('aria-activedescendant'));
+
+    // Press ArrowDown. This should activate keyboard navigation and set
+    // aria-activedescendant.
+    const searchField = tabSearchPage.$.searchField;
+    keyDownOn(searchField, 0, [], 'ArrowDown');
+    await microtasksFinished();
+
+    assertTrue(searchInput.hasAttribute('aria-activedescendant'));
+    const activeId1 = searchInput.getAttribute('aria-activedescendant');
+    assertTrue(!!activeId1);
+
+    const rows = queryRows();
+    const activeIndex = tabSearchPage.getSelectedTabIndex();
+    const activeElementId = rows[activeIndex]!.id;
+    assertEquals(activeElementId, activeId1);
+
+    // Press ArrowDown again. This should move selection and update
+    // aria-activedescendant.
+    keyDownOn(searchField, 0, [], 'ArrowDown');
+    await microtasksFinished();
+
+    const activeId2 = searchInput.getAttribute('aria-activedescendant');
+    const activeIndex2 = tabSearchPage.getSelectedTabIndex();
+    const activeElementId2 = rows[activeIndex2]!.id;
+    assertEquals(activeElementId2, activeId2, 'hello');
+    assertNotEquals(activeId1, activeId2);
+
+    // Type again. This should remove aria-activedescendant.
+    setSearchText('A');
+    await microtasksFinished();
+    assertFalse(searchInput.hasAttribute('aria-activedescendant'));
+
+    // Reactivate keyboard navigation.
+    keyDownOn(searchField, 0, [], 'ArrowDown');
+    await microtasksFinished();
+    assertTrue(searchInput.hasAttribute('aria-activedescendant'));
+  });
+
+  test('aria-posinset and aria-setsize', async () => {
+    await setupTest(createProfileData());
+
+    await tabSearchPage.$.tabsList.ensureAllDomItemsAvailable();
+    const rows = queryRows();
+
+    assertEquals(6, rows.length);
+    rows.forEach((row, index) => {
+      assertEquals((index + 1).toString(), row.ariaPosInSet);
+      assertEquals('6', row.ariaSetSize);
+    });
   });
 });

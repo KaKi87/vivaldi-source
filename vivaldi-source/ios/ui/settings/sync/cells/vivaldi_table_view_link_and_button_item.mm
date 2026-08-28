@@ -3,7 +3,6 @@
 #import "ios/ui/settings/sync/cells/vivaldi_table_view_link_and_button_item.h"
 
 #import "base/apple/foundation_util.h"
-#import "ios/chrome/browser/shared/ui/table_view/legacy_chrome_table_view_styler.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/table_view/table_view_cells_constants.h"
@@ -43,9 +42,8 @@ const NSTextAlignment kDefaultTextAlignment = NSTextAlignmentCenter;
   return self;
 }
 
-- (void)configureCell:(LegacyTableViewCell*)tableCell
-           withStyler:(ChromeTableViewStyler*)styler {
-  [super configureCell:tableCell withStyler:styler];
+- (void)configureCell:(LegacyTableViewCell*)tableCell {
+  [super configureCell:tableCell];
   VivaldiTableViewLinkAndButtonCell* cell =
       base::apple::ObjCCastStrict<VivaldiTableViewLinkAndButtonCell>(tableCell);
   [cell setSelectionStyle:UITableViewCellSelectionStyleNone];
@@ -53,14 +51,7 @@ const NSTextAlignment kDefaultTextAlignment = NSTextAlignmentCenter;
   cell.backgroundColor = [UIColor clearColor];
 
   cell.label.attributedText = self.linkText;
-  // Decide cell.label.textColor in order:
-  //   1. styler.cellTitleColor
-  //   2. [UIColor colorNamed:kTextSecondaryColor]
-  if (styler.cellTitleColor) {
-    cell.label.textColor = styler.cellTitleColor;
-  } else {
-    cell.label.textColor = [UIColor colorNamed:kTextSecondaryColor];
-  }
+  cell.label.textColor = [UIColor colorNamed:kTextSecondaryColor];
   cell.label.textAlignment = self.textAlignment;
 
   [cell.button setTitle:self.buttonText forState:UIControlStateNormal];

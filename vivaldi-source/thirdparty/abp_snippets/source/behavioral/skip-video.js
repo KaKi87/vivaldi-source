@@ -14,11 +14,11 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import {$$} from "../utils/dom.js";
 import $ from "../$.js";
 
-import {formatArguments} from "../utils/general.js";
+import {formatArguments, sendSnippetHitEvent}
+  from "../utils/general.js";
 import {getDebugger} from "../introspection/log.js";
 import {profile} from "../introspection/profile.js";
 import {initQueryAndApply} from "../utils/dom.js";
@@ -28,8 +28,8 @@ import {waitUntilEvent} from "../utils/execution.js";
 let {isNaN, MutationObserver, parseInt, parseFloat, setTimeout} = $(window);
 
 /**
- * Skips video
- * @alias module:content/snippets.skip-video
+ * @description Skips video
+ * @memberof module:snippets/behavioral
  *
  * @param {string} playerSelector The CSS or the XPath selector to the
  * <video> element in the page.
@@ -38,7 +38,7 @@ let {isNaN, MutationObserver, parseInt, parseFloat, setTimeout} = $(window);
  * @param {?Array.<string>} [attributes] Optional parameters that can be used
  * to configure the snippet.
  *
- * Syntax: <key>:<value>.
+ * @example Syntax: <key>:<value>.
  *
  * Accepts:
  *
@@ -78,6 +78,10 @@ let {isNaN, MutationObserver, parseInt, parseFloat, setTimeout} = $(window);
  *
  * -mute-video-when-skipping:false (default is true)
  * Mutes the video when skipping is happening.
+ *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69960872/skip-video} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/behavioral-snippets/skip-video} for external documentation.
+ * @since Adblock Plus 3.21
  */
 export function skipVideo(playerSelector, xpathCondition, ...attributes) {
   const formattedArguments = formatArguments(arguments);
@@ -160,8 +164,10 @@ export function skipVideo(playerSelector, xpathCondition, ...attributes) {
               !(stopOnVideoEndFlag && videoNearEnd)) {
             if (muteVideo) {
               video.muted = true;
-              if (!nodeAlreadySeen)
+              if (!nodeAlreadySeen) {
                 debugLog("success", "Muted video...");
+                sendSnippetHitEvent("skip-video " + formattedArguments);
+              }
             }
             if (startFrom <= video.currentTime * 1000) {
               // If skipTo is zero or negative, skip to the end of the video
@@ -176,6 +182,7 @@ export function skipVideo(playerSelector, xpathCondition, ...attributes) {
                          "s.",
                          "\nFILTER: skip-video",
                          formattedArguments);
+                sendSnippetHitEvent("skip-video " + formattedArguments);
                 seenMap.add(node);
                 lastSkippedVideoDuration = video.duration;
               }

@@ -6,15 +6,16 @@
 
 #include "base/base64url.h"
 #include "base/logging.h"
+#include "base/metrics/histogram_functions.h"
 #include "base/strings/strcat.h"
 #include "components/content_settings/core/browser/content_settings_observer.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
-#include "components/content_settings/core/browser/permission_settings_info.h"
 #include "components/content_settings/core/browser/permission_settings_registry.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/content_settings/core/common/content_settings_utils.h"
 #include "components/google/core/common/google_util.h"
+#include "components/omnibox/browser/autocomplete_match.h"
 #include "components/omnibox/browser/proto/partner_location_descriptor.pb.h"
 #include "components/omnibox/common/omnibox_features.h"
 #include "components/permissions/permissions_client.h"
@@ -37,6 +38,24 @@ constexpr base::TimeDelta kMaxLocationAgeForHeader = base::Hours(24);
 // The "w " prefix identifies the subsequent string as a Base64-encoded proto
 // as defined by the X-Geo protocol.
 constexpr std::string_view kLocationProtoPrefix = "w ";
+constexpr char kHistogramGetLocationOutcomePrefix[] =
+    "Omnibox.GeolocationHeaderService.GetLocationOutcome.";
+constexpr char kTriggerAutomaticSuffix[] = "Automatic";
+constexpr char kTriggerInlineSuggestionSuffix[] = "InlineSuggestion";
+constexpr char kHistogramPrimeLocationOutcome[] =
+    "Omnibox.GeolocationHeaderService.PrimeLocationOutcome";
+
+constexpr char kHistogramInlineLocationSuggestionDenyPrefix[] =
+    "Omnibox.InlineLocationSuggestion.Deny";
+constexpr char kHistogramInlineLocationSuggestionAskPrefix[] =
+    "Omnibox.InlineLocationSuggestion.Ask";
+constexpr char kHistogramInlineLocationSuggestionShownSuffix[] = ".ShownState";
+constexpr char kHistogramInlineLocationSuggestionClickedSuffix[] = ".Clicked";
+constexpr char kHistogramInlineLocationSuggestionParentClickedSuffix[] =
+    ".ParentClicked";
+
+constexpr char kHistogramInlineLocationSuggestionIndex[] =
+    "Omnibox.InlineLocationSuggestion.Index";
 
 // This is a duplicate of the logic in GeolocationHeader.java, used as we
 // transition X-Geo logic from Android-specific to platform-agnostic C++. Once
@@ -74,6 +93,19 @@ std::optional<std::string> SerializeXGeoHeader(
   return base::StrCat({kLocationProtoPrefix, encoded});
 }
 
+void RecordPrimeLocationOutcome(GeolocationHeaderPrimeLocationOutcome outcome) {
+  base::UmaHistogramEnumeration(kHistogramPrimeLocationOutcome, outcome);
+}
+
+void RecordGetLocationOutcome(GeolocationHeaderGetLocationOutcome outcome,
+                              bool for_automatic_sending) {
+  base::UmaHistogramEnumeration(
+      base::StrCat({kHistogramGetLocationOutcomePrefix,
+                    for_automatic_sending ? kTriggerAutomaticSuffix
+                                          : kTriggerInlineSuggestionSuffix}),
+      outcome);
+}
+
 }  // namespace
 
 GeolocationHeaderService::GeolocationHeaderService(
@@ -104,13 +136,32 @@ void GeolocationHeaderService::Shutdown() {
 }
 
 void GeolocationHeaderService::PrimeLocation() {
-  if (geolocation_.is_bound() || !template_url_service_) {
+  if (!base::FeatureList::IsEnabled(omnibox::kPlatformAgnosticXGeo)) {
+    return;
+  }
+
+  if (geolocation_.is_bound()) {
+    RecordPrimeLocationOutcome(
+        GeolocationHeaderPrimeLocationOutcome::kNotTriedAlreadyBound);
+    return;
+  }
+  if (!template_url_service_) {
+    RecordPrimeLocationOutcome(
+        GeolocationHeaderPrimeLocationOutcome::kNotTriedNoDefaultProvider);
     return;
   }
 
   const TemplateURL* default_provider =
       template_url_service_->GetDefaultSearchProvider();
-  if (!default_provider || !default_provider->send_x_geo_header()) {
+  if (!default_provider) {
+    RecordPrimeLocationOutcome(
+        GeolocationHeaderPrimeLocationOutcome::kNotTriedNoDefaultProvider);
+    return;
+  }
+
+  if (!default_provider->send_x_geo_header()) {
+    RecordPrimeLocationOutcome(GeolocationHeaderPrimeLocationOutcome::
+                                   kNotTriedProviderDoesNotAcceptHeader);
     return;
   }
 
@@ -121,8 +172,15 @@ void GeolocationHeaderService::PrimeLocation() {
       base::FeatureList::IsEnabled(omnibox::kInlineLocationSignaling);
 
   if (!requesting_url.is_valid() ||
-      !requesting_url.SchemeIs(url::kHttpsScheme) ||
-      (!IsAllowedByPermission(requesting_url) && !is_ills_enabled)) {
+      !requesting_url.SchemeIs(url::kHttpsScheme)) {
+    RecordPrimeLocationOutcome(
+        GeolocationHeaderPrimeLocationOutcome::kNotTriedInvalidUrlOrInsecure);
+    last_position_.reset();
+    return;
+  }
+  if (!IsAllowedByPermission(requesting_url) && !is_ills_enabled) {
+    RecordPrimeLocationOutcome(GeolocationHeaderPrimeLocationOutcome::
+                                   kNotTriedPermissionStatusMismatch);
     last_position_.reset();
     return;
   }
@@ -134,6 +192,8 @@ void GeolocationHeaderService::PrimeLocation() {
     base::TimeDelta age = location_age_for_testing_.value_or(
         base::Time::Now() - last_position_->timestamp);
     if (age <= kMaxLocationAgeForPriming) {
+      RecordPrimeLocationOutcome(
+          GeolocationHeaderPrimeLocationOutcome::kNotTriedCachedLocationFresh);
       return;
     }
   }
@@ -142,14 +202,20 @@ void GeolocationHeaderService::PrimeLocation() {
       is_ills_enabled && !IsAllowedByPermission(requesting_url);
 
   if (!EnsureGeolocationServiceConnection(requesting_url, use_cache_only)) {
+    RecordPrimeLocationOutcome(
+        GeolocationHeaderPrimeLocationOutcome::kTriedFailedConnection);
     return;
   }
 
   auto callback = base::BindOnce(&GeolocationHeaderService::OnLocationUpdate,
                                  weak_factory_.GetWeakPtr());
   if (use_cache_only) {
+    RecordPrimeLocationOutcome(
+        GeolocationHeaderPrimeLocationOutcome::kTriedQueryCachedPosition);
     geolocation_->QueryCachedPosition(std::move(callback));
   } else {
+    RecordPrimeLocationOutcome(
+        GeolocationHeaderPrimeLocationOutcome::kTriedQueryNextPosition);
     geolocation_->QueryNextPosition(std::move(callback));
   }
 }
@@ -177,8 +243,21 @@ GeolocationHeaderService::GetCachedLocationAccuracy() const {
 std::optional<std::string> GeolocationHeaderService::GetLocationHeader(
     const GURL& url,
     bool for_automatic_sending) {
-  if (!url.SchemeIs(url::kHttpsScheme) || !HasCachedLocation() ||
-      !IsUrlEligibleForLocationHeader(url)) {
+  if (!base::FeatureList::IsEnabled(omnibox::kPlatformAgnosticXGeo)) {
+    return std::nullopt;
+  }
+
+  if (!url.SchemeIs(url::kHttpsScheme)) {
+    RecordGetLocationOutcome(
+        GeolocationHeaderGetLocationOutcome::kInsecureConnection,
+        for_automatic_sending);
+    return std::nullopt;
+  }
+
+  if (!IsUrlEligibleForLocationHeader(url)) {
+    RecordGetLocationOutcome(
+        GeolocationHeaderGetLocationOutcome::kIneligibleUrl,
+        for_automatic_sending);
     return std::nullopt;
   }
 
@@ -187,6 +266,16 @@ std::optional<std::string> GeolocationHeaderService::GetLocationHeader(
   // omnibox suggestion, then it should only be allowed if the DSE does NOT have
   // permission.
   if (for_automatic_sending != IsAllowedByPermission(url)) {
+    RecordGetLocationOutcome(
+        GeolocationHeaderGetLocationOutcome::kPermissionStateMismatch,
+        for_automatic_sending);
+    return std::nullopt;
+  }
+
+  if (!HasCachedLocation()) {
+    RecordGetLocationOutcome(
+        GeolocationHeaderGetLocationOutcome::kNoCachedLocation,
+        for_automatic_sending);
     return std::nullopt;
   }
 
@@ -198,58 +287,48 @@ std::optional<std::string> GeolocationHeaderService::GetLocationHeader(
   // location").
   if (for_automatic_sending && last_position_->is_precise &&
       !HasPrecisePermission(url)) {
+    RecordGetLocationOutcome(
+        GeolocationHeaderGetLocationOutcome::kHeaderGranularityMismatch,
+        for_automatic_sending);
     return std::nullopt;
   }
+
+  RecordGetLocationOutcome(GeolocationHeaderGetLocationOutcome::kSuccess,
+                           for_automatic_sending);
 
   return SerializeXGeoHeader(*last_position_);
 }
 
-bool GeolocationHeaderService::IsAllowedByPermission(const GURL& url) const {
-  if (!HasDeviceLocationPermission(GeolocationAccuracy::kApproximate)) {
-    return false;
+void GeolocationHeaderService::RecordInlineLocationSuggestionShown(
+    OmniboxInlineLocationSuggestionShown shown_state,
+    size_t match_index) const {
+  std::optional<PermissionSetting> permission = GetDSEPermissionSetting();
+  if (!permission.has_value()) {
+    return;
   }
 
-  PermissionSetting setting = settings_map_->GetPermissionSetting(
-      url, url, content_settings::GeolocationContentSettingsType());
+  const auto& delegate =
+      content_settings::PermissionSettingsRegistry::GetInstance()
+          ->Get(content_settings::GeolocationContentSettingsType())
+          ->delegate();
+  bool is_denied = delegate.IsBlocked(*permission);
+  bool is_ask = delegate.IsUndecided(*permission);
 
-  return content_settings::PermissionSettingsRegistry::GetInstance()
-      ->Get(content_settings::GeolocationContentSettingsType())
-      ->delegate()
-      .IsAnyPermissionAllowed(setting);
-}
-
-bool GeolocationHeaderService::HasPrecisePermission(const GURL& url) const {
-  if (!HasDeviceLocationPermission(GeolocationAccuracy::kPrecise)) {
-    return false;
+  if (!is_ask && !is_denied) {
+    return;
   }
 
-  PermissionSetting setting = settings_map_->GetPermissionSetting(
-      url, url, content_settings::GeolocationContentSettingsType());
+  base::UmaHistogramEnumeration(
+      base::StrCat({is_denied ? kHistogramInlineLocationSuggestionDenyPrefix
+                              : kHistogramInlineLocationSuggestionAskPrefix,
+                    kHistogramInlineLocationSuggestionShownSuffix}),
+      shown_state);
 
-  return std::visit(absl::Overload(
-                        [](const GeolocationSetting& geo_setting) {
-                          return geo_setting.precise ==
-                                 PermissionOption::kAllowed;
-                        },
-                        [](ContentSetting content_setting) {
-                          return content_setting == CONTENT_SETTING_ALLOW;
-                        }),
-                    setting);
-}
-
-bool GeolocationHeaderService::HasDeviceLocationPermission(
-    GeolocationAccuracy accuracy) const {
-#if BUILDFLAG(IS_ANDROID)
-  if (!location_settings_) {
-    return true;
+  if (shown_state ==
+      OmniboxInlineLocationSuggestionShown::kLocationSuggestionShown) {
+    base::UmaHistogramExactLinear(kHistogramInlineLocationSuggestionIndex,
+                                  match_index, 20);
   }
-  return accuracy == GeolocationAccuracy::kPrecise
-             ? location_settings_->HasAndroidFineLocationPermission()
-             : location_settings_->HasAndroidLocationPermission();
-#else
-  return permissions::PermissionsClient::Get()->HasDevicePermission(
-      ContentSettingsType::GEOLOCATION);
-#endif
 }
 
 bool GeolocationHeaderService::IsUrlEligibleForLocationHeader(
@@ -263,7 +342,15 @@ bool GeolocationHeaderService::IsUrlEligibleForLocationHeader(
   }
   const TemplateURL* default_provider =
       template_url_service_->GetDefaultSearchProvider();
-  if (!default_provider || !default_provider->send_x_geo_header()) {
+  if (!default_provider) {
+    return false;
+  }
+
+  // Only check send_x_geo_header if the feature is enabled, because this
+  // function is also used to check if a URL is eligible for the XGeo header
+  // even with the feature off (for legacy behavior metrics).
+  if (base::FeatureList::IsEnabled(omnibox::kPlatformAgnosticXGeo) &&
+      !default_provider->send_x_geo_header()) {
     return false;
   }
 
@@ -286,7 +373,6 @@ bool GeolocationHeaderService::IsUrlEligibleForLocationHeader(
 
   GURL dse_url = default_provider->GenerateSearchURL(
       template_url_service_->search_terms_data());
-
   bool is_dse_origin =
       url::Origin::Create(url).IsSameOriginWith(url::Origin::Create(dse_url));
 
@@ -295,6 +381,83 @@ bool GeolocationHeaderService::IsUrlEligibleForLocationHeader(
   // non-search Google properties (like google.com/maps) or cross-TLD
   // navigations (like google.ca when the DSE is google.com).
   return is_google_dse && is_dse_origin && google_util::IsGoogleSearchUrl(url);
+}
+
+void GeolocationHeaderService::MaybeRecordInlineLocationSuggestionClicked(
+    const AutocompleteMatch& match) const {
+  if (!match.subtypes.contains(omnibox::SUBTYPE_LOCATION_SUGGEST_TRIGGER)) {
+    return;
+  }
+
+  std::optional<PermissionSetting> permission = GetDSEPermissionSetting();
+  if (!permission.has_value()) {
+    return;
+  }
+
+  const auto& delegate =
+      content_settings::PermissionSettingsRegistry::GetInstance()
+          ->Get(content_settings::GeolocationContentSettingsType())
+          ->delegate();
+
+  bool is_denied = delegate.IsBlocked(*permission);
+  bool is_ask = delegate.IsUndecided(*permission);
+
+  if (!is_ask && !is_denied) {
+    return;
+  }
+
+  bool parent_clicked = !match.extra_headers.contains(kXGeoHeader);
+
+  // Build the histogram name with the right prefix and the right suffix.
+  base::UmaHistogramBoolean(
+      base::StrCat({is_denied ? kHistogramInlineLocationSuggestionDenyPrefix
+                              : kHistogramInlineLocationSuggestionAskPrefix,
+                    parent_clicked
+                        ? kHistogramInlineLocationSuggestionParentClickedSuffix
+                        : kHistogramInlineLocationSuggestionClickedSuffix}),
+      true);
+}
+
+bool GeolocationHeaderService::IsAllowedByPermission(const GURL& url) const {
+  if (!HasDeviceLocationPermission(GeolocationAccuracy::kApproximate)) {
+    return false;
+  }
+
+  return content_settings::PermissionSettingsRegistry::GetInstance()
+      ->Get(content_settings::GeolocationContentSettingsType())
+      ->delegate()
+      .IsAnyPermissionAllowed(GetPermissionSetting(url));
+}
+
+bool GeolocationHeaderService::HasPrecisePermission(const GURL& url) const {
+  if (!HasDeviceLocationPermission(GeolocationAccuracy::kPrecise)) {
+    return false;
+  }
+
+  return std::visit(absl::Overload(
+                        [](const GeolocationSetting& geo_setting) {
+                          return geo_setting.precise ==
+                                 PermissionOption::kAllowed;
+                        },
+                        [](ContentSetting content_setting) {
+                          return content_setting == CONTENT_SETTING_ALLOW;
+                        }),
+                    GetPermissionSetting(url));
+}
+
+bool GeolocationHeaderService::HasDeviceLocationPermission(
+    GeolocationAccuracy accuracy) const {
+#if BUILDFLAG(IS_ANDROID)
+  if (!location_settings_) {
+    return true;
+  }
+  return accuracy == GeolocationAccuracy::kPrecise
+             ? location_settings_->HasAndroidFineLocationPermission()
+             : location_settings_->HasAndroidLocationPermission();
+#else
+  return permissions::PermissionsClient::Get()->HasDevicePermission(
+      ContentSettingsType::GEOLOCATION);
+#endif
 }
 
 bool GeolocationHeaderService::EnsureGeolocationServiceConnection(
@@ -347,4 +510,27 @@ void GeolocationHeaderService::OnLocationUpdate(
   if (result->is_position()) {
     last_position_ = std::move(result->get_position());
   }
+}
+
+std::optional<PermissionSetting>
+GeolocationHeaderService::GetDSEPermissionSetting() const {
+  if (!template_url_service_) {
+    return std::nullopt;
+  }
+  const TemplateURL* default_provider =
+      template_url_service_->GetDefaultSearchProvider();
+  if (!default_provider || !default_provider->send_x_geo_header()) {
+    return std::nullopt;
+  }
+
+  GURL url = default_provider->GenerateSearchURL(
+      template_url_service_->search_terms_data());
+
+  return GetPermissionSetting(url);
+}
+
+PermissionSetting GeolocationHeaderService::GetPermissionSetting(
+    const GURL& url) const {
+  return settings_map_->GetPermissionSetting(
+      url, url, content_settings::GeolocationContentSettingsType());
 }

@@ -4,13 +4,15 @@
 
 #include "chrome/browser/glic/suggestions/glic_cue_target.h"
 
-#include <algorithm>
+#include <utility>
 
 #include "base/notimplemented.h"
 #include "base/strings/stringprintf.h"
+#include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/contextual_cueing/contextual_cueing_controller.h"
 #include "chrome/browser/contextual_cueing/contextual_cueing_metrics.h"
 #include "chrome/browser/contextual_cueing/cueing_log.h"
+#include "chrome/browser/contextual_cueing/features.h"
 #include "chrome/browser/glic/browser_ui/glic_vector_icon_manager.h"
 #include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/glic/public/features.h"
@@ -19,14 +21,20 @@
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/glic_passkeys.h"
 #include "chrome/browser/glic/resources/grit/glic_browser_resources.h"
+#include "chrome/browser/glic/suggestions/glic_cue_tab_state.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
+#include "chrome/browser/page_content_annotations/page_content_annotations_service_factory.h"
 #include "chrome/browser/tab_list/tab_list_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "components/optimization_guide/proto/features/contextual_cueing.pb.h"
+#include "components/pdf/common/constants.h"
 #include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_handle_factory.h"
+#include "components/tabs/public/tab_interface.h"
+#include "content/public/browser/web_contents.h"
 #include "ui/base/models/image_model.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/image/image_skia.h"
@@ -34,48 +42,105 @@
 namespace glic {
 
 // static
-void GlicCueTarget::Register(BrowserWindowInterface& browser_window_interface) {
+void GlicCueTarget::Register(tabs::TabInterface& tab) {
 #if BUILDFLAG(IS_ANDROID)
   NOTIMPLEMENTED() << "Glic contextual cue not yet implemented for Android.";
 #else
-  auto* glic_keyed_service =
-      GlicKeyedService::Get(browser_window_interface.GetProfile());
+  auto* glic_keyed_service = GlicKeyedService::Get(tab.GetProfile());
   if (!glic_keyed_service) {
     return;
   }
 
   auto* contextual_cueing_controller =
-      browser_window_interface.GetFeatures().contextual_cueing_controller();
+      tab.GetTabFeatures()->contextual_cueing_controller();
   CHECK(contextual_cueing_controller);
   contextual_cueing_controller->RegisterCueTarget(
       contextual_cueing::CueTargetType::kGlic,
       std::make_unique<GlicCueTarget>(
           *glic_keyed_service,
-          OptimizationGuideKeyedServiceFactory::GetForProfile(
-              browser_window_interface.GetProfile()),
-          browser_window_interface));
+          OptimizationGuideKeyedServiceFactory::GetForProfile(tab.GetProfile()),
+          tab));
 #endif
 }
 
 GlicCueTarget::GlicCueTarget(
     GlicKeyedService& glic_keyed_service,
     OptimizationGuideKeyedService* optimization_guide_keyed_service,
-    BrowserWindowInterface& browser_window_interface)
+    tabs::TabInterface& tab)
     : glic_keyed_service_(glic_keyed_service),
       optimization_guide_keyed_service_(optimization_guide_keyed_service),
-      browser_window_interface_(browser_window_interface) {}
+      tab_(tab) {}
+
 GlicCueTarget::~GlicCueTarget() = default;
 
+contextual_cueing::CueTargetType GlicCueTarget::GetType() const {
+  return contextual_cueing::CueTargetType::kGlic;
+}
+
+void GlicCueTarget::CheckEligibility(
+    base::WeakPtr<content::WebContents> web_contents,
+    contextual_cueing::CueIntrusiveness intrusiveness,
+    EligibilityCallback callback) {
+  if (!web_contents) {
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE,
+        base::BindOnce(std::move(callback), false, ContentGenerator()));
+    return;
+  }
+
+  GlicCueTabState::CreateForWebContents(web_contents.get());
+  GlicCueTabState::FromWebContents(web_contents.get())
+      ->CheckEligibility(intrusiveness, std::move(callback), this);
+}
+
+bool GlicCueTarget::IsPageEligible(
+    const page_content_annotations::PageContentAnnotationsResult& result,
+    content::WebContents* active_web_contents) const {
+  if (!active_web_contents) {
+    return false;
+  }
+
+  if (result.GetType() !=
+      page_content_annotations::AnnotationType::kCategoryClassifier) {
+    return false;
+  }
+
+  bool passes_edu = false;
+  bool passes_shopping = false;
+  for (const page_content_annotations::Category& category :
+       result.GetCategoryResults()) {
+    if (category.category_type ==
+            page_content_annotations::CategoryType::kEducation &&
+        category.score > contextual_cueing::kEduClassifierThreshold.Get()) {
+      passes_edu = true;
+    }
+    if (category.category_type ==
+            page_content_annotations::CategoryType::kShopping &&
+        category.score >
+            contextual_cueing::kShoppingClassifierThreshold.Get()) {
+      passes_shopping = true;
+    }
+  }
+
+  if (contextual_cueing::kDiscardShoppingPdfs.Get() &&
+      active_web_contents->GetContentsMimeType() == pdf::kPDFMimeType) {
+    return passes_edu && !passes_shopping;
+  }
+  return passes_edu || passes_shopping;
+}
+
 bool GlicCueTarget::IsEligible() const {
-  return GlicEnabling::IsEnabledForProfile(
-             browser_window_interface_->GetProfile()) &&
-         browser_window_interface_->GetProfile()->GetPrefs()->GetBoolean(
+  auto* window = tab_->GetBrowserWindowInterface();
+  if (!window) {
+    return false;
+  }
+  return GlicEnabling::IsEnabledForProfile(tab_->GetProfile()) &&
+         tab_->GetProfile()->GetPrefs()->GetBoolean(
              prefs::kGlicPinnedToTabstrip) &&
-         !glic_keyed_service_->IsPanelShowingForBrowser(
-             *browser_window_interface_) &&
+         !glic_keyed_service_->IsPanelShowingForBrowser(*window) &&
          // TODO(crbug.com/507551989): Default tab context sharing check won't
          // be needed once tab sharing UI is implemented.
-         browser_window_interface_->GetProfile()->GetPrefs()->GetBoolean(
+         tab_->GetProfile()->GetPrefs()->GetBoolean(
              glic::prefs::kGlicDefaultTabContextEnabled);
 }
 
@@ -97,9 +162,9 @@ void GlicCueTarget::InvokeGlic(contextual_cueing::CueActionData data,
     return;
   }
   auto& glic_data = std::get<contextual_cueing::GlicCueActionData>(data);
+  Target target(*tab_, NewConversation());
   GlicInvokeOptions options(
-      Target(browser_window_interface_->GetActiveTabInterface(),
-             NewConversation()),
+      std::move(target),
       glic::mojom::InvocationSource::kAutoOpenedByContextualCue);
   options.prompts.emplace_back(std::move(glic_data.prompt));
 

@@ -4,8 +4,25 @@
 
 #include "chrome/browser/dictation/features.h"
 
+#include "base/metrics/field_trial_params.h"
+
 namespace dictation {
 
 BASE_FEATURE(kDictation, base::FEATURE_DISABLED_BY_DEFAULT);
+
+const base::FeatureParam<bool> kDictationEvalMode{&kDictation, "eval_mode",
+                                                  false};
+
+const base::FeatureParam<bool> kUseComponentExtension{
+    &kDictation, "use_component_extension", true};
+
+const base::FeatureParam<bool> kSendContextAsync{&kDictation,
+                                                 "send_context_async", false};
+
+const base::FeatureParam<bool> kShowPartials{&kDictation, "show_partials",
+                                             false};
+
+const base::FeatureParam<bool> kWebSpeechApiBackend{
+    &kDictation, "web_speech_api_backend", false};
 
 }  // namespace dictation

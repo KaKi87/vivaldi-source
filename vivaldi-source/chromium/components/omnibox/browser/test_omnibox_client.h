@@ -17,6 +17,7 @@
 #include "components/omnibox/browser/test_location_bar_model.h"
 #include "components/omnibox/browser/test_scheme_classifier.h"
 #include "components/search_engines/search_engines_test_environment.h"
+#include "components/search_engines/test_ai_mode_button_service.h"
 #include "components/sessions/core/session_id.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "ui/base/window_open_disposition.h"
@@ -39,6 +40,7 @@ class TestOmniboxClient final : public testing::NiceMock<OmniboxClient> {
   SessionID GetSessionID() const override;
   AutocompleteControllerEmitter* GetAutocompleteControllerEmitter() override;
   TemplateURLService* GetTemplateURLService() override;
+  TestAiModeButtonService* GetAiModeButtonService() override;
   const AutocompleteSchemeClassifier& GetSchemeClassifier() const override;
   AutocompleteClassifier* GetAutocompleteClassifier() override;
   bool ShouldDefaultTypedNavigationsToHttps() const override;
@@ -51,6 +53,8 @@ class TestOmniboxClient final : public testing::NiceMock<OmniboxClient> {
   std::u16string GetFormattedFullURL() const override;
   std::u16string GetURLForDisplay() const override;
   GURL GetNavigationEntryURL() const override;
+  const GURL& GetURL() const override;
+  void SetURL(const GURL& url);
   metrics::OmniboxEventProto::PageClassification GetPageClassification(
       bool is_prefetch) const override;
   security_state::SecurityLevel GetSecurityLevel() const override;
@@ -117,9 +121,11 @@ class TestOmniboxClient final : public testing::NiceMock<OmniboxClient> {
   SessionID session_id_;
   TestLocationBarModel location_bar_model_;
   search_engines::SearchEnginesTestEnvironment search_engines_test_environment_;
+  std::unique_ptr<TestAiModeButtonService> ai_mode_button_service_;
   TestSchemeClassifier scheme_classifier_;
   AutocompleteClassifier autocomplete_classifier_;
   WindowOpenDisposition last_log_disposition_;
+  GURL url_;
   base::WeakPtrFactory<TestOmniboxClient> weak_factory_{this};
 };
 

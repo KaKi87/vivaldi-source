@@ -144,7 +144,8 @@ class PendingTaskWaiter : public content::WebContentsObserver {
   // content::WebContentsObserver:
   void DidUpdateFaviconURL(
       content::RenderFrameHost* rfh,
-      const std::vector<blink::mojom::FaviconURLPtr>& candidates) override {
+      const std::vector<blink::mojom::FaviconURLPtr>& candidates,
+      blink::mojom::FaviconUpdateReason reason) override {
     TestUrlAndTitle();
   }
 
@@ -222,7 +223,8 @@ class PageLoadStopper : public content::WebContentsObserver {
 
   void DidUpdateFaviconURL(
       content::RenderFrameHost* rfh,
-      const std::vector<blink::mojom::FaviconURLPtr>& candidates) override {
+      const std::vector<blink::mojom::FaviconURLPtr>& candidates,
+      blink::mojom::FaviconUpdateReason reason) override {
     last_favicon_candidates_.clear();
     for (const auto& candidate : candidates)
       last_favicon_candidates_.push_back(candidate->icon_url);
@@ -261,7 +263,7 @@ class ContentFaviconDriverTest : public InProcessBrowserTest {
 
   favicon::FaviconService* favicon_service() {
     return FaviconServiceFactory::GetForProfile(
-        browser()->profile(), ServiceAccessType::EXPLICIT_ACCESS);
+        browser()->GetProfile(), ServiceAccessType::EXPLICIT_ACCESS);
   }
 
   favicon_base::FaviconRawBitmapResult GetFaviconForPageURL(
@@ -305,7 +307,8 @@ IN_PROC_BROWSER_TEST_F(ContentFaviconDriverTest,
       embedded_test_server()->GetURL("/favicon/page_with_favicon.html");
   GURL icon_url = embedded_test_server()->GetURL("/favicon/icon.png");
   GURL initial_url = embedded_test_server()->GetURL("/empty.html");
-  EXPECT_CALL(observer, DidUpdateFaviconURL(testing::_, testing::_));
+  EXPECT_CALL(observer,
+              DidUpdateFaviconURL(testing::_, testing::_, testing::_));
   prerender_helper().NavigatePrimaryPage(initial_url);
 
   {
@@ -321,7 +324,8 @@ IN_PROC_BROWSER_TEST_F(ContentFaviconDriverTest,
   content::PrerenderHostId host_id =
       prerender_helper().GetHostForUrl(prerender_url);
   auto* prerendered = prerender_helper().GetPrerenderedMainFrameHost(host_id);
-  EXPECT_CALL(observer, DidUpdateFaviconURL(prerendered, testing::_));
+  EXPECT_CALL(observer,
+              DidUpdateFaviconURL(prerendered, testing::_, testing::_));
   prerender_helper().NavigatePrimaryPage(prerender_url);
 
   // Check that we've fetched the URL upon activation. Should not hang.
@@ -347,7 +351,8 @@ class NoCommittedNavigationWebContentsObserver
   // WebContentsObserver:
   void DidUpdateFaviconURL(
       content::RenderFrameHost* rfh,
-      const std::vector<blink::mojom::FaviconURLPtr>& candidates) override {
+      const std::vector<blink::mojom::FaviconURLPtr>& candidates,
+      blink::mojom::FaviconUpdateReason reason) override {
     auto* web_contents = content::WebContents::FromRenderFrameHost(rfh);
     content::NavigationEntry* current_entry =
         web_contents->GetController().GetLastCommittedEntry();
@@ -1061,7 +1066,7 @@ IN_PROC_BROWSER_TEST_F(ContentFaviconDriverTest,
   // Clear cache.
   {
     content::BrowsingDataRemover* remover =
-        browser()->profile()->GetBrowsingDataRemover();
+        browser()->GetProfile()->GetBrowsingDataRemover();
     content::BrowsingDataRemoverCompletionObserver observer(remover);
     remover->RemoveAndReply(
         base::Time(), base::Time::Max(),
@@ -1106,7 +1111,7 @@ IN_PROC_BROWSER_TEST_F(ContentFaviconDriverTest,
 
   // Visiting the site in incognito mode should always load the favicon.
   Browser* incognito = Browser::Create(Browser::CreateParams(
-      browser()->profile()->GetPrimaryOTRProfile(/*create_if_needed=*/true),
+      browser()->GetProfile()->GetPrimaryOTRProfile(/*create_if_needed=*/true),
       true));
   AddBlankTabAndShow(incognito);
   {

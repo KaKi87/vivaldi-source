@@ -19,10 +19,9 @@ import LICENSE from "../LICENSE.js";
 
 export const withLicense = () => `/*!
 ${LICENSE.trim().replace(/^/gm, " * ")}
- */
-`;
+ */`;
 
-export const withoutLicense = content => content.replace(withLicense(), '');
+export const withoutLicense = content => content.replaceAll(withLicense(), '');
 
 // Note: these classes leak in the globalThis Node.js context
 const browser = [

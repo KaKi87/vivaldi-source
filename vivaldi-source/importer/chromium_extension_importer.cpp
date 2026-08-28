@@ -2,13 +2,16 @@
 
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
 #include "base/json/json_reader.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/values.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/manifest.h"
 #include "extensions/vivaldi_silent_extension_installer.h"
+#include "importer/import_limits.h"
 
 #include <optional>
 #include <string>
@@ -27,7 +30,10 @@ base::DictValue GetExtensionsFromPreferences(const base::FilePath& path) {
   }
 
   std::string preferences_content;
-  base::ReadFileToString(path, &preferences_content);
+  if (!base::ReadFileToStringWithMaxSize(
+          path, &preferences_content, vivaldi_importer::kMaxImportFileSize)) {
+    return base::DictValue();
+  }
 
   std::optional<base::Value> preferences = base::JSONReader::Read(
       preferences_content, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
@@ -114,7 +120,13 @@ ChromiumExtensionsImporter::~ChromiumExtensionsImporter() = default;
 void ChromiumExtensionsImporter::OnExtensionAdded(
     bool success,
     const std::string& error,
-    extensions::webstore_install::Result result) {}
+    extensions::webstore_install::Result result) {
+  if (active_installs_ > 0) {
+    --active_installs_;
+  }
+
+  MaybeStartNextInstalls();
+}
 
 void ChromiumExtensionsImporter::AddExtensions(
     const std::vector<std::string> extensions) {
@@ -124,6 +136,10 @@ void ChromiumExtensionsImporter::AddExtensions(
     return;
   }
   for (const auto& extension : extensions) {
+    if (pending_extensions_.size() >=
+        vivaldi_importer::kMaxImportedExtensions) {
+      break;
+    }
     // Skip if extension is already installed or blocklisted.
     const Extension* installed_extension = registry->GetExtensionById(
         extension, ExtensionRegistry::ENABLED | ExtensionRegistry::DISABLED |
@@ -132,10 +148,24 @@ void ChromiumExtensionsImporter::AddExtensions(
       continue;
     }
 
+    pending_extensions_.push_back(extension);
+  }
+
+  MaybeStartNextInstalls();
+}
+
+void ChromiumExtensionsImporter::MaybeStartNextInstalls() {
+  while (active_installs_ <
+             vivaldi_importer::kMaxConcurrentExtensionsInstalls &&
+         !pending_extensions_.empty()) {
+    std::string extension = std::move(pending_extensions_.back());
+    pending_extensions_.pop_back();
+    ++active_installs_;
+
     vivaldi::SilentWebstoreInstaller::Install(
         extension, profile_,
         base::BindOnce(&ChromiumExtensionsImporter::OnExtensionAdded,
-                       weak_ptr_factory_.GetWeakPtr()));
+                       base::WrapRefCounted(this)));
   }
 }
 

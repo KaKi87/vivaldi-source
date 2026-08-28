@@ -409,7 +409,7 @@ std::unique_ptr<sessions::tab_restore::Window> CreateWindowEntryFromCommand(
 
     // Try to parse the command as a WindowPayloadObsolete2.
     WindowPayloadObsolete2 payload2;
-    if (command->GetContents(&payload2, sizeof(payload2))) {
+    if (command->GetContents(payload2)) {
       fields.window_id = payload2.window_id;
       fields.selected_tab_index = payload2.selected_tab_index;
       fields.num_tabs = payload2.num_tabs;
@@ -420,7 +420,7 @@ std::unique_ptr<sessions::tab_restore::Window> CreateWindowEntryFromCommand(
     // Finally, try the oldest WindowPayloadObsolete type.
     if (!parsed) {
       WindowPayloadObsolete payload;
-      if (command->GetContents(&payload, sizeof(payload))) {
+      if (command->GetContents(payload)) {
         fields.window_id = payload.window_id;
         fields.selected_tab_index = payload.selected_tab_index;
         fields.num_tabs = payload.num_tabs;
@@ -526,8 +526,13 @@ std::unique_ptr<sessions::tab_restore::Group> CreateGroupEntryFromCommand(
   group->browser_id = fields.browser_id;
   group->timestamp = base::Time::FromDeltaSinceWindowsEpoch(
       base::Microseconds(fields.timestamp));
-  group->visual_data =
-      tab_groups::TabGroupVisualData(fields.title, fields.color);
+  // When restoring a single closed group, always restore it in its expanded
+  // state so the user can immediately see the restored tabs. Oppositely, Window
+  // and session restoration preserve the collapsed state in
+  // kCommandSetTabGroupData to match the last state that user left the browser
+  // in.
+  group->visual_data = tab_groups::TabGroupVisualData(
+      fields.title, fields.color, /*is_collapsed=*/false);
   *session_id = SessionID::FromSerializedValue(fields.session_id);
   *num_tabs = fields.num_tabs;
 
@@ -637,6 +642,10 @@ class TabRestoreServiceImpl::PersistenceDelegate
   void ScheduleCommandsForTab(const tab_restore::Tab& tab, int selected_index);
 
   void ScheduleRestoredEntryCommandsForTest(SessionID id);
+
+  CommandStorageManager* command_storage_manager() {
+    return command_storage_manager_.get();
+  }
 
   // Creates a window close command.
   static std::unique_ptr<SessionCommand> CreateWindowCommand(
@@ -1071,6 +1080,9 @@ void TabRestoreServiceImpl::PersistenceDelegate::ScheduleCommandsForTab(
       pickle.WriteString(tab.saved_group_id.value().AsLowercaseString());
     }
 
+    // Added in M152. Write the collapsed state.
+    pickle.WriteBool(visual_data->is_collapsed());
+
     command_storage_manager_->ScheduleCommand(
         std::make_unique<SessionCommand>(kCommandSetTabGroupData, pickle));
   }
@@ -1309,7 +1321,7 @@ void TabRestoreServiceImpl::PersistenceDelegate::CreateEntriesFromCommands(
         current_split = std::nullopt;
 
         RestoredEntryPayload payload;
-        if (!command.GetContents(&payload, sizeof(payload))) {
+        if (!command.GetContents(payload)) {
           return;
         }
         RemoveEntryByID(SessionID::FromSerializedValue(payload), &entries);
@@ -1394,9 +1406,9 @@ void TabRestoreServiceImpl::PersistenceDelegate::CreateEntriesFromCommands(
       }
       case kCommandSelectedNavigationInTab: {
         SelectedNavigationInTabPayload2 payload;
-        if (!command.GetContents(&payload, sizeof(payload))) {
+        if (!command.GetContents(payload)) {
           SelectedNavigationInTabPayload old_payload;
-          if (!command.GetContents(&old_payload, sizeof(old_payload))) {
+          if (!command.GetContents(old_payload)) {
             return;
           }
           payload.id = old_payload.id;
@@ -1509,8 +1521,11 @@ void TabRestoreServiceImpl::PersistenceDelegate::CreateEntriesFromCommands(
         current_tab->group =
             tab_groups::TabGroupId::FromRawToken(group_token.value());
 
+        bool is_collapsed = false;
+        std::ignore = iter.ReadBool(&is_collapsed);
+
         current_tab->group_visual_data =
-            tab_groups::TabGroupVisualData(title, color_int);
+            tab_groups::TabGroupVisualData(title, color_int, is_collapsed);
         break;
       }
 
@@ -1860,6 +1875,13 @@ void TabRestoreServiceImpl::RemoveObserver(
 std::optional<SessionID> TabRestoreServiceImpl::CreateHistoricalTab(
     LiveTab* live_tab,
     int index) {
+  // When history saving is disabled by policy, don't add tabs to the restore
+  // list.
+  if (pref_change_registrar_.prefs() &&
+      pref_change_registrar_.prefs()->GetBoolean(
+          prefs::kSavingBrowserHistoryDisabled)) {
+    return std::nullopt;
+  }
   return helper_.CreateHistoricalTab(live_tab, index);
 }
 
@@ -1984,6 +2006,9 @@ void TabRestoreServiceImpl::UpdatePersistenceDelegate(
       PersistenceDelegate persistence_delegate(client_.get(), os_crypt_async);
       persistence_delegate.DeleteLastSession();
     }
+    // Also clear in-memory entries so they are not shown in the UI after the
+    // policy is activated mid-session.
+    helper_.ClearEntries();
   } else if (!persistence_delegate_) {
     // When saving is NOT disabled (or there is no pref service available), and
     // there are no persistence delegate yet, one must be created and
@@ -2007,6 +2032,13 @@ void TabRestoreServiceImpl::CreateRestoredEntryCommandForTest(SessionID id) {
   if (persistence_delegate_) {
     persistence_delegate_->ScheduleRestoredEntryCommandsForTest(id);
   }
+}
+
+CommandStorageManager*
+TabRestoreServiceImpl::command_storage_manager_for_testing() {
+  return persistence_delegate_
+             ? persistence_delegate_->command_storage_manager()
+             : nullptr;
 }
 
 // Vivaldi

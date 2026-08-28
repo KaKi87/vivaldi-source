@@ -356,7 +356,7 @@ TEST_F(AppStartupParametersTest, ParseSearchWidgetKit) {
 
   EXPECT_EQ(params.externalURL.spec(), expected_url_string);
   EXPECT_EQ(params.postOpeningAction, FOCUS_OMNIBOX);
-  [params requestApplicationModeWithBlock:^(
+  [params fetchAppSwitcherParamsWithBlock:^(
               ApplicationModeForTabOpening applicationMode) {
     EXPECT_NE(applicationMode, ApplicationModeForTabOpening::INCOGNITO);
   }];
@@ -381,7 +381,7 @@ TEST_F(AppStartupParametersTest, ParseQuickActionsWidgetKitSearch) {
 
   EXPECT_EQ(params.externalURL.spec(), expected_url_string);
   EXPECT_EQ(params.postOpeningAction, FOCUS_OMNIBOX);
-  [params requestApplicationModeWithBlock:^(
+  [params fetchAppSwitcherParamsWithBlock:^(
               ApplicationModeForTabOpening applicationMode) {
     EXPECT_NE(applicationMode, ApplicationModeForTabOpening::INCOGNITO);
   }];
@@ -405,7 +405,7 @@ TEST_F(AppStartupParametersTest, ParseQuickActionsWidgetKitIncognito) {
 
   EXPECT_EQ(params.externalURL.spec(), expected_url_string);
   EXPECT_EQ(params.postOpeningAction, FOCUS_OMNIBOX);
-  [params requestApplicationModeWithBlock:^(
+  [params fetchAppSwitcherParamsWithBlock:^(
               ApplicationModeForTabOpening applicationMode) {
     EXPECT_EQ(applicationMode, ApplicationModeForTabOpening::INCOGNITO);
   }];
@@ -553,7 +553,7 @@ TEST_F(AppStartupParametersTest, ParseLockscreenLauncherSearch) {
 
   EXPECT_EQ(params.externalURL.spec(), expected_url_string);
   EXPECT_EQ(params.postOpeningAction, FOCUS_OMNIBOX);
-  [params requestApplicationModeWithBlock:^(
+  [params fetchAppSwitcherParamsWithBlock:^(
               ApplicationModeForTabOpening applicationMode) {
     EXPECT_NE(applicationMode, ApplicationModeForTabOpening::INCOGNITO);
   }];
@@ -576,7 +576,7 @@ TEST_F(AppStartupParametersTest, ParseLockscreenLauncherIncognito) {
 
   EXPECT_EQ(params.externalURL.spec(), expected_url_string);
   EXPECT_EQ(params.postOpeningAction, FOCUS_OMNIBOX);
-  [params requestApplicationModeWithBlock:^(
+  [params fetchAppSwitcherParamsWithBlock:^(
               ApplicationModeForTabOpening applicationMode) {
     EXPECT_EQ(applicationMode, ApplicationModeForTabOpening::INCOGNITO);
   }];
@@ -637,7 +637,7 @@ TEST_F(AppStartupParametersTest, ParseSearchPasswordsWidgetKit) {
 
   EXPECT_TRUE(params.externalURL.is_empty());
   EXPECT_EQ(params.postOpeningAction, SEARCH_PASSWORDS);
-  [params requestApplicationModeWithBlock:^(
+  [params fetchAppSwitcherParamsWithBlock:^(
               ApplicationModeForTabOpening applicationMode) {
     EXPECT_NE(applicationMode, ApplicationModeForTabOpening::INCOGNITO);
   }];
@@ -834,6 +834,44 @@ TEST_F(AppStartupParametersTest, ExternalActionSchemeInvalidActionNoPath) {
                                      AppLaunchSource::EXTERNAL_ACTION, 1);
   histogram_tester.ExpectBucketCount(kExternalActionHistogram,
                                      /*ACTION_INVALID*/ 0, 1);
+}
+
+// Tests that Google One deep links do not open the URL when the feature is
+// enabled.
+TEST_F(AppStartupParametersTest, GoogleOneDeepLink) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(kSupportGoogleOneDeepLink);
+
+  NSURL* url = [NSURL URLWithString:@"https://one.google.com/deeplink"];
+  ChromeAppStartupParameters* params = [ChromeAppStartupParameters
+      startupParametersWithURL:url
+             sourceApplication:@"com.apple.mobilesafari"
+               applicationMode:ApplicationModeForTabOpening::UNDETERMINED
+          forceApplicationMode:NO];
+
+  ASSERT_TRUE(params);
+  EXPECT_TRUE([params externalURL].is_empty());
+  EXPECT_EQ("https://one.google.com/deeplink", [params completeURL].spec());
+  EXPECT_EQ(SHOW_GOOGLE_ONE_SCREEN, [params postOpeningAction]);
+}
+
+// Tests that Google One deep links open the URL normally when the feature is
+// disabled.
+TEST_F(AppStartupParametersTest, GoogleOneDeepLinkDisabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(kSupportGoogleOneDeepLink);
+
+  NSURL* url = [NSURL URLWithString:@"https://one.google.com/deeplink"];
+  ChromeAppStartupParameters* params = [ChromeAppStartupParameters
+      startupParametersWithURL:url
+             sourceApplication:@"com.apple.mobilesafari"
+               applicationMode:ApplicationModeForTabOpening::UNDETERMINED
+          forceApplicationMode:NO];
+
+  ASSERT_TRUE(params);
+  EXPECT_EQ("https://one.google.com/deeplink", [params externalURL].spec());
+  EXPECT_EQ("https://one.google.com/deeplink", [params completeURL].spec());
+  EXPECT_EQ(NO_ACTION, [params postOpeningAction]);
 }
 
 }  // namespace

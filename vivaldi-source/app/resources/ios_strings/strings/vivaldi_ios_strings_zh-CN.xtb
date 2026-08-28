@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">要求隐身打开其他应用程序的链接</translation>
 <translation id="1624481300475123200">自动填充密码</translation>
 <translation id="1743244221910283364">丢弃更改</translation>
+<translation id="1972589975368876259">编辑标签栈</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {添加标签页到新标签栈}
         other {添加标签页到新标签栈}}</translation>
@@ -48,7 +49,6 @@
 <translation id="4772190485302020393">关闭所有标签页和标签栈</translation>
 <translation id="4802185666270672526">隐藏“请求桌面版网站”</translation>
 <translation id="4828571836982833289">解散标签栈？</translation>
-<translation id="4838250035189612538">标签栈改名</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 个标签栈被关闭并保存}
             other {{count} 个标签栈被关闭并保存}}</translation>

@@ -140,6 +140,8 @@ constexpr char kUmaActionPrefix[] =
 }
 
 - (void)stop {
+  // Dismiss the view controller if -stop is called directly without
+  // going through -dismissWithRefocus:.
   [self.viewController.presentingViewController
       dismissViewControllerAnimated:YES
                          completion:nil];
@@ -179,6 +181,29 @@ constexpr char kUmaActionPrefix[] =
 - (void)dismissWithRefocus:(BOOL)refocus {
   [self handleDecision:NO];
   [self incrementDismissCount];
+
+  UIViewController* presentingViewController =
+      self.viewController.presentingViewController;
+
+  // Dismiss the bottom sheet view controller first before refocusing.
+  // Note: When tapping "Use Keyboard", this dismissal executes prior to -stop.
+  // UIKit does not allow WKWebView to become the first responder or present
+  // the software keyboard while a modal view controller is actively presented
+  // on top of it.
+  __weak PasswordSuggestionCoordinator* weakSelf = self;
+  void (^completionBlock)(void) = ^{
+    [weakSelf finishDismissalWithRefocus:refocus];
+  };
+
+  if (presentingViewController) {
+    [presentingViewController dismissViewControllerAnimated:YES
+                                                 completion:completionBlock];
+  } else {
+    completionBlock();
+  }
+}
+
+- (void)finishDismissalWithRefocus:(BOOL)refocus {
   if (refocus) {
     [self refocusIfNeeded];
   }
@@ -334,7 +359,7 @@ constexpr char kUmaActionPrefix[] =
 
 - (NSArray<UISheetPresentationControllerDetent*>*)detents {
   // Custom sized detents for modals are available from iOS 16.
-  if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+  if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
     // As of iOS 18, the modal on iPad no longer appears near the bottom
     // edge and should not be expandable (i.e. large detent should not
     // be an option).
@@ -351,7 +376,7 @@ constexpr char kUmaActionPrefix[] =
 - (BOOL)isEdgeAttachedInCompactHeight {
   // This specifically affects the iPad mini format, so the bottom
   // sheet does not attach to the bottom edge like it does on iPhone.
-  return UIDevice.currentDevice.userInterfaceIdiom != UIUserInterfaceIdiomPad;
+  return ui::GetDeviceFormFactor() != ui::DEVICE_FORM_FACTOR_TABLET;
 }
 
 // Refocuses the field that was blurred to show the payments suggestion
@@ -369,10 +394,10 @@ constexpr char kUmaActionPrefix[] =
   }
 
   if (AutofillBottomSheetTabHelper* tabHelper =
-          AutofillBottomSheetTabHelper::FromWebState(webState);
-      tabHelper && _frame) {
+          AutofillBottomSheetTabHelper::FromWebState(webState)) {
     [self recordAction:"Refocus"];
-    tabHelper->RefocusElementIfNeeded(_frame->GetFrameId());
+    std::string frameId = _frame ? _frame->GetFrameId() : "";
+    tabHelper->RefocusElementIfNeeded(frameId);
   }
 }
 

@@ -294,6 +294,11 @@ bool IdentityManager::HasAccountWithBoundRefreshToken(
   return !token_service_->GetWrappedBindingKey(account_id).empty();
 }
 
+bool IdentityManager::HasAccountWithRefreshTokenBoundToMtls(
+    const CoreAccountId& account_id) const {
+  return token_service_->IsRefreshTokenBoundToMtls(account_id);
+}
+
 bool IdentityManager::AllBoundTokensShareSameBindingKey() const {
   return token_service_->AllBoundTokensShareSameBindingKey();
 }
@@ -386,7 +391,12 @@ AccountsInCookieJarInfo IdentityManager::GetAccountsInCookieJar() const {
   if (vivaldi::IsVivaldiRunning())
     return AccountsInCookieJarInfo();
 
-  return gaia_cookie_manager_service_->ListAccounts();
+  if (base::FeatureList::IsEnabled(
+          switches::kAvoidAutoTriggerListAccountsOnStale)) {
+    return gaia_cookie_manager_service_->GetCachedListAccounts();
+  } else {
+    return gaia_cookie_manager_service_->ListAccounts();
+  }
 }
 
 AccountsInCookieJarInfo IdentityManager::GetCachedAccountsInCookieJar() const {
@@ -435,6 +445,13 @@ std::vector<AccountInfo> IdentityManager::GetAccountsOnDevice() {
 }
 #endif
 
+void IdentityManager::SetCapabilityOverride(const CoreAccountId& account_id,
+                                            std::string_view capability_name,
+                                            std::optional<Tribool> override_value) {
+  account_tracker_service_->SetCapabilityOverride(account_id, capability_name,
+                                                  override_value);
+}
+
 void IdentityManager::AddDiagnosticsObserver(DiagnosticsObserver* observer) {
   diagnostics_observation_list_.AddObserver(observer);
 }
@@ -446,6 +463,12 @@ void IdentityManager::RemoveDiagnosticsObserver(DiagnosticsObserver* observer) {
 void IdentityManager::OnNetworkInitialized() {
   gaia_cookie_manager_service_->InitCookieListener();
   account_fetcher_service_->OnNetworkInitialized();
+  // Trigger ListAccounts once the network is initialized to ensure the accounts
+  // in cookie jar are up to date.
+  if (base::FeatureList::IsEnabled(
+          switches::kAvoidAutoTriggerListAccountsOnStale)) {
+    gaia_cookie_manager_service_->ListAccounts();
+  }
 }
 
 CoreAccountId IdentityManager::PickAccountIdForAccount(

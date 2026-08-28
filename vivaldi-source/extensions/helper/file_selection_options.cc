@@ -5,7 +5,6 @@
 #include "base/logging.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "extensions/vivaldi_browser_component_wrapper.h"
 #include "ui/shell_dialogs/select_file_policy.h"
@@ -82,7 +81,7 @@ void FileSelectionOptions::RunDialog(RunDialogResult callback) && {
     return;
   }
 
-  gfx::NativeWindow window = browser->window()->GetNativeWindow();
+  gfx::NativeWindow window = browser->GetWindow()->GetNativeWindow();
   FileSelectionRunner* runner = new FileSelectionRunner(std::move(callback));
   runner->select_file_dialog_->SelectFile(
       type_, title_, default_path_, &file_type_info_, /*file_type_index=*/0,

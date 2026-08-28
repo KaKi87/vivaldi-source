@@ -25,8 +25,7 @@ using base::SysNSStringToUTF16;
 using l10n_util::GetNSString;
 using l10n_util::GetNSStringF;
 
-@interface TrustedVaultReauthenticationCoordinator () <
-    IdentityManagerObserverBridgeDelegate>
+@interface TrustedVaultReauthenticationCoordinator () <IdentityManagerObserving>
 
 @property(nonatomic, strong) AlertCoordinator* errorAlertCoordinator;
 @property(nonatomic, strong) id<SystemIdentity> identity;
@@ -87,7 +86,7 @@ using l10n_util::GetNSStringF;
   [super start];
   // TODO(crbug.com/40105436): Should test if reauth is still needed. If still
   // needed, the reauth should be really started.
-  // If not, the coordinator can be closed successfuly, by calling
+  // If not, the coordinator can be closed successfully, by calling
   // -[TrustedVaultReauthenticationCoordinator
   // reauthentificationCompletedWithSuccess:]
   self.identity = _authService->GetPrimaryIdentity();
@@ -128,9 +127,9 @@ using l10n_util::GetNSStringF;
   self.delegate = nil;
 }
 
-#pragma mark - IdentityManagerObserverBridgeDelegate
+#pragma mark - IdentityManagerObserving
 
-- (void)onPrimaryAccountChanged:
+- (void)primaryAccountDidChange:
     (const signin::PrimaryAccountChangeEvent&)event {
   id<SystemIdentity> identity = _authService->GetPrimaryIdentity();
   if (![identity isEqual:self.identity]) {

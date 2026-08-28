@@ -38,7 +38,9 @@ NSArray* GetScopeArray(const std::set<std::string>& scopes);
 bool ShouldHandleSigninError(NSError* error);
 
 // Returns CGSize based on `IdentityAvatarSize`.
-CGSize GetSizeForIdentityAvatarSize(IdentityAvatarSize avatar_size);
+CGSize GetSizeForIdentityAvatarSize(
+    IdentityAvatarSize avatar_size,
+    AITierRingSize ring_size = AITierRingSize::kNoRing);
 
 // Returns whether Chrome has been started after a device restore. This method
 // needs to be called once before IO is disallowed on UI thread (or
@@ -87,7 +89,7 @@ void ResetDeviceRestoreDataForTesting();
 // name or the email.
 NSString* UserGivenNameFullNameOrEmail(id<SystemIdentity> identity);
 
-// Returns the user full name of `identity`. In case it’s nil, returns the the
+// Returns the user full name of `identity`. In case it’s nil, returns the
 // email.
 NSString* UserFullNameOrEmail(id<SystemIdentity> identity);
 

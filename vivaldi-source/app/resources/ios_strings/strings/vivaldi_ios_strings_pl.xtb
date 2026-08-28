@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Poproś o prywatne otwieranie linków z innych aplikacji</translation>
 <translation id="1624481300475123200">Autouzupełnianie haseł</translation>
 <translation id="1743244221910283364">Odrzuć zmiany</translation>
+<translation id="1972589975368876259">Edytuj grupę</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Dodaj kartę do grupy kart}
         other {Dodaj karty do grupy kart}}</translation>
@@ -48,7 +49,6 @@
 <translation id="4772190485302020393">Zamknij wszystkie karty i grupy kart</translation>
 <translation id="4802185666270672526">Ukryj opcję „Wersja na komputer”</translation>
 <translation id="4828571836982833289">Czy chcesz rozgrupować grupę kart?</translation>
-<translation id="4838250035189612538">Zmień nazwę grupy</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 grupa kart została zamknięta i zapisana}
             few {{count} grupy kart zostały zamknięte i zapisane}

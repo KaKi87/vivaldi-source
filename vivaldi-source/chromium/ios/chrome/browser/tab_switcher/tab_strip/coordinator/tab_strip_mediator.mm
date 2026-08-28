@@ -151,13 +151,8 @@ TabStripItemData* CreateTabItemData(
     const TabGroupRange range = group->range();
     data.isFirstTabInGroup = range.range_begin() == index;
     data.isLastTabInGroup = range.range_end() == index + 1;
-    if (IsTabGroupColorOnSurfaceEnabled()) {
-      data.groupStrokeColor =
-          [TabGroupColorPalette commonColor:group->GetColor()];
-    } else {
-      data.groupStrokeColor =
-          tab_groups::ColorForTabGroupColorId(group->GetColor());
-    }
+    data.groupStrokeColor =
+        [TabGroupColorPalette commonColor:group->GetColor()];
   }
   data.hasNotificationDot =
       dirty_tabs.contains(web_state->GetUniqueIdentifier().identifier());
@@ -175,13 +170,7 @@ TabStripItemData* CreateGroupItemData(
     const TabGroup* group,
     std::set<tab_groups::LocalTabGroupID> dirty_groups) {
   TabStripItemData* data = [[TabStripItemData alloc] init];
-  if (IsTabGroupColorOnSurfaceEnabled()) {
-    data.groupStrokeColor =
-        [TabGroupColorPalette commonColor:group->GetColor()];
-  } else {
-    data.groupStrokeColor =
-        tab_groups::ColorForTabGroupColorId(group->GetColor());
-  }
+  data.groupStrokeColor = [TabGroupColorPalette commonColor:group->GetColor()];
   data.hasNotificationDot = dirty_groups.contains(group->tab_group_id());
   return data;
 }
@@ -1024,6 +1013,9 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
   }
   int indexToKeep = GetWebStateIndex(self.webStateList,
                                      WebStateSearchCriteria(item.identifier));
+  if (indexToKeep == WebStateList::kInvalidIndex) {
+    return;
+  }
 
   int closedGroupCount = 0;
   if (_tabGroupSyncService) {
@@ -1588,12 +1580,7 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
   if (collaborationID->empty()) {
     return nil;
   }
-  UIColor* groupColor;
-  if (IsTabGroupColorOnSurfaceEnabled()) {
-    groupColor = [TabGroupColorPalette commonColor:group->GetColor()];
-  } else {
-    groupColor = tab_groups::ColorForTabGroupColorId(group->GetColor());
-  }
+  UIColor* groupColor = [TabGroupColorPalette commonColor:group->GetColor()];
   return [self.delegate facePileProviderForGroupID:collaborationID.value()
                                         groupColor:groupColor];
 }

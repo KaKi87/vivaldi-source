@@ -41,6 +41,11 @@ class AsyncActionWaiter {
   std::string request_id_;
 };
 
+// =============================================================================
+// DEPRECATED: Do not use this test fixture for new code.
+// Please use
+// `chrome/browser/glic/actor/new_glic_actor_functional_browsertest.h` instead.
+// =============================================================================
 class GlicActorFunctionalBrowserTestBase
     : public glic::test::GlicFunctionalBrowserTestBase {
  public:

@@ -4,10 +4,12 @@
 
 #include "chrome/browser/ui/search_promotion/search_promotion_manager_factory.h"
 
+#include "base/feature_list.h"
 #include "chrome/browser/feature_engagement/tracker_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/segmentation_platform/segmentation_platform_service_factory.h"
 #include "chrome/browser/ui/search_promotion/search_promotion_manager.h"
+#include "components/feature_engagement/public/feature_constants.h"
 
 // static
 SearchPromotionManager* SearchPromotionManagerFactory::GetForProfile(
@@ -26,12 +28,9 @@ SearchPromotionManagerFactory::SearchPromotionManagerFactory()
     : ProfileKeyedServiceFactory(
           "SearchPromotionManager",
           ProfileSelections::Builder()
+              // Search promotions are enabled for regular profiles (disabled in
+              // incognito and guest profiles).
               .WithRegular(ProfileSelection::kOriginalOnly)
-              // Search promotions are enabled for regular profiles.
-              // They are disabled in incognito and guest profiles.
-              //
-              // Note: Even though the factory is created for all platforms, the
-              // underlying manager is only functional on Windows.
               .Build()) {
   DependsOn(feature_engagement::TrackerFactory::GetInstance());
   DependsOn(
@@ -43,6 +42,21 @@ SearchPromotionManagerFactory::~SearchPromotionManagerFactory() = default;
 std::unique_ptr<KeyedService>
 SearchPromotionManagerFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
+  if (!base::FeatureList::IsEnabled(
+          feature_engagement::kIPHSearchPromotionFeature)) {
+    return nullptr;
+  }
+
   return std::make_unique<SearchPromotionManager>(
-      *Profile::FromBrowserContext(context));
+      *Profile::FromBrowserContext(context),
+      /*create_task_runner_callback=*/base::BindRepeating([]() {
+        return std::make_unique<platform_experience::DelegatedTaskRunner>();
+      }));
+}
+
+// We initialize eagerly to trigger the asynchronous segmentation query on
+// startup, ensuring the result is cached by the time the user navigates.
+bool SearchPromotionManagerFactory::ServiceIsCreatedWithBrowserContext() const {
+  return base::FeatureList::IsEnabled(
+      feature_engagement::kIPHSearchPromotionFeature);
 }

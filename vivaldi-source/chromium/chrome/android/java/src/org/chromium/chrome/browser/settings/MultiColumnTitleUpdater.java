@@ -15,12 +15,14 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 
 import androidx.appcompat.widget.AppCompatTextView;
+import androidx.appcompat.widget.TooltipCompat;
+import androidx.core.view.ViewCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 
@@ -32,9 +34,9 @@ import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.components.browser_ui.settings.search.SettingsIndexData;
 import org.chromium.ui.base.LocalizationUtils;
+import org.chromium.ui.widget.ChromeImageButton;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -75,6 +77,8 @@ class MultiColumnTitleUpdater implements MultiColumnSettings.Observer {
 
             // Use the same TextAppearance with the main settings title.
             setTextAppearance(R.style.TextAppearance_Headline_Primary);
+            ViewCompat.setAccessibilityHeading(this, true);
+            setFocusable(true);
         }
 
         void setSupplier(@Nullable MonotonicObservableSupplier<String> supplier) {
@@ -144,10 +148,7 @@ class MultiColumnTitleUpdater implements MultiColumnSettings.Observer {
 
         restoreInstanceState(savedInstanceState);
 
-        final int originalHeight =
-                mContainer
-                        .getResources()
-                        .getDimensionPixelSize(R.dimen.settings_detailed_title_height);
+        final int originalHeight = getDimenPx(R.dimen.settings_detailed_title_height);
 
         // TODO(crbug.com/480084682): Remove this listener after search is enabled, since
         //     title views will be horizontally scrollable.
@@ -328,11 +329,30 @@ class MultiColumnTitleUpdater implements MultiColumnSettings.Observer {
         List<MultiColumnSettings.Title> titles = initTitlesList();
 
         // Padding for the chevron separator.
-        int paddingPx =
-                mContext.getResources()
-                        .getDimensionPixelSize(R.dimen.settings_detailed_title_padding);
+        int paddingPx = getDimenPx(R.dimen.settings_detailed_title_padding);
 
         float scaleX = LocalizationUtils.isLayoutRtl() ? -1f : 1f;
+
+        if (SettingsInTab.isEnabled() && titles.size() > 1) {
+            // Set up a back button to go to the section for the previous title.
+            int prevIndex = titles.size() - 2;
+            var prevTitle = titles.get(prevIndex);
+            var backButton = new ChromeImageButton(mContext);
+            backButton.setImageResource(R.drawable.ic_arrow_back_24dp);
+            // Ensure icon isn't stretched by the larger touch target.
+            backButton.setScaleType(ImageView.ScaleType.CENTER);
+            // Provide material design circular hover highlight and ripple.
+            backButton.setBackgroundResource(R.drawable.default_icon_background);
+            // Ensure size is large enough for touch accessibility.
+            int minTouchTargetPx = getDimenPx(R.dimen.min_touch_target_size);
+            backButton.setMinimumWidth(minTouchTargetPx);
+            backButton.setMinimumHeight(minTouchTargetPx);
+            backButton.setLayoutParams(new LinearLayout.LayoutParams(LAYOUT_CENTER_VERTICAL));
+            backButton.setOnClickListener(v -> navigateToTitle(prevTitle, prevIndex));
+            // Set both accessibility content description and tooltip.
+            TooltipCompat.setTooltipText(backButton, mContext.getString(R.string.back));
+            mContainer.addView(backButton);
+        }
 
         for (int i = 0; i < titles.size(); ++i) {
             if (i < mFirstVisibleTitleIndex) continue;
@@ -355,43 +375,41 @@ class MultiColumnTitleUpdater implements MultiColumnSettings.Observer {
             view.setLayoutParams(new LinearLayout.LayoutParams(LAYOUT_CENTER_VERTICAL));
             view.setBreakStrategy(LineBreaker.BREAK_STRATEGY_BALANCED);
 
-            final int backStackCount = title.backStackCount;
-            final int finalIndex = i;
-            view.setOnClickListener(
-                    (View v) -> {
-                        assert mMultiColumnSettings != null;
-                        // Note: The current getBackStackEntryCount and recorded backStackCount
-                        // can be same, e.g., if the user tabs the last component of the
-                        // detailed title.
-                        if (backStackCount >= 0) {
-                            if (mMultiColumnSettings
-                                            .getChildFragmentManager()
-                                            .getBackStackEntryCount()
-                                    > backStackCount) {
-                                var entry =
-                                        mMultiColumnSettings
-                                                .getChildFragmentManager()
-                                                .getBackStackEntryAt(backStackCount);
-                                mMultiColumnSettings
-                                        .getChildFragmentManager()
-                                        .popBackStack(
-                                                entry.getId(),
-                                                FragmentManager.POP_BACK_STACK_INCLUSIVE);
-                                mTitleTapCallback.onResult(entry.getName());
-                            }
-                        } else {
-                            if (mCachedDeepLinkPath != null) {
-                                SettingsIndexData.Entry entry = mCachedDeepLinkPath.get(finalIndex);
-                                launchFragment(entry);
-                            }
-                        }
-                    });
+            if (i < titles.size() - 1) {
+                final int finalIndex = i;
+                view.setOnClickListener((View v) -> navigateToTitle(title, finalIndex));
+            }
             mContainer.addView(view);
         }
 
         // Make the last-added/tapped one visible after adding titles.
         if (mContainer.getParent() instanceof HorizontalScrollView scrollView) {
             scrollView.post(() -> scrollView.fullScroll(HorizontalScrollView.FOCUS_RIGHT));
+        }
+    }
+
+    private void navigateToTitle(MultiColumnSettings.Title title, int index) {
+        assert mMultiColumnSettings != null;
+        // Note: The current getBackStackEntryCount and recorded backStackCount
+        // can be same, e.g., if the user tabs the last component of the
+        // detailed title.
+        if (title.backStackCount >= 0) {
+            if (mMultiColumnSettings.getChildFragmentManager().getBackStackEntryCount()
+                    > title.backStackCount) {
+                var entry =
+                        mMultiColumnSettings
+                                .getChildFragmentManager()
+                                .getBackStackEntryAt(title.backStackCount);
+                mMultiColumnSettings
+                        .getChildFragmentManager()
+                        .popBackStack(entry.getId(), FragmentManager.POP_BACK_STACK_INCLUSIVE);
+                mTitleTapCallback.onResult(entry.getName());
+            }
+        } else {
+            if (mCachedDeepLinkPath != null) {
+                SettingsIndexData.Entry entry = mCachedDeepLinkPath.get(index);
+                launchFragment(entry);
+            }
         }
     }
 
@@ -446,31 +464,32 @@ class MultiColumnTitleUpdater implements MultiColumnSettings.Observer {
         maybeUpdateStartMargin();
     }
 
-    // Set left margin to align with the detailed pane when displayed in the toolbar.
+    @Override
+    public void onDetailLayoutUpdated() {
+        maybeUpdateStartMargin();
+    }
+
     private void maybeUpdateStartMargin() {
-        if (ChromeFeatureList.sSearchInSettings.isEnabled()) return;
+        View detailView = mMultiColumnSettings.getDetailView();
+        View recyclerView = detailView.findViewById(R.id.recycler_view);
+        if (recyclerView == null) return;
 
-        View view = mMultiColumnSettings.getHeaderView();
-        int headerViewWidth = view.getLayoutParams().width;
-        int dividerWidth =
-                view.getResources()
-                        .getDimensionPixelSize(R.dimen.settings_multi_column_divider_size);
-        int contentOffset =
-                view.getResources().getDimensionPixelSize(R.dimen.settings_detailed_title_offset);
+        int widthPx = recyclerView.getWidth();
+        if (widthPx == 0) return;
 
-        int endMargin =
-                view.getResources()
-                        .getDimensionPixelSize(R.dimen.settings_two_column_layout_margin);
-        // The size of help icon. This needs to be consistent with the one set
-        // at SettingsActivity.onCreateOptionsMenu.
-        int helpIconSize =
-                view.getResources().getDimensionPixelSize(R.dimen.settings_help_icon_size);
+        int maxDetailWidthPx = getDimenPx(R.dimen.settings_min_multi_column_screen_width);
+        int minPaddingPx = getDimenPx(R.dimen.settings_multi_column_pane_gap);
+        int startMargin = getDimenPx(R.dimen.settings_detailed_title_start_margin);
+        int excessPx = widthPx - maxDetailWidthPx - minPaddingPx * 2;
+        int offsetX = minPaddingPx + (excessPx > 0 ? excessPx / 2 : 0);
+        View titleScrollView = (View) mContainer.getParent();
+        var params = (RelativeLayout.LayoutParams) titleScrollView.getLayoutParams();
+        params.setMarginStart(startMargin + offsetX);
+        titleScrollView.setLayoutParams(params);
+    }
 
-        var params = (ViewGroup.MarginLayoutParams) mContainer.getLayoutParams();
-        params.setMarginStart(headerViewWidth + dividerWidth + contentOffset);
-        params.setMarginEnd(endMargin + helpIconSize);
-        mContainer.setLayoutParams(params);
-        mContainer.invalidate();
+    private int getDimenPx(int res) {
+        return mContext.getResources().getDimensionPixelSize(res);
     }
 
     public void onSaveInstanceState(Bundle outState) {
@@ -479,5 +498,9 @@ class MultiColumnTitleUpdater implements MultiColumnSettings.Observer {
             outState.putParcelableArrayList(
                     KEY_CACHED_DEEP_LINK_PATH, new ArrayList<>(mCachedDeepLinkPath));
         }
+    }
+
+    @Nullable List<SettingsIndexData.Entry> getInitialBreadcrumbPathForTesting() {
+        return mInitialBreadcrumbPath;
     }
 }

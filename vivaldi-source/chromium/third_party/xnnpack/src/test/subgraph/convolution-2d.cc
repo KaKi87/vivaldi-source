@@ -342,7 +342,8 @@ void TestImpl(xnn_datatype convert_to = xnn_datatype_invalid) {
               << "input_shape=" << index_to_string(input_shape)
               << ", output_shape=" << index_to_string(output_shape)
               << ", filter_shape=" << index_to_string(filter_shape)
-              << ", kh=" << kh << ", kw=" << kw;
+              << ", kh=" << kh << ", kw=" << kw
+              << ", bias_empty=" << bias.empty();
         }
       }
     }
@@ -357,7 +358,13 @@ using qint32 = quantized<int32_t>;
 TEST(Convolution2DQC8, test) { TestImpl<qint8, qcint8, qcint32>(); }
 TEST(Convolution2DQU8, test) { TestImpl<quint8, quint8, qint32>(); }
 TEST(Convolution2DQS8, test) { TestImpl<qint8, qint8, qint32>(); }
-TEST(Convolution2DF16, test) { TestImpl<xnn_float16, float, float>(); }
+TEST(Convolution2DF16, test) {
+  TestImpl<xnn_float16, xnn_float16, xnn_float16>();
+}
+TEST(Convolution2DF16F16F32, test) {
+  TestImpl<xnn_float16, xnn_float16, float>();
+}
+TEST(Convolution2DF16F32, test) { TestImpl<xnn_float16, float, float>(); }
 TEST(Convolution2DF32, test) { TestImpl<float, float, float>(); }
 TEST(Convolution2DF32F16, test) { TestImpl<float, xnn_float16, xnn_float16>(); }
 TEST(Convolution2DQD8F16QC8W, test) {
@@ -366,6 +373,48 @@ TEST(Convolution2DQD8F16QC8W, test) {
 }
 TEST(Convolution2DQD8F32QC8W, test) {
   TestImpl<float, qcint8, float>(/*convert_to=*/xnn_datatype_qdint8);
+}
+
+TEST(Convolution2D, reshape_rejects_input_channel_mismatch) {
+  ASSERT_EQ(xnn_status_success, xnn_initialize(nullptr /* allocator */));
+
+  ConvolutionParams params;
+  params.padding = {0, 0, 0, 0};
+  params.kernel = {3, 3};  // >1 so it is not rewritten to fully-connected.
+  params.subsampling = {1, 1};
+  params.dilation = {1, 1};
+  params.groups = 1;
+  params.group_input_channels = 4;
+  params.group_output_channels = 8;
+
+  const uint32_t input_id = 0;
+  const uint32_t filter_id = 1;
+  const uint32_t bias_id = 2;
+  const uint32_t output_id = 3;
+
+  Tensor<float> filter(std::vector<size_t>{8, 3, 3, 4});
+  filter.fill(0.0f);
+  Tensor<float> bias(std::vector<size_t>{8});
+  bias.fill(0.0f);
+
+  SubgraphTester subgraph(4);
+  subgraph.AddInputTensor(4, xnn_datatype_fp32, input_id)
+      .AddStaticTensor(filter.extents(), filter_id, filter.base())
+      .AddStaticTensor(bias.extents(), bias_id, bias.base())
+      .AddOutputTensor(4, xnn_datatype_fp32, output_id)
+      .AddConvolution2D(params, input_id, filter_id, bias_id, output_id);
+  if (subgraph.CreateRuntime() == xnn_status_unsupported_hardware) {
+    GTEST_SKIP();
+  }
+
+  // The operator was created for groups*group_input_channels == 4 channels. An
+  // external input reshaped to a single channel must be rejected: the
+  // indirection buffer strides by the create-time channel count, so a smaller
+  // channel dim would read past the end of the input buffer.
+  std::vector<float> input(1 * 8 * 8 * 1);
+  subgraph.ReshapeExternalTensor({1, 8, 8, 1}, input.data(), input_id)
+      .ReshapeRuntime();
+  EXPECT_EQ(subgraph.Status(), xnn_status_invalid_parameter);
 }
 
 }  // namespace xnnpack

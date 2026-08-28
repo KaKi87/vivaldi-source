@@ -5,6 +5,7 @@
 #ifndef CHROME_BROWSER_GLIC_PUBLIC_GLIC_INSTANCE_H_
 #define CHROME_BROWSER_GLIC_PUBLIC_GLIC_INSTANCE_H_
 
+#include <optional>
 #include <vector>
 
 #include "base/callback_list.h"
@@ -12,8 +13,9 @@
 #include "base/observer_list_types.h"
 #include "base/scoped_observation_traits.h"
 #include "base/time/time.h"
-#include "base/types/strong_alias.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
+#include "chrome/browser/glic/public/glic_instance_id.h"
+#include "chrome/browser/glic/public/glic_invoke_options.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 
 class BrowserWindowInterface;
@@ -28,23 +30,9 @@ class TabInterface;
 namespace glic {
 
 class GlicActorTaskManager;
+class GlicExperimentalTriggeringManager;
 class Host;
-
-// Instance IDs are created in the form `<index>-<64-bit-random-int>`.
-// The index is an indicator of how many instances have been created by the
-// profile since Chrome start. The random number is included so that instance
-// IDs can be loaded from disk when restoring tabs after a browser restart.
-class InstanceId : public base::StrongAlias<class InstanceIdTag, std::string> {
- public:
-  using Base = base::StrongAlias<class InstanceIdTag, std::string>;
-  using Base::Base;
-
-  static InstanceId Create(uint64_t glic_instance_coordinator_id,
-                           uint32_t index);
-  static InstanceId CreateNullId() { return InstanceId(""); }
-  // Returns true if the instance ID is valid and not null.
-  bool IsValid() const { return !Base::value().empty(); }
-};
+class GlicSharingManager;
 
 struct ConversationInfo {
   ConversationInfo();
@@ -77,20 +65,11 @@ class GlicInstance {
   // Returns the current panel state.
   virtual mojom::PanelState GetPanelState() = 0;
 
-  // Register for this callback to detect UI changes to the instance.
-  using StateChangeCallback = base::RepeatingCallback<void(bool)>;
-  virtual base::CallbackListSubscription RegisterStateChange(
-      StateChangeCallback callback) = 0;
-
   // TODO(b/501233062): Remove from the public interface once the existing
   // user has migrated away from the API.
   using DestructionCallback = base::OnceCallback<void(GlicInstance*)>;
   virtual base::CallbackListSubscription RegisterWillBeDestroyed(
       DestructionCallback callback) = 0;
-
-  // Get this instance's Host which manages the chrome://glic WebContents.
-  // DEPRECATED - Use specific GlicInstance methods instead.
-  virtual Host& host() = 0;
 
   // Sends additional context to the instance.
   // DEPRECATED: Use the invoke API instead.
@@ -104,14 +83,12 @@ class GlicInstance {
   // TODO(b/512866173): Look into migrating this usage to the invoke API.
   virtual void NotifyActorTaskListRowClicked(int32_t task_id) = 0;
 
-  // Register a handler to observe experimental triggering related updates.
-  // The callback informs if the registration operations was successful or not.
-  virtual void GetExperimentalTriggeringUpdates(
-      mojo::PendingRemote<mojom::ExperimentalTriggeringUpdatesHandler> handler,
-      base::OnceCallback<void(bool)> success_status_callback) = 0;
-
   // Gets the window size of the active embedder.
   virtual gfx::Size GetPanelSize() = 0;
+
+  // Gets the invoke target that points at the currently active embedder for the
+  // instance. If there is no active embedder, uses fallback_surface.
+  virtual Target GetInvokeTarget(Target::Surface fallback_surface) = 0;
 
   // Get this instance's unique identifier.
   virtual const InstanceId& id() const = 0;
@@ -134,13 +111,36 @@ class GlicInstance {
   // has been submitted yet.
   virtual base::TimeDelta GetTimeSinceLastPromptSubmission() const = 0;
 
+  // Returns the initial invocation source for this instance if one was set.
+  virtual std::optional<mojom::InvocationSource> GetInitialInvocationSource()
+      const = 0;
+
   virtual GlicActorTaskManager* GetActorTaskManager() = 0;
+  virtual GlicExperimentalTriggeringManager*
+  GetExperimentalTriggeringManager() = 0;
 
   // Returns true if the instance is currently performing an actuation task.
   virtual bool IsActuating() const = 0;
 
   // Cancels ongoing actuation task if one exists.
   virtual void CancelTask() = 0;
+
+  // Returns true if the instance is currently being invoked upon.
+  virtual bool IsInvoking() const = 0;
+
+  // Cancels any ongoing invocation if one exists.
+  virtual void CancelInvoke() = 0;
+
+  // Exposes basic pinning controls to external Chrome consumers.
+  virtual GlicSharingManager* GetSharingManager() = 0;
+
+  // Returns true if the instance is currently hibernated (its WebUI is not
+  // loaded).
+  virtual bool IsHibernated() const = 0;
+
+  // Triggers sending skill previews to the web client.
+  virtual void UpdateSkillPreviews(
+      std::optional<tabs::TabInterface*> updated_tab) = 0;
 };
 
 }  // namespace glic

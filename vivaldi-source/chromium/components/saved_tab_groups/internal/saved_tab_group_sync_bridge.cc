@@ -46,6 +46,10 @@
 #include "google_apis/gaia/gaia_id.h"
 #include "url/gurl.h"
 
+// Vivaldi
+#include "app/vivaldi_apptools.h"
+// End Vivaldi
+
 namespace tab_groups {
 namespace {
 
@@ -313,6 +317,10 @@ void SavedTabGroupSyncBridge::ApplyDisableSyncChanges(
 
   std::vector<base::Uuid> groups_to_close_locally;
   for (const SavedTabGroup* group : model_wrapper_->GetTabGroups()) {
+    if (vivaldi::IsVivaldiRunning()) {
+      continue;
+    }  // End Vivaldi
+
     if (group->created_before_syncing_tab_groups()) {
       continue;
     }
@@ -807,16 +815,7 @@ void SavedTabGroupSyncBridge::AddDataToLocalStorage(
           TimeFromWindowsEpochMicros(
               specifics.update_time_windows_epoch_micros()),
           /*updated_by=*/GaiaId());
-      // Copy over the pinned_position to avoid overwriting it when performing
-      // a sync update.
-      if (tab_groups::IsProjectsPanelFeatureEnabled()) {
-        std::optional<size_t> pinned_position = std::nullopt;
-        if (specifics.group().has_pinned_position()) {
-          pinned_position = specifics.group().pinned_position();
-        }
-        model_wrapper_->UpdateGroupPinnedPositionForMigration(group_guid,
-                                                              pinned_position);
-      }
+
       proto::SavedTabGroupData updated_data =
           SavedTabGroupToData(*existing_group);
 

@@ -4,14 +4,14 @@
 
 package org.chromium.chrome.browser.ui.side_panel_container.dev;
 
-import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.ui.side_panel_container.SidePanelContainerCoordinator;
-import org.chromium.ui.base.WindowAndroid;
+import org.chromium.chrome.browser.ui.browser_window.ChromeAndroidTask;
+import org.chromium.chrome.browser.ui.browser_window.ChromeAndroidTaskFeatureKey;
+import org.chromium.chrome.browser.ui.side_panel.AndroidSidePanelEnabledFn;
+import org.chromium.ui.base.ActivityWindowAndroid;
 
 import java.util.function.Supplier;
 
@@ -23,22 +23,24 @@ public final class SidePanelDevFeatureFactory {
 
     @Nullable
     public static SidePanelDevFeature create(
-            MonotonicObservableSupplier<Profile> profileSupplier,
-            SidePanelContainerCoordinator sidePanelContainerCoordinator,
-            WindowAndroid windowAndroid,
+            ChromeAndroidTask chromeAndroidTask,
+            Profile profile,
+            ActivityWindowAndroid windowAndroid,
             Supplier<Tab> tabSupplier) {
-        if (!ChromeFeatureList.sEnableAndroidSidePanelDevFeature.isEnabled()) {
-            return null;
+        if (AndroidSidePanelEnabledFn.isWindowScopedDevFeatureEnabled()) {
+            return (SidePanelWindowScopedDevFeatureImpl)
+                    chromeAndroidTask.addFeature(
+                            new ChromeAndroidTaskFeatureKey(
+                                    SidePanelWindowScopedDevFeatureImpl.class,
+                                    profile,
+                                    windowAndroid),
+                            () -> new SidePanelWindowScopedDevFeatureImpl(profile, windowAndroid));
         }
 
-        String scope =
-                ChromeFeatureList.getFieldTrialParamByFeature(
-                        ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL_DEV_FEATURE, "scope");
-        if ("tab".equals(scope)) {
+        if (AndroidSidePanelEnabledFn.isTabScopedDevFeatureEnabled()) {
             return new SidePanelTabScopedDevFeatureImpl(tabSupplier);
         }
 
-        return new SidePanelDevFeatureImpl(
-                profileSupplier, sidePanelContainerCoordinator, windowAndroid);
+        return null;
     }
 }

@@ -5,7 +5,8 @@
 #                      \___/_/\_\ .__/ \__,_|\__|
 #                               |_| XML parser
 #
-# Copyright (c) 2025 Sebastian Pipping <sebastian@pipping.org>
+# Copyright (c) 2025-2026 Sebastian Pipping <sebastian@pipping.org>
+# Copyright (c) 2026      Tania Somanna <tsomanna@qti.qualcomm.com>
 # Licensed under the MIT license:
 #
 # Permission is  hereby granted,  free of charge,  to any  person obtaining
@@ -86,7 +87,7 @@ jobs:
         shell: bash
     runs-on: "${{ matrix.runs-on }}"
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
     - uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57  # v3.0.0
 
@@ -138,3 +139,11 @@ jobs:
         cd expat/build
         cp -v "${cmake_build_type}/${expat_dll}" "tests/${cmake_build_type}/"
         ctest "${ctest_args[@]}"
+
+    - name: Ensure that file libexpat.def.cmake is not missing any symbols
+      run: |
+        symbols_txt="${GITHUB_WORKSPACE}"/.github/workflows/data/exported-symbols-unversioned.txt
+        while read line ; do
+            symbol="$(tr -d '\r' <<<"${line}")"  # drops trailing carriage return
+            ( set -x ; grep -q -F " ${symbol} @" expat/lib/libexpat.def.cmake )  # i.e. fail CI if symbol is missing
+        done < "${symbols_txt}"

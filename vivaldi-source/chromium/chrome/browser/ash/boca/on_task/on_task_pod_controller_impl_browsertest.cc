@@ -18,6 +18,7 @@
 #include "chrome/browser/ash/boca/on_task/on_task_locked_controller.h"
 #include "chrome/browser/ash/boca/on_task/on_task_locked_session_window_tracker.h"
 #include "chrome/browser/ash/boca/on_task/on_task_system_web_app_manager_impl.h"
+#include "chrome/browser/ash/browser_delegate/browser_delegate.h"
 #include "chrome/browser/ash/system_web_apps/system_web_app_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
@@ -63,10 +64,13 @@ class OnTaskPodControllerImplBrowserTestBase : public InProcessBrowserTest {
   }
 
   Browser* FindBocaSystemWebAppBrowser() {
-    return ash::FindSystemWebAppBrowser(profile(), ash::SystemWebAppType::BOCA);
+    ash::BrowserDelegate* delegate = ash::FindSystemWebAppBrowser(
+        profile(), ash::SystemWebAppType::BOCA, ash::BrowserType::kApp);
+    return delegate ? delegate->GetBrowser().GetBrowserForMigrationOnly()
+                    : nullptr;
   }
 
-  Profile* profile() { return browser()->profile(); }
+  Profile* profile() { return browser()->GetProfile(); }
 
   LockedSessionWindowTracker* window_tracker() {
     return LockedSessionWindowTrackerFactory::GetInstance()
@@ -228,7 +232,7 @@ IN_PROC_BROWSER_TEST_F(OnTaskPodControllerImplBrowserTest,
   ASSERT_THAT(on_task_pod_controller(), NotNull());
 
   // Hide window and verify the pod widget also gets hidden.
-  boca_app_browser->window()->GetNativeWindow()->Hide();
+  boca_app_browser->GetWindow()->GetNativeWindow()->Hide();
   EXPECT_FALSE(on_task_pod_controller()->GetPodWidgetForTesting()->IsVisible());
 }
 
@@ -253,11 +257,11 @@ IN_PROC_BROWSER_TEST_F(OnTaskPodControllerImplBrowserTest,
   ASSERT_THAT(on_task_pod_controller(), NotNull());
 
   // Hide window and verify the pod widget also gets hidden.
-  boca_app_browser->window()->GetNativeWindow()->Hide();
+  boca_app_browser->GetWindow()->GetNativeWindow()->Hide();
   ASSERT_FALSE(on_task_pod_controller()->GetPodWidgetForTesting()->IsVisible());
 
   // Show the window and verify the pod is shown.
-  boca_app_browser->window()->GetNativeWindow()->Show();
+  boca_app_browser->GetWindow()->GetNativeWindow()->Show();
   EXPECT_TRUE(on_task_pod_controller()->GetPodWidgetForTesting()->IsVisible());
 }
 
@@ -642,8 +646,8 @@ IN_PROC_BROWSER_TEST_F(
 
   // Pin another browser.
   Browser* const new_browser = browser();
-  chrome::NewTab(new_browser);
-  aura::Window* const new_window = new_browser->window()->GetNativeWindow();
+  chrome::NewTab(new_browser, NewTabTypes::kNoUserAction);
+  aura::Window* const new_window = new_browser->GetWindow()->GetNativeWindow();
   PinWindow(new_window, /*trusted=*/true);
   ASSERT_TRUE(on_task_pod_controller()->CanToggleTabStripVisibility());
 }

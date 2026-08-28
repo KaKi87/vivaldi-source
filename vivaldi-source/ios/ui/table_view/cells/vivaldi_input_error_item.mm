@@ -18,9 +18,8 @@
   return self;
 }
 
-- (void)configureCell:(LegacyTableViewCell*)cell
-           withStyler:(ChromeTableViewStyler*)styler {
-  [super configureCell:cell withStyler:styler];
+- (void)configureCell:(LegacyTableViewCell*)cell {
+  [super configureCell:cell];
   cell.textLabel.text = self.text;
   cell.selectionStyle = UITableViewCellSelectionStyleNone;
 

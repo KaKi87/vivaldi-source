@@ -7,7 +7,7 @@
     "namespace": "webViewPrivate",
     "description": "none",
     "compiler_options": {
-      "implemented_in": "extensions/api/guest_view/web_view_private_api.h"
+      "implemented_in": "extensions/api/web_view_private/web_view_private_api.h"
     },
     "types": [
       {

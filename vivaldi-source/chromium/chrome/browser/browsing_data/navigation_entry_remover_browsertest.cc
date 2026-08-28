@@ -47,7 +47,7 @@ class NavigationEntryRemoverTest : public InProcessBrowserTest {
     about_blank_ = GURL("about:blank");
   }
 
-  Profile* profile() { return browser()->profile(); }
+  Profile* profile() { return browser()->GetProfile(); }
 
   void AddNavigations(Browser* browser, const std::vector<GURL>& urls) {
     for (const GURL& url : urls) {
@@ -195,7 +195,7 @@ IN_PROC_BROWSER_TEST_F(NavigationEntryRemoverTest, DeleteAfterNavigation) {
   browsing_data::RemoveNavigationEntries(
       profile(),
       DeletionInfo::ForUrls({history::URLResult(url_b_, base::Time())}, {}));
-  // The commited entry can't be removed.
+  // The committed entry can't be removed.
   ExpectEntries({about_blank_, url_a_, url_b_}, GetEntries());
 
   AddNavigations(browser(), {url_c_});

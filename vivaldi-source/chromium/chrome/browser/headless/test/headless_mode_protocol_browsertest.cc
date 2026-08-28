@@ -15,6 +15,7 @@
 #include "base/strings/string_split.h"
 #include "build/build_config.h"
 #include "chrome/browser/headless/test/headless_browser_test_utils.h"
+#include "chrome/browser/ui/omnibox/omnibox_next_features.h"
 #include "components/headless/select_file_dialog/headless_select_file_dialog.h"
 #include "components/headless/test/shared_test_util.h"
 #include "content/public/common/content_switches.h"
@@ -67,6 +68,13 @@ bool HeadlessModeProtocolBrowserTest::IsSharedTestScript() {
 }
 
 void HeadlessModeProtocolBrowserTest::SetUp() {
+  webui_omnibox_feature_list_.InitWithFeatures(
+      /*enabled_features=*/{},
+      /*disabled_features=*/
+      // TODO(crbug.com/452061489): Fix tests that fail when the WebUI Omnibox
+      // is enabled and then remove these two Features.
+      {omnibox::internal::kWebUIOmniboxPopup,
+       omnibox::internal::kWebUIOmniboxAimPopup});
   LoadTestMetaInfo();
   HeadlessModeDevTooledBrowserTest::SetUp();
 }
@@ -202,18 +210,10 @@ void HeadlessModeProtocolBrowserTest::ProcessTestResult(
 HEADLESS_MODE_PROTOCOL_TEST(DomFocus, "input/dom-focus.js")
 HEADLESS_MODE_PROTOCOL_TEST(FocusEvent, "input/focus-event.js")
 
-// Flaky crbug.com/40902570
-HEADLESS_MODE_PROTOCOL_TEST(DISABLED_FocusBlurNotifications,
-                            "input/focus-blur-notifications.js")
+HEADLESS_MODE_PROTOCOL_TEST(FocusBlurNotifications,
+                            "shared/focus-blur-notifications.js")
 
-// TODO(crbug.com/40257054): Re-enable this test
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
-#define MAYBE_InputClipboardOps DISABLED_InputClipboardOps
-#else
-#define MAYBE_InputClipboardOps InputClipboardOps
-#endif
-HEADLESS_MODE_PROTOCOL_TEST(MAYBE_InputClipboardOps,
-                            "input/input-clipboard-ops.js")
+HEADLESS_MODE_PROTOCOL_TEST(InputClipboardOps, "shared/input-clipboard-ops.js")
 
 HEADLESS_MODE_PROTOCOL_TEST(DocumentFocusOnLoad,
                             "input/document-focus-on-load.js")
@@ -233,22 +233,26 @@ class HeadlessModeInputSelectFileDialogTest
   }
 
   void FinishAsyncTest() override {
-    EXPECT_TRUE(select_file_dialog_has_run_);
-
-    HeadlessModeProtocolBrowserTest::FinishAsyncTest();
+    finish_async_test_called_ = true;
+    if (select_file_dialog_has_run_) {
+      HeadlessModeProtocolBrowserTest::FinishAsyncTest();
+    }
   }
 
  private:
   void OnSelectFileDialogCallback(ui::SelectFileDialog::Type type) {
     select_file_dialog_has_run_ = true;
+    if (finish_async_test_called_) {
+      HeadlessModeProtocolBrowserTest::FinishAsyncTest();
+    }
   }
 
   bool select_file_dialog_has_run_ = false;
+  bool finish_async_test_called_ = false;
 };
 
-// TODO(crbug.com/40919351, crbug.com/443993825): flaky on Mac/Linux/Win.
 HEADLESS_MODE_PROTOCOL_TEST_F(HeadlessModeInputSelectFileDialogTest,
-                              DISABLED_InputSelectFileDialog,
+                              InputSelectFileDialog,
                               "input/input-select-file-dialog.js")
 
 class HeadlessModeScreencastTest : public HeadlessModeProtocolBrowserTest {
@@ -320,13 +324,7 @@ HEADLESS_MODE_PROTOCOL_TEST(FullscreenWindowSizeScaled,
                             "shared/fullscreen-window-size-scaled.js")
 #endif  // !BUILDFLAG(IS_MAC)
 
-// TODO(http://crbug.com/491505696): Fails on macOS.
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_SetZoomedWindowBounds DISABLED_SetZoomedWindowBounds
-#else
-#define MAYBE_SetZoomedWindowBounds SetZoomedWindowBounds
-#endif
-HEADLESS_MODE_PROTOCOL_TEST(MAYBE_SetZoomedWindowBounds,
+HEADLESS_MODE_PROTOCOL_TEST(SetZoomedWindowBounds,
                             "shared/set-zoomed-window-bounds.js")
 
 HEADLESS_MODE_PROTOCOL_TEST(PrintToPdfTinyPage,
@@ -393,6 +391,15 @@ HEADLESS_MODE_PROTOCOL_TEST(DISABLED_MoveWindowBetweenScreens,
 HEADLESS_MODE_PROTOCOL_TEST(WindowOpenOnSecondaryScreen,
                             "shared/window-open-on-secondary-screen.js")
 
+HEADLESS_MODE_PROTOCOL_TEST(WindowOpenClickOpenerId,
+                            "shared/window-open-click-opener-id.js")
+
+HEADLESS_MODE_PROTOCOL_TEST(WindowOpenNoopenerClickOpenerId,
+                            "shared/window-open-noopener-click-opener-id.js")
+
+HEADLESS_MODE_PROTOCOL_TEST(WindowOpenShiftClickOpenerId,
+                            "shared/window-open-shift-click-opener-id.js")
+
 // TODO(crbug.com/40283476): CreateTargetSecondaryScreen is failing on Mac
 #if !BUILDFLAG(IS_MAC)
 #define MAYBE_CreateTargetSecondaryScreen CreateTargetSecondaryScreen
@@ -414,7 +421,9 @@ HEADLESS_MODE_PROTOCOL_TEST(WindowSizeSwitchLargerThanScreen,
 HEADLESS_MODE_PROTOCOL_TEST(WindowScreenAvail, "shared/window-screen-avail.js")
 
 // TODO(crbug.com/424797525): Fails Mac 13.
-#if BUILDFLAG(IS_MAC)
+// TODO(crbug.com/520311348): Fails win-asan.
+// TODO(crbug.com/520432613): Fails on Linux.
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
 #define MAYBE_StartFullscreenSwitch DISABLED_StartFullscreenSwitch
 #else
 #define MAYBE_StartFullscreenSwitch StartFullscreenSwitch
@@ -423,32 +432,25 @@ HEADLESS_MODE_PROTOCOL_TEST(WindowScreenAvail, "shared/window-screen-avail.js")
 HEADLESS_MODE_PROTOCOL_TEST(MAYBE_StartFullscreenSwitch,
                             "sanity/start-fullscreen-switch.js")
 
-// TODO(crbug.com/423951863): Fails on Mac 13.
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_StartFullscreenSwitchScaled DISABLED_StartFullscreenSwitchScaled
-#else
-#define MAYBE_StartFullscreenSwitchScaled StartFullscreenSwitchScaled
-#endif
-
-HEADLESS_MODE_PROTOCOL_TEST(MAYBE_StartFullscreenSwitchScaled,
+// TODO(crbug.com/423951863): Fails on Mac 13, Linux, and win-asan at least.
+HEADLESS_MODE_PROTOCOL_TEST(DISABLED_StartFullscreenSwitchScaled,
                             "sanity/start-fullscreen-switch-scaled.js")
 
-// TODO(crbug.com/430156442): These fail on Mac 13
+// TODO(crbug.com/430156442): This fails on macOS where fullscreen uses display
+// bounds rather than work area
 #if BUILDFLAG(IS_MAC)
 #define MAYBE_WindowStateTransitions DISABLED_WindowStateTransitions
-#define MAYBE_WindowZoomOnSecondaryScreen DISABLED_WindowZoomOnSecondaryScreen
 #define MAYBE_WindowZoomSizeMatchesWorkArea \
   DISABLED_WindowZoomSizeMatchesWorkArea
 #else
 #define MAYBE_WindowStateTransitions WindowStateTransitions
-#define MAYBE_WindowZoomOnSecondaryScreen WindowZoomOnSecondaryScreen
 #define MAYBE_WindowZoomSizeMatchesWorkArea WindowZoomSizeMatchesWorkArea
 #endif
 
 HEADLESS_MODE_PROTOCOL_TEST(MAYBE_WindowStateTransitions,
                             "shared/window-state-transitions.js")
 
-HEADLESS_MODE_PROTOCOL_TEST(MAYBE_WindowZoomOnSecondaryScreen,
+HEADLESS_MODE_PROTOCOL_TEST(WindowZoomOnSecondaryScreen,
                             "shared/window-zoom-on-secondary-screen.js")
 
 HEADLESS_MODE_PROTOCOL_TEST(MAYBE_WindowZoomSizeMatchesWorkArea,
@@ -522,5 +524,14 @@ HEADLESS_MODE_PROTOCOL_TEST(SetPrimaryScreenScaled,
 
 HEADLESS_MODE_PROTOCOL_TEST(RangeMouseEventAfterNodeRemoval,
                             "shared/range-mouse-event-after-node-removal.js")
+
+HEADLESS_MODE_PROTOCOL_TEST(GetCanvasContextWebGL,
+                            "shared/get-canvas-context-webgl.js")
+
+HEADLESS_MODE_PROTOCOL_TEST(PopupWindowHasOpener,
+                            "shared/popup-window-has-opener.js")
+
+HEADLESS_MODE_PROTOCOL_TEST(NormalWindowHasOpener,
+                            "shared/normal-window-has-opener.js")
 
 }  // namespace headless

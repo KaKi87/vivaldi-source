@@ -263,7 +263,7 @@ class ProfileManagementDisclaimerServiceBrowserFocusBrowserTest
                        .SetAvatarUrl("https://example.com")
                        .Build();
 
-    AccountCapabilitiesTestMutator mutator(&account_info.capabilities);
+    AccountCapabilitiesTestMutator mutator(&account_info);
     bool is_managed = !hosted_domain.empty();
     mutator.set_is_subject_to_enterprise_features(is_managed);
 
@@ -279,7 +279,7 @@ class ProfileManagementDisclaimerServiceBrowserFocusBrowserTest
 
   void ReplaceCurrentBrowserWithNewOne() {
     BrowserWindowInterface* const new_browser =
-        CreateBrowser(browser()->profile());
+        CreateBrowser(browser()->GetProfile());
     CloseBrowserSynchronously(browser());
     SetBrowser(new_browser);
     ASSERT_EQ(browser(), new_browser);
@@ -453,7 +453,7 @@ class ProfileManagementDisclaimerServiceSigninBrowserTest
                        .SetAvatarUrl("https://example.com")
                        .Build();
 
-    AccountCapabilitiesTestMutator mutator(&account_info.capabilities);
+    AccountCapabilitiesTestMutator mutator(&account_info);
     bool is_managed = !hosted_domain.empty();
     mutator.set_is_subject_to_enterprise_features(is_managed);
 
@@ -628,7 +628,7 @@ class ProfileManagementDisclaimerServiceBrowserTest
                        .SetAvatarUrl("https://example.com")
                        .Build();
 
-    AccountCapabilitiesTestMutator mutator(&account_info.capabilities);
+    AccountCapabilitiesTestMutator mutator(&account_info);
     bool is_managed = !hosted_domain.empty();
     mutator.set_is_subject_to_enterprise_features(is_managed);
 
@@ -651,7 +651,7 @@ class ProfileManagementDisclaimerServiceBrowserTest
                        .SetAvatarUrl("https://example.com")
                        .Build();
 
-    AccountCapabilitiesTestMutator mutator(&account_info.capabilities);
+    AccountCapabilitiesTestMutator mutator(&account_info);
     bool is_managed = !hosted_domain.empty();
     mutator.set_is_subject_to_enterprise_features(is_managed);
 

@@ -39,7 +39,6 @@
 <translation id="1601560923496285236">套用</translation>
 <translation id="1603914832182249871">（無痕模式）</translation>
 <translation id="1627276047960621195">檔案描述符</translation>
-<translation id="1654713139320245449">找不到可以投放的裝置。需要協助嗎？</translation>
 <translation id="166278006618318542">主體公開金鑰演算法</translation>
 <translation id="1682548588986054654">新增無痕模式視窗</translation>
 <translation id="1708338024780164500">（閒置）</translation>
@@ -60,7 +59,6 @@
 <translation id="1906488504371069394">在 <ph name="BEGIN_LINK" />Chrome 線上應用程式商店<ph name="END_LINK" /> 發掘更多擴充功能與主題</translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">輸入自訂網頁網址</translation>
-<translation id="1932098463447129402">此日期之後</translation>
 <translation id="1936157145127842922">在資料夾中顯示</translation>
 <translation id="1936931585862840749">使用數字指定列印份數（1 至 <ph name="MAX_COPIES" />）。</translation>
 <translation id="2019718679933488176">在新分頁中開啟音訊 (&amp;O)</translation>
@@ -102,7 +100,6 @@
 <translation id="253557089021624350">Keepalive 數量</translation>
 <translation id="2550212893339833758">Swap 記憶體</translation>
 <translation id="2553440850688409052">隱藏這個外掛程式</translation>
-<translation id="2607101320794533334">主體公開金鑰資訊</translation>
 <translation id="261305050785128654">讓網站知道您會使用的語言。網站將在可能的情況下顯示該語言的內容。</translation>
 <translation id="26224892172169984">不允許任何網站處理通訊協定</translation>
 <translation id="2653275834716714682">替代文字</translation>
@@ -112,7 +109,6 @@
 <translation id="2719936478972253983">系統已封鎖下列 Cookie</translation>
 <translation id="2721037002783622288">透過 <ph name="SEARCH_ENGINE" /> 搜尋圖片 (&amp;S)</translation>
 <translation id="2722547199758472013">ID：<ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">此日期之前</translation>
 <translation id="2749881179542288782">檢查拼字及文法</translation>
 <translation id="2785873697295365461">檔案描述符</translation>
 <translation id="2825758591930162672">主體的公開金鑰</translation>
@@ -163,7 +159,6 @@
 <translation id="3387614642886316601">使用進階拼字檢查</translation>
 <translation id="3390013585654699824">應用程式詳細資料</translation>
 <translation id="345693547134384690">在新分頁開啟圖片 (&amp;I)</translation>
-<translation id="3493881266323043047">有效性</translation>
 <translation id="3511307672085573050">複製連結網址 (&amp;E)</translation>
 <translation id="354068948465830244">可以讀取和變更網站資料</translation>
 <translation id="3555812735919707620">移除擴充功能</translation>
@@ -179,7 +174,6 @@
 <translation id="3760460896538743390">檢查背景頁面 (&amp;B)</translation>
 <translation id="3786224729726357296">刪除 <ph name="SITE" /> 的網站資料和權限</translation>
 <translation id="3797900183766075808">透過 <ph name="SEARCH_ENGINE" /> 搜尋「<ph name="SEARCH_TERMS" />」(&amp;S)</translation>
-<translation id="3798449238516105146">版本</translation>
 <translation id="3810973564298564668">管理</translation>
 <translation id="3838085852053358637">無法載入擴充功能</translation>
 <translation id="383891835335927981">未針對任何網站設定縮放等級</translation>
@@ -266,12 +260,10 @@
 <translation id="5063480226653192405">用量</translation>
 <translation id="5116628073786783676">另存音訊為 (&amp;V)…</translation>
 <translation id="5154108062446123722">「<ph name="PRINTING_DESTINATION" />」進階設定</translation>
-<translation id="5154702632169343078">主旨</translation>
 <translation id="5170568018924773124">在資料夾中顯示</translation>
 <translation id="5171343362375269016">Swap 記憶體</translation>
 <translation id="5233231016133573565">程式 ID</translation>
 <translation id="5233736638227740678">貼上 (&amp;P)</translation>
-<translation id="5244466461749935369">暫時保留</translation>
 <translation id="5256861893479663409">在全部網站上</translation>
 <translation id="5260334392110301220">智慧型引號</translation>
 <translation id="5269977353971873915">列印失敗</translation>
@@ -310,7 +302,6 @@
 <translation id="5780973441651030252">處理優先順序</translation>
 <translation id="5804241973901381774">權限</translation>
 <translation id="5828633471261496623">正在列印…</translation>
-<translation id="5851868085455377790">發行者</translation>
 <translation id="5860491529813859533">開啟</translation>
 <translation id="5910363049092958439">另存圖片為 (&amp;V)…</translation>
 <translation id="5914724413750400082">模數（<ph name="MODULUS_NUM_BITS" /> 位元）：
@@ -459,7 +450,6 @@
 <translation id="862750493060684461">CSS 快取</translation>
 <translation id="8661290697478713397">在無痕模式視窗開啟連結 (&amp;G)</translation>
 <translation id="8664389313780386848">檢視網頁原始碼 (&amp;V)</translation>
-<translation id="8705331520020532516">序號</translation>
 <translation id="8708000541097332489">結束時清除</translation>
 <translation id="8714838604780058252">背景圖形</translation>
 <translation id="8725066075913043281">再試一次</translation>

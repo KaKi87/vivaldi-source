@@ -26,6 +26,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <array>
+#include <bit>
 #include <cstring>
 #include <limits>
 #include <tuple>
@@ -40,7 +41,7 @@
 namespace dawn {
 namespace {
 
-constexpr static unsigned int kRTSize = 16;
+constexpr size_t kRTSize = 16;
 
 class DrawQuad {
   public:
@@ -168,6 +169,9 @@ class RenderPassLoadOpTests : public DawnTest {
 
 // Tests clearing, loading, and drawing into color attachments
 TEST_P(RenderPassLoadOpTests, ColorClearThenLoadAndDraw) {
+    // TODO(crbug.com/523272949): Produces incorrect result on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
+
     // Part 1: clear once, check to make sure it's cleared
     utils::ComboRenderPassDescriptor renderPassClearZero({renderTargetView});
     auto commandsClearZeroEncoder = device.CreateCommandEncoder();
@@ -499,7 +503,7 @@ TEST_P(RenderPassLoadOpTests, LoadOpClearWithBig32BitIntegralValuesOnMultipleCol
         kMaxUInt32RepresentableInFloat - 2, kMaxUInt32RepresentableInFloat - 3};
     std::array<uint32_t, 4> expectedDataForRGBA32Float;
     for (uint32_t i = 0; i < expectedDataForRGBA32Float.size(); ++i) {
-        expectedDataForRGBA32Float[i] = *(reinterpret_cast<uint32_t*>(&testColorForRGBA32Float[i]));
+        expectedDataForRGBA32Float[i] = std::bit_cast<uint32_t>(testColorForRGBA32Float[i]);
     }
 
     struct AttachmentCase {

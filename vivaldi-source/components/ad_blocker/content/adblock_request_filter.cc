@@ -74,6 +74,7 @@ ResourceType ResourceTypeFromRequest(
     case network::mojom::RequestDestination::kServiceWorker:
     case network::mojom::RequestDestination::kSharedStorageWorklet:
     case network::mojom::RequestDestination::kJson:
+    case network::mojom::RequestDestination::kText:
       return ResourceType::kScript;
     case network::mojom::RequestDestination::kImage:
       return ResourceType::kImage;
@@ -84,7 +85,7 @@ ResourceType ResourceTypeFromRequest(
     case network::mojom::RequestDestination::kPaintWorklet:
     case network::mojom::RequestDestination::kWebIdentity:
     case network::mojom::RequestDestination::kEmailVerification:
-    case network::mojom::RequestDestination::kDictionary:
+    case network::mojom::RequestDestination::kCompressionDictionary:
     case network::mojom::RequestDestination::kSpeculationRules:
       return ResourceType::kOther;
     case network::mojom::RequestDestination::kWebBundle:

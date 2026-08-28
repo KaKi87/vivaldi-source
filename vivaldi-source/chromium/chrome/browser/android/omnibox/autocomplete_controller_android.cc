@@ -35,6 +35,7 @@
 #include "chrome/browser/autocomplete/shortcuts_backend_factory.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_utils.h"
 #include "chrome/browser/omnibox/autocomplete_controller_emitter_factory.h"
+#include "chrome/browser/page_load_metrics/chrome_initiator_location.h"
 #include "chrome/browser/predictors/autocomplete_action_predictor.h"
 #include "chrome/browser/predictors/autocomplete_action_predictor_factory.h"
 #include "chrome/browser/preloading/prefetch/search_prefetch/search_prefetch_service.h"
@@ -58,6 +59,7 @@
 #include "components/omnibox/browser/autocomplete_provider.h"
 #include "components/omnibox/browser/autocomplete_provider_client.h"
 #include "components/omnibox/browser/autocomplete_result.h"
+#include "components/omnibox/browser/geolocation_header_service.h"
 #include "components/omnibox/browser/history_fuzzy_provider.h"
 #include "components/omnibox/browser/keyword_provider.h"
 #include "components/omnibox/browser/lens_suggest_inputs_utils.h"
@@ -174,7 +176,6 @@ void AutocompleteControllerAndroid::Start(
     ::metrics::OmniboxEventProto::PageClassification page_classification,
     ::omnibox::ToolMode tool_mode,
     bool prevent_inline_autocomplete,
-    bool prefer_keyword,
     bool in_keyword_mode,
     bool allow_exact_keyword_match,
     bool want_asynchronous_matches) {
@@ -191,8 +192,7 @@ void AutocompleteControllerAndroid::Start(
                              ChromeAutocompleteSchemeClassifier(profile_));
   input_.set_current_url(current_url);
   input_.set_prevent_inline_autocomplete(prevent_inline_autocomplete);
-  input_.set_prefer_keyword(prefer_keyword);
-  input_.set_in_keyword_mode(prefer_keyword || in_keyword_mode);
+  input_.set_in_keyword_mode(in_keyword_mode);
   input_.set_allow_exact_keyword_match(allow_exact_keyword_match);
   input_.set_omit_asynchronous_matches(!want_asynchronous_matches);
 
@@ -238,7 +238,7 @@ ScopedJavaLocalRef<jobject> AutocompleteControllerAndroid::Classify(
 
   inside_synchronous_start_ = true;
   Start(env, nullptr, text, -1, "", GURL(), ::metrics::OmniboxEventProto::OTHER,
-        omnibox::TOOL_MODE_UNSPECIFIED, false, false, false, false, false);
+        omnibox::TOOL_MODE_UNSPECIFIED, false, false, false, false);
   inside_synchronous_start_ = false;
   DCHECK(autocomplete_controller_->done());
   AutocompleteResult& result =
@@ -248,8 +248,10 @@ ScopedJavaLocalRef<jobject> AutocompleteControllerAndroid::Classify(
     return ScopedJavaLocalRef<jobject>();
   }
 
+  TemplateURLService* template_url_service =
+      TemplateURLServiceFactory::GetForProfile(profile_);
   return ScopedJavaLocalRef<jobject>(
-      result.begin()->GetOrCreateJavaObject(env));
+      result.begin()->GetOrCreateJavaObject(env, template_url_service));
 }
 
 void AutocompleteControllerAndroid::OnOmniboxFocused(
@@ -467,6 +469,7 @@ void AutocompleteControllerAndroid::OnSuggestionSelected(
     predictors::AutocompleteActionPredictorFactory::GetForProfile(profile_)
         ->OnOmniboxOpenedUrl(log);
   }
+  autocomplete_controller_->MaybeProcessInlineLocationSuggestionMatch(match);
 }
 
 bool AutocompleteControllerAndroid::OnSuggestionTouchDown(
@@ -476,21 +479,22 @@ bool AutocompleteControllerAndroid::OnSuggestionTouchDown(
     int match_index) {
   const auto& match = *reinterpret_cast<AutocompleteMatch*>(match_ptr);
 
+  bool started = false;
   if (SearchPrefetchService* search_prefetch_service =
           SearchPrefetchServiceFactory::GetForProfile(profile_)) {
-    return search_prefetch_service->OnNavigationLikely(
+    started = search_prefetch_service->OnNavigationLikely(
+        match_index, match, omnibox::mojom::NavigationPredictor::kTouchDown,
+        web_contents);
+  } else if (SearchPreloadService* search_preload_service =
+                 SearchPreloadServiceFactory::GetForProfile(profile_)) {
+    started = search_preload_service->OnNavigationLikely(
         match_index, match, omnibox::mojom::NavigationPredictor::kTouchDown,
         web_contents);
   }
 
-  if (SearchPreloadService* search_preload_service =
-          SearchPreloadServiceFactory::GetForProfile(profile_)) {
-    return search_preload_service->OnNavigationLikely(
-        match_index, match, omnibox::mojom::NavigationPredictor::kTouchDown,
-        web_contents);
-  }
-
-  return false;
+  TRACE_EVENT("omnibox", "AutocompleteControllerAndroid::OnNavigationLikely",
+              "url", match.destination_url, "started", started);
+  return started;
 }
 
 void AutocompleteControllerAndroid::DeleteMatch(JNIEnv* env,
@@ -594,7 +598,23 @@ void AutocompleteControllerAndroid::CreateNavigationObserver(
     uintptr_t match_ptr) {
   auto* navigation_handle =
       reinterpret_cast<content::NavigationHandle*>(navigation_handle_ptr);
+  if (!navigation_handle) {
+    return;
+  }
+
   const auto& match = *reinterpret_cast<AutocompleteMatch*>(match_ptr);
+
+  // TODO(https://crbug.com/517725655): Revisit this part if the metrics show
+  // unidentified navigations are too many; it could be that omnibox
+  // navigations are not fully covered.
+  if (ui::PageTransitionCoreTypeIs(match.transition,
+                                   ui::PAGE_TRANSITION_TYPED)) {
+    AttachOmniboxDirectUrlInputNavigationHandleUserData(*navigation_handle);
+  } else if (ui::PageTransitionCoreTypeIs(match.transition,
+                                          ui::PAGE_TRANSITION_GENERATED)) {
+    AttachOmniboxDefaultSearchEngineNavigationHandleUserData(
+        *navigation_handle);
+  }
 
   ChromeOmniboxNavigationObserverAndroid::Create(navigation_handle, profile_,
                                                  input_.text(), match);
@@ -652,8 +672,11 @@ void AutocompleteControllerAndroid::NotifySuggestionsReceived(
 
   JNIEnv* env = AttachCurrentThread();
 
+  TemplateURLService* template_url_service =
+      TemplateURLServiceFactory::GetForProfile(profile_);
   Java_AutocompleteController_onSuggestionsReceived(
-      env, java_controller_, autocomplete_result.GetOrCreateJavaObject(env),
+      env, java_controller_,
+      autocomplete_result.GetOrCreateJavaObject(env, template_url_service),
       autocomplete_controller_->done());
 }
 

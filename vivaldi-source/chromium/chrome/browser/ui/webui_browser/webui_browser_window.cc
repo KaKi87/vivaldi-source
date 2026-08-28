@@ -4,8 +4,13 @@
 
 #include "chrome/browser/ui/webui_browser/webui_browser_window.h"
 
+#include "base/check.h"
+#include "base/feature_list.h"
 #include "base/notimplemented.h"
 #include "chrome/browser/app_mode/app_mode_utils.h"
+#if BUILDFLAG(IS_MAC)
+#include "chrome/browser/global_keyboard_shortcuts_mac.h"
+#endif
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/themes/custom_theme_supplier.h"
 #include "chrome/browser/themes/theme_service.h"
@@ -14,6 +19,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
+#include "chrome/browser/ui/browser_init_state.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window_theme_observer.h"
@@ -23,10 +29,12 @@
 #include "chrome/browser/ui/interaction/browser_elements.h"
 #include "chrome/browser/ui/side_panel/side_panel_ui_base.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
+#include "chrome/browser/ui/unload_controller.h"
 #include "chrome/browser/ui/views/find_bar_host.h"
 #include "chrome/browser/ui/views/zoom/zoom_view_controller.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/ui/webui/webui_toolbar/webui_toolbar_extensions_container.h"
+#include "chrome/browser/ui/webui_browser/browser_elements_webui_browser.h"
 #include "chrome/browser/ui/webui_browser/webui_browser_client_view.h"
 #include "chrome/browser/ui/webui_browser/webui_browser_exclusive_access_context.h"
 #include "chrome/browser/ui/webui_browser/webui_browser_modal_dialog_host.h"
@@ -34,28 +42,30 @@
 #include "chrome/browser/ui/webui_browser/webui_browser_ui.h"
 #include "chrome/browser/ui/webui_browser/webui_browser_web_contents_delegate.h"
 #include "chrome/browser/ui/webui_browser/webui_stub_location_bar.h"
+#include "chrome/browser/ui/window_metadata/window_metadata_controller.h"
 #include "chrome/browser/ui/zoom/browser_window_zoom_observer.h"
+#include "chrome/common/channel_info.h"
 #include "chrome/common/chrome_render_frame.mojom.h"
 #include "chrome/common/webui_url_constants.h"
 #include "components/input/native_web_keyboard_event.h"
 #include "components/sharing_message/sharing_dialog_data.h"
+#include "components/version_info/channel.h"
+#include "components/version_info/version_info.h"
 #include "components/web_modal/web_contents_modal_dialog_manager.h"
 #include "content/public/browser/keyboard_event_processing_result.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
+#include "content/public/common/content_features.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "third_party/blink/public/mojom/page/draggable_region.mojom.h"
 #include "ui/base/hit_test.h"
 #include "ui/base/interaction/element_tracker.h"
+#include "ui/compositor/compositor.h"
 #include "ui/content_accelerators/accelerator_util.h"
 #include "ui/views/controls/webview/webview.h"
 #include "ui/views/interaction/element_tracker_views.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_delegate.h"
-
-#if BUILDFLAG(IS_CHROMEOS)
-#include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
-#endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace {
 
@@ -114,6 +124,17 @@ class WebUIBrowserWindow::WidgetDelegate : public views::WidgetDelegate {
 };
 
 WebUIBrowserWindow::WebUIBrowserWindow(Browser* browser) : browser_(browser) {
+  // GuestContents is not approved for use in production. Restrict its
+  // proxy content feature kAttachUnownedInnerWebContents to development,
+  // canary, and test builds.
+  if (base::FeatureList::IsEnabled(features::kAttachUnownedInnerWebContents)) {
+    const bool is_development_build = !version_info::IsOfficialBuild();
+    const bool is_canary_or_test_build =
+        chrome::GetChannel() == version_info::Channel::CANARY ||
+        chrome::GetChannel() == version_info::Channel::UNKNOWN;
+    CHECK(is_development_build || is_canary_or_test_build);
+  }
+
   location_bar_ = std::make_unique<WebUIStubLocationBar>(this);
   web_contents_delegate_ =
       std::make_unique<WebUIBrowserWebContentsDelegate>(this);
@@ -134,7 +155,13 @@ WebUIBrowserWindow::WebUIBrowserWindow(Browser* browser) : browser_(browser) {
   widget_->SetNativeWindowProperty(kWebUIBrowserWindowKey, this);
   widget_->MakeCloseSynchronous(base::BindOnce(
       &WebUIBrowserWindow::OnWindowCloseRequested, base::Unretained(this)));
-  auto web_view = std::make_unique<views::WebView>(browser_->profile());
+
+  auto* browser_elements =
+      BrowserElements::From(browser_)->AsA<BrowserElementsWebUiBrowser>();
+  browser_elements->Init(
+      views::Widget::GetWidgetForNativeWindow(GetNativeWindow()));
+
+  auto web_view = std::make_unique<views::WebView>(browser_->GetProfile());
 
   auto* ui_web_contents = web_view->GetWebContents();
   web_contents_delegate_->SetUIWebContents(ui_web_contents);
@@ -144,8 +171,10 @@ WebUIBrowserWindow::WebUIBrowserWindow(Browser* browser) : browser_(browser) {
       std::make_unique<WebShellWebContentsUserData>(this));
 
   modal_dialog_host_ = std::make_unique<WebUIBrowserModalDialogHost>(this);
+  icon_table_ = std::make_unique<webui_toolbar::IconTable>(this);
   extensions_container_ = std::make_unique<WebUIToolbarExtensionsContainer>(
-      *browser_, widget_.get(), ui_web_contents->GetWeakPtr());
+      *browser_, widget_.get(), ui_web_contents->GetWeakPtr(),
+      icon_table_.get(), /*push_icon_table_updates=*/true);
   scoped_extensions_container_user_data_ =
       std::make_unique<ui::ScopedUnownedUserData<ExtensionsContainer>>(
           browser_->GetUnownedUserDataHost(), *extensions_container_);
@@ -211,8 +240,8 @@ WebUIBrowserWindow* WebUIBrowserWindow::FromWebShellWebContents(
 }
 
 // static
-WebUIBrowserWindow* WebUIBrowserWindow::FromBrowser(
-    BrowserWindowInterface* browser) {
+const WebUIBrowserWindow* WebUIBrowserWindow::FromBrowser(
+    const BrowserWindowInterface* browser) {
   // This function is implemented based on
   // BrowserView::GetBrowserViewForBrowser(). Please see the comments in that
   // function for the implementation rationale.
@@ -220,6 +249,16 @@ WebUIBrowserWindow* WebUIBrowserWindow::FromBrowser(
     return nullptr;
   }
   return FromNativeWindow(browser->GetWindow()->GetNativeWindow());
+}
+
+// static
+WebUIBrowserWindow* WebUIBrowserWindow::FromBrowser(
+    BrowserWindowInterface* browser) {
+  // Implement the non-const overload in terms of the const one and cast the
+  // constness back off. Safe because the caller supplied a non-const browser.
+  // See //styleguide/c++/const.md#classes-of-const-in_correctness.
+  return const_cast<WebUIBrowserWindow*>(
+      FromBrowser(static_cast<const BrowserWindowInterface*>(browser)));
 }
 
 // static
@@ -257,6 +296,8 @@ void WebUIBrowserWindow::Show() {
   // which calls PaintAsActiveChanged() -> Browser::DidBecomeActive(). The
   // Browser must be fully constructed by that point.
   web_view_->GetWebContents()->SetInitialFocus();
+
+  EnsureActiveTabHasNonZeroSize();
 }
 
 // The code about Browser's activation state is copied from
@@ -267,6 +308,44 @@ void WebUIBrowserWindow::PaintAsActiveChanged() {
   } else {
     browser_->DidBecomeInactive();
   }
+  if (webui_browser::mojom::Page* page = GetWebUIBrowserUI()->page()) {
+    page->OnPaintAsActiveChanged(widget_->ShouldPaintAsActive());
+  }
+}
+
+// In BrowserView when a new window is opened, the active tab's
+// initial size is determined synchronously during the window's layout in the
+// browser process.
+//
+// In contrast, the WebUI Browser's UI is hosted as a WebUI page in a separate
+// renderer process, and the tab WebContents is embedded inside it. Sizing of
+// the tab is determined asynchronously when the WebUI layout finishes. As a
+// result, the tab initially has a size of 0x0. CDP clients can query the page
+// while the document still has zero size, causing WPT tests to fail because the
+// zero-sized viewport is considered "non-interactive".
+//
+// To workaround this, we forcefully assign a non-zero initial size to the
+// active tab WebContents before clients can interact with it.
+void WebUIBrowserWindow::EnsureActiveTabHasNonZeroSize() {
+  content::WebContents* active_contents =
+      browser_->tab_strip_model()->GetActiveWebContents();
+  if (!active_contents) {
+    return;
+  }
+
+  if (!active_contents->GetSize().IsZero()) {
+    return;
+  }
+
+  gfx::Size size = GetContentsSize();
+  // The content size is determined by the WebUI layout. If the layout is
+  // not yet available during browser startup, fallback to the restored bounds
+  // of the window.
+  if (size.IsEmpty()) {
+    size = GetRestoredBounds().size();
+  }
+
+  active_contents->Resize(gfx::Rect(size));
 }
 
 void WebUIBrowserWindow::ShowInactive() {
@@ -363,16 +442,16 @@ ui::NativeTheme* WebUIBrowserWindow::GetNativeTheme() {
 
 const ui::ThemeProvider* WebUIBrowserWindow::GetThemeProvider() const {
   // Copied from BrowserWidget::GetThemeProvider().
-  auto* app_controller = browser_->app_controller();
+  auto* app_controller = web_app::AppBrowserController::From(browser_);
   // Ignore the system theme for web apps with window-controls-overlay as the
   // display_override so the web contents can blend with the overlay by using
   // the developer-provided theme color for a better experience. Context:
   // https://crbug.com/40771982.
-  if (app_controller && (!IsUsingLinuxSystemTheme(browser_->profile()) ||
+  if (app_controller && (!IsUsingLinuxSystemTheme(browser_->GetProfile()) ||
                          app_controller->AppUsesWindowControlsOverlay())) {
     return app_controller->GetThemeProvider();
   }
-  return &ThemeService::GetThemeProviderForProfile(browser_->profile());
+  return &ThemeService::GetThemeProviderForProfile(browser_->GetProfile());
 }
 
 const ui::ColorProvider* WebUIBrowserWindow::GetColorProvider() const {
@@ -380,23 +459,30 @@ const ui::ColorProvider* WebUIBrowserWindow::GetColorProvider() const {
       GetColorProviderKey());
 }
 
+float WebUIBrowserWindow::GetScaleFactor() const {
+  return web_contents_delegate_->web_contents()
+      ->GetWebUI()
+      ->GetDeviceScaleFactor();
+}
+
 ui::ColorProviderKey::ThemeInitializerSupplier*
 WebUIBrowserWindow::GetThemeInitializerSupplier() const {
   // Do not return any custom theme if this is an incognito browser.
-  if (browser_->profile()->IsIncognitoProfile()) {
+  if (browser_->GetProfile()->IsIncognitoProfile()) {
     return nullptr;
   }
 
-  auto* app_controller = browser_->app_controller();
+  auto* app_controller = web_app::AppBrowserController::From(browser_);
   // Ignore the system theme for web apps with window-controls-overlay as the
   // display_override so the web contents can blend with the overlay by using
   // the developer-provided theme color for a better experience. Context:
   // https://crbug.com/40771982.
-  if (app_controller && (!IsUsingLinuxSystemTheme(browser_->profile()) ||
+  if (app_controller && (!IsUsingLinuxSystemTheme(browser_->GetProfile()) ||
                          app_controller->AppUsesWindowControlsOverlay())) {
     return app_controller->GetThemeSupplier();
   }
-  auto* theme_service = ThemeServiceFactory::GetForProfile(browser_->profile());
+  auto* theme_service =
+      ThemeServiceFactory::GetForProfile(browser_->GetProfile());
   return theme_service->UsingDeviceTheme() ? nullptr
                                            : theme_service->GetThemeSupplier();
 }
@@ -405,23 +491,23 @@ ui::ColorProviderKey WebUIBrowserWindow::GetColorProviderKey() const {
   auto key = ui::NativeTheme::GetInstanceForNativeUi()->GetColorProviderKey(
       GetThemeInitializerSupplier());
 
-  key.app_controller = browser_->app_controller();
+  key.app_controller = web_app::AppBrowserController::From(browser_);
 
 #if BUILDFLAG(IS_CHROMEOS)
   // ChromeOS SystemWebApps use the OS theme all the time.
-  if (ash::IsSystemWebApp(browser_)) {
+  if (web_app::GetSystemWebAppType(browser_).has_value()) {
     return key;
   }
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
   const auto* theme_service =
-      ThemeServiceFactory::GetForProfile(browser_->profile());
+      ThemeServiceFactory::GetForProfile(browser_->GetProfile());
   CHECK(theme_service);
 
   // Determine appropriate key.color_mode.
   [this, &key, theme_service]() {
     // Currently the incognito browser is implemented as unthemed dark mode.
-    if (browser_->profile()->IsIncognitoProfile()) {
+    if (browser_->GetProfile()->IsIncognitoProfile()) {
       key.color_mode = ui::ColorProviderKey::ColorMode::kDark;
       return;
     }
@@ -446,7 +532,7 @@ ui::ColorProviderKey WebUIBrowserWindow::GetColorProviderKey() const {
   }
 
   // Determine appropriate key.user_color_source.
-  if (browser_->profile()->IsIncognitoProfile()) {
+  if (browser_->GetProfile()->IsIncognitoProfile()) {
     key.user_color_source = ui::ColorProviderKey::UserColorSource::kGrayscale;
   } else if (theme_service->UsingDeviceTheme()) {
     key.user_color_source = ui::ColorProviderKey::UserColorSource::kAccent;
@@ -495,6 +581,11 @@ ui::RendererColorMap WebUIBrowserWindow::GetRendererColorMap(
 bool WebUIBrowserWindow::GetAcceleratorForCommandId(
     int command_id,
     ui::Accelerator* accelerator) const {
+#if BUILDFLAG(IS_MAC)
+  if (GetDefaultMacAcceleratorForCommandId(command_id, accelerator)) {
+    return true;
+  }
+#endif
   // Search for the accelerator in our table.
   for (const auto& entry : accelerator_table_) {
     if (entry.second == command_id) {
@@ -573,8 +664,8 @@ void WebUIBrowserWindow::LoadAccelerators() {
   const bool is_app_mode = IsRunningInForcedAppMode();
 #if BUILDFLAG(IS_CHROMEOS)
   const bool is_captive_portal_signin_window =
-      browser_->profile()->IsOffTheRecord() &&
-      browser_->profile()->GetOTRProfileID().IsCaptivePortal();
+      browser_->GetProfile()->IsOffTheRecord() &&
+      browser_->GetProfile()->GetOTRProfileID().IsCaptivePortal();
 #endif
   for (const auto& entry : GetAcceleratorList()) {
     // In app mode, only allow accelerators of allowlisted commands to pass
@@ -654,19 +745,6 @@ void WebUIBrowserWindow::UpdateLoadingAnimations(bool is_visible) {
   NOTIMPLEMENTED_LOG_ONCE();
 }
 
-void WebUIBrowserWindow::SetStarredState(bool is_starred) {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
-
-bool WebUIBrowserWindow::IsTabModalPopupDeprecated() const {
-  NOTIMPLEMENTED_LOG_ONCE();
-  return false;
-}
-
-void WebUIBrowserWindow::SetIsTabModalPopupDeprecated(
-    bool is_tab_modal_popup_deprecated) {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
 
 void WebUIBrowserWindow::OnActiveTabChanged(content::WebContents* old_contents,
                                             content::WebContents* new_contents,
@@ -865,7 +943,6 @@ ShowTranslateBubbleResult WebUIBrowserWindow::ShowTranslateBubble(
   return ShowTranslateBubbleResult::kBrowserWindowNotValid;
 }
 
-
 DownloadBubbleUIController*
 WebUIBrowserWindow::GetDownloadBubbleUIController() {
   NOTIMPLEMENTED_LOG_ONCE();
@@ -874,7 +951,7 @@ WebUIBrowserWindow::GetDownloadBubbleUIController() {
 
 void WebUIBrowserWindow::ConfirmBrowserCloseWithPendingDownloads(
     int download_count,
-    Browser::DownloadCloseType dialog_type,
+    UnloadController::DownloadCloseType dialog_type,
     base::OnceCallback<void(bool)> callback) {
   NOTIMPLEMENTED_LOG_ONCE();
 }
@@ -1113,8 +1190,7 @@ bool WebUIBrowserWindow::IsFullscreen() const {
 }
 
 gfx::Rect WebUIBrowserWindow::GetRestoredBounds() const {
-  NOTIMPLEMENTED_LOG_ONCE();
-  return gfx::Rect();
+  return widget_->GetRestoredBounds();
 }
 
 ui::mojom::WindowShowState WebUIBrowserWindow::GetRestoredState() const {
@@ -1140,7 +1216,7 @@ void WebUIBrowserWindow::OnWindowCloseRequested(
 
   // Give beforeunload handlers, the user, or policy the chance to cancel the
   // close before we hide the window below.
-  if (!browser_->HandleBeforeClose()) {
+  if (!UnloadController::From(browser_)->HandleBeforeClose()) {
     // Need to reset the synchronous close callback after each Close() call as
     // it's reset once used.  Close() is generally called twice during shutdown.
     widget_->MakeCloseSynchronous(base::BindOnce(
@@ -1148,7 +1224,7 @@ void WebUIBrowserWindow::OnWindowCloseRequested(
     return;
   }
 
-  browser_->OnWindowClosing();
+  UnloadController::From(browser_)->OnWindowClosing();
   if (!browser_->tab_strip_model()->empty()) {
     // Tab strip isn't empty.  Hide the frame (so it appears to have closed
     // immediately) and close all the tabs, allowing the renderers to shut
@@ -1162,9 +1238,15 @@ WebUIBrowserWindow::WidgetDelegate::WidgetDelegate(
     WebUIBrowserWebContentsDelegate* web_contents_delegate)
     : browser_window_(window), web_contents_delegate_(web_contents_delegate) {
   // TODO(webium): May want to override these for Apps or Picture-in-picture.
-  SetCanResize(browser_window_->browser_->create_params().can_resize);
-  SetCanMaximize(browser_window_->browser_->create_params().can_maximize);
-  SetCanFullscreen(browser_window_->browser_->create_params().can_fullscreen);
+  SetCanResize(BrowserInitState::From(&*browser_window_->browser_)
+                   ->create_params()
+                   .can_resize);
+  SetCanMaximize(BrowserInitState::From(&*browser_window_->browser_)
+                     ->create_params()
+                     .can_maximize);
+  SetCanFullscreen(BrowserInitState::From(&*browser_window_->browser_)
+                       ->create_params()
+                       .can_fullscreen);
   SetCanMinimize(true);
 }
 
@@ -1177,8 +1259,8 @@ views::ClientView* WebUIBrowserWindow::WidgetDelegate::CreateClientView(
 std::u16string WebUIBrowserWindow::WidgetDelegate::GetWindowTitle() const {
   // TODO(webium):  BrowserView::GetWindowTitle() has some magic for media
   // on Mac.
-  return browser_window_->browser()->GetWindowTitleForCurrentTab(
-      true /* include_app_name */);
+  return WindowMetadataController::From(browser_window_->browser())
+      ->GetWindowTitleForCurrentTab(true /* include_app_name */);
 }
 
 bool WebUIBrowserWindow::WidgetDelegate::ShouldDescendIntoChildForEventHandling(

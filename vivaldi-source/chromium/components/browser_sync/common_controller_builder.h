@@ -25,7 +25,6 @@ class PrefService;
 class SharingMessageBridge;
 class TemplateURLService;
 
-
 namespace account_settings {
 class AccountSettingService;
 }  // namespace account_settings
@@ -66,6 +65,10 @@ class FaviconService;
 namespace history {
 class HistoryService;
 }  // namespace history
+
+namespace notebooks {
+class NotebooksService;
+}  // namespace notebooks
 
 namespace password_manager {
 class PasswordReceiverService;
@@ -109,6 +112,10 @@ class PrefServiceSyncable;
 namespace sync_sessions {
 class SessionSyncService;
 }  // namespace sync_sessions
+
+namespace sync_tab_context {
+class TabContextSyncService;
+}  // namespace sync_tab_context
 
 namespace syncer {
 class DeviceInfoSyncService;
@@ -184,6 +191,7 @@ class CommonControllerBuilder {
   void SetDataTypeStoreService(
       syncer::DataTypeStoreService* data_type_store_service);
   void SetSkillsService(skills::SkillsService* skills_service);
+  void SetNotebooksService(notebooks::NotebooksService* notebooks_service);
 
 #if !BUILDFLAG(IS_ANDROID)
   void SetPasskeyModel(webauthn::PasskeyModel* passkey_model);
@@ -213,6 +221,8 @@ class CommonControllerBuilder {
                                        send_tab_to_self_sync_service);
   void SetSessionSyncService(
       sync_sessions::SessionSyncService* session_sync_service);
+  void SetTabContextSyncService(
+      sync_tab_context::TabContextSyncService* tab_context_sync_service);
   void SetSharingMessageBridge(SharingMessageBridge* sharing_message_bridge);
 
 #if BUILDFLAG(ENABLE_SUPERVISED_USERS)
@@ -293,6 +303,12 @@ class CommonControllerBuilder {
   std::unique_ptr<syncer::DataTypeController>
   CreateSharedTabGroupDataTypeController(syncer::SyncService* sync_service);
   std::unique_ptr<syncer::DataTypeController>
+  CreateEncryptedTabContextContainerDataTypeController(
+      syncer::SyncService* sync_service);
+  std::unique_ptr<syncer::DataTypeController>
+  CreateEncryptedTabContextItemDataTypeController(
+      syncer::SyncService* sync_service);
+  std::unique_ptr<syncer::DataTypeController>
   CreateSharingMessageDataTypeController();
   std::unique_ptr<syncer::DataTypeController>
   CreateReadingListDataTypeController();
@@ -321,8 +337,11 @@ class CommonControllerBuilder {
   CreateGeminiThreadDataTypeController();
   std::unique_ptr<syncer::DataTypeController>
   CreateContextualTaskDataTypeController();
+  std::unique_ptr<syncer::DataTypeController>
+  CreateNotebookDataTypeController();
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
-  std::unique_ptr<syncer::DataTypeController> CreateSkillDataTypeController();
+  std::unique_ptr<syncer::DataTypeController> CreateSkillDataTypeController(
+      syncer::SyncService* sync_service);
 #endif
 #if !BUILDFLAG(IS_ANDROID)
   std::unique_ptr<syncer::DataTypeController>
@@ -439,8 +458,11 @@ class CommonControllerBuilder {
   SafeOptional<raw_ptr<SharingMessageBridge>> sharing_message_bridge_;
   SafeOptional<raw_ptr<tab_groups::TabGroupSyncService>>
       tab_group_sync_service_;
+  SafeOptional<raw_ptr<sync_tab_context::TabContextSyncService>>
+      tab_context_sync_service_;
   SafeOptional<raw_ptr<TemplateURLService>> template_url_service_;
   SafeOptional<raw_ptr<skills::SkillsService>> skills_service_;
+  SafeOptional<raw_ptr<notebooks::NotebooksService>> notebooks_service_;
 
   // Vivaldi
   SafeOptional<raw_ptr<sync_notes::NoteSyncService>> note_sync_service_;

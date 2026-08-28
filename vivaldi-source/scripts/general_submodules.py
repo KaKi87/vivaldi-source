@@ -30,6 +30,7 @@ cipd_pick_list = [
   "third_party/test_fonts/test_fonts",
   "third_party/siso/cipd",
   "third_party/gperf/cipd",
+  "buildtools/third_party/mold/cipd",
   # Dawn module
   "tools/golang/linux-amd64",
   "tools/golang/linux-arm64",
@@ -85,6 +86,9 @@ excluded_modules = [
   "third_party/node/mac_arm64",
   "third_party/node/win",
   "third_party/aria-practices/src",
+  "third_party/fadec/src",
+  "third_party/disarm/src",
+  "third_party/pipewire/src",
   ]
 
 include_recursive_deps = [

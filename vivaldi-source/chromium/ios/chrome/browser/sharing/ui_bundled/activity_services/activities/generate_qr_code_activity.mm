@@ -57,7 +57,7 @@ NSString* const kGenerateQrCodeActivityType =
     return CustomSymbolWithPointSize(vMenuQRCode,
                                      kSymbolActionPointSize);  // End Vivaldi
 
-  return DefaultSymbolWithPointSize(kQRCodeSymbol, kSymbolActionPointSize);
+  return SymbolWithPointSize(SymbolQRCode, kSymbolActionPointSize);
 }
 
 - (BOOL)canPerformWithActivityItems:(NSArray*)activityItems {

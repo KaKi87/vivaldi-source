@@ -45,7 +45,7 @@ class WebAppIconManagerBrowserTest : public WebAppBrowserTestBase {
   ~WebAppIconManagerBrowserTest() override = default;
 
   void SetUpOnMainThread() override {
-    Profile* profile = browser()->profile();
+    Profile* profile = browser()->GetProfile();
     app_service_test_.SetUp(profile);
     web_app::test::WaitUntilReady(WebAppProvider::GetForTest(profile));
     WebAppBrowserTestBase::SetUpOnMainThread();
@@ -79,7 +79,7 @@ IN_PROC_BROWSER_TEST_F(WebAppIconManagerBrowserTest, SingleIcon) {
 
     base::RunLoop run_loop;
 
-    auto* provider = WebAppProvider::GetForTest(browser()->profile());
+    auto* provider = WebAppProvider::GetForTest(browser()->GetProfile());
     provider->scheduler().InstallFromInfoNoIntegrationForTesting(
         std::move(install_info),
         /*overwrite_existing_manifest_fields=*/false,
@@ -101,8 +101,9 @@ IN_PROC_BROWSER_TEST_F(WebAppIconManagerBrowserTest, SingleIcon) {
   Browser* app_browser = LaunchWebAppBrowser(app_id);
   run_loop.Run();
 
-  gfx::ImageSkia app_icon =
-      app_browser->app_controller()->GetWindowAppIcon().Rasterize(nullptr);
+  gfx::ImageSkia app_icon = web_app::AppBrowserController::From(app_browser)
+                                ->GetWindowAppIcon()
+                                .Rasterize(nullptr);
 
 #if BUILDFLAG(IS_CHROMEOS)
   gfx::ImageSkia image_skia =

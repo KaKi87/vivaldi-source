@@ -21,6 +21,7 @@
 <translation id="1728677426644403582">Stai visualizzando l'origine di una pagina web</translation>
 <translation id="1734878702283171397">Prova a contattare l'amministratore di sistema.</translation>
 <translation id="1768211456781949159"><ph name="BEGIN_LINK" />Prova ad eseguire la diagnostica di rete di Windows<ph name="END_LINK" />.</translation>
+<translation id="1932098463447129402">Non prima</translation>
 <translation id="1974060860693918893">Avanzate</translation>
 <translation id="2032962459168915086"><ph name="BEGIN_LINK" />Controllare il proxy e il firewall<ph name="END_LINK" /></translation>
 <translation id="2048261947532620704">Traduzione della pagina</translation>
@@ -39,11 +40,12 @@
 <translation id="2467694685043708798"><ph name="BEGIN_LINK" />Eseguire la diagnostica di rete<ph name="END_LINK" /></translation>
 <translation id="2491414235131909199">Questa pagina è stata bloccata da un'estensione</translation>
 <translation id="255002559098805027"><ph name="HOST_NAME" /> ha inviato una risposta non valida.</translation>
+<translation id="2607101320794533334">Soggetto info chiave pubblica</translation>
 <translation id="2634124572758952069">Impossibile trovare l'indirizzo IP del server di <ph name="HOST_NAME" />.</translation>
-<translation id="2649204054376361687"><ph name="CITY" />, <ph name="COUNTRY" /></translation>
 <translation id="2650446666397867134">L'accesso al file è stato negato</translation>
 <translation id="2705137772291741111">La copia del sito salvata (nella cache) era illeggibile.</translation>
 <translation id="2730326759066348565"><ph name="BEGIN_LINK" />Eseguire lo strumento Diagnostica della connettività<ph name="END_LINK" /></translation>
+<translation id="2738771556149464852">Non dopo</translation>
 <translation id="2784949926578158345">La connessione è stata reimpostata.</translation>
 <translation id="2826760142808435982">La connessione è crittografata e autenticata utilizzando <ph name="CIPHER" /> e usa <ph name="KX" /> come meccanismo di scambio della chiave.</translation>
 <translation id="290376772003165898">La pagina non è in <ph name="LANGUAGE" />?</translation>
@@ -69,8 +71,8 @@
 <translation id="3447884698081792621">Mostra certificato (rilasciato da <ph name="ISSUER" />)</translation>
 <translation id="3462200631372590220">Nascondi avanzate</translation>
 <translation id="3484560055331845446">Potresti perdere l'accesso al tuo Account Google. Ti consigliamo di cambiare subito la password. Ti sarà chiesto di accedere.</translation>
+<translation id="3493881266323043047">Validità</translation>
 <translation id="3566021033012934673">La connessione non è privata</translation>
-<translation id="3574305903863751447"><ph name="CITY" />, <ph name="STATE" /> <ph name="COUNTRY" /></translation>
 <translation id="3586931643579894722">Nascondi dettagli</translation>
 <translation id="3614001939154393113">Gli aggressori potrebbero tentare di rubare le tue informazioni <ph name="BEGIN_BOLD" /><ph name="SITE" /><ph name="END_BOLD" /> (ad esempio password, messaggi o carte di credito). <ph name="BEGIN_LEARN_MORE_LINK" />Per saperne di più su questo avviso<ph name="END_LEARN_MORE_LINK" /></translation>
 <translation id="3630155396527302611">Se è già elencato come programma autorizzato ad accedere alla rete, prova a
@@ -78,18 +80,17 @@
 <translation id="3658742229777143148">Revisione</translation>
 <translation id="3681007416295224113">Informazioni certificato</translation>
 <translation id="3717027428350673159"><ph name="BEGIN_LINK" />Controllare la configurazione del proxy, firewall e DNS<ph name="END_LINK" /></translation>
+<translation id="3798449238516105146">Versione</translation>
 <translation id="382518646247711829">Se utilizzi un server proxy...</translation>
 <translation id="3950820424414687140">Accedi</translation>
 <translation id="3973234410852337861"><ph name="HOST_NAME" /> è bloccato</translation>
 <translation id="3987940399970879459">Meno di 1 MB</translation>
 <translation id="4075123085690634698">Apri pagina in una nuova finestra privata (⇧⌘N)</translation>
 <translation id="4075732493274867456">Il client e il server non supportano una versione comune del protocollo SSL o un pacchetto di crittografia.</translation>
-<translation id="4116663294526079822">Consenti sempre su questo sito</translation>
 <translation id="4130226655945681476">Controllare i cavi di rete, il modem e il router</translation>
 <translation id="4165986682804962316">Impostazioni sito</translation>
 <translation id="4203896806696719780"><ph name="BEGIN_LINK" />Controllare le configurazioni del firewall e antivirus<ph name="END_LINK" /></translation>
 <translation id="4226937834893929579"><ph name="BEGIN_LINK" />Prova ad eseguire la diagnostica di rete<ph name="END_LINK" />.</translation>
-<translation id="4235360514405112390">Valido</translation>
 <translation id="4241830393007970744">Gli utenti malintenzionati sul sito che hai cercato di visitare potrebbero indurti con l'inganno a installare software o a rivelare informazioni come password, numeri di telefono o delle carte di credito.</translation>
 <translation id="4250431568374086873">La connessione a questo sito non è completamente sicura</translation>
 <translation id="4265872034478892965">Consentita dall'amministratore</translation>
@@ -112,11 +113,11 @@
 <translation id="5023310440958281426">Consulta le norme dell'amministratore</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Controllare l'indirizzo proxy<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(a 64 bit)</translation>
+<translation id="5154702632169343078">Oggetto</translation>
 <translation id="5216942107514965959">Ultima visita oggi</translation>
 <translation id="5355557959165512791">Al momento non puoi visitare il sito <ph name="SITE" /> perché il relativo certificato è stato revocato. Errori di rete e attacchi sono in genere temporanei, quindi questa pagina probabilmente funzionerà più tardi.</translation>
 <translation id="5386426401304769735">La catena di certificati per questo sito contiene un certificato firmato usando SHA-1.</translation>
 <translation id="5452270690849572955">Impossibile trovare la pagina di <ph name="HOST_NAME" /></translation>
-<translation id="5457113250005438886">Non valido</translation>
 <translation id="5492298309214877701">Il sito nell'Intranet dell'azienda, dell'organizzazione o della scuola ha lo stesso URL del sito web esterno.
     <ph name="LINE_BREAK" />
     Prova a contattare l'amministratore di sistema.</translation>
@@ -129,6 +130,7 @@
 <translation id="5799902971440853357">Non puoi visitare <ph name="SITE" /> in questo momento perché il sito web ha restituito credenziali scombinate che Vivaldi non può processare. Errori di rete e attacchi sono in genere temporanei, quindi questa pagina probabilmente funzionerà più tardi.</translation>
 <translation id="5810442152076338065">La connessione a <ph name="DOMAIN" /> è crittografato tramite un pacchetto di crittografia obsoleto.</translation>
 <translation id="5838278095973806738">Non dovresti inserire dati sensibili in questo sito (ad esempio password o carte di credito) perché potrebbero essere rubati da utenti malintenzionati.</translation>
+<translation id="5851868085455377790">Emittente</translation>
 <translation id="5863515189965725638">Modifica IBAN</translation>
 <translation id="5869405914158311789">Impossibile raggiungere il sito</translation>
 <translation id="5932224571077948991">Il sito mostra annunci invasivi o fuorvianti</translation>
@@ -160,20 +162,16 @@
 <translation id="6957624206566198865">Apri pagina in una nuova scheda privata</translation>
 <translation id="7096937462164235847">L'identità di questo sito web non è verificata.</translation>
 <translation id="7108819624672055576">Consentita da un'estensione</translation>
-<translation id="7111012039238467737">(Valido)</translation>
 <translation id="7126644664682723998">Incolla e cerca</translation>
 <translation id="7210863904660874423"><ph name="HOST_NAME" /> non è conforme agli standard di sicurezza.</translation>
 <translation id="7219179957768738017">La connessione utilizza <ph name="SSL_VERSION" />.</translation>
 <translation id="7221855153210829124">Mostrare notifiche</translation>
 <translation id="7353601530677266744">Riga di comando</translation>
 <translation id="7419106976560586862">Percorso profilo</translation>
-<translation id="7455133967321480974">Usa predefinita globale (Blocca)</translation>
 <translation id="7518003948725431193">Nessuna pagina web trovata per l'indirizzo web: <ph name="URL" /></translation>
 <translation id="7549584377607005141">Questa pagina web richiede dati che hai inserito in precedenza per poter essere visualizzata correttamente. Puoi inviare di nuovo i dati, ma in questo caso ripeterai l'azione precedentemente eseguita nella pagina.</translation>
 <translation id="759889825892636187"><ph name="HOST_NAME" /> al momento non è in grado di gestire la richiesta.</translation>
 <translation id="7662298039739062396">Impostazione controllata da un'estensione</translation>
-<translation id="7663736086183791259">Certificato <ph name="CERTIFICATE_VALIDITY" /></translation>
-<translation id="7714464543167945231">Certificato</translation>
 <translation id="7716147886133743102">Bloccata dall'amministratore</translation>
 <translation id="7716424297397655342">Impossibile caricare il sito dalla cache</translation>
 <translation id="773466115871691567">Traduci sempre le pagine in <ph name="SOURCE_LANGUAGE" /></translation>
@@ -183,15 +181,12 @@
 <translation id="7878562273885520351">La tua password potrebbe essere compromessa</translation>
 <translation id="7951415247503192394">(a 32 bit)</translation>
 <translation id="7953236668995583915">Ricarica questa pagina per applicare a questo sito le impostazioni aggiornate</translation>
-<translation id="8041940743680923270">Usa predefinita globale (Chiedi)</translation>
 <translation id="8076492880354921740">Schede</translation>
 <translation id="808894953321890993">Cambia password</translation>
 <translation id="8149426793427495338">Il computer è entrato in modalità sospensione.</translation>
 <translation id="8150722005171944719">Il file all'indirizzo <ph name="URL" /> non è leggibile. Potrebbe essere stato rimosso, spostato oppure delle autorizzazioni del file potrebbero impedire l'accesso.</translation>
-<translation id="8184538546369750125">Usa predefinita globale (Consenti)</translation>
 <translation id="8211406090763984747">La connessione è sicura</translation>
 <translation id="8241707690549784388">La pagina che stai cercando utilizza informazioni già inserite. Tornare a quella pagina potrebbe far sì che ogni azione già effettuata venga ripetuta. Vuoi continuare?</translation>
-<translation id="8241712895048303527">Blocca su questo sito</translation>
 <translation id="8286036467436129157">Accedi</translation>
 <translation id="8288807391153049143">Mostra certificato</translation>
 <translation id="8289355894181816810">Contatta l'amministratore di rete se non sei sicuro del significato.</translation>
@@ -200,19 +195,18 @@
 <translation id="8498891568109133222"><ph name="HOST_NAME" /> ha impiegato troppo tempo a rispondere.</translation>
 <translation id="8503813439785031346">Nome utente</translation>
 <translation id="8703575177326907206">La connessione a <ph name="DOMAIN" /> non è crittografata.</translation>
+<translation id="8705331520020532516">Numero seriale</translation>
 <translation id="8740359287975076522"><ph name="HOST_NAME" />&lt;abbr id="dnsDefinition"&gt; all'indirizzo DNS &lt;/abbr&gt; non è stato trovato. Stiamo analizzando il problema.</translation>
 <translation id="8820817407110198400">Segnalibri</translation>
 <translation id="8963117664422609631">Vai alle Impostazioni sito</translation>
 <translation id="8975012916872825179">Include informazioni come numeri di telefono, indirizzi email e indirizzi di spedizione</translation>
 <translation id="9001074447101275817">Il proxy <ph name="DOMAIN" /> richiede un nome utente e una password.</translation>
 <translation id="9008201768610948239">Ignora</translation>
-<translation id="9025348182339809926">(Non valido)</translation>
 <translation id="9039213469156557790">Inoltre, questa pagina include altre risorse che non sono sicure. Tali risorse possono essere visualizzate da altri durante il transito dei dati e possono essere modificate da un utente malintenzionato al fine di modificare il comportamento della pagina.</translation>
 <translation id="9062620674789239642">Potrebbe essere stato spostato, modificato o eliminato.</translation>
 <translation id="9069693763241529744">Bloccata da un'estensione</translation>
 <translation id="9073799351042754113">Hai scelto di disattivare gli avvisi di sicurezza per questo sito.</translation>
 <translation id="9168814207360376865">Consenti ai siti di verificare se hai metodi di pagamento salvati</translation>
-<translation id="9169664750068251925">Blocca sempre su questo sito</translation>
 <translation id="9183425211371246419"><ph name="HOST_NAME" /> utilizza un protocollo non supportato.</translation>
 <translation id="936602727769022409">Potresti perdere l'accesso al tuo account Google. Chromium consiglia di cambiare subito la tua password. Ti sarà chiesto di effettuare l'accesso.</translation>
 <translation id="969892804517981540">Versione ufficiale</translation>

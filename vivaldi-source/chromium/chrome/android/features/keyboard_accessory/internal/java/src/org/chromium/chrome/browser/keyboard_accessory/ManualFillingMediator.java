@@ -59,6 +59,7 @@ import org.chromium.chrome.browser.keyboard_accessory.sheet_tabs.AccessorySheetT
 import org.chromium.chrome.browser.keyboard_accessory.sheet_tabs.AddressAccessorySheetCoordinator;
 import org.chromium.chrome.browser.keyboard_accessory.sheet_tabs.CreditCardAccessorySheetCoordinator;
 import org.chromium.chrome.browser.keyboard_accessory.sheet_tabs.PasswordAccessorySheetCoordinator;
+import org.chromium.chrome.browser.keyboard_accessory.utils.ManualFillingMetricsRecorder;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
@@ -91,6 +92,7 @@ import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.base.ViewportInsets;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.display.DisplayUtil;
+import org.chromium.ui.edge_to_edge.EdgeToEdgeStateProvider;
 import org.chromium.ui.modaldialog.DialogDismissalCause;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -241,6 +243,7 @@ class ManualFillingMediator
         assert mActivity != null;
         mWindowAndroid = windowAndroid;
         mKeyboardAccessory = keyboardAccessory;
+        mKeyboardAccessory.setAtMemoryCallback(this::onAtMemoryClicked);
         mBottomSheetController = sheetController;
         mIsContextualSearchOpened = isContextualSearchOpened;
         mSoftKeyboardDelegate = keyboardDelegate;
@@ -420,6 +423,9 @@ class ManualFillingMediator
         mBackPressManager = null;
         mWindowAndroid = null;
         mActivity = null;
+        // The dialog holds the Activity as its Context; clear it to avoid leaking the Activity.
+        mActionConfirmationDialog = null;
+        mConfirmationDialogDismissHandler = null;
     }
 
     boolean onBackPressed() {
@@ -496,9 +502,13 @@ class ManualFillingMediator
         hideSoftKeyboard();
     }
 
-    void setAtMemoryCallback(Runnable callback) {
-        if (mKeyboardAccessory != null) {
-            mKeyboardAccessory.setAtMemoryCallback(callback);
+    private void onAtMemoryClicked() {
+        WebContents webContents = mActivity.getCurrentWebContents();
+        if (webContents != null && !webContents.isDestroyed()) {
+            ManualFillingMetricsRecorder.recordActionSelected(
+                    AccessoryAction.SHOW_AT_MEMORY_BOTTOMSHEET);
+            ManualFillingComponentBridge.onOptionSelectedForWebContents(
+                    webContents, AccessoryAction.SHOW_AT_MEMORY_BOTTOMSHEET);
         }
     }
 
@@ -914,13 +924,9 @@ class ManualFillingMediator
                     Math.round(
                             mModel.get(FIELD_BOUNDS).left
                                     * mWindowAndroid.getDisplay().getDipScale());
-            @Px
-            int offset =
-                    mActivity
-                            .getResources()
-                            .getDimensionPixelSize(
-                                    R.dimen
-                                            .keyboard_accessory_bar_dynamic_positioning_horizontal_margin);
+            final int marginResId =
+                    R.dimen.keyboard_accessory_bar_dynamic_positioning_horizontal_margin;
+            @Px int offset = mActivity.getResources().getDimensionPixelSize(marginResId);
             return leftBound + offset;
         }
         return 0;
@@ -939,87 +945,106 @@ class ManualFillingMediator
         return (int) (MAXIMUM_BAR_WIDTH_PERCENTAGE * screenWidth);
     }
 
-    // TODO(crbug.com/469956054): Make this method more readable.
     private void updateStyleAndControlSpaceForState(int extensionState) {
         if (extensionState == WAITING_TO_REPLACE) return; // Don't change yet.
 
-        int newControlsOffset = 0;
-        if (isLargeFormFactor()
-                && ChromeFeatureList.isEnabled(
-                        ChromeFeatureList.AUTOFILL_ANDROID_DESKTOP_KEYBOARD_ACCESSORY_REVAMP)) {
-            if (requiresVisibleBar(extensionState)) {
-                mKeyboardAccessory.setStyle(
-                        KeyboardAccessoryStyle.createUndockedKeyboardAccessoryStyle(
-                                getHorizontalOffset(),
-                                getTopOffset(),
-                                getMaxWidth(),
-                                getNotchPositionForDynamicPositioning()));
-                mBottomInsetSupplier.set(0);
-                return;
-            }
-            if (requiresVisibleSheet(extensionState)
-                    && ChromeFeatureList.isEnabled(
+        boolean useUndockedLayout =
+                isLargeFormFactor()
+                        && ChromeFeatureList.isEnabled(
+                                ChromeFeatureList
+                                        .AUTOFILL_ANDROID_DESKTOP_KEYBOARD_ACCESSORY_REVAMP);
+
+        if (requiresVisibleSheet(extensionState)) {
+            boolean isDocked = !useUndockedLayout;
+            if (isDocked
+                    || ChromeFeatureList.isEnabled(
                             ChromeFeatureList
                                     .AUTOFILL_ANDROID_KEYBOARD_ACCESSORY_DYNAMIC_POSITIONING)) {
-                mAccessorySheet.setStyle(/* isDocked= */ false);
-                mBottomInsetSupplier.set(0);
-                return;
+                mAccessorySheet.setStyle(isDocked);
             }
-        }
-
-        int newControlsHeight = 0;
-        if (requiresVisibleBar(extensionState)) {
-            boolean isEdgeToEdgeActive = mEdgeToEdgeControllerSupplier.get() != null;
-            // TODO(crbug.com/41483806): Treat VirtualKeyboardMode.OVERLAYS_CONTENT like fullscreen?
-            if (mModel.get(IS_FULLSCREEN) // Hides UI and lets keyboard overlay webContents.
-                    // No need to set the controls height to 0 in edge-to-edge since the content
-                    // view will resize to account for the keyboard.
-                    && !isEdgeToEdgeActive) {
-                newControlsOffset = getKeyboardAndNavigationHeight();
-                // Don't resize the page because the keyboard does not doesn't do that either in
-                // fullscreen mode. It's overlaying the content and the accessory mimics that.
-                newControlsHeight = 0;
-            } else {
-                newControlsHeight = getBarHeightWithoutShadow();
-            }
-        }
-        if (requiresVisibleSheet(extensionState)) {
-            newControlsHeight +=
-                    mAccessorySheet.getHeight()
-                            - mActivity
-                                    .getResources()
-                                    .getDimensionPixelSize(R.dimen.toolbar_shadow_height);
-            newControlsOffset += mAccessorySheet.getHeight();
-            mAccessorySheet.setStyle(/* isDocked= */ true);
         }
 
         // Note(david@vivaldi.com): When toolbar is at the bottom we have other offsets.
+        int offset = mActivity.getResources().getDimensionPixelOffset(
+                org.chromium.chrome.R.dimen.tab_strip_height);
         if (!VivaldiUtils.isTopToolbarOn() && VivaldiUtils.isTabStripOn()
                 && !vivaldiIsMiniBarActive()) {
-            int offset = mActivity.getResources().getDimensionPixelOffset(
-                    org.chromium.chrome.R.dimen.tab_strip_height);
             if (VivaldiUtils.isTabStackVisible()) offset *= 2;
-            newControlsOffset = offset;
         }
 
         if (requiresVisibleBar(extensionState)) {
-            mKeyboardAccessory.setStyle(
-                    KeyboardAccessoryStyle.createDockedKeyboardAccessoryStyle(newControlsOffset));
+            mKeyboardAccessory.setStyle(getAccessoryStyle(extensionState, useUndockedLayout));
         }
 
         // Vivaldi VAB-12859
         if (!VivaldiUtils.isTopToolbarOn()) {
             if (vivaldiIsMiniBarActive()) {
-                vivaldiNotifyManualFillingHeight(newControlsHeight);
+                vivaldiNotifyManualFillingHeight(offset);
                 mBottomInsetSupplier.set(0);
                 return;
             }
-            vivaldiNotifyManualFillingHeight(newControlsHeight);
+            vivaldiNotifyManualFillingHeight(offset);
         }
 
         if (VivaldiUtils.isTopToolbarOn() || extensionState == HIDDEN) {
-            mBottomInsetSupplier.set(newControlsHeight);
+            mBottomInsetSupplier.set(offset);
         }
+        // End Vivaldi
+    }
+
+    private KeyboardAccessoryStyle getAccessoryStyle(
+            int extensionState, boolean useUndockedLayout) {
+        if (useUndockedLayout) {
+            return KeyboardAccessoryStyle.createUndockedKeyboardAccessoryStyle(
+                    getHorizontalOffset(),
+                    getTopOffset(),
+                    getMaxWidth(),
+                    getNotchPositionForDynamicPositioning());
+        }
+
+        int offset = 0;
+        if (isKeyboardOverlayingContent()) {
+            offset = getKeyboardAndNavigationHeight();
+        }
+        if (requiresVisibleSheet(extensionState)) {
+            offset += mAccessorySheet.getHeight();
+        }
+        return KeyboardAccessoryStyle.createDockedKeyboardAccessoryStyle(offset);
+    }
+
+    @SuppressWarnings("UnusedMethod") // Vivaldi
+    private int calculateControlsHeight(int extensionState, boolean useUndockedLayout) {
+        if (useUndockedLayout) {
+            return 0;
+        }
+
+        int inset = 0;
+        if (requiresVisibleBar(extensionState)) {
+            if (!isKeyboardOverlayingContent()) {
+                inset += getBarHeightWithoutShadow();
+            }
+        }
+        if (requiresVisibleSheet(extensionState)) {
+            int shadowHeight =
+                    mActivity.getResources().getDimensionPixelSize(R.dimen.toolbar_shadow_height);
+            inset += (mAccessorySheet.getHeight() - shadowHeight);
+        }
+        return inset;
+    }
+
+    // TODO(crbug.com/41483806): Treat VirtualKeyboardMode.OVERLAYS_CONTENT like fullscreen?
+    private boolean isKeyboardOverlayingContent() {
+        // Hides UI and lets keyboard overlay webContents.
+        // No need to set the controls height to 0 in edge-to-edge since the content
+        // view will resize to account for the keyboard.
+        // Don't resize the page because the keyboard doesn't do that either in
+        // fullscreen mode. It's overlaying the content and the accessory mimics that.
+        return mModel.get(IS_FULLSCREEN) && !isEdgeToEdgeActive();
+    }
+
+    private boolean isEdgeToEdgeActive() {
+        return mEdgeToEdgeControllerSupplier.get() != null
+                || EdgeToEdgeStateProvider.isEdgeToEdgeEnabledForWindow(mWindowAndroid);
     }
 
     private void onViewportInsetChanged(ViewportInsets newViewportInsets) {
@@ -1332,6 +1357,10 @@ class ManualFillingMediator
 
     PropertyModel getModelForTesting() {
         return mModel;
+    }
+
+    ActionConfirmationDialog getActionConfirmationDialogForTesting() {
+        return mActionConfirmationDialog;
     }
 
     @VisibleForTesting

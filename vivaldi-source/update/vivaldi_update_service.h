@@ -12,7 +12,7 @@
 #include "base/observer_list.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "components/keyed_service/core/keyed_service.h"
-#include "extensions/api/auto_update/auto_update_status.h"
+#include "extensions/api/autoupdate/auto_update_status.h"
 #include "vivaldi_update_model_observer.h"
 
 namespace base {

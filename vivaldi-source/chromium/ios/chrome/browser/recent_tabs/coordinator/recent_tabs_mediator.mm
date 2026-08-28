@@ -105,7 +105,7 @@ bool UserActionIsRequiredToHaveTabSyncWork(syncer::SyncService* sync_service) {
 }  // namespace
 
 @interface RecentTabsMediator () <AuthenticationServiceObserving,
-                                  IdentityManagerObserverBridgeDelegate,
+                                  IdentityManagerObserving,
                                   SyncedSessionsObserver,
 
                                   // Vivaldi
@@ -312,9 +312,9 @@ bool UserActionIsRequiredToHaveTabSyncWork(syncer::SyncService* sync_service) {
   [self refreshSessionsView];
 }
 
-#pragma mark - IdentityManagerObserverBridgeDelegate
+#pragma mark - IdentityManagerObserving
 
-- (void)onPrimaryAccountChanged:
+- (void)primaryAccountDidChange:
     (const signin::PrimaryAccountChangeEvent&)event {
   switch (event.GetEventTypeFor(signin::ConsentLevel::kSignin)) {
     case signin::PrimaryAccountChangeEvent::Type::kNone:
@@ -416,13 +416,7 @@ bool UserActionIsRequiredToHaveTabSyncWork(syncer::SyncService* sync_service) {
     [self.toolbarsMutator
         setToolbarConfiguration:
             [TabGridToolbarsConfiguration
-
-#if defined(VIVALDI_BUILD)
                 disabledConfigurationForPage:self.tabGridPage]];
-#else
-                disabledConfigurationForPage:TabGridPageRemoteTabs]];
-#endif // End Vivaldi
-
     return;
   }
 
@@ -443,12 +437,8 @@ bool UserActionIsRequiredToHaveTabSyncWork(syncer::SyncService* sync_service) {
   }
 
   TabGridToolbarsConfiguration* toolbarsConfiguration =
-#if defined(VIVALDI_BUILD)
       [[TabGridToolbarsConfiguration alloc] initWithPage:self.tabGridPage];
-#else
-      [[TabGridToolbarsConfiguration alloc] initWithPage:TabGridPageRemoteTabs];
-#endif // End Vivaldi
-  toolbarsConfiguration.doneButton = tabsInOtherGrid;
+  toolbarsConfiguration.exitTabGridButton = tabsInOtherGrid;
   toolbarsConfiguration.searchButton = YES;
   [self.toolbarsMutator setToolbarConfiguration:toolbarsConfiguration];
 }
@@ -492,9 +482,13 @@ bool UserActionIsRequiredToHaveTabSyncWork(syncer::SyncService* sync_service) {
   NOTREACHED() << "Should not be called in remote tabs.";
 }
 
-- (void)doneButtonTapped:(id)sender {
+- (void)exitTabGridButtonTapped:(id)sender {
   base::RecordAction(base::UserMetricsAction("MobileTabGridDone"));
   [self.tabGridHandler exitTabGrid];
+}
+
+- (void)exitSelectionButtonTapped:(id)sender {
+  NOTREACHED() << "Should not be called in remote tabs.";
 }
 
 - (void)newTabButtonTapped:(id)sender {

@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 #include "chrome/browser/ui/views/send_tab_to_self/send_tab_to_self_bubble_controller.h"
 
-#include <algorithm>
 #include <string_view>
 #include <vector>
 
@@ -12,25 +11,22 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/send_tab_to_self/send_tab_to_self_page_handler.h"
 #include "chrome/browser/send_tab_to_self/send_tab_to_self_util.h"
-#include "chrome/browser/sharing_hub/sharing_hub_features.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/sync/send_tab_to_self_sync_service_factory.h"
 #include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_actions.h"
-#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
-#include "chrome/browser/ui/page_action/page_action_icon_type.h"
 #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_util.h"
 #include "chrome/browser/ui/sharing_hub/sharing_hub_bubble_controller.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/views/send_tab_to_self/send_tab_to_self_bubble_view.h"
 #include "chrome/browser/ui/views/send_tab_to_self/send_tab_to_self_device_picker_bubble_view.h"
+#include "chrome/browser/ui/views/send_tab_to_self/send_tab_to_self_no_target_device_bubble_view.h"
 #include "chrome/browser/ui/views/send_tab_to_self/send_tab_to_self_promo_bubble_view.h"
 #include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions.h"
 #include "chrome/browser/user_education/user_education_service.h"
@@ -45,46 +41,21 @@
 #include "components/send_tab_to_self/target_device_info.h"
 #include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
-#include "components/strings/grit/components_strings.h"
 #include "components/sync/service/sync_service.h"
 #include "components/sync_device_info/device_info.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
-#include "ui/base/l10n/l10n_util.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
 #include "ui/base/window_open_disposition_utils.h"
 #include "ui/events/event.h"
-#include "ui/strings/grit/ui_strings.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 
 namespace send_tab_to_self {
 
-namespace {
-
-// TODO(crbug.com/492072882): Inefficiently fetches the whole sorted list just
-// to find one device by GUID. There should exist
-// SendTabToSelfModel::GetTargetDeviceInfo(guid)
-syncer::DeviceInfo::FormFactor GetFormFactorForDevice(
-    SendTabToSelfModel* model,
-    const std::string& target_device_guid) {
-  if (!model) {
-    return syncer::DeviceInfo::FormFactor::kUnknown;
-  }
-  const std::vector<TargetDeviceInfo> devices =
-      model->GetTargetDeviceInfoSortedList();
-  std::vector<TargetDeviceInfo>::const_iterator it = std::ranges::find(
-      devices, target_device_guid, &TargetDeviceInfo::cache_guid);
-  return it != devices.end() ? it->form_factor
-                             : syncer::DeviceInfo::FormFactor::kUnknown;
-}
-
-}  // namespace
-
 SendTabToSelfBubbleController::~SendTabToSelfBubbleController() {
   HideBubble();
 }
-
 
 void SendTabToSelfBubbleController::HideBubble() {
   if (send_tab_to_self_bubble_view_) {
@@ -92,11 +63,15 @@ void SendTabToSelfBubbleController::HideBubble() {
   }
 }
 
-void SendTabToSelfBubbleController::ShowBubble(bool show_back_button) {
+void SendTabToSelfBubbleController::ShowBubble(ShareEntryPoint entry_point,
+                                               bool show_back_button) {
   // Avoid re-creation if a bubble is already being shown for this controller.
   if (send_tab_to_self_bubble_view_) {
     return;
   }
+
+  entry_point_ = entry_point;
+  RecordEntryPointInvoked(entry_point);
 
   show_back_button_ = show_back_button;
 
@@ -168,18 +143,30 @@ void SendTabToSelfBubbleController::ShowBubbleWithAnchor(
     anchor = new_anchor;
   }
 
+  size_t device_count = 0;
+  if (reason == EntryPointDisplayReason::kOfferFeature) {
+    device_count = GetValidDevices().size();
+  }
+  // Note: `entry_point_` should always be populated here, since it's set in
+  // ShowBubble() which must've been called earlier. If it's not (e.g. in some
+  // unit tests), `kShareSheet` is used as a generic fallback.
+  RecordTargetDeviceCount(entry_point_.value_or(ShareEntryPoint::kShareSheet),
+                          reason, device_count);
+
   std::unique_ptr<SendTabToSelfBubbleView> bubble_view;
   switch (reason) {
     case send_tab_to_self::EntryPointDisplayReason::kOfferFeature:
       bubble_view = std::make_unique<SendTabToSelfDevicePickerBubbleView>(
           std::move(anchor.value()), &GetWebContents());
       break;
-    case send_tab_to_self::EntryPointDisplayReason::kOfferSignIn: {
+    case send_tab_to_self::EntryPointDisplayReason::kOfferSignIn:
+    case send_tab_to_self::EntryPointDisplayReason::kOfferReauth:
       bubble_view = std::make_unique<SendTabToSelfSignInPromoBubbleView>(
           std::move(anchor.value()), &GetWebContents(),
-          /*is_account_aware=*/!GetSharingAccountInfo().IsEmpty());
+          reason == send_tab_to_self::EntryPointDisplayReason::kOfferReauth
+              ? SendTabToSelfSignInPromoBubbleView::PromoMode::kReauth
+              : SendTabToSelfSignInPromoBubbleView::PromoMode::kSignIn);
       break;
-    }
     case send_tab_to_self::EntryPointDisplayReason::kInformNoTargetDevice:
       bubble_view = std::make_unique<SendTabToSelfNoTargetDeviceBubbleView>(
           std::move(anchor.value()), &GetWebContents());
@@ -260,15 +247,26 @@ void SendTabToSelfBubbleController::OnDeviceSelected(
       SendTabToSelfPageHandler::GetOrCreateForWebContents(&GetWebContents());
 
   syncer::DeviceInfo::FormFactor form_factor =
-      GetFormFactorForDevice(GetModel(), target_device_guid);
+      syncer::DeviceInfo::FormFactor::kUnknown;
+  if (send_tab_to_self::SendTabToSelfModel* model = GetModel()) {
+    std::optional<send_tab_to_self::TargetDeviceInfo> device =
+        model->GetTargetDeviceInfo(target_device_guid);
+    if (device) {
+      form_factor = device->form_factor;
+    }
+  }
 
   const GURL url = GetWebContents().GetLastCommittedURL();
+  // Note: `entry_point_` should always be populated here, since it's set in
+  // ShowBubble() which must've been called earlier. If it's not (e.g. in some
+  // unit tests), `kShareSheet` is used as a generic fallback.
   handler->SendTabToDevice(
       target_device_guid, url, base::UTF16ToUTF8(GetWebContents().GetTitle()),
       base::BindOnce(
           &SendTabToSelfBubbleController::HandleSendTabToDeviceResult,
           weak_ptr_factory_.GetWeakPtr(), url, std::string(device_name),
-          form_factor));
+          form_factor),
+      entry_point_.value_or(ShareEntryPoint::kShareSheet));
 }
 
 void SendTabToSelfBubbleController::OnManageDevicesClicked(
@@ -286,9 +284,14 @@ void SendTabToSelfBubbleController::OnManageDevicesClicked(
   Navigate(&params);
 }
 
+void SendTabToSelfBubbleController::PrimaryPageChanged(content::Page& page) {
+  HideBubble();
+}
+
 void SendTabToSelfBubbleController::OnWidgetDestroying(views::Widget* widget) {
   widget_observation_.Reset();
   send_tab_to_self_bubble_view_ = nullptr;
+  entry_point_ = std::nullopt;
   BrowserWindowInterface* browser =
       GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
           &GetWebContents());
@@ -355,12 +358,6 @@ void SendTabToSelfBubbleController::SetSelectorGenerationTimeoutForTesting(
       ->SetSelectorGenerationTimeoutForTesting(timeout);
 }
 
-void SendTabToSelfBubbleController::OnEntriesAddedRemotely(
-    const std::vector<const SendTabToSelfEntry*>& new_entries) {}
-
-void SendTabToSelfBubbleController::OnEntriesRemovedRemotely(
-    const std::vector<std::string>& guids) {}
-
 void SendTabToSelfBubbleController::OnModelReady() {
   model_observation_.Reset();
 
@@ -370,7 +367,8 @@ void SendTabToSelfBubbleController::OnModelReady() {
   // wait, the model will no longer be in a state where we should show the
   // bubble.
   if (!reason.has_value() ||
-      reason.value() == EntryPointDisplayReason::kOfferSignIn) {
+      reason.value() == EntryPointDisplayReason::kOfferSignIn ||
+      reason.value() == EntryPointDisplayReason::kOfferReauth) {
     return;
   }
 
@@ -398,7 +396,8 @@ void SendTabToSelfBubbleController::RegisterProfilePrefs(
 SendTabToSelfBubbleController::SendTabToSelfBubbleController(
     content::WebContents* web_contents)
     : content::WebContentsUserData<SendTabToSelfBubbleController>(
-          *web_contents) {}
+          *web_contents),
+      content::WebContentsObserver(web_contents) {}
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(SendTabToSelfBubbleController);
 

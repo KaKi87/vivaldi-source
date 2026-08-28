@@ -9,6 +9,7 @@
 
 #include "base/feature_list.h"
 #include "base/metrics/field_trial_params.h"
+#include "build/build_config.h"
 #include "chrome/common/webui_url_constants.h"
 #include "url/gurl.h"
 
@@ -19,11 +20,27 @@ bool IsDefaultBrowserFrameworkEnabled() {
 }
 
 bool IsDefaultBrowserChangedOsNotificationEnabled() {
+#if BUILDFLAG(IS_WIN)
   return base::FeatureList::IsEnabled(kDefaultBrowserChangedOsNotification);
+#else
+  return false;
+#endif
 }
 
 bool IsDefaultBrowserPromptSurfacesEnabled() {
+#if BUILDFLAG(IS_WIN)
   return base::FeatureList::IsEnabled(kDefaultBrowserPromptSurfaces);
+#else
+  return false;
+#endif
+}
+
+bool IsVisualGuidedSetterDockingEnabled() {
+#if BUILDFLAG(IS_WIN)
+  return base::FeatureList::IsEnabled(kVisualGuidedSetterDocking);
+#else
+  return false;
+#endif
 }
 
 DefaultBrowserPromptSurface GetDefaultBrowserPromptSurface() {
@@ -43,11 +60,11 @@ DefaultBrowserSetterType GetDefaultBrowserSetterType() {
 }
 
 GURL GetDefaultBrowserVisualGuideURL() {
-  if (!base::FeatureList::IsEnabled(kDefaultBrowserSetterSelection)) {
-    GURL(kChromeUIDefaultBrowserVisualGuidedSetterURL);
-  }
-
+#if BUILDFLAG(IS_WIN)
   return GURL(kDefaultBrowserVisualGuideUrlParam.Get());
+#else
+  return GURL();
+#endif
 }
 
 BASE_FEATURE(kDefaultBrowserFramework, base::FEATURE_DISABLED_BY_DEFAULT);
@@ -79,6 +96,8 @@ BASE_FEATURE(kDefaultBrowserChangedOsNotification,
 
 BASE_FEATURE(kDefaultBrowserSetterSelection, base::FEATURE_DISABLED_BY_DEFAULT);
 
+BASE_FEATURE(kVisualGuidedSetterDocking, base::FEATURE_DISABLED_BY_DEFAULT);
+
 constexpr inline auto kDefaultBrowserSetterSelectionOption =
     std::to_array<base::FeatureParam<DefaultBrowserSetterType>::Option>(
         {{DefaultBrowserSetterType::kShellIntegration, "shell_integration"},
@@ -91,11 +110,16 @@ BASE_FEATURE_ENUM_PARAM(DefaultBrowserSetterType,
                         DefaultBrowserSetterType::kShellIntegration,
                         kDefaultBrowserSetterSelectionOption);
 
-// TODO(https://crbugs.com/454597786): Replace this with the const webui url.
+#if BUILDFLAG(IS_WIN)
 BASE_FEATURE_PARAM(std::string,
                    kDefaultBrowserVisualGuideUrlParam,
                    &kDefaultBrowserSetterSelection,
-                   "url",
-                   "chrome://default-browser/");
+                   chrome::kChromeUIDefaultBrowserVisualGuidedSetterURL);
+
+BASE_FEATURE_PARAM(base::TimeDelta,
+                   kFindSettingsTimeout,
+                   &kDefaultBrowserSetterSelection,
+                   base::Seconds(5));
+#endif
 
 }  // namespace default_browser

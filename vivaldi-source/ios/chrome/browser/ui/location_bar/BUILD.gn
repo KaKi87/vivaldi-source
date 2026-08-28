@@ -4,6 +4,8 @@ source_set("vivaldi_location_bar") {
   sources = [
     "location_bar_constants+vivaldi.h",
     "location_bar_constants+vivaldi.mm",
+    "vivaldi_location_bar_steady_view_container.h",
+    "vivaldi_location_bar_steady_view_container.mm",
   ]
 
   deps = [ "resources:location_bar_assets" ]

@@ -3,7 +3,6 @@
 #import "ios/ui/settings/sync/cells/vivaldi_table_view_attributed_text_view_item.h"
 
 #import "base/apple/foundation_util.h"
-#import "ios/chrome/browser/shared/ui/table_view/legacy_chrome_table_view_styler.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/text_view_util.h"
 
@@ -19,9 +18,8 @@
   return self;
 }
 
-- (void)configureCell:(LegacyTableViewCell*)tableCell
-           withStyler:(ChromeTableViewStyler*)styler {
-  [super configureCell:tableCell withStyler:styler];
+- (void)configureCell:(LegacyTableViewCell*)tableCell {
+  [super configureCell:tableCell];
   VivaldiTableViewAttributedTextViewCell* cell =
       base::apple::ObjCCastStrict<VivaldiTableViewAttributedTextViewCell>(
           tableCell);

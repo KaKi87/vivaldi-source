@@ -26,8 +26,8 @@
     UIAction* addressAction =
         [UIAction actionWithTitle:l10n_util::GetNSString(
                                       IDS_IOS_AUTOFILL_ADD_ADDRESS_BUTTON_TEXT)
-                            image:DefaultSymbolWithPointSize(
-                                      kEnvelopeSymbol, kSymbolActionPointSize)
+                            image:SymbolWithPointSize(SymbolEnvelope,
+                                                      kSymbolActionPointSize)
                        identifier:nil
                           handler:^(UIAction* action) {
                             [weakDelegate didSelectAddAutofillProfile];
@@ -38,7 +38,8 @@
   for (const auto& entityType : types) {
     NSString* title = base::SysUTF16ToNSString(entityType.GetNameForI18n());
     UIImage* image = autofill::DefaultIconForAutofillAiEntityType(
-        entityType.name(), kSymbolActionPointSize, /*tint_color=*/nil);
+        entityType.name(), /*is_personal_context=*/false,
+        kSymbolActionPointSize, /*tint_color=*/nil);
 
     autofill::EntityType capturedType = entityType;
     UIAction* uiAction = [UIAction

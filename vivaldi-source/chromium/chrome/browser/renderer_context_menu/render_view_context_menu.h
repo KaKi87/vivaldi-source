@@ -53,7 +53,6 @@ class BrowserWindowInterface;
 #if BUILDFLAG(ENABLE_COMPOSE)
 class ChromeComposeClient;
 #endif
-class ClickToCallContextMenuObserver;
 class LinkToTextMenuObserver;
 class PrintPreviewContextMenuObserver;
 class Profile;
@@ -129,6 +128,7 @@ class RenderViewContextMenu
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kRegionSearchItem);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kSearchForImageItem);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kSearchForVideoFrameItem);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kVideoFrameSubmenuItem);
 
   using ExecutePluginActionCallback =
       base::OnceCallback<void(content::RenderFrameHost*,
@@ -332,6 +332,7 @@ class RenderViewContextMenu
   void AppendTranslateItem();
   void AppendMediaRouterItem();
   void AppendReadAnythingItem();
+  void AppendSaveToMemoryBanksItem();
   void AppendGlicItems();
   void AppendRotationItems();
   void AppendSpellingAndSearchSuggestionItems();
@@ -355,7 +356,6 @@ class RenderViewContextMenu
   void AppendRevisedTextSelectionSection();
   void AppendProtocolHandlerSubMenu();
   void AppendSharingItems();
-  void AppendClickToCallItem();
   void AppendRegionSearchItem();
   void AppendLiveCaptionItem();
   void AppendSendTabToSelfItem(bool add_separator);
@@ -407,7 +407,6 @@ class RenderViewContextMenu
   void ExecProtocolHandler(int event_flags, int handler_index);
   void ExecOpenLinkInProfile(int profile_index);
   void ExecInspectElement();
-  void ExecInspectElementWithGemini();
   void ExecInspectBackgroundPage();
   void ExecSaveLinkAs();
   void ExecSaveAs();
@@ -443,6 +442,7 @@ class RenderViewContextMenu
 #endif
   void ExecOpenInReadAnything();
   void ExecListenToThisPage();
+  void ExecSaveToMemoryBanks();
 
   void MediaPlayerAction(const blink::mojom::MediaPlayerAction& action);
   void SearchForVideoFrame(int event_flags,
@@ -485,7 +485,7 @@ class RenderViewContextMenu
   void OnSupervisedUserURLFilterChecked(
       supervised_user::WebFilteringResult result);
 
-  void MaybeAppendOpenGlicItem();
+  void MaybeAppendOpenGlicItem(bool add_separator = true);
 
   // Opens the Lens overlay to search a region defined by the given bounds of
   // the view and the image to be searched. Tab bounds and view bounds are
@@ -592,10 +592,6 @@ class RenderViewContextMenu
   // embeds the MimeHandlerViewGuest. Otherwise this will be the same as
   // |source_web_contents_|.
   const raw_ptr<content::WebContents, DanglingUntriaged> embedder_web_contents_;
-
-  // Click to call menu observer.
-  std::unique_ptr<ClickToCallContextMenuObserver>
-      click_to_call_context_menu_observer_;
 
 #if BUILDFLAG(IS_CHROMEOS)
   // The system app (if any) associated with the WebContents we're in.

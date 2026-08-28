@@ -11,19 +11,21 @@
 #import "base/test/test_timeouts.h"
 #import "base/time/time.h"
 #import "components/bookmarks/test/bookmark_test_helpers.h"
+#import "components/sync/test/test_sync_service.h"
 #import "ios/chrome/browser/bookmarks/model/bookmark_model_factory.h"
 #import "ios/chrome/browser/browser_view/ui_bundled/fake_browser_view_controller.h"
 #import "ios/chrome/browser/browser_view/ui_bundled/safe_area_provider.h"
 #import "ios/chrome/browser/incognito_reauth/ui_bundled/incognito_reauth_scene_agent.h"
 #import "ios/chrome/browser/main/ui/browser_layout_view_controller.h"
+#import "ios/chrome/browser/metrics/model/activity_reporter.h"
 #import "ios/chrome/browser/saved_tab_groups/model/tab_group_sync_service_factory.h"
 #import "ios/chrome/browser/sessions/model/ios_chrome_tab_restore_service_factory.h"
 #import "ios/chrome/browser/shared/coordinator/layout_guide/layout_guide_scene_agent.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
 #import "ios/chrome/browser/shared/model/browser/test/test_browser.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
-#import "ios/chrome/browser/shared/public/commands/bwg_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
+#import "ios/chrome/browser/shared/public/commands/gemini_commands.h"
 #import "ios/chrome/browser/shared/public/commands/quick_delete_commands.h"
 #import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/settings_commands.h"
@@ -31,29 +33,17 @@
 #import "ios/chrome/browser/signin/model/authentication_service_factory.h"
 #import "ios/chrome/browser/signin/model/fake_authentication_service_delegate.h"
 #import "ios/chrome/browser/snapshots/model/snapshot_browser_agent.h"
+#import "ios/chrome/browser/sync/model/sync_service_factory.h"
+#import "ios/chrome/browser/sync/model/test_sync_service_utils.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/tab_grid_coordinator_delegate.h"
+#import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/tab_grid_view_controller.h"
 #import "ios/chrome/common/ui/reauthentication/reauthentication_module.h"
 #import "ios/chrome/test/block_cleanup_test.h"
 #import "ios/chrome/test/ios_chrome_scoped_testing_local_state.h"
+#import "ios/chrome/test/scoped_key_window.h"
 #import "ios/web/public/test/web_task_environment.h"
 #import "testing/gtest_mac.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
-
-@interface StubSceneState : SceneState
-
-// Window for the associated scene, if any.
-// This is redeclared relative to FakeScene.window, except this is now readwrite
-// and backed by an instance variable.
-@property(nonatomic, strong, readwrite) UIWindow* window;
-
-@end
-
-@implementation StubSceneState {
-}
-
-@synthesize window = _window;
-
-@end
 
 @interface TestTabGridCoordinatorDelegate
     : NSObject <TabGridCoordinatorDelegate>
@@ -94,18 +84,6 @@ class TabGridCoordinatorTest : public BlockCleanupTest {
  public:
   void SetUp() override {
     BlockCleanupTest::SetUp();
-    scene_state_ = [[StubSceneState alloc] initWithAppState:nil];
-
-    for (UIScene* scene in UIApplication.sharedApplication.connectedScenes) {
-      UIWindowScene* windowScene =
-          base::apple::ObjCCastStrict<UIWindowScene>(scene);
-      UIWindow* window = [windowScene.windows firstObject];
-      if (window) {
-        scene_state_.window = window;
-        break;
-      }
-    }
-
     TestProfileIOS::Builder builder;
     builder.AddTestingFactory(
         IOSChromeTabRestoreServiceFactory::GetInstance(),
@@ -119,7 +97,12 @@ class TabGridCoordinatorTest : public BlockCleanupTest {
     builder.AddTestingFactory(
         tab_groups::TabGroupSyncServiceFactory::GetInstance(),
         tab_groups::TabGroupSyncServiceFactory::GetDefaultFactory());
+    builder.AddTestingFactory(SyncServiceFactory::GetInstance(),
+                              base::BindRepeating(&CreateTestSyncService));
     profile_ = std::move(builder).Build();
+
+    scene_state_ = [[SceneState alloc] init];
+    scene_state_.window = scoped_window_.Get();
 
     bookmarks::test::WaitForBookmarkModelToLoad(
         ios::BookmarkModelFactory::GetForProfile(profile_.get()));
@@ -133,9 +116,9 @@ class TabGridCoordinatorTest : public BlockCleanupTest {
                              forProtocol:@protocol(SceneCommands)];
 
     // Set up GeminiCommands mock.
-    id mock_gemini_handler = OCMProtocolMock(@protocol(BWGCommands));
+    id mock_gemini_handler = OCMProtocolMock(@protocol(GeminiCommands));
     [dispatcher startDispatchingToTarget:mock_gemini_handler
-                             forProtocol:@protocol(BWGCommands)];
+                             forProtocol:@protocol(GeminiCommands)];
 
     // Set up QuickDeleteCommands mock.
     id mock_quick_delete_handler_ =
@@ -166,10 +149,6 @@ class TabGridCoordinatorTest : public BlockCleanupTest {
                      incognitoBrowser:incognito_browser_.get()];
     coordinator_.animationsDisabledForTesting = YES;
 
-    // TabGridCoordinator will make its view controller the root, so stash the
-    // original root view controller before starting `coordinator_`.
-    original_root_view_controller_ = [GetAnyKeyWindow() rootViewController];
-
     delegate_ = [[TestTabGridCoordinatorDelegate alloc] init];
     coordinator_.delegate = delegate_;
 
@@ -194,10 +173,6 @@ class TabGridCoordinatorTest : public BlockCleanupTest {
   }
 
   void TearDown() override {
-    if (original_root_view_controller_) {
-      GetAnyKeyWindow().rootViewController = original_root_view_controller_;
-      original_root_view_controller_ = nil;
-    }
     [coordinator_ stop];
   }
 
@@ -214,8 +189,11 @@ class TabGridCoordinatorTest : public BlockCleanupTest {
   // Incognito browser for the coordinator.
   std::unique_ptr<Browser> incognito_browser_;
 
-  // Scene state emulated in this test.
-  StubSceneState* scene_state_;
+  // The scoped Window that will be used for the test.
+  ScopedKeyWindow scoped_window_;
+
+  // SceneState used in the test.
+  SceneState* scene_state_;
 
   // The TabGridCoordinator that is under test.  The test fixture sets
   // this VC as the root VC for the window.
@@ -223,10 +201,6 @@ class TabGridCoordinatorTest : public BlockCleanupTest {
 
   // Delegate for the coordinator's TabSwitcher interface.
   TestTabGridCoordinatorDelegate* delegate_;
-
-  // The key window's original root view controller, which must be restored at
-  // the end of the test.
-  UIViewController* original_root_view_controller_;
 
   // The following view controllers are created by the test fixture and are
   // available for use in tests.
@@ -372,7 +346,8 @@ TEST_F(TabGridCoordinatorTest, CompletionHandlers) {
 
 // Tests that the tab grid coordinator sizes its view controller to the window.
 TEST_F(TabGridCoordinatorTest, SizeTabGridCoordinatorViewController) {
-  CGRect rect = [UIScreen mainScreen].bounds;
+  ASSERT_NE(GetViewController().view.window, nil);
+  CGRect rect = GetViewController().view.window.screen.bounds;
   EXPECT_TRUE(CGRectEqualToRect(rect, GetViewController().view.frame));
 }
 
@@ -409,6 +384,35 @@ TEST_F(TabGridCoordinatorTest, tabGridActive) {
       base::test::ios::kWaitForUIElementTimeout, ^bool() {
         return coordinator_.tabGridActive;
       }));
+}
+
+TEST_F(TabGridCoordinatorTest, ActivityReporting) {
+  id mockInstance = OCMClassMock([ActivityReporterWithIncognito class]);
+  [coordinator_ setValue:mockInstance forKey:@"activityReporter"];
+
+  // Tab grid is initialized but not showing yet.
+  // When showing tab grid page:
+  OCMExpect([mockInstance reportActiveWithIncognito:YES]);
+  [coordinator_ showTabGridPage:TabGridPageIncognitoTabs];
+  [mockInstance verify];
+
+  // When changing visible page to regular tabs page:
+  OCMExpect([mockInstance reportActiveWithIncognito:NO]);
+  [(id<TabGridViewControllerDelegate>)coordinator_
+      tabGridViewController:nil
+       didChangeCurrentPage:TabGridPageRegularTabs];
+  [mockInstance verify];
+
+  // When dismissing tab grid:
+  OCMExpect([mockInstance reportInactive]);
+  layout_view_controller_.browserViewController = normal_tab_view_controller_;
+  [coordinator_ showBrowserLayoutViewController:layout_view_controller_
+                                      incognito:NO
+                                     completion:nil];
+  [mockInstance verify];
+
+  [coordinator_ setValue:nil forKey:@"activityReporter"];
+  [mockInstance stopMocking];
 }
 
 }  // namespace

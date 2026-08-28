@@ -623,7 +623,7 @@ void ChipController::OpenPermissionPromptBubble() {
     return;
   }
 
-  Browser* browser = location_bar_->GetBrowser();
+  BrowserWindowInterface* browser = location_bar_->GetBrowser();
   if (!browser) {
     DLOG(WARNING) << "Permission prompt suppressed because the WebContents is "
                      "not attached to any Browser window.";
@@ -643,7 +643,8 @@ void ChipController::OpenPermissionPromptBubble() {
     // Loud prompt bubble.
     raw_ptr<PermissionPromptBubbleBaseView> prompt_bubble =
         CreatePermissionPromptBubbleView(
-            browser, permission_prompt_model_->GetDelegate(),
+            location_bar_->GetWebContents(),
+            permission_prompt_model_->GetDelegate(),
             PermissionPromptStyle::kChip);
     bubble_tracker_.SetView(prompt_bubble);
     prompt_bubble->Show();

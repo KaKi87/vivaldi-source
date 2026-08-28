@@ -79,7 +79,7 @@ HTMLFormElement* CurrentForm(const FrameSelection& current_selection) {
   // selection is.
   const Node* start = current_selection.GetDocument().FocusedElement();
   if (!start) {
-    start = current_selection.ComputeVisibleSelectionInDOMTree()
+    start = current_selection.ComputeVisibleSelectionInDomTree()
                 .Start()
                 .AnchorNode();
   }

@@ -543,15 +543,6 @@ class DragAndDropBrowserTest : public InProcessBrowserTest,
         base::NumberToString(std::get<1>(GetParam())));
   }
 
-  void SetUp() override {
-    // Ensure PreserveDropEffect is enabled for DragAndDropBrowserTest.
-    feature_list_.InitWithFeaturesAndParameters(
-        {{blink::features::kPreserveDropEffect, {}},
-         {blink::features::kSetDefaultDropEffect, {}}},
-        {});
-    InProcessBrowserTest::SetUp();
-  }
-
   void SetUpOnMainThread() override {
     host_resolver()->AddRule("*", "127.0.0.1");
     https_test_server()->AddDefaultHandlers(GetChromeTestDataDir());
@@ -2228,9 +2219,9 @@ IN_PROC_BROWSER_TEST_P(DragAndDropBrowserTest, DragUpdateScreenCoordinates) {
   // be inconclusive.
   // In addition to offsetting the window, use a small window size to avoid
   // rejection of the new bounds by the system.
-  browser()->window()->SetBounds(gfx::Rect(200, 100, 700, 500));
+  browser()->GetWindow()->SetBounds(gfx::Rect(200, 100, 700, 500));
   EXPECT_TRUE(base::test::RunUntil([&]() {
-    return browser()->window()->GetBounds().origin() == gfx::Point(200, 100);
+    return browser()->GetWindow()->GetBounds().origin() == gfx::Point(200, 100);
   }));
 
   std::string frame_site = use_cross_site_subframe() ? "b.test" : "a.test";

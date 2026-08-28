@@ -12,6 +12,7 @@
         }</translation>
 <translation id="1133985792690629147">Εικονίδιο χρώματος στοίβας καρτελών <ph name="COLOR_NAME" /></translation>
 <translation id="1329584516321524826">Μόλις ενημερώθηκε</translation>
+<translation id="1487138071670610189">Σύρετε καρτέλες για να τις στοιβάξετε</translation>
 <translation id="149054111719651807">{NUM_MINS, plural,
           =1 {Δημιουργήθηκε <ph name="NUM_MINS_ONE" /> λεπτό πριν}
           other {Δημιουργήθηκε <ph name="NUM_MINS_MANY" /> λεπτά πριν}

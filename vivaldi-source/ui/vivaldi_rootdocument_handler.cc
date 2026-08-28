@@ -4,8 +4,8 @@
 
 #include <set>
 
-#include "base/task/single_thread_task_runner.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/chrome_extension_system_factory.h"
 #include "chrome/browser/extensions/extension_service.h"
@@ -15,7 +15,7 @@
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_factory.h"
 #include "extensions/browser/extensions_browser_client.h"
-#include "extensions/schema/browser_action_utilities.h"
+#include "extensions/schema/extension_action_utils.h"
 #include "extensions/tools/vivaldi_tools.h"
 
 namespace extensions {

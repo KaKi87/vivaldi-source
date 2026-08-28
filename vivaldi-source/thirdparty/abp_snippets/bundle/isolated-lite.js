@@ -15,12 +15,28 @@
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import {logIfAnchorHrefMatches} from
+  "../source/monitoring/log-if-anchor-href-matches.js";
+import {logIfElementLoads} from
+  "../source/monitoring/log-if-element-loads.js";
+import {logIfSelectorExists} from
+  "../source/monitoring/log-if-selector-exists.js";
+import {logIfScriptLoads} from
+  "../source/monitoring/log-if-script-loads.js";
+import {logIfComputedStyleMatches} from
+  "../source/monitoring/log-if-computed-style-matches.js";
+import {logIfIframeLoads} from
+  "../source/monitoring/log-if-iframe-loads.js";
+import {logIfInlineScriptContainsFingerprint} from
+  "../source/monitoring/log-if-inline-script-contains-fingerprint.js";
 import {hideIfContains} from
   "../source/conditional-hiding/hide-if-contains.js";
 import {hideIfContainsAndMatchesStyle} from
   "../source/conditional-hiding/hide-if-contains-and-matches-style.js";
 import {hideIfContainsImage} from
   "../source/conditional-hiding/hide-if-contains-image.js";
+import {hideIfSvgContains} from
+  "../source/conditional-hiding/hide-if-svg-contains.js";
 import {hideIfContainsSimilarText} from
   "../source/conditional-hiding/hide-if-contains-similar-text.js";
 import {hideIfContainsVisibleText} from
@@ -33,31 +49,38 @@ import {hideIfMatchesXPath} from
   "../source/conditional-hiding/hide-if-matches-xpath.js";
 import {hideIfMatchesComputedXPath} from
   "../source/conditional-hiding/hide-if-matches-computed-xpath.js";
-import {hideIfSvgContains} from
-  "../source/conditional-hiding/hide-if-svg-contains.js";
 import {log} from "../source/introspection/log.js";
 import {race} from "../source/introspection/race.js";
 import {setDebug} from "../source/introspection/debug.js";
 import {setProfile} from "../source/introspection/profile.js";
-import {simulateMouseEvent} from 
+import {simulateMouseEvent} from
   "../source/behavioral/simulate-mouse-event.js";
 import {skipVideo} from "../source/behavioral/skip-video.js";
 
 export const snippets = {
-  log,
-  race,
   "debug": setDebug,
-  "profile": setProfile,
-  "hide-if-matches-xpath": hideIfMatchesXPath,
-  "hide-if-matches-computed-xpath": hideIfMatchesComputedXPath,
   "hide-if-contains": hideIfContains,
+  "hide-if-contains-and-matches-style": hideIfContainsAndMatchesStyle,
+  "hide-if-contains-image": hideIfContainsImage,
   "hide-if-contains-similar-text": hideIfContainsSimilarText,
   "hide-if-contains-visible-text": hideIfContainsVisibleText,
-  "hide-if-contains-and-matches-style": hideIfContainsAndMatchesStyle,
   "hide-if-has-and-matches-style": hideIfHasAndMatchesStyle,
   "hide-if-labelled-by": hideIfLabelledBy,
-  "hide-if-contains-image": hideIfContainsImage,
+  "hide-if-matches-computed-xpath": hideIfMatchesComputedXPath,
+  "hide-if-matches-xpath": hideIfMatchesXPath,
   "hide-if-svg-contains": hideIfSvgContains,
+  log,
+  "log-if-anchor-href-matches": logIfAnchorHrefMatches,
+  "log-if-computed-style-matches": logIfComputedStyleMatches,
+  "log-if-element-loads": logIfElementLoads,
+  "log-if-iframe-loads": logIfIframeLoads,
+  "log-if-inline-script-contains-fingerprint":
+    logIfInlineScriptContainsFingerprint,
+  "log-if-script-loads": logIfScriptLoads,
+  "log-if-selector-exists": logIfSelectorExists,
+  "profile": setProfile,
+  race,
   "simulate-mouse-event": simulateMouseEvent,
   "skip-video": skipVideo
 };
+

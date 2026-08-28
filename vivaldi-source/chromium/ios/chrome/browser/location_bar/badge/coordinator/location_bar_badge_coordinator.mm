@@ -25,12 +25,13 @@
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
-#import "ios/chrome/browser/shared/public/commands/bwg_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/contextual_panel_entrypoint_commands.h"
 #import "ios/chrome/browser/shared/public/commands/contextual_panel_entrypoint_iph_commands.h"
 #import "ios/chrome/browser/shared/public/commands/contextual_sheet_commands.h"
+#import "ios/chrome/browser/shared/public/commands/custom_leading_view_type.h"
 #import "ios/chrome/browser/shared/public/commands/fullscreen_commands.h"
+#import "ios/chrome/browser/shared/public/commands/gemini_commands.h"
 #import "ios/chrome/browser/shared/public/commands/location_bar_badge_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/util/omnibox_util.h"
@@ -88,9 +89,9 @@
   } else {
     [self attachContextualPanelEntrypoint];
   }
-  id<BWGCommands> BWGCommandHandler =
-      HandlerForProtocol(_dispatcher, BWGCommands);
-  _mediator.BWGCommandHandler = BWGCommandHandler;
+  id<GeminiCommands> geminiHandler =
+      HandlerForProtocol(_dispatcher, GeminiCommands);
+  _mediator.geminiHandler = geminiHandler;
   if (!IsChromeNextIaEnabled()) {
     [_dispatcher startDispatchingToTarget:_mediator
                               forProtocol:@protocol(LocationBarBadgeCommands)];
@@ -206,6 +207,11 @@
 - (void)markDisplayedBadgeAsUnread:(BOOL)read {
   CHECK(IsChromeNextIaEnabled());
   [_mediator markDisplayedBadgeAsUnread:read];
+}
+
+- (void)setBadgeCustomLeadingViewType:(CustomLeadingViewType)type {
+  CHECK(IsChromeNextIaEnabled());
+  // No-op.
 }
 
 #pragma mark - Private

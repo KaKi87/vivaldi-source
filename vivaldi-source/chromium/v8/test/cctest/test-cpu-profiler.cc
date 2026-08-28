@@ -52,6 +52,7 @@
 #include "src/init/v8.h"
 #include "src/libsampler/sampler.h"
 #include "src/logging/log.h"
+#include "src/objects/abstract-code-inl.h"
 #include "src/objects/objects-inl.h"
 #include "src/profiler/cpu-profiler.h"
 #include "src/profiler/profiler-listener.h"
@@ -2698,8 +2699,7 @@ TEST(CollectDeoptEvents) {
     const char* branch[] = {"", "opt_function1", "opt_function1"};
     const char* deopt_reason =
         GetBranchDeoptReason(env, iprofile, branch, arraysize(branch));
-    if (deopt_reason != reason(i::DeoptimizeReason::kNaN) &&
-        deopt_reason != reason(i::DeoptimizeReason::kLostPrecisionOrNaN) &&
+    if (deopt_reason != reason(i::DeoptimizeReason::kLostPrecisionOrNaN) &&
         deopt_reason != reason(i::DeoptimizeReason::kNotASmi)) {
       FATAL("%s", deopt_reason);
     }

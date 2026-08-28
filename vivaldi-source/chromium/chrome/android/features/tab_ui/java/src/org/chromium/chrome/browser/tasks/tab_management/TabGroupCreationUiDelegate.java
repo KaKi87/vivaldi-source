@@ -26,6 +26,10 @@ import org.chromium.ui.modaldialog.ModalDialogManager;
 
 import java.util.function.Supplier;
 
+// Vivaldi
+import org.chromium.chrome.R;
+import org.chromium.ui.widget.Toast;
+
 /** Handles the flow of creating a new tab group through the UI. */
 @NullMarked
 public class TabGroupCreationUiDelegate {
@@ -73,6 +77,13 @@ public class TabGroupCreationUiDelegate {
         TabModel tabModel = mTabModelSupplier.get();
         assumeNonNull(tabModel);
         TabCreator tabCreator = tabModel.getTabCreator();
+
+        // Vivaldi Ref: VAB-13226
+        if (!TabUiFeatureUtilities.isTabGroupsAndroidEnabled()) {
+            Toast.makeText(mContext, R.string.tab_group_disabled_warning, Toast.LENGTH_SHORT)
+                    .show();
+            return;
+        }
 
         Profile profile = tabModel.getProfile();
         UrlConstantResolver urlConstantResolver = UrlConstantResolverFactory.getForProfile(profile);

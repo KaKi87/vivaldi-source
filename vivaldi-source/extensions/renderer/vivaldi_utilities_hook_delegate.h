@@ -32,6 +32,9 @@ class VivaldiUtilitiesHookDelegate : public APIBindingHooksDelegate {
   APIBindingHooks::RequestResult HandleGetUrlFragments(
       v8::Local<v8::Context> context,
       v8::LocalVector<v8::Value>& arguments);
+  APIBindingHooks::RequestResult HandleCalculate(
+      v8::Local<v8::Context> context,
+      v8::LocalVector<v8::Value>& arguments);
   APIBindingHooks::RequestResult HandleGetVersion(
       v8::Local<v8::Context> context,
       v8::LocalVector<v8::Value>& arguments);

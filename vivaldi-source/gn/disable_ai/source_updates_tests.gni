@@ -1,41 +1,47 @@
 update_template_instance("//chrome/test:unit_tests") {
   sources -= [
     "../browser/ui/views/bookmarks/saved_tab_groups/saved_tab_group_bar_unittest.cc",
+    "../browser/ui/views/profiles/feature_showcase/gemini_step_eligibility_checker_unittest.cc",
     "../browser/ui/views/tabs/tab_strip_action_container_unittest.cc",
+    "../browser/ui/webui/feature_showcase/gemini_disclosure_unittest.cc",
+    "../browser/ui/webui/feature_showcase/gemini_handler_unittest.cc",
   ]
+}
+
+update_template_instance("//chrome/browser/page_load_metrics:unit_tests") {
+  sources -= [ "observers/captcha_metrics_observer_unittest.cc" ]
 }
 
 update_template_instance("//chrome/test:interactive_ui_tests") {
   sources -= [
-    "../browser/glic/suggestions/contextual_cueing_helper_interactive_uitest.cc",
-    "../browser/ui/webui/skills/skills_page_interactive_uitest.cc",
     "../browser/ui/views/user_education/impl/browser_feature_promo_preconditions_interactive_uitest.cc",
+    "../browser/ui/webui/skills/skills_page_interactive_uitest.cc",
   ]
 }
 
 update_template_instance("//chrome/test:browser_tests") {
   sources -= [
-    "../browser/extensions/api/experimental_actor/experimental_actor_apitest.cc",
-    "../browser/glic/suggestions/contextual_cueing_service_browsertest.cc",
-    "../browser/glic/suggestions/zero_state_suggestions_browsertest.cc",
-    "../browser/indigo/indigo_browsertest.cc",
-    "../browser/indigo/indigo_image_replacement_manager_browsertest.cc",
-    "../browser/password_manager/password_change_from_checkup_browsertest.cc",
-    "../browser/ui/views/bookmarks/saved_tab_groups/resumption_rail_iph_test.cc",
     "../browser/ui/views/frame/system_menu_model_builder_browsertest.cc",
     "../browser/ui/views/tabs/glic/glic_button_browsertest.cc",
     "../browser/ui/views/tabs/tab_strip_action_container_browsertest.cc",
-    "../browser/ui/webui/settings/glic_handler_browsertest.cc",
   ]
 }
 
-update_template_instance("//chrome/test:platform_browser_tests") {
+update_template_instance("//chrome/browser/password_manager:browser_tests") {
+  sources -= [ "password_change_from_checkup_browsertest.cc" ]
+}
+
+update_template_instance("//chrome/browser/devtools:platform_browser_tests") {
+  sources -= [ "protocol/webmcp_browsertest.cc" ]
+}
+
+update_template_instance("//chrome/browser/extensions:browser_tests") {
   sources -= [
-    "../browser/devtools/protocol/webmcp_browsertest.cc",
-    "../browser/extensions/api/glic_private/glic_messaging_browsertest.cc",
-    "../browser/extensions/api/glic_private/glic_private_api_test_base.cc",
-    "../browser/extensions/api/glic_private/glic_private_api_test_base.h",
-    "../browser/extensions/api/glic_private/glic_private_apitest.cc",
+    "api/experimental_actor/experimental_actor_apitest.cc",
+    "api/glic_private/glic_messaging_browsertest.cc",
+    "api/glic_private/glic_private_api_test_base.cc",
+    "api/glic_private/glic_private_api_test_base.h",
+    "api/glic_private/glic_private_apitest.cc",
   ]
 }
 
@@ -52,21 +58,25 @@ update_template_instance("//chrome/test/data/webui/settings:build") {
     "ai_page_index_test.ts",
     "ai_page_test.ts",
     "ai_policy_indicator_test.ts",
+    "autofill_ai_add_or_edit_dialog_test.ts",
     "autofill_ai_entries_list_test.ts",
     "autofill_ai_section_test.ts",
+    "dictation_page_test.ts",
     "glic_login_permissions_page_test.ts",
     "glic_page_test.ts",
     "glic_subpage_focus_test.ts",
     "glic_subpage_test.ts",
     "skills_page_test.ts",
+    "suggestions_from_gemini_subpage_test.ts",
+    "test_dictation_browser_proxy.ts",
     "test_glic_browser_proxy.ts",
   ]
 }
 
-update_template_instance("//chrome/browser/ui/tabs:unit_tests") {
-  sources -= [ "tab_strip_prefs_unittest.cc" ]
-}
-
 update_template_instance("//chrome/browser/ui/tabs:browser_tests") {
   sources -= [ "glic_tab_sub_menu_model_browsertest.cc" ]
+}
+
+update_target("//chrome/browser/ui/webui/settings:browser_tests") {
+  sources -= [ "glic_handler_browsertest.cc" ]
 }

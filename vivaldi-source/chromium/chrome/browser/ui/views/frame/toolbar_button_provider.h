@@ -16,14 +16,16 @@ class AppMenuControl;
 class AvatarToolbarButtonInterface;
 class BrowserWindowInterface;
 class PinnedToolbarActions;
-class ExtensionsToolbarDesktop;
-class IconLabelBubbleView;
-class IntentChipButton;
+class ExtensionsContainerViews;
 class PageActionIconView;
 class ReloadButton;
 class ReloadControl;
 class ToolbarButton;
 class WebUIToolbarWebView;
+
+namespace page_actions {
+class PageActionViewInterface;
+}  // namespace page_actions
 
 namespace gfx {
 class Rect;
@@ -42,8 +44,8 @@ class ToolbarButtonProvider {
 
   static ToolbarButtonProvider* From(BrowserWindowInterface* browser);
 
-  // Gets the ExtensionsToolbarDesktop.
-  virtual ExtensionsToolbarDesktop* GetExtensionsToolbarDesktop() = 0;
+  // Gets the ExtensionsContainerViews.
+  virtual ExtensionsContainerViews* GetExtensionsContainerViews() = 0;
 
   // Gets the PinnedToolbarActions.
   virtual PinnedToolbarActions* GetPinnedToolbarActions() = 0;
@@ -61,9 +63,13 @@ class ToolbarButtonProvider {
   virtual PageActionIconView* GetPageActionIconView(
       PageActionIconType type) = 0;
 
-  // Gets the specified page action icon. This function can be used to retrieve
-  // either the legacy page action icon view or the migrated page action view.
-  virtual IconLabelBubbleView* GetPageActionView(
+  // Gets an interface representing the specified page action icon. This
+  // function can be used to retrieve either the legacy page action icon view,
+  // the migrated page action view, or the even newer WebUI page action icon.
+  //
+  // Consider if calling the PageActionController would make more sense than
+  // directly accessing and manipulating view state.
+  virtual page_actions::PageActionViewInterface* GetPageActionViewInterface(
       actions::ActionId action_id) = 0;
 
   // Gets the app menu control.
@@ -83,6 +89,10 @@ class ToolbarButtonProvider {
   virtual views::BubbleAnchor GetBubbleAnchor(
       std::optional<actions::ActionId> action_id) = 0;
 
+  // Returns the appropriate BubbleAnchor for the page action id.
+  virtual views::BubbleAnchor GetPageActionBubbleAnchor(
+      actions::ActionId action_id) = 0;
+
   // See comment in browser_window.h for more info.
   virtual void ZoomChangedForActiveTab(bool can_show_bubble) = 0;
 
@@ -96,8 +106,6 @@ class ToolbarButtonProvider {
   // `WebUIToolbarWebView` depending on the enabled features.
   virtual ReloadControl* GetReloadButton() = 0;
 
-  // Returns the intent chip button, if present.
-  virtual IntentChipButton* GetIntentChipButton() = 0;
 
   // Returns the download button.
   virtual ToolbarButton* GetDownloadButton() = 0;

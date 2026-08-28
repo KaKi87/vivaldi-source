@@ -6,11 +6,11 @@
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ui/web_applications/test/isolated_web_app_test_utils.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
-#include "chrome/browser/web_applications/isolated_web_apps/runtime_data/chrome_iwa_runtime_data_provider.h"
-#include "chrome/browser/web_applications/isolated_web_apps/runtime_data/iwa_entitlements.h"
-#include "chrome/browser/web_applications/isolated_web_apps/test/chrome_iwa_runtime_data_provider_mixin.h"
-#include "chrome/browser/web_applications/isolated_web_apps/test/fake_chrome_iwa_runtime_data_provider.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_builder.h"
+#include "chrome/browser/web_applications/isolated_web_apps/test/iwa_runtime_data_provider_mixin.h"
+#include "components/webapps/isolated_web_apps/public/iwa_entitlements.h"
+#include "components/webapps/isolated_web_apps/public/iwa_runtime_data_provider.h"
+#include "components/webapps/isolated_web_apps/test_support/fake_iwa_runtime_data_provider.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
@@ -23,13 +23,13 @@ namespace {
 
 using PermissionsPolicyFeature = network::mojom::PermissionsPolicyFeature;
 using IwaRuntimeAllowlistData =
-    ChromeIwaRuntimeDataProvider::UserInstallAllowlistItemData;
+    IwaRuntimeDataProvider::UserInstallAllowlistItemData;
 using IwaEntitlementProto = IwaAccessControl::UserInstallAllowlistItemData;
 
 constexpr std::string_view kEntitledFeatures[] = {
-    "direct-sockets",   "direct-sockets-private", "direct-sockets-multicast",
-    "sub-apps",         "usb-unrestricted",       "web-printing",
-    "controlled-frame",
+    "direct-sockets", "direct-sockets-multicast",
+    "sub-apps",       "usb-unrestricted",
+    "web-printing",   "controlled-frame",
 #if defined(ENABLE_SMART_CARD)
     "smart-card",
 #endif
@@ -37,7 +37,6 @@ constexpr std::string_view kEntitledFeatures[] = {
 
 constexpr PermissionsPolicyFeature kEntitledPermissions[] = {
     PermissionsPolicyFeature::kDirectSockets,
-    PermissionsPolicyFeature::kDirectSocketsPrivate,
     PermissionsPolicyFeature::kMulticastInDirectSockets,
     PermissionsPolicyFeature::kSubApps,
     PermissionsPolicyFeature::kUsbUnrestricted,
@@ -50,7 +49,6 @@ constexpr PermissionsPolicyFeature kEntitledPermissions[] = {
 
 constexpr IwaEntitlement kEntitlements[] = {
     IwaEntitlementProto::DIRECT_SOCKETS,
-    IwaEntitlementProto::DIRECT_SOCKETS_PRIVATE,
     IwaEntitlementProto::DIRECT_SOCKETS_MULTICAST,
     IwaEntitlementProto::SUB_APPS,
     IwaEntitlementProto::UNRESTRICTED_WEBUSB,

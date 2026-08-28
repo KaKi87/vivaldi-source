@@ -37,7 +37,6 @@
 <translation id="1601560923496285236">Ужыць</translation>
 <translation id="1603914832182249871">(прыватны)</translation>
 <translation id="1627276047960621195">Дэскрыптары файла</translation>
-<translation id="1654713139320245449">Прылады для трансляцыі не знойдзеныя. Вам патрэбная дапамога?</translation>
 <translation id="166278006618318542">Алгарытм публічнага ключа суб'екта</translation>
 <translation id="1682548588986054654">Новае акно ў рэжыме інкогніта</translation>
 <translation id="1708338024780164500">(не актыўна)</translation>
@@ -55,7 +54,6 @@
 <translation id="1901303067676059328">Абраць &amp;усё</translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">Увядзіце адвольны вэб-адрас</translation>
-<translation id="1932098463447129402">Не раней</translation>
 <translation id="1936931585862840749">Увядзіце колькасць копій для друкавання (ад 1 да <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">&amp;Адкрыць аўдыё ў новай укладцы</translation>
 <translation id="2050339315714019657">Кніжная</translation>
@@ -91,7 +89,6 @@
 <translation id="253557089021624350">Колькасць сігналаў захавання актыўнасці</translation>
 <translation id="2550212893339833758">Віртуальная памяць (swap)</translation>
 <translation id="2553440850688409052">Схаваць убудову</translation>
-<translation id="2607101320794533334">Інфармацыя пра публічны ключ суб'екта</translation>
 <translation id="26224892172169984">Забараніць сайтам апрацоўваць пратаколы</translation>
 <translation id="2653275834716714682">Замена тэксту</translation>
 <translation id="265390580714150011">Значэнне поля</translation>
@@ -99,7 +96,6 @@
 <translation id="2678063897982469759">Уключыць зноў</translation>
 <translation id="2719936478972253983">Заблакаваныя файлы cookie</translation>
 <translation id="2721037002783622288">&amp;Знайсці выяву ў <ph name="SEARCH_ENGINE" /></translation>
-<translation id="2738771556149464852">Не пазней</translation>
 <translation id="2749881179542288782">Праверыць граматыку і правапіс</translation>
 <translation id="2785873697295365461">Дэскрыптары файлаў</translation>
 <translation id="2825758591930162672">Публічны ключ суб'екта</translation>
@@ -146,7 +142,6 @@
 <translation id="3387614642886316601">Палепшаная праверка правапісу</translation>
 <translation id="3390013585654699824">Звесткі пра праграму</translation>
 <translation id="345693547134384690">Адкрыць &amp;выяву ў новай укладцы</translation>
-<translation id="3493881266323043047">Тэрмін дзеяння</translation>
 <translation id="3511307672085573050">Скапіяваць адрас &amp;спасылкі</translation>
 <translation id="354068948465830244">Можа чытаць і змяняць даныя сайтаў</translation>
 <translation id="3560034655160545939">&amp;Праверка правапісу</translation>
@@ -160,7 +155,6 @@
 <translation id="3760460896538743390">Інспектаваць &amp;фонаваю старонку</translation>
 <translation id="3786224729726357296">Выдаліць даныя і дазволы сайта <ph name="SITE" /></translation>
 <translation id="3797900183766075808">Шукаць <ph name="SEARCH_ENGINE" /> у “<ph name="SEARCH_TERMS" />”</translation>
-<translation id="3798449238516105146">Версія</translation>
 <translation id="3810973564298564668">Кіраванне</translation>
 <translation id="3838085852053358637">Не ўдалося загрузіць пашырэнне</translation>
 <translation id="383891835335927981">Сайты са змененым маштабам адсутнічаюць</translation>
@@ -240,7 +234,6 @@
 <translation id="5063480226653192405">Выкарыстанне</translation>
 <translation id="5116628073786783676">Захаваць аўдыё як...</translation>
 <translation id="5154108062446123722">Дадатковыя налады для <ph name="PRINTING_DESTINATION" /></translation>
-<translation id="5154702632169343078">Тэма</translation>
 <translation id="5171343362375269016">Віртуальная памяць (swap)</translation>
 <translation id="5233231016133573565">Ідэнтыфікатар працэсу</translation>
 <translation id="5233736638227740678">&amp;Уставіць</translation>
@@ -280,7 +273,6 @@
 <translation id="5780973441651030252">Прыярытэт працэсаў</translation>
 <translation id="5804241973901381774">Правы доступу</translation>
 <translation id="5828633471261496623">Друкаванне...</translation>
-<translation id="5851868085455377790">Выдавец</translation>
 <translation id="5860491529813859533">Уключыць</translation>
 <translation id="5910363049092958439">Захаваць выяву як...</translation>
 <translation id="5914724413750400082">Модуль (бітаў – <ph name="MODULUS_NUM_BITS" />):
@@ -420,7 +412,6 @@
 <translation id="862750493060684461">Кэш CSS</translation>
 <translation id="8661290697478713397">Адкрыць спасылку ў акне ў рэжыме &amp;інкогніта</translation>
 <translation id="8664389313780386848">&amp;Праглядзець код старонкі</translation>
-<translation id="8705331520020532516">Серыйны нумар</translation>
 <translation id="8708000541097332489">Ачышчаць падчас выхаду</translation>
 <translation id="8714838604780058252">Фонавая графіка</translation>
 <translation id="8725066075913043281">Паўтарыць спробу</translation>

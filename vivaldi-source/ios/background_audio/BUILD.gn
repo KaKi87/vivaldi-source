@@ -1,9 +1,11 @@
 # Copyright (c) 2025 Vivaldi Technologies AS. All rights reserved
 
-import("//ios/web/public/js_messaging/optimize_js.gni")
+import("//ios/web/public/js_messaging/optimize_ts.gni")
 
 source_set("background_audio") {
   sources = [
+    "background_audio_javascript_feature.h",
+    "background_audio_javascript_feature.mm",
     "background_audio_tab_helper.h",
     "background_audio_tab_helper.mm",
   ]
@@ -15,7 +17,17 @@ source_set("background_audio") {
   ]
 }
 
+compile_ts("background_audio_ts") {
+  sources = [ "resources/background_audio.ts" ]
+  tsconfig_base = "tsconfig_base.json"
+  deps = [ "//ios/web/public/js_messaging:gcrweb" ]
+}
+
 optimize_js("background_audio_js") {
-  primary_script = "resources/background_audio.js"
-  sources = [ "resources/background_audio.js" ]
+  _script = filter_include(get_target_outputs(":background_audio_ts"),
+                           [ "*background_audio.js" ])
+  primary_script = _script[0]
+  sources = _script
+
+  deps = [ ":background_audio_ts" ]
 }

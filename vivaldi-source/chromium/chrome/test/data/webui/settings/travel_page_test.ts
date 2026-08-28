@@ -6,12 +6,14 @@ import 'chrome://settings/settings.js';
 
 import {AiEnterpriseFeaturePrefName, EntityDataManagerProxyImpl} from 'chrome://settings/lazy_load.js';
 import type {SettingsTravelPageElement} from 'chrome://settings/lazy_load.js';
-import {CrSettingsPrefs, loadTimeData, ModelExecutionEnterprisePolicyValue} from 'chrome://settings/settings.js';
+import {CrSettingsPrefs, loadTimeData, ModelExecutionEnterprisePolicyValue, resetRouterForTesting, Router} from 'chrome://settings/settings.js';
 import type {SettingsPrefsElement} from 'chrome://settings/settings.js';
+import {MetricsBrowserProxyImpl} from 'chrome://settings/settings.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
 
 import {TestEntityDataManagerProxy} from './test_entity_data_manager_proxy.js';
+import {TestMetricsBrowserProxy} from './test_metrics_browser_proxy.js';
 
 suite('TravelPage', function() {
   let entityDataManager: TestEntityDataManagerProxy;
@@ -190,7 +192,7 @@ suite('TravelPage', function() {
         async function() {
           loadTimeData.overrideValues({
             userEligibleForAutofillAi: true,
-            AutofillAddOtherDatatypesPrefIsEnabled: experimentEnabled,
+            AutofillSettingsEnterprisePolicyEnabled: experimentEnabled,
             autofillAiAvailableByDefault: false,
           });
 
@@ -213,7 +215,7 @@ suite('TravelPage', function() {
       async function() {
         loadTimeData.overrideValues({
           userEligibleForAutofillAi: true,
-          AutofillAddOtherDatatypesPrefIsEnabled: false,
+          AutofillSettingsEnterprisePolicyEnabled: false,
           autofillAiAvailableByDefault: true,
           canEnableOrDisableAutofillAi: true,
         });
@@ -243,7 +245,7 @@ suite('TravelPage', function() {
       async function() {
         loadTimeData.overrideValues({
           userEligibleForAutofillAi: true,
-          AutofillAddOtherDatatypesPrefIsEnabled: false,
+          AutofillSettingsEnterprisePolicyEnabled: false,
           autofillAiAvailableByDefault: true,
           canEnableOrDisableAutofillAi: true,
         });
@@ -274,7 +276,7 @@ suite('TravelPage', function() {
       async function() {
         loadTimeData.overrideValues({
           userEligibleForAutofillAi: true,
-          AutofillAddOtherDatatypesPrefIsEnabled: false,
+          AutofillSettingsEnterprisePolicyEnabled: false,
           autofillAiAvailableByDefault: true,
           canEnableOrDisableAutofillAi: true,
         });
@@ -302,7 +304,7 @@ suite('TravelPage', function() {
       async function() {
         loadTimeData.overrideValues({
           userEligibleForAutofillAi: true,
-          AutofillAddOtherDatatypesPrefIsEnabled: false,
+          AutofillSettingsEnterprisePolicyEnabled: false,
           autofillAiAvailableByDefault: true,
           canEnableOrDisableAutofillAi: true,
         });
@@ -329,7 +331,7 @@ suite('TravelPage', function() {
       async function() {
         loadTimeData.overrideValues({
           userEligibleForAutofillAi: true,
-          AutofillAddOtherDatatypesPrefIsEnabled: false,
+          AutofillSettingsEnterprisePolicyEnabled: false,
           autofillAiAvailableByDefault: true,
           canEnableOrDisableAutofillAi: true,
         });
@@ -349,4 +351,56 @@ suite('TravelPage', function() {
         assertFalse(!!policyIndicator);
         assertTrue(page.$.optInToggle.checked);
       });
+
+  suite('SuggestionsFromGemini', function() {
+    let metricsBrowserProxy: TestMetricsBrowserProxy;
+
+    setup(function() {
+      metricsBrowserProxy = new TestMetricsBrowserProxy();
+      MetricsBrowserProxyImpl.setInstance(metricsBrowserProxy);
+      loadTimeData.overrideValues({
+        showSuggestionsFromGeminiSettings: false,
+      });
+      resetRouterForTesting();
+    });
+
+    teardown(function() {
+      loadTimeData.overrideValues({
+        showSuggestionsFromGeminiSettings: false,
+      });
+      resetRouterForTesting();
+    });
+
+    test('row is visible and navigates when flag is enabled', async function() {
+      loadTimeData.overrideValues({
+        showSuggestionsFromGeminiSettings: true,
+      });
+      resetRouterForTesting();
+
+      const page = await setupPage();
+
+      const button = page.shadowRoot!.querySelector<HTMLElement>(
+          '#suggestionsFromGeminiLinkRow');
+      assertTrue(!!button);
+
+      button.click();
+      assertEquals('/enhancedAutofill', Router.getInstance().currentRoute.path);
+      const action = await metricsBrowserProxy.whenCalled('recordAction');
+      assertEquals(
+          'PersonalContext.Settings.EntryPoint.TravelSettings', action);
+    });
+
+    test('row is hidden when flag is disabled', async function() {
+      loadTimeData.overrideValues({
+        showSuggestionsFromGeminiSettings: false,
+      });
+      resetRouterForTesting();
+
+      const page = await setupPage();
+
+      const button = page.shadowRoot!.querySelector<HTMLElement>(
+          '#suggestionsFromGeminiLinkRow');
+      assertFalse(!!button);
+    });
+  });
 });

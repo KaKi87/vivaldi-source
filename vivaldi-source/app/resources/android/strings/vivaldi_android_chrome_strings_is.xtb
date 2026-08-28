@@ -13,7 +13,15 @@
 <translation id="1626105448931436644">Kynntu þér sameiginlega flipabunka</translation>
 <translation id="1644574205037202324">Saga</translation>
 <translation id="1829244130665387512">Leita á síðunni</translation>
+<translation id="1839634099873376237">{NUMBER_OF_TABS, plural,
+          =1 {Sjá <ph name="TABS_COUNT_ONE" /> flipa með nýrri virkni í samnýttum flipabunkum}
+          other {Sjá <ph name="TABS_COUNT_MANY" /> flipa með nýrri virkni í samnýttum flipabunkum}
+        }</translation>
 <translation id="1925021887439448749">Færðu inn sérsniðna vefslóð</translation>
+<translation id="197242951608864241">{NUM_OTHER_MEMBERS, plural,
+          =1 {Vertu með í flipabunka með <ph name="OWNER_FIRST_NAME" /> og <ph name="NUMBER_OF_OTHER_MEMBERS" /> öðrum}
+          other {Vertu með í flipabunka með <ph name="OWNER_FIRST_NAME" /> og <ph name="NUMBER_OF_OTHER_MEMBERS" /> öðrum}
+        }</translation>
 <translation id="2038563949887743358">Kveiktu á borðtölvuútgáfu</translation>
 <translation id="2067565353468675023">Vertu með í flipabunka sem <ph name="OWNER_FIRST_NAME" /></translation>
 <translation id="208033313373016095">Leshamur fyrir vefsíður</translation>
@@ -21,7 +29,7 @@
 <translation id="2306442503286132111">Bókamerki vistað í <ph name="FOLDER_NAME" /> möppu</translation>
 <translation id="2433507940547922241">Útlit</translation>
 <translation id="2495373685671077949">Leitaðu að flipum og bunkum</translation>
-<translation id="2500281581698062897">Þú munt strax missa aðgang að flipabunka “<ph name="GROUP_NAME" />” og <ph name="BLOCKED_MEMBER_FULL_NAME" /> (<ph name="BLOCKED_MEMBER_EMAIL" />) mun ekki geta haft samband við þig í gegnum Google þjónustur. <ph name="BLOCKED_MEMBER_FULL_NAME" /><ph name="BLOCKED_MEMBER_FULL_NAME" /><ph name="BLOCKED_MEMBER_FULL_NAME" /><ph name="BLOCKED_MEMBER_FULL_NAME" /></translation>
+<translation id="2500281581698062897">Þú munt strax missa aðgang að flipabunka “<ph name="GROUP_NAME" />” og <ph name="BLOCKED_MEMBER_FULL_NAME" /> (<ph name="BLOCKED_MEMBER_EMAIL" />) mun ekki geta haft samband við þig í gegnum Google þjónustur.</translation>
 <translation id="2546283357679194313">Kökur og síðugögn</translation>
 <translation id="2633278372998075009">Einkaflipar</translation>
 <translation id="2650751991977523696">Sækja skrá aftur?</translation>
@@ -44,6 +52,10 @@
 <translation id="3298614730029636660">Fara úr bunka</translation>
 <translation id="3359462099791810823">Eigðu þennan bunka til að endurnýta síðar, eða eyddu ef ekki er þörf á honum.</translation>
 <translation id="3478414204555961127">Leshamur</translation>
+<translation id="3492241834031916806">{TAB_COUNT, plural,
+          =1 {Endurheimta flipabunka með <ph name="TAB_COUNT_ONE" /> flipa, litur <ph name="COLOR_NAME" />, sem nýjan bakgrunnsflipabunka.}
+          other {Endurheimta flipabunka með <ph name="TAB_COUNT_MANY" /> flipum, litur <ph name="COLOR_NAME" />, sem nýjan bakgrunnsflipabunka.}
+        }</translation>
 <translation id="3504699618187058974">Flipabunkar</translation>
 <translation id="3518985090088779359">Samþykkja og halda áfram</translation>
 <translation id="3571177741182643350">Ólesnar greinar - Aðgengilegar án nettengingar:</translation>
@@ -181,4 +193,5 @@ Að ýta til þess að leita er aðgerð, sem bara er í boði þegar Google er 
 <translation id="9099398755190923267">Allir munu strax missa aðgang að flipabunka “<ph name="GROUP_NAME" />”, og honum verður eytt á öllum tækjum</translation>
 <translation id="930124987204876019">Eyddu sögu, fótsporum, vefsvæðagögnum, skyndiminni…</translation>
 <translation id="961856697154696964">Eyða sögu vafranotkunar</translation>
+<translation id="992223576089545146">Leita í einkaflipum</translation>
 </translationbundle>

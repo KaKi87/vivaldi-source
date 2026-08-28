@@ -76,6 +76,8 @@ void TemplateUrlServiceAndroid::AddCustomSearchEngine(
 
   TemplateURLData data;
   data.safe_for_autoreplace = false;
+  // VAB-13360
+  data.is_active = TemplateURLData::ActiveStatus::kTrue;
   data.SetShortName(base::android::ConvertJavaStringToUTF16(short_name));
   data.SetKeyword(base::android::ConvertJavaStringToUTF16(nickname));
   data.SetURL(searchable_url);

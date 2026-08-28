@@ -11,6 +11,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search/search.h"
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
+#include "chrome/browser/ui/bookmarks/bookmark_utils.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -82,6 +83,11 @@ BookmarkBarController::BookmarkBarController(BrowserWindowInterface& browser,
       base::BindRepeating(&BookmarkBarController::UpdateBookmarkBarState,
                           base::Unretained(this),
                           StateChangeReason::kPrefChange));
+  pref_change_registrar_.Add(
+      bookmarks::prefs::kShowTabGroupsInBookmarkBar,
+      base::BindRepeating(&BookmarkBarController::UpdateBookmarkBarState,
+                          base::Unretained(this),
+                          StateChangeReason::kPrefChange));
 
   // If the `kNtpSimplificationBookmarkBar` feature is enabled update
   // `kBookmarkBarVisibilityState` when `kShowBookmarkBar` is true to respect
@@ -90,9 +96,11 @@ BookmarkBarController::BookmarkBarController(BrowserWindowInterface& browser,
           ntp_features::kNtpSimplificationBookmarkBar)) {
     const PrefService::Preference* state_pref =
         prefs->FindPreference(bookmarks::prefs::kBookmarkBarVisibilityState);
+    const PrefService::Preference* show_pref =
+        prefs->FindPreference(bookmarks::prefs::kShowBookmarkBar);
 
-    if (state_pref && state_pref->IsDefaultValue() &&
-        prefs->GetBoolean(bookmarks::prefs::kShowBookmarkBar)) {
+    if (state_pref && state_pref->IsDefaultValue() && show_pref &&
+        show_pref->IsUserControlled() && show_pref->GetValue()->GetBool()) {
       prefs->SetInteger(
           bookmarks::prefs::kBookmarkBarVisibilityState,
           static_cast<int>(bookmarks::BookmarkBarVisibilityState::kAlwaysShow));
@@ -131,10 +139,14 @@ BookmarkBarController::BookmarkBarController(BrowserWindowInterface& browser,
 void BookmarkBarController::OnBookmarkBarVisibilityStateChanged() {
   Profile* profile = browser_->GetProfile();
   PrefService* prefs = profile->GetPrefs();
-  bool always_show =
-      prefs->GetInteger(bookmarks::prefs::kBookmarkBarVisibilityState) ==
-      static_cast<int>(bookmarks::BookmarkBarVisibilityState::kAlwaysShow);
-  prefs->SetBoolean(bookmarks::prefs::kShowBookmarkBar, always_show);
+  const PrefService::Preference* state_pref =
+      prefs->FindPreference(bookmarks::prefs::kBookmarkBarVisibilityState);
+  if (state_pref && state_pref->IsUserControlled()) {
+    bool always_show =
+        prefs->GetInteger(bookmarks::prefs::kBookmarkBarVisibilityState) ==
+        static_cast<int>(bookmarks::BookmarkBarVisibilityState::kAlwaysShow);
+    prefs->SetBoolean(bookmarks::prefs::kShowBookmarkBar, always_show);
+  }
 
   UpdateBookmarkBarState(StateChangeReason::kPrefChange);
 }
@@ -261,7 +273,8 @@ bool BookmarkBarController::ShouldShowBookmarkBar() const {
   tab_groups::TabGroupSyncService* tab_group_service =
       tab_groups::TabGroupSyncServiceFactory::GetForProfile(profile);
   const bool has_saved_tab_groups =
-      tab_group_service && !tab_group_service->GetAllGroups().empty();
+      tab_group_service && !tab_group_service->GetAllGroups().empty() &&
+      chrome::ShouldShowTabGroupsInBookmarkBar(profile);
 
   // The bookmark bar is only shown if the user has added something to it.
   if (!has_bookmarks && !has_saved_tab_groups) {

@@ -31,10 +31,12 @@
 #include "components/omnibox/browser/suggestion_answer.h"
 #include "components/saved_tab_groups/public/types.h"
 #include "components/search_engines/template_url.h"
+#include "components/search_engines/template_url_starter_pack_data.h"
 #include "components/url_formatter/url_formatter.h"
 #include "third_party/metrics_proto/omnibox_event.pb.h"
 #include "third_party/metrics_proto/omnibox_scoring_signals.pb.h"
 #include "third_party/omnibox_proto/answer_type.pb.h"
+#include "third_party/omnibox_proto/chrome_searchbox_stats.pb.h"
 #include "third_party/omnibox_proto/groups.pb.h"
 #include "third_party/omnibox_proto/navigational_intent.pb.h"
 #include "third_party/omnibox_proto/rich_answer_template.pb.h"
@@ -110,6 +112,10 @@ struct SessionData {
   // List of GWS event ID hashes accumulated during the course of the session.
   std::vector<int64_t> gws_event_id_hashes;
 
+  // List of experiment stats accumulated during the course of the session.
+  std::vector<omnibox::metrics::ChromeSearchboxStats::ExperimentStatsV2>
+      experiment_stats_v2s;
+
   // Whether at least one zero-prefix Search/URL suggestion was
   // shown in the session. This is used in order to ensure that the relevant
   // client-side metrics logging code emits the proper values.
@@ -175,6 +181,14 @@ enum class AutocompleteMatchDedupeType {
   // Search matches created as a duplicate of an existing match which
   // additionally send location data when selected.
   kInlineLocationSignaling,
+};
+
+// GENERATED_JAVA_ENUM_PACKAGE: org.chromium.components.omnibox
+// GENERATED_JAVA_CLASS_NAME_OVERRIDE: OmniboxSuggestionKind
+enum class OmniboxSuggestionKind {
+  kSearch = 0,
+  kNavigation = 1,
+  kConversation = 2,
 };
 
 // AutocompleteMatch ----------------------------------------------------------
@@ -255,6 +269,8 @@ struct AutocompleteMatch {
 
   // Document subtype, for AutocompleteMatchType::DOCUMENT.
   // Update kDocumentTypeStrings when updating DocumentType.
+  // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.components.omnibox
+  // GENERATED_JAVA_CLASS_NAME_OVERRIDE: DocumentType
   enum class DocumentType {
     NONE = 0,
     DRIVE_DOCS,
@@ -325,7 +341,8 @@ struct AutocompleteMatch {
   // Returns a corresponding Java object, creating it if necessary.
   // NOTE: Android specific methods are defined in autocomplete_match_android.cc
   base::android::ScopedJavaLocalRef<jobject> GetOrCreateJavaObject(
-      JNIEnv* env) const;
+      JNIEnv* env,
+      const TemplateURLService* template_url_service) const;
 
   // Update the bond with- or drop the Java AutocompleteMatch instance.
   // This should be called whenever the native AutocompleteMatch object is
@@ -537,14 +554,16 @@ struct AutocompleteMatch {
                                                       bool preserve_subdomain);
   // Logs the search engine used to navigate to a search page or auto complete
   // suggestion. For direct URL navigations, nothing is logged.
-  static void LogSearchEngineUsed(const AutocompleteMatch& match,
-                                  TemplateURLService* template_url_service);
+  static void LogSearchEngineUsed(
+      const AutocompleteMatch& match,
+      const TemplateURLService* template_url_service);
 
   // Computes the stripped destination URL (via GURLToStrippedGURL()) and
   // stores the result in |stripped_destination_url|.  |input| is used for the
   // same purpose as in GURLToStrippedGURL().
-  void ComputeStrippedDestinationURL(const AutocompleteInput& input,
-                                     TemplateURLService* template_url_service);
+  void ComputeStrippedDestinationURL(
+      const AutocompleteInput& input,
+      const TemplateURLService* template_url_service);
 
   // Returns whether `destination_url` looks like a doc URL. If so, will also
   // set `stripped_destination_url` to avoid repeating the computation later.
@@ -577,6 +596,9 @@ struct AutocompleteMatch {
 
   // Checks if this match is a AI mode suggestion.
   bool IsSearchAimSuggestion() const;
+
+  // Returns the kind for accessibility announcements.
+  OmniboxSuggestionKind GetOmniboxSuggestionKind() const;
 
   // Checks if this match has a Lens search action.
   bool HasLensSearchAction() const;
@@ -615,7 +637,7 @@ struct AutocompleteMatch {
   // wants to display. Set for both hint and non-hint keyword modes.
   // `is_history_embeddings_enabled` will affect the placeholder text for the
   // @history keyword.
-  void GetKeywordUiState(TemplateURLService* template_url_service,
+  void GetKeywordUiState(const TemplateURLService* template_url_service,
                          bool is_history_embeddings_enabled,
                          KeywordState* keyword_state,
                          std::u16string* keyword_out,
@@ -625,7 +647,7 @@ struct AutocompleteMatch {
   // with the default search engine (and the user didn't explicitly invoke its
   // keyword), this returns false even though `keyword` won't be empty.
   bool IsExplicitlyInvokedKeyword(
-      TemplateURLService* template_url_service) const;
+      const TemplateURLService* template_url_service) const;
 
   // Returns the placeholder text to display for the given starter pack keyword
   // TemplateURL, returned for both hint and non-hint keyword modes.
@@ -639,6 +661,13 @@ struct AutocompleteMatch {
   // if the match has no keyword OR if the keyword no longer corresponds to a
   // valid `TemplateURL`. See comments on `keyword` below.
   TemplateURL* GetTemplateURL(TemplateURLService* template_url_service) const;
+  const TemplateURL* GetTemplateURL(
+      const TemplateURLService* template_url_service) const;
+
+  // Returns the `StarterPackId` associated with this match's `keyword`, or
+  // `StarterPackId::kNone` if not a starter pack match.
+  template_url_starter_pack_data::StarterPackId StarterPackId(
+      const TemplateURLService* template_url_service) const;
 
   // Gets the URL for the match image (whether it be an answer or entity). If
   // there isn't an image URL, returns an empty GURL (test with is_empty()).
@@ -917,9 +946,6 @@ struct AutocompleteMatch {
 
   // Used for document suggestions to show the mime-corresponding icons.
   DocumentType document_type = DocumentType::NONE;
-
-  // The id of the starter pack engine, if this is a starter pack match.
-  int starter_pack_id = 0;
 
   // Used for enterprise search aggregator suggestions for grouping.
   EnterpriseSearchAggregatorType enterprise_search_aggregator_type =

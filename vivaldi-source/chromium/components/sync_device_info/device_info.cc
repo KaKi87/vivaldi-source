@@ -71,6 +71,7 @@ DeviceInfo::DeviceInfo(
     const std::string& signin_scoped_device_id,
     const std::string& manufacturer_name,
     const std::string& model_name,
+    std::optional<std::string> server_determined_model_name,
     const std::string& full_hardware_class,
     base::Time last_updated_timestamp,
     base::TimeDelta pulse_interval,
@@ -83,12 +84,13 @@ DeviceInfo::DeviceInfo(
     std::optional<base::Time> auto_sign_out_last_signin_timestamp,
     bool desktop_to_ios_promo_receiving_enabled,
     const MobilePromoOnDesktopPromoTypeSet&
-        desktop_to_ios_promo_receiving_types //,
+        desktop_to_ios_promo_receiving_types,
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     GlicExperimentalTriggeringState glic_experimental_triggering_state,
-    std::optional<int> glic_experimental_triggering_version
+    std::optional<int> glic_experimental_triggering_version,
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-    ) : guid_(guid),
+    std::optional<std::string> android_os_build_fingerprint_prefix)
+    : guid_(guid),
       client_name_(client_name),
       chrome_version_(chrome_version),
       sync_user_agent_(sync_user_agent),
@@ -98,7 +100,10 @@ DeviceInfo::DeviceInfo(
       signin_scoped_device_id_(signin_scoped_device_id),
       manufacturer_name_(manufacturer_name),
       model_name_(model_name),
+      server_determined_model_name_(std::move(server_determined_model_name)),
       full_hardware_class_(full_hardware_class),
+      android_os_build_fingerprint_prefix_(
+          std::move(android_os_build_fingerprint_prefix)),
       last_updated_timestamp_(last_updated_timestamp),
       pulse_interval_(pulse_interval),
       send_tab_to_self_receiving_enabled_(send_tab_to_self_receiving_enabled),
@@ -175,6 +180,11 @@ const std::string& DeviceInfo::full_hardware_class() const {
   return full_hardware_class_;
 }
 
+const std::optional<std::string>&
+DeviceInfo::android_os_build_fingerprint_prefix() const {
+  return android_os_build_fingerprint_prefix_;
+}
+
 base::Time DeviceInfo::last_updated_timestamp() const {
   return last_updated_timestamp_;
 }
@@ -211,6 +221,11 @@ std::optional<int> DeviceInfo::glic_experimental_triggering_version() const {
   return glic_experimental_triggering_version_;
 }
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+
+const std::optional<std::string>& DeviceInfo::server_determined_model_name()
+    const {
+  return server_determined_model_name_;
+}
 
 const std::optional<DeviceInfo::SharingInfo>& DeviceInfo::sharing_info() const {
   return sharing_info_;

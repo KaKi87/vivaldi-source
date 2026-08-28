@@ -219,6 +219,7 @@ public class WebauthnTestUtils {
         private Runnable mHybridCallback;
         private Callback<Integer> mNonCredentialCallback;
         private int mCleanupCalled;
+        private boolean mInitialized;
 
         private final String16 mPasswordCredUsername16;
         private final String16 mPasswordCredPassword16;
@@ -240,6 +241,7 @@ public class WebauthnTestUtils {
                 Callback<SelectedCredential> credentialCallback,
                 @Nullable Runnable hybridCallback,
                 Callback<Integer> nonCredentialCallback) {
+            mInitialized = true;
             if (mInvokeCallbackImmediately == CallbackInvocationType.IMMEDIATE_PASSKEY
                     || mInvokeCallbackImmediately == CallbackInvocationType.IMMEDIATE_PASSWORD) {
                 Assert.assertEquals(mExpectedCredentialList.size(), credentialList.size());
@@ -291,9 +293,17 @@ public class WebauthnTestUtils {
         }
 
         @Override
+        public boolean isInitialized() {
+            return mInitialized;
+        }
+
+        @Override
         public void cleanupRequest(RenderFrameHost frameHost) {
             mCleanupCalled++;
         }
+
+        @Override
+        public void cleanupCredManRequest(RenderFrameHost frameHost) {}
 
         public void setExpectedCredentialDetailsList(
                 List<WebauthnCredentialDetails> credentialList) {
@@ -425,14 +435,9 @@ public class WebauthnTestUtils {
                         .stream()
                         .map(s -> s.replaceAll(":", ""))
                         .collect(Collectors.joining("\'"));
-        InstrumentationRegistry.getInstrumentation()
-                .getUiAutomation()
-                .executeShellCommand(String.format(FIDO_OVERRIDE_COMMAND, fingerprints));
-        Log.d(
-                TAG,
-                "Executing command: '"
-                        + String.format(WebauthnTestUtils.FIDO_OVERRIDE_COMMAND, fingerprints)
-                        + "'");
+        String command = String.format(FIDO_OVERRIDE_COMMAND, fingerprints);
+        InstrumentationRegistry.getInstrumentation().getUiAutomation().executeShellCommand(command);
+        Log.d(TAG, "Executing command: '%s'", command);
     }
 
     private WebauthnTestUtils() {}

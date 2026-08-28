@@ -43,13 +43,14 @@
 #import "ios/chrome/browser/url_loading/model/url_loading_util.h"
 #import "ios/chrome/common/ui/util/ui_util.h"
 #import "ios/web/public/web_state.h"
+#import "ui/base/device_form_factor.h"
 
-@interface ComposeboxCoordinator () <ComposeboxViewControllerDelegate,
-                                     ComposeboxNavigationMediatorDelegate,
-                                     ComposeboxAnimationContext,
+@interface ComposeboxCoordinator () <ComposeboxAnimationContext,
                                      ComposeboxDebuggerCoordinatorDelegate,
-                                     UIViewControllerTransitioningDelegate,
-                                     ComposeboxiPadAnimatorDelegate>
+                                     ComposeboxiPadAnimatorDelegate,
+                                     ComposeboxNavigationMediatorDelegate,
+                                     ComposeboxViewControllerDelegate,
+                                     UIViewControllerTransitioningDelegate>
 
 @end
 
@@ -91,7 +92,10 @@
 - (void)start {
   ComposeboxTheme* theme = [self createTheme];
   _viewController = [[ComposeboxViewController alloc] initWithTheme:theme];
-  _viewController.modalPresentationStyle = UIModalPresentationCustom;
+  _viewController.modalPresentationStyle =
+      [self shouldUseIpadPresentationController]
+          ? UIModalPresentationCustom
+          : UIModalPresentationOverFullScreen;
   _viewController.transitioningDelegate = self;
   if (self.isOffTheRecord) {
     _viewController.view.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
@@ -163,6 +167,10 @@
   [_viewController.presentingViewController
       dismissViewControllerAnimated:YES
                          completion:dismissComplete];
+}
+
+- (void)hideComposeboxMenu {
+  [_aimComposeboxCoordinator hideComposeboxMenu];
 }
 
 - (void)stop {
@@ -321,7 +329,7 @@
 
 - (ComposeboxInputPlatePosition)inputPlatePositionPreference {
   if (IsComposeboxIpadEnabled() &&
-      [UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+      ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
     // TODO(crbug.com/469368394): Should only return this if regular horizontal
     // size class.
     return ComposeboxInputPlatePosition::kiPad;
@@ -343,13 +351,17 @@
 // Returns YES if the iPad popover presentation controller should be used.
 - (BOOL)shouldUseIpadPresentationController {
   return IsComposeboxIpadEnabled() &&
-         UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad &&
+         ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET &&
          IsRegularXRegularSizeClass(self.baseViewController.traitCollection);
 }
 
 // Represents the coordinator's view controller with no animation.
 - (void)representViewController {
   _viewController.view.hidden = NO;
+  _viewController.modalPresentationStyle =
+      [self shouldUseIpadPresentationController]
+          ? UIModalPresentationCustom
+          : UIModalPresentationOverFullScreen;
   [self.baseViewController presentViewController:_viewController
                                         animated:NO
                                       completion:nil];

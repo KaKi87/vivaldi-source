@@ -274,6 +274,10 @@ void BindNoStatePrefetchCanceler(
 void BindNoStatePrefetchProcessor(
     content::RenderFrameHost* frame_host,
     mojo::PendingReceiver<blink::mojom::NoStatePrefetchProcessor> receiver) {
+  // NoStatePrefetch is not supported inside fenced frames.
+  if (frame_host->IsNestedWithinFencedFrame()) {
+    return;
+  }
   prerender::NoStatePrefetchProcessorImpl::Create(
       frame_host, std::move(receiver),
       std::make_unique<
@@ -308,13 +312,19 @@ void BindNetworkHintsHandler(
 void BindSpeechRecognitionContextHandler(
     content::RenderFrameHost* frame_host,
     mojo::PendingReceiver<media::mojom::SpeechRecognitionContext> receiver) {
-  if (!captions::IsLiveCaptionFeatureSupported()) {
+  Profile* profile = Profile::FromBrowserContext(
+      frame_host->GetProcess()->GetBrowserContext());
+  if (!profile) {
+    return;
+  }
+  PrefService* profile_prefs = profile->GetPrefs();
+  if (!(profile_prefs->GetBoolean(prefs::kLiveCaptionEnabled) ||
+        profile_prefs->GetBoolean(prefs::kHeadlessCaptionEnabled)) ||
+      !captions::IsLiveCaptionFeatureSupported()) {
     return;
   }
 
   // Bind via the appropriate factory.
-  Profile* profile = Profile::FromBrowserContext(
-      frame_host->GetProcess()->GetBrowserContext());
 #if BUILDFLAG(ENABLE_BROWSER_SPEECH_SERVICE)
   auto* factory = SpeechRecognitionServiceFactory::GetForProfile(profile);
 #elif BUILDFLAG(IS_CHROMEOS)

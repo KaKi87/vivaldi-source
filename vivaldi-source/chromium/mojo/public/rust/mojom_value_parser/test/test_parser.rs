@@ -28,8 +28,9 @@ chromium::import! {
     "//mojo/public/rust/bindings";
 }
 
-use bindings::receiver::PendingReceiver;
-use bindings::remote::PendingRemote;
+use bindings::for_testing::DummyRegistrarForTesting;
+use bindings::receiver::{PendingAssociatedReceiver, PendingReceiver};
+use bindings::remote::{PendingAssociatedRemote, PendingRemote};
 
 use mojom_value_parser_core::*;
 use ordered_float::OrderedFloat;
@@ -139,6 +140,45 @@ where
         parse_single_value_for_testing(wire_data.as_ref(), &mut handles, T::wire_type()).is_err()
     );
     Ok(())
+}
+
+/// Similar to `validate_parsing`, but for types with associated endpoints.
+/// It takes a closure to check if the parsed value is correct.
+fn validate_parsing_with_associated<T>(
+    value: T,
+    has_expected_value: impl Fn(&T) -> bool,
+    data: &str,
+) -> anyhow::Result<()>
+where
+    T: MojomParse<DummyRegistrarForTesting> + PartialEq + std::fmt::Debug,
+{
+    let err_str = format!("\nRust value: {value:?}\nWire Data: {data}");
+
+    let validate_parsing_internal = || -> anyhow::Result<()> {
+        let wire_data = validation_parser::parse(data).map_err(anyhow::Error::msg)?.data;
+
+        let parsing_registrar = DummyRegistrarForTesting::new(false);
+        let deparsing_registrar = DummyRegistrarForTesting::new(false);
+
+        let (deparsed_bytes, _deparsed_handles, interface_ids_ptr) =
+            deparse_top_level_value(value.into_mojom_value(&deparsing_registrar), T::wire_type())?;
+
+        // Make sure deparsing output the right bytes.
+        // This also checks that out `interface_ids_ptr` is correct before we
+        // hand it to the parsing function.
+        expect_eq!(wire_data.as_ref(), deparsed_bytes.as_slice());
+
+        let (_remaining_bytes, parsed_mojom_value) =
+            parse_top_level_value(wire_data.as_ref(), &mut [], interface_ids_ptr, T::wire_type())?;
+        let parsed_rust_value = T::try_from_mojom_value(parsed_mojom_value, &parsing_registrar)?;
+
+        // Make sure parsing gave us the right Rust value.
+        expect_true!(has_expected_value(&parsed_rust_value));
+
+        Ok(())
+    };
+
+    validate_parsing_internal().map_err(|err| anyhow::anyhow!("{err}{err_str}"))
 }
 
 #[gtest(RustTestMojomParsing, TestPrimitiveParsing)]
@@ -926,11 +966,11 @@ fn test_string_parsing() -> anyhow::Result<()> {
             "[u4]32 [u4]3 ",
             "[dist8]life_ptr [dist8]universe_ptr [dist8]everything_ptr",
             "[anchr]life_ptr",
-            &str_wire_format("life"),
+            str_wire_format("life"),
             "[anchr]universe_ptr",
-            &str_wire_format("universe"),
+            str_wire_format("universe"),
             "[anchr]everything_ptr",
-            &str_wire_format("everything"),
+            str_wire_format("everything"),
         ),
     )?;
 
@@ -944,9 +984,9 @@ fn test_string_parsing() -> anyhow::Result<()> {
             "[anchr]values_ptr ",
             "[u4]24 [u4]2 [dist8]ten_ptr [dist8]twenty_ptr ",
             "[anchr]ten_ptr ",
-            &str_wire_format("ten"),
+            str_wire_format("ten"),
             "[anchr]twenty_ptr ",
-            &str_wire_format("twenty"),
+            str_wire_format("twenty"),
         ),
     )?;
 
@@ -958,9 +998,9 @@ fn test_string_parsing() -> anyhow::Result<()> {
             "[anchr]keys_ptr ",
             "[u4]24 [u4]2 [dist8]four_ptr [dist8]three_ptr ",
             "[anchr]four_ptr ",
-            &str_wire_format("four"),
+            str_wire_format("four"),
             "[anchr]three_ptr ",
-            &str_wire_format("three"),
+            str_wire_format("three"),
             "[anchr]values_ptr ",
             "[u4]12 [u4]2 [s2]4 [s2]3 [u4]0 ",
         ),
@@ -982,7 +1022,7 @@ fn test_complex_union_parsing() -> anyhow::Result<()> {
         HoldsComplexTypes::str("union_string".to_string()),
         &format!(
             "[u4]16 [u4]0 [dist8]union_str_ptr [anchr]union_str_ptr {}",
-            &str_wire_format("union_string")
+            str_wire_format("union_string")
         ),
     )?;
 
@@ -990,7 +1030,7 @@ fn test_complex_union_parsing() -> anyhow::Result<()> {
         ComplexUnionHolder { u: HoldsComplexTypes::str("union_string".to_string()) },
         &format!(
             "[u4]24 [u4]0 [u4]16 [u4]0 [dist8]union_str_ptr [anchr]union_str_ptr {}",
-            &str_wire_format("union_string")
+            str_wire_format("union_string")
         ),
     )?;
 
@@ -1147,7 +1187,7 @@ fn test_nullable_parsing() -> anyhow::Result<()> {
         UnionWithNullables::str(Some("union_string".to_string())),
         &format!(
             "[u4]16 [u4]1 [dist8]union_str_ptr [anchr]union_str_ptr {}",
-            &str_wire_format("union_string")
+            str_wire_format("union_string")
         ),
     )?;
     validate_parsing::<UnionWithNullables>(
@@ -1169,7 +1209,7 @@ fn test_nullable_parsing() -> anyhow::Result<()> {
             "{} {} {}",
             "[u4]40 [u4]0 [u4]16 [u4]2 [u8]0 [u8]0 [dist8]str_ptr ",
             "[anchr]str_ptr ",
-            &str_wire_format("holla")
+            str_wire_format("holla")
         ),
     )?;
     validate_parsing::<NullableOthers>(
@@ -1203,7 +1243,7 @@ fn test_nullable_parsing() -> anyhow::Result<()> {
             "[anchr]keys_ptr [u4]10 [u4]2 [u1]1 [u1]3 [u2]0 [u4]0 ",
             "[anchr]values_ptr [u4]10 [u4]2 [u1]2 [u1]4 [u2]0 [u4]0 ",
             "[anchr]str_ptr ",
-            &str_wire_format("hello")
+            str_wire_format("hello")
         ),
     )?;
 
@@ -1319,6 +1359,72 @@ fn test_nested_enums() -> anyhow::Result<()> {
     )?;
 
     validate_parsing_failure::<StructWithNestedEnum>("[u4]16 [u4]0 [u4]3 [u4]0")?;
+
+    Ok(())
+}
+
+#[gtest(RustTestMojomParsing, TestAssociatedParsing)]
+fn test_associated_parsing() -> anyhow::Result<()> {
+    let (rem_a, rec_a) = PendingAssociatedRemote::new_pair();
+    let (rem_b, rec_b) = PendingAssociatedReceiver::new_pair();
+    let (rem_c, rec_c) = PendingAssociatedRemote::new_pair();
+    let (rem_d, rec_d) = PendingAssociatedReceiver::new_pair();
+
+    let has_expected_value = |parsed: &WithPendingAssociatedTypes| {
+        parsed.rec.as_ref().unwrap().same_interface_for_testing(&rem_a)
+            && parsed.rem.as_ref().unwrap().same_interface_for_testing(&rec_b)
+            && parsed.rec2.as_ref().unwrap().same_interface_for_testing(&rem_c)
+            && parsed.rem2.as_ref().unwrap().same_interface_for_testing(&rec_d)
+    };
+
+    validate_parsing_with_associated(
+        WithPendingAssociatedTypes {
+            rec: Some(rec_a),
+            rem: Some(rem_b),
+            rec2: Some(rec_c),
+            rem2: Some(rem_d),
+        },
+        has_expected_value,
+        concat!(
+            "[u4]32 [u4]0 ",                                   // Struct header
+            "[u4]0    [u4]1 [u4]0     [u4]2     [u4]3 [u4]0 ", // Struct body
+            "[u4]24 [u4]4 [u4]1 [u4]2 [u4]3 [u4]4",            // Interface ID Array
+        ),
+    )?;
+
+    validate_parsing_with_associated(
+        WithPendingAssociatedTypes { rec: None, rem: None, rec2: None, rem2: None },
+        |parsed| {
+            parsed.rec.is_none()
+                && parsed.rem.is_none()
+                && parsed.rec2.is_none()
+                && parsed.rem2.is_none()
+        },
+        concat!(
+            "[u4]32 [u4]0 ",
+            // The second half of remote values is unspecified if they are null
+            // Our implementation writes -1 there.
+            "[s4]-1    [s4]-1 [s4]-1     [s4]-1     [s4]-1 [s4]-1 ",
+            "",
+        ),
+    )?;
+
+    let (rem_e, rec_e) = PendingAssociatedRemote::new_pair();
+    let (rem_f, rec_f) = PendingAssociatedReceiver::new_pair();
+    validate_parsing_with_associated(
+        WithPendingAssociatedTypes { rec: Some(rec_e), rem: None, rec2: None, rem2: Some(rem_f) },
+        |parsed| {
+            parsed.rec.as_ref().unwrap().same_interface_for_testing(&rem_e)
+                && parsed.rem.is_none()
+                && parsed.rec2.is_none()
+                && parsed.rem2.as_ref().unwrap().same_interface_for_testing(&rec_f)
+        },
+        concat!(
+            "[u4]32 [u4]0 ",                                      // Struct header
+            "[u4]0    [s4]-1 [s4]-1     [s4]-1     [u4]1 [u4]0 ", // Struct body
+            "[u4]16 [u4]2 [u4]1 [u4]2",                           // Interface ID Array
+        ),
+    )?;
 
     Ok(())
 }

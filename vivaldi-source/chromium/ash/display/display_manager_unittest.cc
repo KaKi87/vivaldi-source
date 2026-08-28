@@ -40,6 +40,7 @@
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
+#include "base/test/scoped_chromeos_version_info.h"
 #include "base/test/scoped_command_line.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
@@ -3777,7 +3778,7 @@ class FontTestHelper : public AshTestBase {
   enum DisplayType { INTERNAL, EXTERNAL };
 
   FontTestHelper(float scale, DisplayType display_type) {
-    gfx::ClearFontRenderParamsCacheForTest();
+    gfx::ClearFontRenderParamsCache();
     base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
     if (display_type == INTERNAL)
       command_line->AppendSwitch(::switches::kUseFirstDisplayAsInternal);
@@ -5434,18 +5435,18 @@ TEST_F(DisplayManagerTest, FontConfig) {
   command_line->AppendSwitchASCII("form-factor", "CLAMSHELL");
   UpdateDisplay("400x300,800x600");
   display_manager()->RefreshFontParams();
-  EXPECT_TRUE(gfx::GetFontRenderParamsSubpixelRenderingEnabledForTesting());
+  EXPECT_TRUE(gfx::GetFontRenderParamsSubpixelRenderingEnabled());
 
   // Rotating the internal display should force disable subpixel font rendering
   UpdateDisplay("400x300/r,800x600");
   display_manager()->RefreshFontParams();
-  EXPECT_FALSE(gfx::GetFontRenderParamsSubpixelRenderingEnabledForTesting());
+  EXPECT_FALSE(gfx::GetFontRenderParamsSubpixelRenderingEnabled());
 
   // Rotating ONLY the external display should NOT force disable subpixel font
   // rendering
   UpdateDisplay("400x300,800x600/r");
   display_manager()->RefreshFontParams();
-  EXPECT_TRUE(gfx::GetFontRenderParamsSubpixelRenderingEnabledForTesting());
+  EXPECT_TRUE(gfx::GetFontRenderParamsSubpixelRenderingEnabled());
 
   // Reset back to unrotated displays
   UpdateDisplay("400x300,800x600");
@@ -5455,41 +5456,51 @@ TEST_F(DisplayManagerTest, FontConfig) {
   command_line->RemoveSwitch("form-factor");
   command_line->AppendSwitchASCII("form-factor", "CHROMEBASE");
   display_manager()->RefreshFontParams();
-  EXPECT_TRUE(gfx::GetFontRenderParamsSubpixelRenderingEnabledForTesting());
+  EXPECT_TRUE(gfx::GetFontRenderParamsSubpixelRenderingEnabled());
 
   command_line->RemoveSwitch("form-factor");
   command_line->AppendSwitchASCII("form-factor", "CHROMESLATE");
   display_manager()->RefreshFontParams();
-  EXPECT_TRUE(gfx::GetFontRenderParamsSubpixelRenderingEnabledForTesting());
+  EXPECT_TRUE(gfx::GetFontRenderParamsSubpixelRenderingEnabled());
 
   command_line->RemoveSwitch("form-factor");
   command_line->AppendSwitchASCII("form-factor", "CONVERTIBLE");
   display_manager()->RefreshFontParams();
-  EXPECT_TRUE(gfx::GetFontRenderParamsSubpixelRenderingEnabledForTesting());
+  EXPECT_TRUE(gfx::GetFontRenderParamsSubpixelRenderingEnabled());
 
   command_line->RemoveSwitch("form-factor");
   command_line->AppendSwitchASCII("form-factor", "DETACHABLE");
   display_manager()->RefreshFontParams();
-  EXPECT_TRUE(gfx::GetFontRenderParamsSubpixelRenderingEnabledForTesting());
+  EXPECT_TRUE(gfx::GetFontRenderParamsSubpixelRenderingEnabled());
 
   // CHROMEBOX form factor should force disable it
   command_line->RemoveSwitch("form-factor");
   command_line->AppendSwitchASCII("form-factor", "CHROMEBOX");
   display_manager()->RefreshFontParams();
-  EXPECT_FALSE(gfx::GetFontRenderParamsSubpixelRenderingEnabledForTesting());
+  EXPECT_FALSE(gfx::GetFontRenderParamsSubpixelRenderingEnabled());
 
   // OTHER form factors should force disable it
   command_line->RemoveSwitch("form-factor");
   command_line->AppendSwitchASCII("form-factor", "OTHER");
   display_manager()->RefreshFontParams();
-  EXPECT_FALSE(gfx::GetFontRenderParamsSubpixelRenderingEnabledForTesting());
+  EXPECT_FALSE(gfx::GetFontRenderParamsSubpixelRenderingEnabled());
 
   {
     base::test::ScopedFeatureList feature_list_;
     feature_list_.InitAndEnableFeature(
         display::features::kOledScaleFactorEnabled);
     display_manager()->RefreshFontParams();
-    EXPECT_FALSE(gfx::GetFontRenderParamsSubpixelRenderingEnabledForTesting());
+    EXPECT_FALSE(gfx::GetFontRenderParamsSubpixelRenderingEnabled());
+  }
+
+  // Qualcomm Snapdragon devices should force disable it
+  command_line->RemoveSwitch("form-factor");
+  command_line->AppendSwitchASCII("form-factor", "CLAMSHELL");
+  {
+    base::test::ScopedChromeOSVersionInfo version_info(
+        "CHROMEOS_RELEASE_BOARD=trogdor\n", base::Time());
+    display_manager()->RefreshFontParams();
+    EXPECT_FALSE(gfx::GetFontRenderParamsSubpixelRenderingEnabled());
   }
 }
 

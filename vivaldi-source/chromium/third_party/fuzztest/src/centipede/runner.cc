@@ -132,8 +132,7 @@ static void CheckWatchdogLimits() {
     const char *failure;
   };
   const uint64_t input_start_time = state->input_start_time;
-  const uint64_t batch_start_time = state->batch_start_time;
-  if (input_start_time == 0 || batch_start_time == 0) return;
+  if (input_start_time == 0) return;
   const Resource resources[] = {
       {Resource{
           /*what=*/"Per-input timeout",
@@ -143,15 +142,6 @@ static void CheckWatchdogLimits() {
           /*ignore_report=*/
           state->run_time_flags.ignore_timeout_reports != 0,
           /*failure=*/kExecutionFailurePerInputTimeout.data(),
-      }},
-      {Resource{
-          /*what=*/"Per-batch timeout",
-          /*units=*/"sec",
-          /*value=*/curr_time - batch_start_time,
-          /*limit=*/state->run_time_flags.timeout_per_batch,
-          /*ignore_report=*/
-          state->run_time_flags.ignore_timeout_reports != 0,
-          /*failure=*/kExecutionFailurePerBatchTimeout.data(),
       }},
       {Resource{
           /*what=*/"RSS limit",
@@ -240,10 +230,10 @@ __attribute__((noinline)) void CheckStackLimit(size_t stack_usage,
 void GlobalRunnerState::StartWatchdogThread() {
   fprintf(stderr,
           "Starting watchdog thread: timeout_per_input: %" PRIu64
-          " sec; timeout_per_batch: %" PRIu64 " sec; rss_limit_mb: %" PRIu64
-          " MB; stack_limit_kb: %" PRIu64 " KB\n",
+          " sec; rss_limit_mb: %" PRIu64 " MB; stack_limit_kb: %" PRIu64
+          " KB\n",
           run_time_flags.timeout_per_input.load(),
-          run_time_flags.timeout_per_batch, run_time_flags.rss_limit_mb.load(),
+          run_time_flags.rss_limit_mb.load(),
           state->run_time_flags.stack_limit_kb.load());
   pthread_t watchdog_thread;
   pthread_create(&watchdog_thread, nullptr, WatchdogThread, nullptr);
@@ -257,11 +247,6 @@ void GlobalRunnerState::StartWatchdogThread() {
 void GlobalRunnerState::ResetTimers() {
   const auto curr_time = time(nullptr);
   state->input_start_time = curr_time;
-  // batch_start_time is set only once -- just before the first input of the
-  // batch is about to start running.
-  if (batch_start_time == 0) {
-    batch_start_time = curr_time;
-  }
 }
 
 // Byte array mutation fallback for a custom mutator, as defined here:
@@ -994,7 +979,6 @@ extern "C" void CentipedeEndExecutionBatch() {
   }
   in_execution_batch = false;
   fuzztest::internal::state->input_start_time = 0;
-  fuzztest::internal::state->batch_start_time = 0;
 }
 
 extern "C" void CentipedePrepareProcessing() {

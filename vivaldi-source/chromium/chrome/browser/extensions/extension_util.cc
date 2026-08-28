@@ -16,6 +16,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/extensions/extension_icon_source.h"
 #include "chrome/common/extensions/api/url_handlers/url_handlers_parser.h"
+#include "chrome/common/extensions/extension_constants.h"
 #include "chrome/common/extensions/sync_helper.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/webui_url_constants.h"
@@ -29,6 +30,7 @@
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/extension_util.h"
+#include "extensions/browser/management_policy.h"
 #include "extensions/browser/permissions/permissions_updater.h"
 #include "extensions/browser/pref_names.h"
 #include "extensions/browser/renderer_startup_helper.h"
@@ -42,6 +44,11 @@
 #include "extensions/common/permissions/permissions_data.h"
 #include "extensions/common/switches.h"
 #include "url/gurl.h"
+
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+#include "chrome/common/extensions/manifest_handlers/settings_overrides_handler.h"
+#include "extensions/common/manifest_handlers/chrome_url_overrides_handler.h"
+#endif
 
 #if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/profiles/profile_helper.h"
@@ -162,6 +169,23 @@ bool HasIsolatedStorage(const Extension& extension,
 #endif
 
   return extension.is_platform_app();
+}
+
+bool IsExtensionForceInstalled(const std::string& extension_id,
+                               content::BrowserContext* context,
+                               std::u16string* reason) {
+  auto* registry = ExtensionRegistry::Get(context);
+  if (!registry) {
+    return false;
+  }
+  auto* extension_system = ExtensionSystem::Get(context);
+  if (!extension_system) {
+    return false;
+  }
+  const Extension* extension = registry->GetInstalledExtension(extension_id);
+  return extension &&
+         extension_system->management_policy()->MustRemainInstalled(extension,
+                                                                    reason);
 }
 
 void SetIsIncognitoEnabled(const std::string& extension_id,
@@ -350,5 +374,52 @@ GURL GetExtensionsPageUrl(const ExtensionId& extension_id) {
   }
   return url;
 }
+
+bool IsMojoJsEnabledForExtension(const ExtensionId& extension_id,
+                                 content::BrowserContext* context) {
+  if (extension_id != extension_misc::kAimEligibilityExtensionId) {
+    return false;
+  }
+  const Extension* extension =
+      ExtensionRegistry::Get(context)->enabled_extensions().GetByID(
+          extension_id);
+  return extension && Manifest::IsComponentLocation(extension->location());
+}
+
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+DseNtpOverrideType GetDseNtpOverrideType(const Extension& extension) {
+  enum Flags {
+    kNone = 0,
+    kDse = 1 << 0,
+    kNtp = 1 << 1,
+  };
+
+  int mask = kNone;
+
+  const SettingsOverrides* settings_overrides =
+      SettingsOverrides::Get(&extension);
+  if (settings_overrides && settings_overrides->search_engine.has_value() &&
+      settings_overrides->search_engine->is_default) {
+    mask |= kDse;
+  }
+
+  const URLOverrides::URLOverrideMap& url_overrides =
+      URLOverrides::GetChromeURLOverrides(&extension);
+  if (url_overrides.contains("newtab")) {
+    mask |= kNtp;
+  }
+
+  switch (mask) {
+    case kDse:
+      return DseNtpOverrideType::kDse;
+    case kNtp:
+      return DseNtpOverrideType::kNtp;
+    case kDse | kNtp:
+      return DseNtpOverrideType::kBoth;
+    default:
+      return DseNtpOverrideType::kNone;
+  }
+}
+#endif
 
 } // namespace extensions::util

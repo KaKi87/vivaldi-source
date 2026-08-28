@@ -14,18 +14,17 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 /* global chrome, browser, globalThis */
 
 import {bound} from "proxy-pants/bound";
 import {secure} from "proxy-pants/secure";
-import {libEnvironment} from "../environment.js";
+import getLibEnvironment from "../environment.js";
 
 if (typeof globalThis === "undefined")
   window.globalThis = window;
 
 const {apply, ownKeys} = bound(Reflect);
-
+const libEnvironment = getLibEnvironment();
 const worldEnvDefined = "world" in libEnvironment;
 const isIsolatedWorld = worldEnvDefined && libEnvironment.world === "ISOLATED";
 const isMainWorld = worldEnvDefined && libEnvironment.world === "MAIN";

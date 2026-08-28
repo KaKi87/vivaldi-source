@@ -8,7 +8,7 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
-#include "extensions/api/guest_view/parent_tab_user_data.h"
+#include "extensions/api/web_view_private/parent_tab_user_data.h"
 
 #include "extensions/vivaldi_associated_tabs.h"
 

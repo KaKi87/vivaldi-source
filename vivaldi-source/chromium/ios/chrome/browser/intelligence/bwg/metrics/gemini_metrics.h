@@ -7,7 +7,7 @@
 
 #import <Foundation/Foundation.h>
 
-typedef NS_ENUM(NSInteger, GeminiInputType);
+#import "ios/public/provider/chrome/browser/bwg/gemini_api.h"
 
 namespace base {
 class TimeDelta;
@@ -23,7 +23,7 @@ enum class EntryPoint;
 enum class FloatyUpdateSource;
 enum class ImageActionButtonType;
 enum class InputPlateAttachmentOption;
-enum class FREState;
+enum class FirstRunState;
 enum class RegenerateOptionType;
 // Encapsulates a set of ineligibility reasons computed during a single Gemini
 // eligibility check.
@@ -50,7 +50,7 @@ enum class GeminiViewState;
 extern const char kEligibilityHistogram[];
 
 // UMA histogram key for IOS.Gemini.FRE.State.
-extern const char kGeminiFREStateHistogram[];
+extern const char kGeminiFirstRunStateHistogram[];
 
 // UMA histogram key for IOS.Gemini.EntryPoint.
 extern const char kEntryPointHistogram[];
@@ -62,19 +62,22 @@ extern const char kSignInRequiredSnackbarShownHistogram[];
 extern const char kEntryPointAvailableHistogram[];
 
 // UMA histogram key for IOS.Gemini.FRE.EntryPoint.
-extern const char kFREEntryPointHistogram[];
+extern const char kFirstRunEntryPointHistogram[];
 
 // UMA histogram key for IOS.Gemini.FRE.PromoAction.
-extern const char kPromoActionHistogram[];
+extern const char kFirstRunPromoActionHistogram[];
 
 // UMA histogram key for IOS.Gemini.FRE.ConsentAction.
-extern const char kConsentActionHistogram[];
+extern const char kFirstRunConsentActionHistogram[];
 
 // UMA histogram key for IOS.Gemini.Session.PromptCount.
 extern const char kSessionPromptCountHistogram[];
 
 // UMA histogram key for IOS.Gemini.Session.FirstPrompt.
 extern const char kSessionFirstPromptHistogram[];
+
+// UMA histogram key for IOS.Gemini.Session.TabSwitchCount.
+extern const char kSessionTabSwitchCountHistogram[];
 
 // UMA histogram key for IOS.Gemini.Floaty.TimeMinimized.
 extern const char kFloatyTimeMinimizedHistogram[];
@@ -94,22 +97,57 @@ extern const char kFloatyDismissedStateHistogram[];
 // UMA histogram key for IOS.Gemini.PageAvailability.
 extern const char kGeminiPageAvailabilityHistogram[];
 
-// Enum for the IOS.Gemini.FRE.PromoAction and IOS.Gemini.FRE.ConsentAction
-// histograms.
-// LINT.IfChange(IOSGeminiFREAction)
-enum class IOSGeminiFREAction {
+// Enum for the IOS.Gemini.FirstRun.PromoAction and
+// IOS.Gemini.FirstRun.ConsentAction histograms.
+// LINT.IfChange(IOSGeminiFirstRunAction)
+enum class IOSGeminiFirstRunAction {
   kAccept = 0,
   kDismiss = 1,
   kLinkClick = 2,
   kMaxValue = kLinkClick,
 };
-// LINT.ThenChange(/tools/metrics/histograms/metadata/ios/enums.xml:IOSGeminiFREAction)
+// LINT.ThenChange(/tools/metrics/histograms/metadata/ios/enums.xml:IOSGeminiFirstRunAction)
 
 // Records the user action on the FRE Promo.
-void RecordFREPromoAction(IOSGeminiFREAction action);
+void RecordFirstRunPromoAction(IOSGeminiFirstRunAction action);
 
 // Records the user action on the FRE Consent Screen.
-void RecordFREConsentAction(IOSGeminiFREAction action);
+void RecordFirstRunConsentAction(IOSGeminiFirstRunAction action);
+
+// Enum for the IOS.Gemini.Live.FREOutcome histogram.
+// LINT.IfChange(IOSGeminiLiveFREOutcome)
+enum class IOSGeminiLiveFREOutcome {
+  kSuccess = 0,
+  kDismissedOnConsent = 1,
+  kDeniedOSMicPermission = 2,
+  kDeniedChromeMicPermission = 3,
+  kMaxValue = kDeniedChromeMicPermission,
+};
+// LINT.ThenChange(/tools/metrics/histograms/metadata/ios/enums.xml:IOSGeminiLiveFREOutcome)
+
+// Records the final outcome of the Gemini Live FRE flow.
+void RecordLiveFREOutcome(IOSGeminiLiveFREOutcome outcome);
+
+// Records that the user tapped the Live button to switch to Live mode.
+void RecordLiveButtonTapped();
+
+// Records that a Gemini Live session has started.
+void RecordLiveSessionStarted();
+
+// Records native OS microphone prompt events.
+void RecordLiveOSMicPromptShown();
+void RecordLiveOSMicPromptAllowed();
+void RecordLiveOSMicPromptDenied();
+
+// Records in-app Chrome side microphone permission prompt events.
+void RecordLiveChromeMicPromptShown();
+void RecordLiveChromeMicPromptAllowed();
+void RecordLiveChromeMicPromptDenied();
+
+// Records OS settings redirect alert events.
+void RecordLiveSettingsRedirectShown();
+void RecordLiveSettingsRedirectOpenSettings();
+void RecordLiveSettingsRedirectCancel();
 
 // Represents the type of page or WebState when a Gemini session is invoked.
 // These values are persisted to logs. Entries should not be renumbered and
@@ -159,10 +197,10 @@ enum class IOSGeminiIneligibilityReason {
 extern const char kGeminiIneligibilityReasonHistogram[];
 
 // UMA histogram key for IOS.Gemini.StartupTime.FirstRun.
-extern const char kStartupTimeWithFREHistogram[];
+extern const char kStartupTimeWithFirstRunHistogram[];
 
 // UMA histogram key for IOS.Gemini.StartupTime.NotFirstRun.
-extern const char kStartupTimeNoFREHistogram[];
+extern const char kStartupTimeNoFirstRunHistogram[];
 
 // Enum for tracking session cancellation reasons.
 // LINT.IfChange(IOSGeminiSessionCancellationReason)
@@ -176,6 +214,23 @@ enum class IOSGeminiSessionCancellationReason {
   kMaxValue = kLoadingStateCloseButtonTapped,
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/ios/enums.xml:IOSGeminiSessionCancellationReason)
+
+// Enum for tracking reasons why Gemini Live transitions to dormant mode.
+// LINT.IfChange(IOSGeminiDormantReason)
+enum class IOSGeminiDormantReason {
+  kUnknown = 0,
+  kInterruptedByExternalAudio = 1,
+  kLowVolumeInBackground = 2,
+  kLowVolumeInForeground = 3,
+  kInactivityTimeout = 4,
+  kLongInteractionTimeout = 5,
+  kMovedToBackgroundWhenMicOff = 6,
+  kUserStop = 7,
+  kUserPause = 8,
+  kServerPause = 9,
+  kMaxValue = kServerPause,
+};
+// LINT.ThenChange(/tools/metrics/histograms/metadata/ios/enums.xml:IOSGeminiDormantReason)
 
 // Records the reason for a gemini session cancellation.
 void RecordGeminiSessionCancellation(IOSGeminiSessionCancellationReason reason);
@@ -193,10 +248,10 @@ extern const char kGeminiSessionLengthWithPromptHistogram[];
 extern const char kGeminiSessionLengthAbandonedHistogram[];
 
 // UMA histogram key for IOS.Gemini.SessionLength.FRE.WithPrompt.
-extern const char kGeminiSessionLengthFREWithPromptHistogram[];
+extern const char kGeminiSessionLengthFirstRunWithPromptHistogram[];
 
 // UMA histogram key for IOS.Gemini.SessionLength.FRE.Abandoned.
-extern const char kGeminiSessionLengthFREWithAbandonedHistogram[];
+extern const char kGeminiSessionLengthFirstRunAbandonedHistogram[];
 
 // TODO(crbug.com/481711842): Replace this enum with its equivalent defined in
 // gemini_constants.h as gemini::InputType.
@@ -232,7 +287,8 @@ enum class IOSGeminiFirstPromptSubmissionMethod {
   kEditMenuPrompt = 24,
   kOnboardingNoIAmDone = 25,
   kOnboardingKeepLearning = 26,
-  kMaxValue = kOnboardingKeepLearning,
+  kAppSwitcherSummarize = 27,
+  kMaxValue = kAppSwitcherSummarize,
 };
 // LINT.ThenChange(
 //   /tools/metrics/histograms/metadata/ios/enums.xml:IOSGeminiFirstPromptSubmissionMethod,
@@ -257,8 +313,23 @@ extern const char kPromptLongPressImageIncludedHistogram[];
 // UMA histogram key for IOS.Gemini.Prompt.ContextAttachment.
 extern const char kPromptContextAttachmentHistogram[];
 
+// UMA histogram key for IOS.Gemini.Prompt.TabsAttachedCount.
+extern const char kPromptTabsAttachedCountHistogram[];
+
+// UMA histogram key for IOS.Gemini.Prompt.MultiTabUsed.
+extern const char kPromptMultiTabUsedHistogram[];
+
 // UMA histogram key for IOS.Gemini.Response.GeneratedImage.Included.
 extern const char kResponseGeneratedImageIncluded[];
+
+// UMA histogram key for IOS.Gemini.Response.Latency.
+extern const char kResponseLatencyHistogram[];
+
+// UMA histogram key for IOS.Gemini.Response.Latency.MultiTabUsed.
+extern const char kResponseLatencyMultiTabUsedHistogram[];
+
+// UMA histogram key for IOS.Gemini.Response.Latency.MultiTabNotUsed.
+extern const char kResponseLatencyMultiTabNotUsedHistogram[];
 
 // UMA histogram key for IOS.Gemini.Response.Latency.WithContext.
 extern const char kResponseLatencyWithContextHistogram[];
@@ -431,6 +502,9 @@ void RecordImageRemixContextMenuEntryPointTapped(double aspect_ratio);
 // Records user feedback on a Gemini response.
 void RecordGeminiFeedback(IOSGeminiFeedback feedback);
 
+// Records that the Gemini session/floaty UI was successfully opened.
+void RecordGeminiSessionOpened();
+
 // Records the duration of a Gemini session.
 void RecordGeminiSessionTime(base::TimeDelta session_duration);
 
@@ -453,7 +527,7 @@ void RecordSignInRequiredSnackbarShown(gemini::EntryPoint entry_point);
 void RecordGeminiEntryPointAvailable(gemini::EntryPoint entry_point);
 
 // Records that the Gemini FRE was shown.
-void RecordFREShown();
+void RecordFirstRunShown();
 
 // Records user action for first response received.
 void RecordFirstResponseReceived();
@@ -470,35 +544,66 @@ void RecordGeminiResponseReceived(bool generated_image_included);
 
 // Records that the user tapped the "Get Started" button on the Gemini FRE promo
 // screen.
-void RecordFREPromoAccept();
+void RecordFirstRunPromoAccept();
 
 // Records that the user tapped the "Cancel" button on the Gemini FRE promo
 // screen.
-void RecordFREPromoDismiss();
+void RecordFirstRunPromoDismiss();
 
 // Records that the user accepted the Gemini FRE consent.
-void RecordFREConsentAccept();
+void RecordFirstRunConsentAccept();
 
 // Records that the user dismissed the Gemini FRE consent.
-void RecordFREConsentDismiss();
+void RecordFirstRunConsentDismiss();
 
 // Records that the user clicked a link on the Gemini FRE consent screen.
-void RecordFREConsentLinkClick();
+void RecordFirstRunConsentLinkClick();
 
-// Records prompt context attachment metrics.
-void RecordPromptContextAttachment(bool has_page_context);
+// Records that the Tab Picker was opened.
+void RecordGeminiTabPickerOpened();
+
+// Records that the Tab Picker was dismissed.
+void RecordGeminiTabPickerDismissed();
+
+// Records that the tab attachment limit error snackbar was shown in the Tab
+// Picker.
+void RecordGeminiTabPickerErrorAttachmentLimit();
+
+// Records that the cannot reload tab error snackbar was shown in the Tab
+// Picker.
+void RecordGeminiTabPickerErrorCannotReloadTab();
+
+// Records that the cannot attach tab error snackbar was shown in the Tab
+// Picker.
+void RecordGeminiTabPickerErrorCannotAttachTab();
+
+// Records that a shared (non-active) tab was detached from a Floaty chip in the
+// Gemini session.
+void RecordGeminiTabDetached();
+
+// Records that the active tab was attached from a Floaty chip in the Gemini
+// session.
+void RecordGeminiActiveTabAttached();
+
+// Records that the active tab was detached from a Floaty chip in the Gemini
+// session.
+void RecordGeminiActiveTabDetached();
 
 // Records the latency from prompt submission to response received, including
 // metadata about the prompt & response.
 void RecordResponseLatency(base::TimeDelta latency,
                            bool had_page_context,
-                           bool had_generated_image);
+                           bool had_generated_image,
+                           bool was_multi_tab_used);
 
 // Records the total number of prompts sent in a Gemini session.
 void RecordSessionPromptCount(int prompt_count);
 
 // Records if a first prompt was sent in a Gemini session.
 void RecordSessionFirstPrompt(bool had_first_prompt);
+
+// Records the total number of tab switches during a floaty session.
+void RecordSessionTabSwitchCount(int tab_switch_count);
 
 // Enum for the IOS.Gemini.ViewStateTransition histogram.
 // LINT.IfChange(IOSGeminiViewStateTransition)
@@ -527,8 +632,8 @@ void RecordFloatyMinimizedTime(base::TimeTicks elapsed_minimized_floaty_time);
 // Records whether a Gemini eligibility check was successful.
 void RecordGeminiEligibility(bool eligible);
 
-// Records the FRE state for Gemini.
-void RecordGeminiFREState(gemini::FREState state);
+// Records the First Run state for Gemini.
+void RecordGeminiFirstRunState(gemini::FirstRunState state);
 
 // Records all of the Gemini ineligibility reasons. One record will be sent at
 // most per associated value of IOSGeminiIneligibilityReason.
@@ -571,7 +676,9 @@ void RecordAIHubIconTapped();
 void RecordGeminiPromptSent(bool is_nano_banana_enabled,
                             int images_attached_count,
                             bool long_press_image_included,
-                            bool has_page_context);
+                            bool has_page_context,
+                            int tabs_attached_count,
+                            bool was_multi_tab_used);
 
 // Records the result of an OS-level camera authorization request.
 void RecordGeminiCameraFlowOSAuthorizationResult(bool granted);
@@ -605,5 +712,24 @@ void RecordGeminiEditMenuSelectedTextLength(int length);
 // Records the glic contextual cue decision for Gemini.
 void RecordGeminiGlicContextualCueDecision(
     optimization_guide::OptimizationGuideDecision decision);
+
+// Records the dormant reason when Gemini Live transitions to dormant mode.
+void RecordGeminiLiveDormantReason(ios::provider::GeminiDormantReason reason);
+
+// Records the response latency (time Gemini takes to respond between thinking
+// and responding).
+void RecordGeminiLiveResponseLatency(base::TimeDelta latency);
+
+// Records the response duration (how long the spoken response lasted,
+// recorded only if the response finished naturally).
+void RecordGeminiLiveResponseDuration(base::TimeDelta duration);
+
+// Records the turn count at the end of the session. A turn is defined as the
+// cycle of the user speaking and Gemini responding.
+void RecordGeminiLiveTurnCount(int turn_count);
+
+// Records the accumulated duration of Gemini Live mode segments within
+// a single Gemini interaction.
+void RecordGeminiLiveAccumulatedDuration(base::TimeDelta duration);
 
 #endif  // IOS_CHROME_BROWSER_INTELLIGENCE_BWG_METRICS_GEMINI_METRICS_H_

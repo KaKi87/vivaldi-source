@@ -7,17 +7,22 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "base/feature_list.h"
 #include "base/metrics/field_trial_params.h"
+#include "base/types/expected.h"
+#include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_metrics_helper.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
+#include "chrome/browser/web_applications/web_app_provider.h"
 #include "components/webapps/browser/install_result_code.h"
 #include "components/webapps/common/web_app_id.h"
 #include "content/public/browser/document_service.h"
 #include "third_party/blink/public/mojom/subapps/sub_apps_service.mojom.h"
+#include "url/origin.h"
 
 namespace content {
 class RenderFrameHost;
@@ -31,23 +36,16 @@ namespace web_app {
 BASE_DECLARE_FEATURE(kSubAppsInstallLimit);
 extern const base::FeatureParam<int> kSubAppsInstallLimitParam;
 
+// Max number of sub apps that can be installed
+// via single call to add, excluding the enterprose policy case.
+BASE_DECLARE_FEATURE(kSubAppsPerPromptLimit);
+extern const base::FeatureParam<int> kSubAppsPerPromptLimitParam;
+
 namespace {
 
-struct SubAppInstallParams {
-  SubAppInstallParams(webapps::ManifestId manifest_id, const GURL& install_url);
-  ~SubAppInstallParams();
-  SubAppInstallParams(const SubAppInstallParams&);
-  SubAppInstallParams& operator=(const SubAppInstallParams&);
-  SubAppInstallParams(SubAppInstallParams&&);
-  SubAppInstallParams& operator=(SubAppInstallParams&&);
-
-  webapps::ManifestId manifest_id;
-  GURL install_url;
-};
-
 struct SubAppInstallResult {
-  SubAppInstallResult(webapps::ManifestId manifest_id,
-                      const webapps::AppId& app_id,
+  SubAppInstallResult(GURL install_url,
+                      webapps::ManifestId manifest_id,
                       webapps::InstallResultCode install_result_code);
   ~SubAppInstallResult();
   SubAppInstallResult(const SubAppInstallResult&);
@@ -55,12 +53,22 @@ struct SubAppInstallResult {
   SubAppInstallResult(SubAppInstallResult&&);
   SubAppInstallResult& operator=(SubAppInstallResult&&);
 
+  GURL install_url;
   webapps::ManifestId manifest_id;
-  webapps::AppId app_id;
   webapps::InstallResultCode install_result_code;
 };
 
 }  // namespace
+
+// Internal enum to represent error codes of add function.
+// It is remapped to ukm and mojo corresponding enums.
+enum class AddCallErrorCode {
+  kUserDeclined,
+  kUserDeclinedEmbargo,
+  kTotalLimitExceeded,
+  kPerPromptLimitExceeded,
+  kWebAppsNotUserInstallable,
+};
 
 class SubAppsServiceImpl
     : public content::DocumentService<blink::mojom::SubAppsService> {
@@ -81,49 +89,60 @@ class SubAppsServiceImpl
       mojo::PendingReceiver<blink::mojom::SubAppsService> receiver);
 
   // blink::mojom::SubAppsService
-  void Add(
-      std::vector<blink::mojom::SubAppsServiceAddParametersPtr> sub_apps_to_add,
-      AddCallback result_callback) override;
+  void Add(const std::vector<std::string>& install_paths,
+           AddCallback result_callback) override;
   void List(ListCallback result_callback) override;
-  void Remove(const std::vector<std::string>& manifest_id_paths,
+  void Remove(const std::vector<std::string>& manifest_ids,
               RemoveCallback result_callback) override;
 
  private:
+  using AddResult =
+      base::expected<std::vector<blink::mojom::SubAppsServiceAddResultPtr>,
+                     AddCallErrorCode>;
+
   struct AddCallInfo {
     AddCallInfo();
     ~AddCallInfo();
 
     // The callback to run when the API call is complete.
-    AddCallback mojo_callback;
+    base::OnceCallback<void(AddResult)> mojo_callback;
 
     // The list of results for each requested install.
     std::vector<blink::mojom::SubAppsServiceAddResultPtr> results;
 
     // The list of install infos collected from the install URLs.
     std::vector<std::unique_ptr<WebAppInstallInfo>> install_infos;
+
+    bool install_bypassed_prompt = false;
   };
 
   void CollectInstallData(int add_call_id,
-                          std::vector<SubAppInstallParams> requested_installs,
+                          std::vector<GURL> requested_installs,
                           webapps::ManifestId parent_manifest_id);
   void ProcessInstallData(
       int add_call_id,
-      std::vector<std::pair<webapps::ManifestId,
-                            std::unique_ptr<WebAppInstallInfo>>> install_data);
+      std::vector<std::pair<GURL, std::unique_ptr<WebAppInstallInfo>>>
+          install_data);
   void ScheduleSubAppInstalls(int add_call_id);
   void ProcessDialogResponse(int add_call_id, bool dialog_accepted);
   void FinishAddCallOrShowInstallDialog(int add_call_id);
   void FinishAddCall(int add_call_id,
                      std::vector<SubAppInstallResult> install_results);
+  void ReportAddMetricsAndRunCallback(const url::Origin& parent_origin,
+                                      int add_call_id,
+                                      AddCallback original_callback,
+                                      AddResult result);
 
   void RemoveSubApp(
-      const std::string& manifest_id_path,
+      const std::string& manifest_id,
       base::OnceCallback<void(blink::mojom::SubAppsServiceRemoveResultPtr)>
           remove_barrier_callback,
       const webapps::AppId* calling_app_id);
   void NotifyUninstall(
       RemoveCallback result_callback,
       std::vector<blink::mojom::SubAppsServiceRemoveResultPtr> remove_results);
+
+  WebAppProvider& provider() const;
 
   SubAppsServiceImpl(
       content::RenderFrameHost& render_frame_host,

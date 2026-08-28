@@ -8,6 +8,7 @@
 #include <stddef.h>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -153,6 +154,9 @@ class AwContentBrowserClient : public content::ContentBrowserClient {
       service_manager::BinderRegistry* registry,
       blink::AssociatedInterfaceRegistry* associated_registry,
       content::RenderProcessHost* render_process_host) override;
+  void ExposeInterfacesToChild(
+      mojo::BinderMapWithContext<content::BrowserChildProcessHost*>* map)
+      override;
   void BindMediaServiceReceiver(content::RenderFrameHost* render_frame_host,
                                 mojo::GenericPendingReceiver receiver) override;
   void RegisterBrowserInterfaceBindersForFrame(
@@ -242,7 +246,8 @@ class AwContentBrowserClient : public content::ContentBrowserClient {
       network::mojom::URLLoaderFactoryOverridePtr* factory_override,
       scoped_refptr<base::SequencedTaskRunner> navigation_response_task_runner)
       override;
-  uint32_t GetWebSocketOptions(content::RenderFrameHost* frame) override;
+  content::ContentBrowserClient::WebSocketOptions GetWebSocketOptions(
+      content::RenderFrameHost* frame) override;
   bool WillCreateRestrictedCookieManager(
       network::mojom::RestrictedCookieManagerRole role,
       content::BrowserContext* browser_context,
@@ -280,22 +285,6 @@ class AwContentBrowserClient : public content::ContentBrowserClient {
   bool ShouldPreconnectNavigation(
       content::RenderFrameHost* render_frame_host) override;
   void OnDisplayInsecureContent(content::WebContents* web_contents) override;
-  network::mojom::AttributionSupport GetAttributionSupport(
-      AttributionReportingOsApiState state,
-      bool client_os_disabled) override;
-  // Allows the embedder to control if Attribution Reporting API operations can
-  // happen in a given context.
-  // For WebView Browser Attribution is explicitly disabled.
-  bool IsAttributionReportingOperationAllowed(
-      content::BrowserContext* browser_context,
-      AttributionReportingOperation operation,
-      content::RenderFrameHost* rfh,
-      const url::Origin* source_origin,
-      const url::Origin* destination_origin,
-      const url::Origin* reporting_origin,
-      bool* can_bypass) override;
-  AttributionReportingOsRegistrars GetAttributionReportingOsRegistrars(
-      content::WebContents* web_contents) override;
   blink::mojom::OriginTrialsSettingsPtr GetOriginTrialsSettings() override;
   bool IsFullCookieAccessAllowed(
       content::BrowserContext* browser_context,
@@ -324,6 +313,7 @@ class AwContentBrowserClient : public content::ContentBrowserClient {
 
   bool ShouldAnimateBackForwardTransitions() override;
   bool OriginSupportsConcreteCrossOriginIsolation(
+      content::BrowserContext* browser_context,
       const url::Origin& origin) override;
 
   bool IsAndroidAdvancedProtectionEnabled() override;
@@ -333,15 +323,8 @@ class AwContentBrowserClient : public content::ContentBrowserClient {
   }
 
   void OnStartupComplete();
-  void set_startup_tasks_logic_enabled_for_testing(bool enabled) {
-    startup_tasks_logic_enabled_for_testing_ = enabled;
-  }
-  void set_startup_tasks_logic_p2_enabled_for_testing(bool enabled) {
-    startup_tasks_logic_p2_enabled_for_testing_ = enabled;
-  }
-  void set_startup_tasks_yield_to_native_experiment_enabled_for_testing(
-      bool enabled) {
-    startup_tasks_yield_to_native_experiment_enabled_for_testing_ = enabled;
+  void set_run_startup_tasks_async_for_testing(bool enabled) {
+    run_startup_tasks_async_for_testing_ = enabled;
   }
 
  private:
@@ -377,10 +360,9 @@ class AwContentBrowserClient : public content::ContentBrowserClient {
 
   StartupInfo startup_info_;
 
-  bool IsAnyStartupTaskExperimentEnabled();
-  bool startup_tasks_logic_enabled_for_testing_ = false;
-  bool startup_tasks_logic_p2_enabled_for_testing_ = false;
-  bool startup_tasks_yield_to_native_experiment_enabled_for_testing_ = false;
+  bool ShouldRunStartupTasksAsync();
+  std::optional<bool> should_run_startup_tasks_async_;
+  bool run_startup_tasks_async_for_testing_ = false;
 };
 
 }  // namespace android_webview

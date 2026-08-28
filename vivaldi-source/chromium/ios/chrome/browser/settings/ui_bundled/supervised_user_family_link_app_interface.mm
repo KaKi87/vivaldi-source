@@ -41,7 +41,7 @@ namespace {
 supervised_user::FamilyLinkSettingsState::Services
 GetSupervisedUserServicesForProfile(ProfileIOS* profile) {
   supervised_user::SupervisedUserService* supervised_user_service =
-      SupervisedUserServiceFactory::GetForProfile(profile);
+      supervised_user::SupervisedUserServiceFactory::GetForProfile(profile);
   supervised_user::SupervisedUserUrlFilteringService* url_filtering_service =
       supervised_user::SupervisedUserUrlFilteringServiceFactory::GetForProfile(
           profile);
@@ -50,7 +50,9 @@ GetSupervisedUserServicesForProfile(ProfileIOS* profile) {
   CHECK(url_filtering_service);
   return {*supervised_user_service, *url_filtering_service,
           *profile->GetPrefs(),
-          *ios::HostContentSettingsMapFactory::GetForProfile(profile)};
+          *ios::HostContentSettingsMapFactory::GetForProfile(profile),
+          *supervised_user::FamilyLinkSettingsServiceFactory::GetForProfile(
+              profile)};
 }
 
 // Helper class that holds a instance of the Family Link State.

@@ -24,6 +24,7 @@
 
 #include "third_party/blink/renderer/core/html/forms/listed_element.h"
 
+#include "base/auto_reset.h"
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/renderer/core/dom/element_traversal.h"
 #include "third_party/blink/renderer/core/dom/events/event.h"
@@ -126,8 +127,9 @@ void ListedElement::InsertedInto(ContainerNode& insertion_point) {
 
   if (!form_was_set_by_parser_ || !form_ ||
       NodeTraversal::HighestAncestorOrSelf(insertion_point) !=
-          NodeTraversal::HighestAncestorOrSelf(*form_.Get()))
+          NodeTraversal::HighestAncestorOrSelf(*form_.Get())) {
     ResetFormOwner();
+  }
 
   HTMLElement& element = ToHTMLElement();
   if (insertion_point.isConnected()) {
@@ -674,7 +676,7 @@ void ListedElement::SetNeedsValidityCheck() {
   }
 }
 
-void ListedElement::DisabledAttributeChanged() {
+void ListedElement::DisabledAttributeChanged(DisabledChangedReason reason) {
   HTMLElement& element = ToHTMLElement();
   is_element_disabled_ = element.FastHasAttribute(html_names::kDisabledAttr);
   UpdateWillValidateCache();
@@ -718,9 +720,10 @@ void ListedElement::UpdateAncestorDisabledState() const {
   }
 }
 
-void ListedElement::AncestorDisabledStateWasChanged() {
+void ListedElement::AncestorDisabledStateWasChanged(
+    DisabledChangedReason reason) {
   ancestor_disabled_state_ = AncestorDisabledState::kUnknown;
-  DisabledAttributeChanged();
+  DisabledAttributeChanged(reason);
 }
 
 bool ListedElement::IsActuallyDisabled() const {

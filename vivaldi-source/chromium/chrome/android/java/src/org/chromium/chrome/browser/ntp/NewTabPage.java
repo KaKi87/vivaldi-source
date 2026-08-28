@@ -12,6 +12,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Point;
 import android.graphics.Rect;
+import android.os.SystemClock;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
@@ -24,6 +25,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import org.chromium.base.CallbackController;
 import org.chromium.base.CallbackUtils;
+import org.chromium.base.DeviceInfo;
 import org.chromium.base.Log;
 import org.chromium.base.TimeUtils;
 import org.chromium.base.TraceEvent;
@@ -98,11 +100,13 @@ import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager.SnackbarManageable;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
 import org.chromium.chrome.browser.ui.native_page.NativePageHost;
+import org.chromium.chrome.browser.ui.side_ui.SideUiStateProvider;
 import org.chromium.chrome.browser.ui.theme.ChromeSemanticColorUtils;
 import org.chromium.chrome.browser.url_constants.UrlConstantResolver;
 import org.chromium.chrome.browser.url_constants.UrlConstantResolverFactory;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
+import org.chromium.components.browser_ui.util.FirstDrawDetector;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.feature_engagement.EventConstants;
 import org.chromium.components.feature_engagement.Tracker;
@@ -112,6 +116,7 @@ import org.chromium.components.omnibox.AutocompleteRequestType;
 import org.chromium.components.omnibox.OmniboxFocusReason;
 import org.chromium.components.search_engines.TemplateUrlService;
 import org.chromium.components.search_engines.TemplateUrlService.TemplateUrlServiceObserver;
+import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.NavigationController;
 import org.chromium.ui.base.ActivityResultTracker;
 import org.chromium.ui.base.DeviceFormFactor;
@@ -142,6 +147,9 @@ public class NewTabPage
     private static int sTotalCount;
 
     protected final Tab mTab;
+    private final long mNavigationStartMs;
+    private boolean mRecordedFcp;
+
     private final Supplier<@Nullable Tab> mActivityTabProvider;
     private final ActivityLifecycleDispatcher mActivityLifecycleDispatcher;
 
@@ -151,7 +159,7 @@ public class NewTabPage
     private final int mBackgroundColor;
     protected final NewTabPageManagerImpl mNewTabPageManager;
     protected final TileGroup.Delegate mTileGroupDelegate;
-    private final boolean mIsTablet;
+    private final boolean mIsLff;
     private final BrowserControlsStateProvider mBrowserControlsStateProvider;
     private final BottomSheetController mBottomSheetController;
     private final NewTabPageLayout mNewTabPageLayout;
@@ -307,9 +315,8 @@ public class NewTabPage
                 }
 
                 mOmniboxStub.beginInput(
-                        new AutocompleteInput()
+                        new AutocompleteInput(focusReason)
                                 .setUserText(pastedText)
-                                .setFocusReason(focusReason)
                                 .setRequestType(requestType)
                                 .setAutocompleteState(autocompleteState));
             }
@@ -340,6 +347,12 @@ public class NewTabPage
 
             // If not visible when loading completes, wait until onShown is received.
             if (!mTab.isHidden()) recordNtpShown();
+        }
+
+        @Override
+        public void loadUrl(LoadUrlParams urlParams, boolean incognito) {
+            if (mIsDestroyed) return;
+            getNativePageHost().loadUrl(urlParams, incognito);
         }
     }
 
@@ -383,7 +396,7 @@ public class NewTabPage
      * @param snackbarManager {@link SnackbarManager} object.
      * @param lifecycleDispatcher Activity lifecycle dispatcher.
      * @param tabModelSelector {@link TabModelSelector} object.
-     * @param isTablet {@code true} if running on a Tablet device.
+     * @param isLff {@code true} if running on a large form factor (LFF) device.
      * @param tabCreationTracker {@link NewTabPageCreationTracker} object recording user metrics.
      * @param isInNightMode {@code true} if the night mode setting is on.
      * @param nativePageHost The host that is showing this new tab page.
@@ -399,6 +412,7 @@ public class NewTabPage
      * @param moduleRegistrySupplier Supplier for the {@link ModuleRegistry}.
      * @param edgeToEdgeControllerSupplier Supplier for the {@link EdgeToEdgeController}.
      * @param topInsetProvider Provider for top insets.
+     * @param sideUiStateProviderSupplier Supplies the {@link SideUiStateProvider}.
      * @param startupMetricsTracker Used to record NTP startup metric.
      * @param backPressManager Manages back press dispatching.
      */
@@ -410,7 +424,7 @@ public class NewTabPage
             SnackbarManager snackbarManager,
             ActivityLifecycleDispatcher lifecycleDispatcher,
             TabModelSelector tabModelSelector,
-            boolean isTablet,
+            boolean isLff,
             NewTabPageCreationTracker tabCreationTracker,
             boolean isInNightMode,
             NativePageHost nativePageHost,
@@ -426,9 +440,12 @@ public class NewTabPage
             OneshotSupplier<ModuleRegistry> moduleRegistrySupplier,
             MonotonicObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier,
             TopInsetProvider topInsetProvider,
+            OneshotSupplier<SideUiStateProvider> sideUiStateProviderSupplier,
             StartupMetricsTracker startupMetricsTracker,
             BackPressManager backPressManager) {
         mConstructedTimeNs = System.nanoTime();
+        long startMs = tab.getNavigationStartMs();
+        mNavigationStartMs = startMs > 0 ? startMs : SystemClock.uptimeMillis();
         TraceEvent.begin(TAG);
 
         // mActivity = activity; // Vivaldi
@@ -459,7 +476,7 @@ public class NewTabPage
 
         mBackgroundColor = ChromeSemanticColorUtils.getHomeSurfaceBackgroundColor(activity);
 
-        mIsTablet = isTablet;
+        mIsLff = isLff;
         mTemplateUrlService = TemplateUrlServiceFactory.getForProfile(profile);
         mTemplateUrlService.addObserver(this);
 
@@ -524,8 +541,9 @@ public class NewTabPage
                         bottomSheetController,
                         modalDialogManager,
                         snackbarManager,
-                        mIsTablet,
+                        isLff,
                         mTabStripHeightSupplier,
+                        sideUiStateProviderSupplier,
                         homeSurfaceTracker,
                         backPressManager);
 
@@ -537,7 +555,6 @@ public class NewTabPage
                 isInNightMode,
                 shareDelegateSupplier,
                 modalDialogManager,
-                url,
                 edgeToEdgeControllerSupplier,
                 startupMetricsTracker,
                 tabModelSelector,
@@ -546,7 +563,6 @@ public class NewTabPage
         View view = getView();
         view.addOnAttachStateChangeListener(
                 new View.OnAttachStateChangeListener() {
-
                     @Override
                     public void onViewAttachedToWindow(View view) {
                         updateMargins();
@@ -562,7 +578,7 @@ public class NewTabPage
                 activity.getResources().getDimensionPixelSize(R.dimen.toolbar_height_no_shadow);
 
         mSupportsEnableEdgeToEdgeOnTop =
-                NtpCustomizationUtils.supportsEnableEdgeToEdgeOnTop(windowAndroid, mIsTablet);
+                NtpCustomizationUtils.supportsEnableEdgeToEdgeOnTop(windowAndroid, mIsLff);
         if (mSupportsEnableEdgeToEdgeOnTop) {
             // Apply edge-to-edge adjustments exclusively to phones. These are not required for LFF
             // devices.
@@ -594,7 +610,36 @@ public class NewTabPage
 
         updateNtpScrollListener(true);
 
+        recordFcpOnFirstDraw();
         TraceEvent.end(TAG);
+    }
+
+    private void recordFcpOnFirstDraw() {
+        View view = getView();
+        if (view == null) return;
+
+        FirstDrawDetector.waitForFirstDraw(
+                view,
+                () -> {
+                    if (mRecordedFcp) return;
+                    mRecordedFcp = true;
+                    long durationMs = SystemClock.uptimeMillis() - mNavigationStartMs;
+                    if (DeviceInfo.isDesktop()) {
+                        // Keep collecting this histogram for Android desktop to avoid losing data.
+                        // TODO(crbug.com/531793117): Remove this histogram once we have finished
+                        // the study for Android desktop.
+                        RecordHistogram.recordMediumTimesHistogram(
+                                "NewTabPage.LoadTime.FirstContentfulPaint", durationMs);
+                    }
+                    // LINT.IfChange(page_load_histogram)
+                    RecordHistogram.recordCustomTimesHistogram(
+                            "NewTabPage.LoadTime.FirstContentfulPaint2",
+                            durationMs,
+                            10,
+                            10 * TimeUtils.MILLISECONDS_PER_MINUTE,
+                            100);
+                    // LINT.ThenChange(/components/page_load_metrics/browser/page_load_metrics_util.h:page_load_histogram)
+                });
     }
 
     /**
@@ -606,7 +651,6 @@ public class NewTabPage
      * @param snackbarManager {@link SnackbarManager} object.
      * @param isInNightMode {@code true} if the night mode setting is on.
      * @param shareDelegateSupplier Supplies a delegate used to open SharingHub.
-     * @param url The URL used to identify NTP's launch origin
      * @param edgeToEdgeControllerSupplier The supplier to {@link EdgeToEdgeController}.
      * @param startupMetricsTracker Used to record NTP startup metric.
      */
@@ -619,7 +663,6 @@ public class NewTabPage
             boolean isInNightMode,
             Supplier<@Nullable ShareDelegate> shareDelegateSupplier,
             ModalDialogManager modalDialogManager,
-            String url,
             MonotonicObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier,
             StartupMetricsTracker startupMetricsTracker,
             TabModelSelector tabModelSelector,
@@ -661,7 +704,6 @@ public class NewTabPage
                         mBottomSheetController,
                         shareDelegateSupplier,
                         /* externalScrollableContainerDelegate= */ null,
-                        NewTabPageUtils.decodeOriginFromNtpUrl(url),
                         PrivacyPreferencesManagerImpl.getInstance(),
                         mToolbarSupplier,
                         mConstructedTimeNs,
@@ -717,15 +759,15 @@ public class NewTabPage
     private void onBackgroundChangedImpl(boolean applyWhiteBackgroundOnSearchBox) {
         setIsUseEdgeToEdgeForCustomizedTheme();
 
-        if (!mIsTablet) {
+        if (!mIsLff) {
             mUseLightIconTint = applyWhiteBackgroundOnSearchBox;
         }
-        mNewTabPageCoordinator.onCustomizedBackgroundChanged(applyWhiteBackgroundOnSearchBox);
+        mNewTabPageCoordinator.onCustomizedBackgroundChanged();
     }
 
     /** Initializes whether to use a light tint color on icons of toolbar and status bar. */
     private void initUseLightIconTint() {
-        if (mIsTablet) return;
+        if (mIsLff) return;
 
         @NtpBackgroundType
         int imageType = NtpCustomizationConfigManager.getInstance().getBackgroundType();
@@ -757,12 +799,12 @@ public class NewTabPage
     }
 
     /**
-     * @param isTablet Whether the activity is running in tablet mode.
+     * @param isLff Whether the activity is running in large form factor mode.
      * @return Whether the NTP is in single url bar mode, i.e. the url bar is shown in-line on the
      *     NTP.
      */
-    public static boolean isInSingleUrlBarMode(boolean isTablet) {
-        return !isTablet;
+    public static boolean isInSingleUrlBarMode(boolean isLff) {
+        return !isLff;
     }
 
     /**
@@ -833,7 +875,7 @@ public class NewTabPage
     }
 
     private boolean isInSingleUrlBarMode() {
-        return isInSingleUrlBarMode(mIsTablet);
+        return isInSingleUrlBarMode(mIsLff);
     }
 
     /** Updates the search provider params. */
@@ -1249,7 +1291,7 @@ public class NewTabPage
     private void setIsUseEdgeToEdgeForCustomizedTheme() {
         mIsUseEdgeToEdgeForCustomizedTheme =
                 mSupportsEnableEdgeToEdgeOnTop
-                        && !mIsTablet
+                        && !mIsLff
                         && NtpCustomizationConfigManager.getInstance().getBackgroundType()
                                 != NtpBackgroundType.DEFAULT;
     }
@@ -1295,7 +1337,8 @@ public class NewTabPage
         }
 
         if (attach && mNtpScrollListener == null) {
-            mNtpScrollListener = new NtpScrollListener(mBrowserControlsStateProvider, mContext);
+            mNtpScrollListener =
+                    new NtpScrollListener(mBrowserControlsStateProvider, mContext, mTab);
             recyclerView.addOnScrollListener(mNtpScrollListener);
         } else if (!attach && mNtpScrollListener != null) {
             recyclerView.removeOnScrollListener(mNtpScrollListener);
@@ -1303,17 +1346,19 @@ public class NewTabPage
         }
     }
 
-    private static class NtpScrollListener extends RecyclerView.OnScrollListener {
+    /* package */ static class NtpScrollListener extends RecyclerView.OnScrollListener {
         private static final int SCROLL_THRESHOLD_DP = 20;
 
         private final WeakReference<BrowserControlsStateProvider> mControlsProviderRef;
         private final WeakReference<Context> mContextRef;
+        private final WeakReference<Tab> mTabRef;
 
         private int mAccumulatedScrollY;
 
-        NtpScrollListener(BrowserControlsStateProvider controlsProvider, Context context) {
+        NtpScrollListener(BrowserControlsStateProvider controlsProvider, Context context, Tab tab) {
             mControlsProviderRef = new WeakReference<>(controlsProvider);
             mContextRef = new WeakReference<>(context);
+            mTabRef = new WeakReference<>(tab);
         }
 
         @Override
@@ -1327,7 +1372,9 @@ public class NewTabPage
         public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
             BrowserControlsStateProvider provider = mControlsProviderRef.get();
             Context context = mContextRef.get();
-            if (provider == null || context == null) return;
+            Tab tab = mTabRef.get();
+            if (provider == null || context == null || tab == null) return;
+            if (tab.isLoading()) return;
             if (!(provider instanceof BrowserControlsVisibilityManager)) return;
 
             BrowserControlsVisibilityManager manager = (BrowserControlsVisibilityManager) provider;

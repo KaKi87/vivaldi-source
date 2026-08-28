@@ -354,6 +354,20 @@ void InitLocaleAndInputMethodsForNewUser(
   manager->GetInputMethodUtil()->GetFirstLoginInputMethodIds(
       locale, preferred_input_method, &input_method_ids);
 
+  // Ensure that kLanguageCurrentInputMethod is explicitly populated here so
+  // that the pref matches the currently active IME state. Managed Guest
+  // Sessions enroll via asynchronous Ozone IPC layout application, which can
+  // cause a race condition if it finishes late and triggers a back-sync to
+  // preferences. If these prefs are empty, the asynchronous return could
+  // erroneously reset the layout to the hardware default. Set
+  // kLanguagePreviousInputMethod as well for consistency.
+  const std::string current_input_method_id_on_pref =
+      prefs->GetString(ash::prefs::kLanguageCurrentInputMethod);
+  prefs->SetString(ash::prefs::kLanguagePreviousInputMethod,
+                   current_input_method_id_on_pref);
+  prefs->SetString(ash::prefs::kLanguageCurrentInputMethod,
+                   preferred_input_method.id());
+
   // Save the input methods in the user's preferences.
   StringPrefMember language_preload_engines;
   language_preload_engines.Init(ash::prefs::kLanguagePreloadEngines, prefs);
@@ -664,6 +678,27 @@ bool MaybeShowManagedTermsOfService(Profile* profile) {
                     "LoginDisplayHost has been already destroyed!";
   }
   return true;
+}
+
+signin::ConsentLevel GetExpectedConsentLevel(
+    signin::IdentityManager* identity_manager) {
+  if (identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync) ||
+      !base::FeatureList::IsEnabled(
+          syncer::kReplaceSyncPromosWithSignInPromos) ||
+      base::FeatureList::IsEnabled(
+          ::switches::kUndoChromeOsUseConsentLevelSignin)) {
+    return signin::ConsentLevel::kSync;
+  }
+
+  // If the user already has kSignin, keep it (do not migrate to kSync) unless
+  // kUndoChromeOsUseConsentLevelSignin is enabled above.
+  if (identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSignin) ||
+      base::FeatureList::IsEnabled(
+          ::switches::kChromeOsUseConsentLevelSigninForNewUsers)) {
+    return signin::ConsentLevel::kSignin;
+  }
+
+  return signin::ConsentLevel::kSync;
 }
 
 }  // namespace
@@ -1608,13 +1643,7 @@ void UserSessionManager::InitProfilePreferences(
     }
 
     const signin::ConsentLevel consent_level =
-        !identity_manager->HasPrimaryAccount(ConsentLevel::kSync) &&
-                base::FeatureList::IsEnabled(
-                    syncer::kReplaceSyncPromosWithSignInPromos) &&
-                base::FeatureList::IsEnabled(
-                    ::switches::kChromeOsUseConsentLevelSigninForNewUsers)
-            ? ConsentLevel::kSignin
-            : ConsentLevel::kSync;
+        GetExpectedConsentLevel(identity_manager);
 
     const signin::PrimaryAccountMutator::PrimaryAccountError
         set_account_result =
@@ -2122,8 +2151,49 @@ void UserSessionManager::RestoreAuthSessionImpl(
   login_manager->RestoreSession(user_context_.GetAccessToken());
 }
 
+void UserSessionManager::MaybeMigrateConsentLevelToSync(Profile* profile) {
+  const user_manager::User* user =
+      ash::BrowserContextHelper::Get()->GetUserByBrowserContext(profile);
+  if (!user || !user->HasGaiaAccount()) {
+    return;
+  }
+
+  CHECK(!profile->IsOffTheRecord());
+
+  signin::IdentityManager* identity_manager =
+      IdentityManagerFactory::GetForProfile(profile);
+  // Only enforce consent level if the user is already signed in.
+  if (!identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSignin)) {
+    return;
+  }
+
+  // The migration is a one-way upgrade from kSignin to kSync; we never
+  // downgrade. In particular, users who are already at the kSync consent level
+  // are never migrated to kSignin and remain unaffected.
+  //
+  // On ChromeOS, only new users get the kSignin consent level if the
+  // `kChromeOsUseConsentLevelSigninForNewUsers` flag is enabled. When that
+  // flag is disabled (or if we revert back to the default behavior), we migrate
+  // those kSignin users to kSync.
+  if (GetExpectedConsentLevel(identity_manager) ==
+          signin::ConsentLevel::kSync &&
+      !identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync)) {
+    const signin::PrimaryAccountMutator::PrimaryAccountError
+        set_account_result =
+            identity_manager->GetPrimaryAccountMutator()->SetPrimaryAccount(
+                identity_manager->GetPrimaryAccountId(
+                    signin::ConsentLevel::kSignin),
+                signin::ConsentLevel::kSync,
+                signin_metrics::AccessPoint::kAshUserSessionManager);
+    CHECK_EQ(set_account_result,
+             signin::PrimaryAccountMutator::PrimaryAccountError::kNoError);
+  }
+}
+
 void UserSessionManager::OnUserProfileLoaded(Profile* profile,
                                              const user_manager::User* user) {
+  MaybeMigrateConsentLevelToSync(profile);
+
   session_manager::SessionManager::Get()->NotifyUserProfileLoaded(
       user->GetAccountId());
 
@@ -2236,7 +2306,7 @@ void UserSessionManager::ShowNotificationsIfNeeded(Profile* profile) {
       ->MaybeShowNotificationOnLogin();
 
   policy::DeviceCommandQueryGeolocationJob::
-      ShowLocationReportedNotificationIfNeeded();
+      ShowLocationReportedNotificationIfNeeded(&local_state_.get());
 
   // Show a notification about ADB sideloading policy change if applicable.
   browser_policy_connector_ash_->GetAdbSideloadingAllowanceModePolicyHandler()
@@ -2496,6 +2566,10 @@ void UserSessionManager::DoBrowserLaunchInternal(Profile* profile,
           profile, kHatsGeneralSurvey)) {
     hats_notification_controller_ =
         new HatsNotificationController(profile, kHatsGeneralSurvey);
+  } else if (HatsNotificationController::ShouldShowSurveyToProfile(
+                 profile, kHatsSlowAndLaggyDeepDive)) {
+    hats_notification_controller_ =
+        new HatsNotificationController(profile, kHatsSlowAndLaggyDeepDive);
   } else if (HatsNotificationController::ShouldShowSurveyToProfile(
                  profile, kHatsEntSurvey)) {
     hats_notification_controller_ =

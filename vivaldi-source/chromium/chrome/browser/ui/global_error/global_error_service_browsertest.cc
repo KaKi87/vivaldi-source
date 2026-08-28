@@ -48,7 +48,6 @@ class BubbleViewError final : public GlobalErrorWithStandardBubble {
   std::u16string GetBubbleViewAcceptButtonLabel() override { return u"OK"; }
   std::u16string GetBubbleViewCancelButtonLabel() override { return u"Cancel"; }
   void OnBubbleViewDidClose(Browser* browser) override {
-    EXPECT_TRUE(browser);
     ++bubble_view_close_count_;
   }
   void BubbleViewAcceptButtonPressed(Browser* browser) override {}
@@ -72,7 +71,7 @@ IN_PROC_BROWSER_TEST_F(GlobalErrorServiceBrowserTest, ShowBubbleView) {
   BubbleViewError* error = new BubbleViewError;
 
   GlobalErrorService* service =
-      GlobalErrorServiceFactory::GetForProfile(browser()->profile());
+      GlobalErrorServiceFactory::GetForProfile(browser()->GetProfile());
   service->AddGlobalError(base::WrapUnique(error));
 
   EXPECT_EQ(error, service->GetFirstGlobalErrorWithBubbleView());
@@ -80,7 +79,7 @@ IN_PROC_BROWSER_TEST_F(GlobalErrorServiceBrowserTest, ShowBubbleView) {
   EXPECT_EQ(0, error->bubble_view_close_count());
 
   // Creating a second browser window should show the bubble view.
-  CreateBrowser(browser()->profile());
+  CreateBrowser(browser()->GetProfile());
   EXPECT_EQ(nullptr, service->GetFirstGlobalErrorWithBubbleView());
   EXPECT_TRUE(error->HasShownBubbleView());
   EXPECT_EQ(0, error->bubble_view_close_count());
@@ -93,7 +92,7 @@ IN_PROC_BROWSER_TEST_F(GlobalErrorServiceBrowserTest, CloseBubbleView) {
   BubbleViewError* error = new BubbleViewError;
 
   GlobalErrorService* service =
-      GlobalErrorServiceFactory::GetForProfile(browser()->profile());
+      GlobalErrorServiceFactory::GetForProfile(browser()->GetProfile());
   service->AddGlobalError(base::WrapUnique(error));
 
   EXPECT_EQ(error, service->GetFirstGlobalErrorWithBubbleView());
@@ -101,7 +100,7 @@ IN_PROC_BROWSER_TEST_F(GlobalErrorServiceBrowserTest, CloseBubbleView) {
   EXPECT_EQ(0, error->bubble_view_close_count());
 
   // Creating a second browser window should show the bubble view.
-  CreateBrowser(browser()->profile());
+  CreateBrowser(browser()->GetProfile());
   EXPECT_EQ(nullptr, service->GetFirstGlobalErrorWithBubbleView());
   EXPECT_TRUE(error->HasShownBubbleView());
   EXPECT_EQ(0, error->bubble_view_close_count());
@@ -124,7 +123,7 @@ IN_PROC_BROWSER_TEST_F(GlobalErrorServiceBrowserTest,
   std::unique_ptr<BubbleViewError> error(new BubbleViewError);
 
   GlobalErrorService* service =
-      GlobalErrorServiceFactory::GetForProfile(browser()->profile());
+      GlobalErrorServiceFactory::GetForProfile(browser()->GetProfile());
   service->AddUnownedGlobalError(error.get());
 
   EXPECT_EQ(error.get(), service->GetFirstGlobalErrorWithBubbleView());

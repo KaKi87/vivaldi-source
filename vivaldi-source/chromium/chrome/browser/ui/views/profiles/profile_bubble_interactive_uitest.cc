@@ -2,9 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/check.h"
 #include "base/functional/callback_helpers.h"
-#include "base/memory/ptr_util.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
@@ -82,7 +80,7 @@ class ProfileBubbleInteractiveUiTest : public InProcessBrowserTest {
     bool command = false;
 #endif
     ASSERT_TRUE(ui_test_utils::SendKeyPressToWindowSync(
-        browser()->window()->GetNativeWindow(), key, /*control=*/false,
+        browser()->GetWindow()->GetNativeWindow(), key, /*control=*/false,
         /*shift=*/false, alt, command));
     ui_test_utils::WaitForViewFocus(browser(), view, /*focused=*/true);
     EXPECT_TRUE(view->HasFocus());

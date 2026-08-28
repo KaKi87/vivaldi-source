@@ -13,4 +13,7 @@
 <translation id="7100573672995171864">Sérsníddu og stjórnaðu Vivaldi</translation>
 <translation id="7642161109152167169">Þegar kveikt er á þessu, sparar Vivaldi rafhlöðunotkun með því að draga úr bakgrunnsvinnslu og dýrum skjávinnslum eins og mjúku skruni og hárri upplausn myndskeiða. <ph name="BEGIN_LINK" />Læra meira<ph name="END_LINK" /></translation>
 <translation id="8031581238030785388">Vivaldi öpp</translation>
+<translation id="8532558197615073846">{NUM_EXTENSIONS, plural,
+        =1 {Þessi viðbót var gerð óvirk því hún er ekki lengur studd af Chromium. Þú getur virkjað hana aftur í bili, en hún gæti brátt verið fjarlægð. Íhugaðu að leita að öðrum valkostum í Chrome Netmarkaðinum.}
+        other {Þessar viðbætur voru gerðar óvirkar því þær eru ekki lengur studdar af Chromium. Þú getur virkjað þær aftur í bili, en þær gætu brátt verið fjarlægðar. Íhugaðu að leita að öðrum valkostum í Chrome Netmarkaðinum.}}</translation>
 </translationbundle>

@@ -20,7 +20,6 @@
 #include "base/json/values_util.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/process/launch.h"
-#include "base/strings/stringprintf.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_timeouts.h"
 #include "base/time/time.h"
@@ -40,6 +39,7 @@
 #include "chrome/updater/updater_branding.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/abseil-cpp/absl/strings/str_format.h"
 
 #if BUILDFLAG(IS_WIN)
 #include "base/test/test_reg_util_win.h"
@@ -429,6 +429,23 @@ TEST_F(PolicyServiceTest, SinglePolicyManager) {
               ElementsAre(PolicyEntry("test_source", 3)));
 }
 
+TEST_F(PolicyServiceTest, VersionRolloutPolicies) {
+  auto manager = base::MakeRefCounted<FakePolicyManager>(true, "test_source");
+  manager->SetMajorVersionRolloutPolicy("app1", 1);
+  manager->SetMinorVersionRolloutPolicy("app1", 2);
+  auto policy_service = CreatePolicyServiceForTesting({std::move(manager)});
+
+  PolicyStatus<int> major_policy =
+      policy_service->GetMajorVersionRolloutPolicy("app1");
+  ASSERT_TRUE(major_policy);
+  EXPECT_EQ(major_policy.policy(), 1);
+
+  PolicyStatus<int> minor_policy =
+      policy_service->GetMinorVersionRolloutPolicy("app1");
+  ASSERT_TRUE(minor_policy);
+  EXPECT_EQ(minor_policy.policy(), 2);
+}
+
 TEST_F(PolicyServiceTest, MultiplePolicyManagers) {
   PolicyManagers managers;
 
@@ -586,7 +603,7 @@ TEST_F(PolicyServiceTest, MultiplePolicyManagers) {
   EXPECT_EQ(download_preference_status.conflict_policy(), std::nullopt);
 
   EXPECT_EQ(policy_service->GetAllPoliciesAsString(),
-            base::StringPrintf(
+            absl::StrFormat(
                 "{\n"
                 "  CloudPolicyOverridesPlatformPolicy = false (Group Policy)\n"
                 "  DownloadPreference = cacheable (DictValuePolicy)\n"

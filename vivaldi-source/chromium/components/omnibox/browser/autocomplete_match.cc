@@ -27,6 +27,7 @@
 #include "base/time/time.h"
 #include "base/trace_event/memory_usage_estimator.h"
 #include "base/trace_event/trace_event.h"
+#include "build/android_buildflags.h"
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "components/history_embeddings/core/history_embeddings_features.h"
@@ -65,8 +66,10 @@
 #include "components/vector_icons/vector_icons.h"     // nogncheck
 #endif
 
-constexpr bool kIsDesktop = !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS);
 constexpr bool kIsAndroid = BUILDFLAG(IS_ANDROID);
+constexpr bool kIsDesktopAndroid = BUILDFLAG(IS_DESKTOP_ANDROID);
+constexpr bool kIsDesktop =
+    (!BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)) || kIsDesktopAndroid;
 
 namespace {
 
@@ -270,7 +273,6 @@ AutocompleteMatch::AutocompleteMatch(const AutocompleteMatch& match)
       entity_id(match.entity_id),
       website_uri(match.website_uri),
       document_type(match.document_type),
-      starter_pack_id(match.starter_pack_id),
       enterprise_search_aggregator_type(
           match.enterprise_search_aggregator_type),
       tail_suggest_common_prefix(match.tail_suggest_common_prefix),
@@ -409,7 +411,6 @@ AutocompleteMatch& AutocompleteMatch::operator=(
   history_embeddings_answer_header_loading =
       std::move(match.history_embeddings_answer_header_loading);
   feedback_type = std::move(match.feedback_type);
-  starter_pack_id = std::move(match.starter_pack_id);
   matching_tab_group_uuid = std::move(match.matching_tab_group_uuid);
 #if BUILDFLAG(IS_ANDROID)
   android_tab_id = std::move(match.android_tab_id);
@@ -503,7 +504,6 @@ AutocompleteMatch& AutocompleteMatch::operator=(
   history_embeddings_answer_header_loading =
       match.history_embeddings_answer_header_loading;
   feedback_type = match.feedback_type;
-  starter_pack_id = match.starter_pack_id;
   matching_tab_group_uuid = match.matching_tab_group_uuid;
 
 #if BUILDFLAG(IS_ANDROID)
@@ -557,7 +557,7 @@ const gfx::VectorIcon& AutocompleteMatch::GetVectorIcon(
   if (suggest_template.has_value() && suggest_template->has_type_icon()) {
     // Update this assertion and the switch below whenever values are added.
     static_assert(omnibox::SuggestTemplateInfo::IconType_MAX ==
-                  omnibox::SuggestTemplateInfo::DRAFT_SPARK);
+                  omnibox::SuggestTemplateInfo::INK_PEN);
     switch (suggest_template->type_icon()) {
       case omnibox::SuggestTemplateInfo::ICON_TYPE_UNSPECIFIED:
         // When not specified, fall back on regular match icon logic below.
@@ -584,6 +584,13 @@ const gfx::VectorIcon& AutocompleteMatch::GetVectorIcon(
         return features::IsRoundedIconsEnabled()
                    ? omnibox::kSubdirectoryArrowRightIcon
                    : omnibox::kSubdirectoryArrowRightOldIcon;
+      case omnibox::SuggestTemplateInfo::GLOBE_WITH_SEARCH_LOOP:
+      case omnibox::SuggestTemplateInfo::BANANA:
+      case omnibox::SuggestTemplateInfo::DRAFT_SPARK:
+      case omnibox::SuggestTemplateInfo::LIGHTBULB:
+      case omnibox::SuggestTemplateInfo::ATTACH_FILE:
+      case omnibox::SuggestTemplateInfo::SCHOOL:
+      case omnibox::SuggestTemplateInfo::INK_PEN:
       default:
         // Out of range value defaults to search loupe.
         return features::IsRoundedIconsEnabled()
@@ -1261,10 +1268,10 @@ url_formatter::FormatUrlTypes AutocompleteMatch::GetFormatTypes(
 // static
 void AutocompleteMatch::LogSearchEngineUsed(
     const AutocompleteMatch& match,
-    TemplateURLService* template_url_service) {
+    const TemplateURLService* template_url_service) {
   DCHECK(template_url_service);
 
-  TemplateURL* template_url = match.GetTemplateURL(template_url_service);
+  const TemplateURL* template_url = match.GetTemplateURL(template_url_service);
   if (!template_url) {
     return;
   }
@@ -1357,7 +1364,7 @@ void AutocompleteMatch::LogSearchEngineUsed(
 
 void AutocompleteMatch::ComputeStrippedDestinationURL(
     const AutocompleteInput& input,
-    TemplateURLService* template_url_service) {
+    const TemplateURLService* template_url_service) {
   // Other than document suggestions, computing `stripped_destination_url` will
   // have the same result during a match's lifecycle, so it's safe to skip
   // re-computing it if it's already computed. Document provider and history
@@ -1406,15 +1413,12 @@ bool AutocompleteMatch::HasInstantKeyword(
 
 bool AutocompleteMatch::ShouldHideBasedOnStarterPack(
     const TemplateURLService* template_url_service) const {
-  const TemplateURL* turl =
-      template_url_service->GetTemplateURLForKeyword(keyword);
-  return from_keyword && turl &&
-         turl->starter_pack_id() ==
-             template_url_starter_pack_data::StarterPackId::kGemini;
+  return StarterPackId(template_url_service) ==
+         template_url_starter_pack_data::StarterPackId::kGemini;
 }
 
 void AutocompleteMatch::GetKeywordUiState(
-    TemplateURLService* template_url_service,
+    const TemplateURLService* template_url_service,
     bool is_history_embeddings_enabled,
     KeywordState* keyword_state,
     std::u16string* keyword_out,
@@ -1433,7 +1437,7 @@ void AutocompleteMatch::GetKeywordUiState(
 }
 
 bool AutocompleteMatch::IsExplicitlyInvokedKeyword(
-    TemplateURLService* template_url_service) const {
+    const TemplateURLService* template_url_service) const {
   if (keyword.empty() ||
       !ui::PageTransitionCoreTypeIs(transition, ui::PAGE_TRANSITION_KEYWORD) ||
       template_url_service == nullptr) {
@@ -1492,6 +1496,21 @@ std::u16string AutocompleteMatch::GetKeywordPlaceholder(
 TemplateURL* AutocompleteMatch::GetTemplateURL(
     TemplateURLService* template_url_service) const {
   return GetTemplateURLWithKeyword(template_url_service, keyword, "");
+}
+
+const TemplateURL* AutocompleteMatch::GetTemplateURL(
+    const TemplateURLService* template_url_service) const {
+  return GetTemplateURLWithKeyword(template_url_service, keyword, "");
+}
+
+template_url_starter_pack_data::StarterPackId AutocompleteMatch::StarterPackId(
+    const TemplateURLService* template_url_service) const {
+  if (!from_keyword) {
+    return template_url_starter_pack_data::StarterPackId::kNone;
+  }
+  const TemplateURL* turl = GetTemplateURL(template_url_service);
+  return turl ? turl->starter_pack_id()
+              : template_url_starter_pack_data::StarterPackId::kNone;
 }
 
 GURL AutocompleteMatch::ImageUrl() const {
@@ -1679,7 +1698,9 @@ AutocompleteMatch::GetOmniboxEventResultType(int action_index) const {
       return OmniboxEventProto::Suggestion::DIRECT_MATCH;
     case AutocompleteMatchType::RECENT_TYPED_HISTORY:
       return OmniboxEventProto::Suggestion::RECENT_TYPED_HISTORY;
-    // End Vivaldi
+    case AutocompleteMatchType::VIVALDI_CALCULATOR:
+      return OmniboxEventProto::Suggestion::VIVALDI_CALCULATOR;
+      // End Vivaldi
 
   }
   DUMP_WILL_BE_NOTREACHED() << "Unknown AutocompleteMatchType: " << type;
@@ -1736,7 +1757,7 @@ int AutocompleteMatch::GetSortingOrder() const {
     return 1;
   }
 
-  if constexpr (kIsAndroid) {
+  if constexpr (kIsAndroid && !kIsDesktopAndroid) {
     if (IsClipboardType(type)) {
       return 1;
     }
@@ -1930,6 +1951,16 @@ bool AutocompleteMatch::IsSearchAimSuggestion() const {
     }
   }
   return false;
+}
+
+OmniboxSuggestionKind AutocompleteMatch::GetOmniboxSuggestionKind() const {
+  if (IsSearchAimSuggestion()) {
+    return OmniboxSuggestionKind::kConversation;
+  }
+  if (IsSearchType(type)) {
+    return OmniboxSuggestionKind::kSearch;
+  }
+  return OmniboxSuggestionKind::kNavigation;
 }
 
 void AutocompleteMatch::FilterOmniboxActions(

@@ -922,6 +922,33 @@ TEST_F(TabRestoreServiceImplTest, DontLoadWhenSavingIsDisabled) {
   ASSERT_EQ(0U, service_->entries().size());
 }
 
+// Makes sure toggling the policy mid-session immediately clears temporary
+// in-memory tab restore entries and prevents subsequent entries.
+TEST_F(TabRestoreServiceImplTest,
+       SavingBrowserHistoryDisabledMidSessionClearsEntries) {
+  AddThreeNavigations();
+
+  // Have the service record a closed tab.
+  service_->CreateHistoricalTab(live_tab(), -1);
+  EXPECT_EQ(1U, service_->entries().size());
+
+  // Enable the policy mid-session.
+  profile()->GetPrefs()->SetBoolean(prefs::kSavingBrowserHistoryDisabled, true);
+
+  // Temporary restore entries should be wiped immediately from memory for
+  // privacy.
+  EXPECT_EQ(0U, service_->entries().size());
+
+  // Attempt to record another historical tab.
+  AddThreeNavigations();
+  std::optional<SessionID> result =
+      service_->CreateHistoricalTab(live_tab(), -1);
+
+  // New tab restores should be blocked.
+  EXPECT_EQ(std::nullopt, result);
+  EXPECT_EQ(0U, service_->entries().size());
+}
+
 // Regression test to ensure Window::show_state is set correctly when reading
 // TabRestoreSession from saved state.
 TEST_F(TabRestoreServiceImplTest, WindowShowStateIsSet) {
@@ -1617,4 +1644,77 @@ TEST_F(TabRestoreServiceImplWithMockClientTest, RestoreOneTabFromSplit) {
                              WindowOpenDisposition::NEW_FOREGROUND_TAB);
 
   EXPECT_TRUE(service_->entries().empty());
+}
+
+TEST_F(TabRestoreServiceImplWithMockClientTest,
+       DontCreateGroupEntryWhileRestoring) {
+  ON_CALL(*mock_tab_restore_service_client_, ShouldTrackURLForRestore(_))
+      .WillByDefault(Return(true));
+
+  // Create a group entry with two tabs and place it at the back of the list so
+  // that it would be the first entry dropped if the list were ever pruned.
+  auto group = std::make_unique<sessions::tab_restore::Group>();
+  group->group_id = tab_groups::TabGroupId::GenerateNew();
+  for (int i = 0; i < 2; ++i) {
+    auto tab = std::make_unique<Tab>();
+    tab->navigations.push_back(ContentTestHelper::CreateNavigation(
+        base::StringPrintf("http://group/%d", i), "title"));
+    tab->current_navigation_index = 0;
+    group->tabs.push_back(std::move(tab));
+  }
+  const SessionID group_entry_id = group->id;
+  mutable_entries()->push_back(std::move(group));
+
+  // Fill the rest of the list up to kMaxEntries with tab entries that are
+  // newer than the group entry.
+  const size_t max_entries = kMaxEntries;
+  for (size_t i = 0; i < max_entries - 1; ++i) {
+    auto tab = std::make_unique<Tab>();
+    tab->navigations.push_back(ContentTestHelper::CreateNavigation(
+        base::StringPrintf("http://%d", static_cast<int>(i)), "title"));
+    tab->current_navigation_index = 0;
+    mutable_entries()->push_front(std::move(tab));
+  }
+  ASSERT_EQ(max_entries, service_->entries().size());
+
+  // A separate context that simulates a tab group closure being committed
+  // while the restore below is in progress.
+  testing::NiceMock<MockLiveTabContext> closing_context;
+  testing::NiceMock<MockLiveTab> closing_tab;
+  tab_groups::TabGroupId closing_group_id =
+      tab_groups::TabGroupId::GenerateNew();
+  tab_groups::TabGroupVisualData closing_group_visual_data;
+  ON_CALL(closing_context, GetSessionID())
+      .WillByDefault(Return(SessionID::NewUnique()));
+  ON_CALL(closing_context, GetTabCount()).WillByDefault(Return(1));
+  ON_CALL(closing_context, GetTabGroupForTab(0))
+      .WillByDefault(Return(closing_group_id));
+  ON_CALL(closing_context, GetVisualDataForGroup(_))
+      .WillByDefault(Return(&closing_group_visual_data));
+  ON_CALL(closing_context, GetLiveTabAt(0)).WillByDefault(Return(&closing_tab));
+  ON_CALL(closing_tab, GetEntryCount()).WillByDefault(Return(1));
+  ON_CALL(closing_tab, GetEntryAtIndex(_))
+      .WillByDefault(
+          Return(ContentTestHelper::CreateNavigation("http://closing", "T")));
+
+  // Restoring a tab can synchronously commit pending tab group closures, which
+  // calls back into CreateHistoricalGroup. The service must not add a new
+  // entry while a restore is already in progress.
+  testing::NiceMock<MockLiveTabContext> restore_context;
+  int restored_tab_count = 0;
+  ON_CALL(restore_context, AddRestoredTab(_, _, _, _, _))
+      .WillByDefault([&](const sessions::tab_restore::Tab&, int, bool, bool,
+                         sessions::tab_restore::Type) -> sessions::LiveTab* {
+        ++restored_tab_count;
+        EXPECT_TRUE(service_->IsRestoring());
+        service_->CreateHistoricalGroup(&closing_context, closing_group_id);
+        EXPECT_EQ(group_entry_id, service_->entries().back()->id);
+        return nullptr;
+      });
+
+  service_->RestoreEntryById(&restore_context, group_entry_id,
+                             WindowOpenDisposition::NEW_FOREGROUND_TAB);
+
+  EXPECT_EQ(2, restored_tab_count);
+  EXPECT_EQ(max_entries - 1, service_->entries().size());
 }

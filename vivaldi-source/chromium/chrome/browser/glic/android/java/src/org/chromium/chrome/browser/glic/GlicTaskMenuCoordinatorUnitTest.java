@@ -28,11 +28,8 @@ import org.robolectric.annotation.Config;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Batch;
-import org.chromium.base.test.util.Features.DisableFeatures;
-import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.actor.ActorTask;
 import org.chromium.chrome.browser.actor.ActorTaskState;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.ui.listmenu.ListMenuItemProperties;
@@ -49,7 +46,6 @@ import java.util.Set;
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 @Batch(Batch.UNIT_TESTS)
-@DisableFeatures(ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL)
 public class GlicTaskMenuCoordinatorUnitTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -70,7 +66,8 @@ public class GlicTaskMenuCoordinatorUnitTest {
                         mContext,
                         () -> mTabModelSelector,
                         mToggleGlicCallback,
-                        GlicKeyedService.GlicInvocationSource.TOP_CHROME_BUTTON);
+                        GlicKeyedService.GlicInvocationSource.TOP_CHROME_BUTTON,
+                        GlicTaskMenuCoordinator.ButtonSource.TOOLBAR);
 
         ActorTask task1 = mock(ActorTask.class);
         doReturn("Task One").when(task1).getTitle();
@@ -96,11 +93,24 @@ public class GlicTaskMenuCoordinatorUnitTest {
     }
 
     @Test
-    @EnableFeatures(ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL)
-    public void testBuildModelList_SidePanelEnabled() {
-        ModelList modelList = mCoordinator.buildModelList(mTasks);
+    public void testBuildModelList_TabStripSource() {
+        ActorTask task1 = mock(ActorTask.class);
+        doReturn("Task One").when(task1).getTitle();
+        doReturn(true).when(task1).isCompleted();
+        ActorTask task2 = mock(ActorTask.class);
+        doReturn("Task Two").when(task2).getTitle();
+        doReturn(true).when(task2).isCompleted();
 
-        // 2 tasks = 2 items total
+        GlicTaskMenuCoordinator tabStripCoordinator =
+                new GlicTaskMenuCoordinator(
+                        mContext,
+                        () -> mTabModelSelector,
+                        mToggleGlicCallback,
+                        GlicKeyedService.GlicInvocationSource.TOP_CHROME_BUTTON,
+                        GlicTaskMenuCoordinator.ButtonSource.TAB_STRIP);
+        ModelList modelList = tabStripCoordinator.buildModelList(Arrays.asList(task1, task2));
+
+        // 2 tasks = 2 items total (Ask Gemini hidden)
         assertEquals(2, modelList.size());
 
         ListItem item1 = modelList.get(0);
@@ -123,13 +133,20 @@ public class GlicTaskMenuCoordinatorUnitTest {
     }
 
     @Test
-    @EnableFeatures(ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL)
-    public void testBuildModelList_SidePanelEnabled_NeedsReview() {
+    public void testBuildModelList_TabStripSource_NeedsReview() {
         ActorTask reviewTask = mock(ActorTask.class);
         doReturn("Review Task").when(reviewTask).getTitle();
         doReturn(ActorTaskState.WAITING_ON_USER).when(reviewTask).getState();
 
-        ModelList modelList = mCoordinator.buildModelList(Collections.singletonList(reviewTask));
+        GlicTaskMenuCoordinator tabStripCoordinator =
+                new GlicTaskMenuCoordinator(
+                        mContext,
+                        () -> mTabModelSelector,
+                        mToggleGlicCallback,
+                        GlicKeyedService.GlicInvocationSource.TOP_CHROME_BUTTON,
+                        GlicTaskMenuCoordinator.ButtonSource.TAB_STRIP);
+        ModelList modelList =
+                tabStripCoordinator.buildModelList(Collections.singletonList(reviewTask));
 
         assertEquals(1, modelList.size());
         ListItem item = modelList.get(0);
@@ -176,7 +193,7 @@ public class GlicTaskMenuCoordinatorUnitTest {
     }
 
     @Test
-    public void testClickActorTask_EmptyTabs_OpensNewTab() {
+    public void testClickActorTask_EmptyTabs_DoesNotOpenNewTab() {
         ActorTask task = mock(ActorTask.class);
         doReturn("Task Title").when(task).getTitle();
         doReturn(Collections.emptySet()).when(task).getLastActedTabs();
@@ -188,12 +205,28 @@ public class GlicTaskMenuCoordinatorUnitTest {
                 taskItem.model.get(ListMenuItemProperties.CLICK_LISTENER);
         clickListener.onClick(null);
 
-        verify(mTabModelSelector)
-                .openNewTab(any(), eq(TabLaunchType.FROM_CHROME_UI), eq(null), eq(false));
         verify(mToggleGlicCallback)
                 .onClick(
                         /* preventClose= */ true,
                         GlicKeyedService.GlicInvocationSource.TOP_CHROME_BUTTON);
+    }
+
+    @Test
+    public void testClickActorTask_CompletedTaskClosedTab_OpensNewTab() {
+        ActorTask task = mock(ActorTask.class);
+        doReturn("Task Title").when(task).getTitle();
+        doReturn(Collections.emptySet()).when(task).getLastActedTabs();
+        doReturn(true).when(task).isCompleted();
+
+        ModelList modelList = mCoordinator.buildModelList(Arrays.asList(task));
+        ListItem taskItem = modelList.get(0);
+
+        View.OnClickListener clickListener =
+                taskItem.model.get(ListMenuItemProperties.CLICK_LISTENER);
+        clickListener.onClick(null);
+
+        verify(mTabModelSelector)
+                .openNewTab(any(), eq(TabLaunchType.FROM_CHROME_UI), eq(null), eq(false));
     }
 
     @Test
@@ -203,7 +236,8 @@ public class GlicTaskMenuCoordinatorUnitTest {
                         mContext,
                         () -> mTabModelSelector,
                         mToggleGlicCallback,
-                        GlicKeyedService.GlicInvocationSource.TOOLBAR_BUTTON);
+                        GlicKeyedService.GlicInvocationSource.TOOLBAR_BUTTON,
+                        GlicTaskMenuCoordinator.ButtonSource.TOOLBAR);
         ModelList modelList = coordinator.buildModelList(Collections.emptyList());
         ListItem askGeminiItem = modelList.get(1);
 

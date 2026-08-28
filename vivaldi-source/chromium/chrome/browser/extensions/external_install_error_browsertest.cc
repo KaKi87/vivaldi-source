@@ -18,8 +18,6 @@
 #include "chrome/browser/extensions/external_provider_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/global_error/global_error_waiter.h"
-#include "chrome/grit/branded_strings.h"
-#include "chrome/grit/generated_resources.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_utils.h"
@@ -120,8 +118,7 @@ IN_PROC_BROWSER_TEST_F(ExternalInstallErrorTest,
   ASSERT_EQ(1u, errors.size());
   EXPECT_EQ(kId, errors[0]->extension_id());
 
-  ExtensionInstallPrompt::Prompt* alert_prompt =
-      errors[0]->GetPromptForTesting();
+  InstallPromptData* alert_prompt = errors[0]->GetPromptForTesting();
   ASSERT_TRUE(alert_prompt);
 
   // Validate that the alert prompt's data corresponds to what is returned from
@@ -152,8 +149,7 @@ IN_PROC_BROWSER_TEST_F(ExternalInstallErrorTest,
   ASSERT_EQ(1u, errors.size());
   EXPECT_EQ(kId, errors[0]->extension_id());
 
-  ExtensionInstallPrompt::Prompt* alert_prompt =
-      errors[0]->GetPromptForTesting();
+  InstallPromptData* alert_prompt = errors[0]->GetPromptForTesting();
   ASSERT_TRUE(alert_prompt);
 
   // Validate that the alert prompt's data corresponds to what is returned from
@@ -187,8 +183,7 @@ IN_PROC_BROWSER_TEST_F(ExternalInstallErrorTest,
       ExternalInstallManager::Get(profile())->GetErrorsForTesting();
   ASSERT_EQ(1u, errors.size());
   EXPECT_EQ(kId, errors[0]->extension_id());
-  ExtensionInstallPrompt::Prompt* alert_prompt =
-      errors[0]->GetPromptForTesting();
+  InstallPromptData* alert_prompt = errors[0]->GetPromptForTesting();
   ASSERT_TRUE(alert_prompt);
 
   // Expect the provider-aware initial-install title.
@@ -226,8 +221,7 @@ IN_PROC_BROWSER_TEST_F(ExternalInstallErrorTest,
       ExternalInstallManager::Get(profile())->GetErrorsForTesting();
   ASSERT_EQ(1u, errors.size());
   EXPECT_EQ(kId, errors[0]->extension_id());
-  ExtensionInstallPrompt::Prompt* alert_prompt =
-      errors[0]->GetPromptForTesting();
+  InstallPromptData* alert_prompt = errors[0]->GetPromptForTesting();
   ASSERT_TRUE(alert_prompt);
 
   const Extension* extension = alert_prompt->extension();

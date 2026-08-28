@@ -71,7 +71,6 @@
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_header_footer_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_url_item.h"
-#import "ios/chrome/browser/shared/ui/table_view/legacy_chrome_table_view_styler.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_favicon_data_source.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
 #import "ios/chrome/browser/signin/model/authentication_service.h"
@@ -181,18 +180,17 @@ typedef std::pair<SessionID, TableViewURLItem*> RecentlyClosedTableViewItemPair;
 - (instancetype)initWithSession:(UISceneSession*)session;
 @end
 
-@interface RecentTabsTableViewController () <
-    SigninPromoViewConsumer,
-    SigninPromoViewMediatorDelegate,
-    SyncObserverModelBridge,
-    TableViewURLDragDataSource,
-    UIContextMenuInteractionDelegate,
+@interface RecentTabsTableViewController () <SigninPromoViewConsumer,
+                                             SigninPromoViewMediatorDelegate,
+                                             SyncObserverModelBridge,
+                                             TableViewURLDragDataSource,
+                                             UIContextMenuInteractionDelegate,
 
-    // Vivaldi
-    VivaldiTabGridEmptyStateViewDelegate,
-    // End Vivaldi
+                                             // Vivaldi
+                                             VivaldiTabGridEmptyStateViewDelegate,
+                                             // End Vivaldi
 
-    UIGestureRecognizerDelegate> {
+                                             UIGestureRecognizerDelegate> {
   // The displayed recently closed tabs.
   std::vector<RecentlyClosedTableViewItemPair> _recentlyClosedItems;
 
@@ -494,7 +492,7 @@ typedef std::pair<SessionID, TableViewURLItem*> RecentlyClosedTableViewItemPair;
   historyItem.title = l10n_util::GetNSString(IDS_HISTORY_SHOWFULLHISTORY_LINK);
 
   historyItem.image =
-      DefaultSymbolWithPointSize(kHistorySymbol, kSymbolActionPointSize);
+      SymbolWithPointSize(SymbolHistory, kSymbolActionPointSize);
   historyItem.textColor = [UIColor colorNamed:kBlueColor];
   historyItem.accessibilityIdentifier =
       kRecentTabsShowFullHistoryCellAccessibilityIdentifier;
@@ -940,7 +938,7 @@ typedef std::pair<SessionID, TableViewURLItem*> RecentlyClosedTableViewItemPair;
     // Even if Apple documentation hints toward reconfiguring the row instead
     // of just updating the cell, it creates a visible jank. Use the item
     // configuration method instead. See crbug.com/479692041 for more info.
-    [item configureCell:cell withStyler:self.styler];
+    [item configureCell:cell];
   }
 }
 
@@ -2314,13 +2312,13 @@ typedef std::pair<SessionID, TableViewURLItem*> RecentlyClosedTableViewItemPair;
   NSMutableDictionary* newCollapsedSection = [NSMutableDictionary
       dictionaryWithDictionary:newUserInfo[kListModelCollapsedKey]];
   newUserInfo[kListModelCollapsedKey] = newCollapsedSection;
-  newCollapsedSection[sectionKey] = [NSNumber numberWithBool:collapsed];
+  newCollapsedSection[sectionKey] = @(collapsed);
   _session.userInfo = newUserInfo;
 }
 
 - (BOOL)sectionKeyIsCollapsed:(NSString*)sectionKey {
   NSDictionary* collapsedSections = _session.userInfo[kListModelCollapsedKey];
-  NSNumber* value = (NSNumber*)[collapsedSections valueForKey:sectionKey];
+  NSNumber* value = (NSNumber*)collapsedSections[sectionKey];
   return [value boolValue];
 }
 

@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "installer/mini_installer/mini_installer/configuration.h"
 
 #include <windows.h>
@@ -15,6 +10,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#include "base/compiler_specific.h"
 #include "build/branding_buildflags.h"
 #include "installer/mini_installer/mini_installer/mini_installer_constants.h"
 #include "installer/mini_installer/mini_installer/mini_installer_resource.h"
@@ -70,16 +66,17 @@ bool Configuration::ParseCommandLine(const wchar_t* command_line) {
     return false;
 
   for (int i = 1; i < argument_count_; ++i) {
-    if (0 == ::lstrcmpi(args_[i], L"--system-level"))
+    if (0 == ::lstrcmpi(UNSAFE_TODO(args_[i]), L"--system-level")) {
       is_system_level_ = true;
-    else if (0 == ::lstrcmpi(args_[i], L"--cleanup"))
+    } else if (0 == ::lstrcmpi(UNSAFE_TODO(args_[i]), L"--cleanup")) {
       has_invalid_switch_ = true;
-    else if (0 == ::lstrcmpi(args_[i], L"--chrome-frame"))
+    } else if (0 == ::lstrcmpi(UNSAFE_TODO(args_[i]), L"--chrome-frame")) {
       has_invalid_switch_ = true;
-    else if (0 == ::lstrcmpi(args_[i], L"--" VIVALDI_INSTALLER_SWITCH_SILENT))
+    } else if (0 == ::lstrcmpi(UNSAFE_TODO(args_[i]), L"--" VIVALDI_INSTALLER_SWITCH_SILENT)) {
       g_vivaldi_has_silent_switch = true;
-    else if (0 == ::lstrcmpi(args_[i], L"--" VIVALDI_INSTALLER_SWITCH_UNPACK))
+    } else if (0 == ::lstrcmpi(UNSAFE_TODO(args_[i]), L"--" VIVALDI_INSTALLER_SWITCH_UNPACK)) {
       g_vivaldi_has_unpack_switch = true;
+    }
   }
 
   return true;

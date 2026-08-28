@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "chrome/browser/multistep_filter/ui/filter_ui_controller.h"
+#include "components/multistep_filter/core/data_models/suggestion_user_decision.h"
 #include "components/tabs/public/tab_interface.h"
 #include "url/gurl.h"
 
@@ -19,24 +20,19 @@ MultistepFilterUiDelegateImpl::MultistepFilterUiDelegateImpl(
 MultistepFilterUiDelegateImpl::~MultistepFilterUiDelegateImpl() = default;
 
 void MultistepFilterUiDelegateImpl::ClearSuggestion() {
-  // Cancel any pending suggestion generation callbacks.
-  weak_ptr_factory_.InvalidateWeakPtrs();
   if (FilterUiController* controller = GetController()) {
-    controller->ClearSuggestion();
+    // A navigation has occurred, so the suggestion is ignored.
+    controller->ClearSuggestion(SuggestionUserDecision::kIgnored);
   }
 }
 
 void MultistepFilterUiDelegateImpl::OnSuggestionGenerated(
-    std::optional<UrlFilterSuggestion> suggestion) {
+    std::optional<UrlFilterSuggestion> suggestion,
+    SuggestionUiCallbacks callbacks) {
   if (FilterUiController* controller = GetController()) {
-    controller->OnSuggestionGenerated(std::move(suggestion));
+    controller->OnSuggestionGenerated(std::move(suggestion),
+                                      std::move(callbacks));
   }
-}
-
-
-base::WeakPtr<MultistepFilterUiDelegate>
-MultistepFilterUiDelegateImpl::GetWeakPtr() {
-  return weak_ptr_factory_.GetWeakPtr();
 }
 
 FilterUiController* MultistepFilterUiDelegateImpl::GetController() const {

@@ -61,6 +61,10 @@
           other {Bæta flipum í bunka}
         }</translation>
 <translation id="3298614730029636660">Fara úr bunka</translation>
+<translation id="3300124386085148622">{TAB_COUNT, plural,
+          =1 {Bæta í bunka sem kallast <ph name="TITLE_OF_GROUP" /> með <ph name="TAB_COUNT1" /> flipa}
+          other {Bæta í bunka sem kallast <ph name="TITLE_OF_GROUP" /> með <ph name="TAB_COUNT1" /> flipum}
+        }</translation>
 <translation id="3316876767347568113">Fjarlægja flipa úr bunka</translation>
 <translation id="354698175756845966">Breyta lit á bunka</translation>
 <translation id="3832906837818406941"><ph name="TITLE_OF_GROUP" /> stillingar fyrir flipabunka</translation>
@@ -87,6 +91,10 @@
           other {Bæta <ph name="TABS_COUNT_MANY" /> flipa í bunka}
         }</translation>
 <translation id="4521279527488891004"><ph name="USER_EMAIL" /> bunkar vistaðir (flipar lokast og bunkar eyðast)</translation>
+<translation id="4583669313366060453">{TABS_COUNT, plural,
+          =1 {Leysa upp flipa}
+          other {Leysa upp flipa}
+        }</translation>
 <translation id="4686942373615810936">Búið til núna</translation>
 <translation id="4687160919883774711">Opna flipabunka sjálfvirkt frá öðrum tækjum</translation>
 <translation id="4707553699210476405">{NUMBER_OF_TABS, plural,
@@ -115,9 +123,21 @@
         =1 {Hægt verður að enduropna lokaða flipa og flipabunka í nýlegum flipum og flipabunkum. Einkaflipar verða ekki tiltækir.}
         other {Hægt verður að enduropna lokaða flipa og flipabunka í nýlegum flipum og flipabunkum. Einkaflipar verða ekki tiltækir.}}</translation>
 <translation id="570198925265232174">Endurnefna flipabunka</translation>
+<translation id="5782736613560873551">{TAB_GROUPS_COUNT, plural,
+            =1 {<ph name="TAB_GROUPS_COUNT_ONE" /> flipabunki ekki lengur tiltækur}
+            other {<ph name="TAB_GROUPS_COUNT_MANY" /> flipabunkar ekki lengur tiltækir}
+          }</translation>
+<translation id="5932736435198834671">{TABS_COUNT, plural,
+          =1 {Leysa upp <ph name="TABS_COUNT_ONE" /> valinn flipa}
+          other {Leysa upp <ph name="TABS_COUNT_MANY" /> valda flipa}
+        }</translation>
 <translation id="6103180007424260422">{NUMBER_OF_TABS, plural,
           =1 {Endurheimta og opna flipabunka með <ph name="TABS_COUNT_ONE" /> flipa, litur <ph name="COLOR_NAME" />.}
           other {Endurheimta og opna flipabunka með <ph name="TABS_COUNT_MANY" /> flipum, litur <ph name="COLOR_NAME" />.}
+        }</translation>
+<translation id="618983369399969832">{NUMBER_OF_TABS, plural,
+          =1 {Endurheimta og opna <ph name="TITLE_OF_GROUP" /> flipabunka með <ph name="TABS_COUNT_ONE" /> flipa, litur <ph name="COLOR_NAME" />.}
+          other {Endurheimta og opna <ph name="TITLE_OF_GROUP" /> flipabunka með <ph name="TABS_COUNT_MANY" /> flipum, litur <ph name="COLOR_NAME" />.}
         }</translation>
 <translation id="6484029326952865825">{NUMBER_OF_TABS, plural,
           =1 {Fletja út sameiginlegan flipabunka <ph name="TITLE_OF_GROUP" /> með <ph name="TABS_COUNT_ONE" /> flipa, litur <ph name="COLOR_NAME" />, með merkimiða <ph name="CARD_LABEL" />.}

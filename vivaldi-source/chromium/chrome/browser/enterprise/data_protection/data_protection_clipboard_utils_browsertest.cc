@@ -16,6 +16,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/enterprise/connectors/analysis/content_analysis_delegate.h"
+#include "chrome/browser/enterprise/connectors/analysis/copy_warning_delegate_tracker.h"
 #include "chrome/browser/enterprise/connectors/test/active_user_test_mixin.h"
 #include "chrome/browser/enterprise/connectors/test/deep_scanning_test_utils.h"
 #include "chrome/browser/enterprise/connectors/test/fake_content_analysis_delegate.h"
@@ -25,6 +26,9 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_test_util.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/toasts/api/toast_id.h"
+#include "chrome/browser/ui/toasts/toast_controller.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/mixin_based_in_process_browser_test.h"
 #include "components/enterprise/connectors/core/features.h"
@@ -32,7 +36,10 @@
 #include "components/enterprise/data_controls/content/browser/last_replaced_clipboard_data.h"
 #include "components/enterprise/data_controls/core/browser/features.h"
 #include "components/enterprise/data_controls/core/browser/test_utils.h"
+#include "components/policy/core/common/cloud/cloud_policy_client.h"
+#include "components/policy/core/common/cloud/cloud_policy_core.h"
 #include "components/policy/core/common/cloud/realtime_reporting_job_configuration.h"
+#include "components/policy/core/common/cloud/user_cloud_policy_manager.h"
 #include "components/safe_browsing/core/common/features.h"
 #include "components/strings/grit/components_strings.h"
 #include "content/public/browser/clipboard_types.h"
@@ -81,8 +88,8 @@ class DataControlsClipboardUtilsBrowserTest
  public:
   DataControlsClipboardUtilsBrowserTest() {
     std::vector<base::test::FeatureRef> enabled_features = {
-        data_controls::kDataControlsDragEnforcement,
         data_controls::kDataControlsSearchWith,
+        enterprise_connectors::kContentAnalysisClipboardCopy,
         enterprise_connectors::kGlicBulkDataEntrySupport,
         data_controls::kDataControlsGlic};
     std::vector<base::test::FeatureRef> disabled_features = {};
@@ -102,7 +109,7 @@ class DataControlsClipboardUtilsBrowserTest
 
   void SetupContentAnalysisToBlock() {
     enterprise_connectors::test::SetAnalysisConnector(
-        browser()->profile()->GetPrefs(),
+        browser()->GetProfile()->GetPrefs(),
         enterprise_connectors::AnalysisConnector::BULK_DATA_ENTRY,
         R"(
           {
@@ -117,18 +124,6 @@ class DataControlsClipboardUtilsBrowserTest
           })",
         machine_scope());
 
-#if BUILDFLAG(IS_CHROMEOS)
-    policy::SetDMTokenForTesting(
-        policy::DMToken::CreateValidToken("fake_dm_token"));
-#else
-    if (machine_scope()) {
-      policy::SetDMTokenForTesting(
-          policy::DMToken::CreateValidToken("fake_dm_token"));
-    } else {
-      enterprise_connectors::test::SetProfileDMToken(browser()->profile(),
-                                                     "fake_dm_token");
-    }
-#endif
 
     auto status_callback = base::BindRepeating([](const std::string& contents,
                                                   const base::FilePath& path) {
@@ -140,7 +135,27 @@ class DataControlsClipboardUtilsBrowserTest
     enterprise_connectors::ContentAnalysisDelegate::SetFactoryForTesting(
         base::BindRepeating(
             &enterprise_connectors::test::FakeContentAnalysisDelegate::Create,
-            base::DoNothing(), status_callback, "fake_dm_token"));
+            base::DoNothing(), status_callback, "dm_token"));
+  }
+
+  void SetupDMToken() {
+#if BUILDFLAG(IS_CHROMEOS)
+    policy::SetDMTokenForTesting(policy::DMToken::CreateValidToken("dm_token"));
+#else
+    if (machine_scope()) {
+      policy::SetDMTokenForTesting(
+          policy::DMToken::CreateValidToken("dm_token"));
+    } else {
+      auto* manager = browser()->GetProfile()->GetUserCloudPolicyManager();
+      if (manager && manager->core()->client()) {
+        manager->core()->client()->SetupRegistration("dm_token", "client_id",
+                                                     {});
+      } else {
+        enterprise_connectors::test::SetProfileDMToken(browser()->GetProfile(),
+                                                       "dm_token");
+      }
+    }
+#endif
   }
 
   bool machine_scope() const { return std::get<0>(GetParam()); }
@@ -158,7 +173,7 @@ class DataControlsClipboardUtilsBrowserTest
   void SetUpOnMainThread() override {
     event_report_validator_helper_ = std::make_unique<
         enterprise_connectors::test::EventReportValidatorHelper>(
-        browser()->profile(), /*browser_test=*/true);
+        browser()->GetProfile(), /*browser_test=*/true);
 
     MixinBasedInProcessBrowserTest::SetUpOnMainThread();
   }
@@ -202,6 +217,98 @@ class DataControlsClipboardUtilsBrowserTest
   std::unique_ptr<enterprise_connectors::test::ActiveUserTestMixin>
       active_user_test_mixin_;
 };
+
+IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
+                       CopyContentAnalysisWarningCanceled) {
+  active_user_test_mixin_->SetFakeCookieValue();
+  SetupDMToken();
+
+  enterprise_connectors::test::SetAnalysisConnector(
+      browser()->GetProfile()->GetPrefs(),
+      enterprise_connectors::AnalysisConnector::DATA_COPIED,
+      R"(
+        {
+          "service_provider": "google",
+          "enable": [
+            {
+              "url_list": ["*"],
+              "tags": ["dlp"]
+            }
+          ],
+          "block_until_verdict": 1
+        })",
+      machine_scope());
+  enterprise_connectors::ContentAnalysisDelegate::SetFactoryForTesting(
+      base::BindRepeating(
+          &enterprise_connectors::test::FakeContentAnalysisDelegate::Create,
+          base::DoNothing(),
+          base::BindRepeating([](const std::string&, const base::FilePath&) {
+            return enterprise_connectors::test::FakeContentAnalysisDelegate::
+                DlpResponse(enterprise_connectors::ContentAnalysisResponse::
+                                Result::SUCCESS,
+                            "dlp",
+                            enterprise_connectors::ContentAnalysisResponse::
+                                Result::TriggeredRule::WARN);
+          }),
+          "dm_token"));
+
+  ASSERT_TRUE(embedded_test_server()->Start());
+  GURL url = embedded_test_server()->GetURL("/empty.html");
+  ASSERT_TRUE(content::NavigateToURL(contents(), url));
+
+  auto source = content::ClipboardEndpoint(
+      ui::DataTransferEndpoint(url), base::BindLambdaForTesting([this]() {
+        return contents()->GetBrowserContext();
+      }),
+      *contents()->GetPrimaryMainFrame());
+
+  ui::ClipboardMetadata metadata = {.size = 100};
+  content::ClipboardPasteData data;
+  data.text = std::u16string(100, 'a');
+
+  base::test::TestFuture<const ui::ClipboardFormatType&,
+                         const content::ClipboardPasteData&,
+                         std::optional<std::u16string>>
+      future;
+
+  data_controls::GetLastReplacedClipboardData() = {};
+  ui::ClipboardMonitor::GetInstance()->NotifyClipboardDataChanged();
+
+  IsClipboardCopyAllowedByPolicy(source, metadata, data, future.GetCallback());
+
+  auto* toast_controller = browser()->GetFeatures().toast_controller();
+  ASSERT_TRUE(toast_controller);
+
+  // Wait until the warning creates the Toast.
+  while (!toast_controller->IsShowingToast()) {
+    base::RunLoop().RunUntilIdle();
+  }
+
+  EXPECT_EQ(toast_controller->GetCurrentToastId(),
+            ToastId::kEnterpriseCopyWarning);
+
+  toast_controller->GetToastWidgetForTesting()->CloseNow();
+  enterprise_connectors::CopyWarningDelegateTracker::SetDelegate(contents(),
+                                                                 nullptr);
+
+  EXPECT_EQ(future.Get<0>(), metadata.format_type);
+
+  EXPECT_TRUE(future.Get<1>().empty());
+
+  auto replacement = future.Get<2>();
+  EXPECT_TRUE(replacement.has_value());
+  EXPECT_EQ(replacement.value(),
+            l10n_util::GetStringUTF16(
+                IDS_ENTERPRISE_CONTENT_ANALYSIS_COPY_BLOCKED_MESSAGE));
+
+  {
+    ui::ScopedClipboardWriter scw(ui::ClipboardBuffer::kCopyPaste);
+    scw.WriteText(*replacement);
+  }
+
+  EXPECT_EQ(data_controls::GetLastReplacedClipboardData().restriction_level,
+            data_controls::CopyRestrictionLevel::kBlocked);
+}
 
 INSTANTIATE_TEST_SUITE_P(All,
                          DataControlsClipboardUtilsBrowserTest,
@@ -292,12 +399,12 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
   *expected_event.add_triggered_rule_info() = triggered_rule;
   expected_event.set_profile_identifier(
-      browser()->profile()->GetPath().AsUTF8Unsafe());
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
   expected_event.set_profile_user_name(kUserName);
 
   event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
 
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
                                    "name": "rule_name",
                                    "rule_id": "222",
                                    "destinations": {
@@ -363,13 +470,13 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
   *expected_warned_dlp_event.add_triggered_rule_info() = triggered_rule;
   expected_warned_dlp_event.set_profile_identifier(
-      browser()->profile()->GetPath().AsUTF8Unsafe());
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
   expected_warned_dlp_event.set_profile_user_name(kUserName);
 
   event_validator.ExpectSensitiveDataEvent(
       std::move(expected_warned_dlp_event));
 
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
                                    "name": "warn_rule_name",
                                    "rule_id": "333",
                                    "destinations": {
@@ -430,7 +537,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
   *expected_bypassed_dlp_event.add_triggered_rule_info() =
       triggered_bypassed_rule;
   expected_bypassed_dlp_event.set_profile_identifier(
-      browser()->profile()->GetPath().AsUTF8Unsafe());
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
   expected_bypassed_dlp_event.set_profile_user_name(kUserName);
 
   event_validator.ExpectSensitiveDataEvent(
@@ -480,12 +587,12 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
   *expected_event.add_triggered_rule_info() = triggered_rule;
   expected_event.set_profile_identifier(
-      browser()->profile()->GetPath().AsUTF8Unsafe());
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
   expected_event.set_profile_user_name(kUserName);
 
   event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
 
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
                                    "name": "warn rule name",
                                    "rule_id": "1416",
                                    "destinations": {
@@ -576,7 +683,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
     *expected_event.add_triggered_rule_info() = triggered_rule;
     expected_event.set_profile_identifier(
-        browser()->profile()->GetPath().AsUTF8Unsafe());
+        browser()->GetProfile()->GetPath().AsUTF8Unsafe());
     expected_event.set_profile_user_name(kUserName);
 
     event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
@@ -666,7 +773,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
     *expected_event.add_triggered_rule_info() = triggered_rule;
     expected_event.set_profile_identifier(
-        browser()->profile()->GetPath().AsUTF8Unsafe());
+        browser()->GetProfile()->GetPath().AsUTF8Unsafe());
     expected_event.set_profile_user_name(kUserName);
 
     event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
@@ -729,7 +836,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
     *expected_event.add_triggered_rule_info() = triggered_rule;
     expected_event.set_profile_identifier(
-        browser()->profile()->GetPath().AsUTF8Unsafe());
+        browser()->GetProfile()->GetPath().AsUTF8Unsafe());
     expected_event.set_profile_user_name(kUserName);
 
     event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
@@ -796,7 +903,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
     *expected_event.add_triggered_rule_info() = triggered_rule;
     expected_event.set_profile_identifier(
-        browser()->profile()->GetPath().AsUTF8Unsafe());
+        browser()->GetProfile()->GetPath().AsUTF8Unsafe());
     expected_event.set_profile_user_name(kUserName);
 
     event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
@@ -872,12 +979,12 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
   *expected_event.add_triggered_rule_info() = triggered_rule;
   expected_event.set_profile_identifier(
-      browser()->profile()->GetPath().AsUTF8Unsafe());
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
   expected_event.set_profile_user_name(kUserName);
 
   event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
 
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
                                    "name": "report_rule_name",
                                    "rule_id": "8765",
                                    "destinations": {
@@ -963,7 +1070,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
     *expected_event.add_triggered_rule_info() = triggered_rule;
     expected_event.set_profile_identifier(
-        browser()->profile()->GetPath().AsUTF8Unsafe());
+        browser()->GetProfile()->GetPath().AsUTF8Unsafe());
     expected_event.set_profile_user_name(kUserName);
 
     event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
@@ -1063,12 +1170,12 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest, CopyReported) {
 
   *expected_event.add_triggered_rule_info() = triggered_rule;
   expected_event.set_profile_identifier(
-      browser()->profile()->GetPath().AsUTF8Unsafe());
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
   expected_event.set_profile_user_name(kUserName);
 
   event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
 
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
                                    "name": "report_only",
                                    "rule_id": "1248",
                                    "sources": {
@@ -1132,12 +1239,12 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest, CopyBlocked) {
 
   *expected_event.add_triggered_rule_info() = triggered_rule;
   expected_event.set_profile_identifier(
-      browser()->profile()->GetPath().AsUTF8Unsafe());
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
   expected_event.set_profile_user_name(kUserName);
 
   event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
 
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
                                    "name": "block",
                                    "rule_id": "987",
                                    "sources": {
@@ -1208,12 +1315,12 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
   *expected_event.add_triggered_rule_info() = triggered_rule;
   expected_event.set_profile_identifier(
-      browser()->profile()->GetPath().AsUTF8Unsafe());
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
   expected_event.set_profile_user_name(kUserName);
 
   event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
 
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
                                    "name": "warn",
                                    "rule_id": "3927",
                                    "sources": {
@@ -1289,12 +1396,12 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
   *expected_event.add_triggered_rule_info() = triggered_rule;
   expected_event.set_profile_identifier(
-      browser()->profile()->GetPath().AsUTF8Unsafe());
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
   expected_event.set_profile_user_name(kUserName);
 
   event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
 
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
                                    "name": "warn_cancel",
                                    "rule_id": "101",
                                    "sources": {
@@ -1374,13 +1481,13 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
     *expected_event.add_triggered_rule_info() = triggered_rule;
     expected_event.set_profile_identifier(
-        browser()->profile()->GetPath().AsUTF8Unsafe());
+        browser()->GetProfile()->GetPath().AsUTF8Unsafe());
     expected_event.set_profile_user_name(kUserName);
 
     event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
   }
 
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
                                    "name": "warn_bypass",
                                    "rule_id": "12345",
                                    "sources": {
@@ -1446,7 +1553,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
   *expected_event_bypass.add_triggered_rule_info() = triggered_rule_bypass;
   expected_event_bypass.set_profile_identifier(
-      browser()->profile()->GetPath().AsUTF8Unsafe());
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
   expected_event_bypass.set_profile_user_name(kUserName);
 
   event_validator.ExpectSensitiveDataEvent(std::move(expected_event_bypass));
@@ -1493,13 +1600,13 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
     *expected_event.add_triggered_rule_info() = triggered_rule;
     expected_event.set_profile_identifier(
-        browser()->profile()->GetPath().AsUTF8Unsafe());
+        browser()->GetProfile()->GetPath().AsUTF8Unsafe());
     expected_event.set_profile_user_name(kUserName);
 
     event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
   }
 
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
                                    "name": "warn_bypass_os",
                                    "rule_id": "111",
                                    "sources": {
@@ -1568,7 +1675,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
     *expected_event.add_triggered_rule_info() = triggered_rule;
     expected_event.set_profile_identifier(
-        browser()->profile()->GetPath().AsUTF8Unsafe());
+        browser()->GetProfile()->GetPath().AsUTF8Unsafe());
     expected_event.set_profile_user_name(kUserName);
 
     event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
@@ -1589,7 +1696,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                        CopyBlockedOsClipboardThenPasteWarnedThenBypassed) {
   // Set up a block rule for copying to the OS clipboard and a warn rule for all
   // pastes.
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(),
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(),
                                  {R"({
                                    "name": "block_os_clipboard",
                                    "rule_id": "121",
@@ -1667,7 +1774,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
   *expected_warned_dlp_event.add_triggered_rule_info() = triggered_warned_rule;
   expected_warned_dlp_event.set_profile_identifier(
-      browser()->profile()->GetPath().AsUTF8Unsafe());
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
   expected_warned_dlp_event.set_profile_user_name(kUserName);
 
   event_validator.ExpectSensitiveDataEvent(
@@ -1715,7 +1822,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
   *expected_bypassed_dlp_event.add_triggered_rule_info() =
       triggered_bypassed_rule;
   expected_bypassed_dlp_event.set_profile_identifier(
-      browser()->profile()->GetPath().AsUTF8Unsafe());
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
   expected_bypassed_dlp_event.set_profile_user_name(kUserName);
 
   event_validator.ExpectSensitiveDataEvent(
@@ -1752,7 +1859,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
 IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                        FindBar_CopyBlocked) {
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
                                    "name": "block",
                                    "rule_id": "987",
                                    "destinations": {
@@ -1820,7 +1927,8 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest, FindBar_Paste) {
   content::ClipboardPasteData data;
   data.text = u"replaced";
   data_controls::LastReplacedClipboardDataObserver::GetInstance()
-      ->AddDataToNextSeqno(data);
+      ->AddDataToNextSeqno(
+          data, data_controls::CopyRestrictionLevel::kKeptInManagedChrome);
   ui::ClipboardMonitor::GetInstance()->NotifyClipboardDataChanged();
 
   base::test::TestFuture<std::optional<std::u16string>> replace_future2;
@@ -1830,7 +1938,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest, FindBar_Paste) {
   EXPECT_EQ(*paste_replacement, u"replaced");
 
   // With a triggered Data Controls rule, the data isn't replaced.
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
                                    "name": "block",
                                    "rule_id": "987",
                                    "destinations": {
@@ -1893,12 +2001,12 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest, DragBlocked) {
 
   *expected_event.add_triggered_rule_info() = triggered_rule;
   expected_event.set_profile_identifier(
-      browser()->profile()->GetPath().AsUTF8Unsafe());
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
   expected_event.set_profile_user_name(kUserName);
 
   event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
 
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
                                    "name": "block",
                                    "rule_id": "987",
                                    "sources": {
@@ -1935,7 +2043,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                        CopyAndDragConsistentSize) {
   active_user_test_mixin_->SetFakeCookieValue();
 
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
                                    "name": "report_rule",
                                    "rule_id": "987",
                                    "sources": {
@@ -1969,7 +2077,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
   *expected_event.add_triggered_rule_info() = triggered_rule;
   expected_event.set_profile_identifier(
-      browser()->profile()->GetPath().AsUTF8Unsafe());
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
   expected_event.set_profile_user_name(kUserName);
 
   // Both Copy and Drag should emit exactly the same report (same size, same
@@ -2029,7 +2137,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                        IsSearchWithAllowed_Blocked) {
   ASSERT_TRUE(content::NavigateToURL(contents(), GURL("about:blank")));
 
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
                                    "name": "block_rule",
                                    "rule_id": "444",
                                    "sources": {
@@ -2048,7 +2156,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                        IsSearchWithAllowed_Warned) {
   ASSERT_TRUE(content::NavigateToURL(contents(), GURL("about:blank")));
 
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
                                    "name": "warn_rule",
                                    "rule_id": "333",
                                    "sources": {
@@ -2061,6 +2169,50 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                                  machine_scope());
 
   EXPECT_TRUE(IsSearchWithAllowed(contents()));
+}
+
+IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
+                       IsClipboardCopyAllowedByPolicyForUI_Allowed) {
+  ASSERT_TRUE(content::NavigateToURL(contents(), GURL("about:blank")));
+  EXPECT_TRUE(IsClipboardCopyAllowedByPolicyForUI(contents()));
+}
+
+IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
+                       IsClipboardCopyAllowedByPolicyForUI_Blocked) {
+  ASSERT_TRUE(content::NavigateToURL(contents(), GURL("about:blank")));
+
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
+                                   "name": "block_rule",
+                                   "rule_id": "444",
+                                   "sources": {
+                                     "urls": ["*"]
+                                   },
+                                   "restrictions": [
+                                     {"class": "CLIPBOARD", "level": "BLOCK"}
+                                   ]
+                                 })"},
+                                 machine_scope());
+
+  EXPECT_FALSE(IsClipboardCopyAllowedByPolicyForUI(contents()));
+}
+
+IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
+                       IsClipboardCopyAllowedByPolicyForUI_Warned) {
+  ASSERT_TRUE(content::NavigateToURL(contents(), GURL("about:blank")));
+
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
+                                   "name": "warn_rule",
+                                   "rule_id": "333",
+                                   "sources": {
+                                     "urls": ["*"]
+                                   },
+                                   "restrictions": [
+                                     {"class": "CLIPBOARD", "level": "WARN"}
+                                   ]
+                                 })"},
+                                 machine_scope());
+
+  EXPECT_FALSE(IsClipboardCopyAllowedByPolicyForUI(contents()));
 }
 
 IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
@@ -2083,7 +2235,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
   base::HistogramTester histogram_tester;
   ASSERT_TRUE(content::NavigateToURL(contents(), GURL("about:blank")));
 
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
                                    "name": "warn_rule",
                                    "rule_id": "333",
                                    "sources": {
@@ -2119,7 +2271,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
   *expected_event.add_triggered_rule_info() = triggered_rule;
   expected_event.set_profile_identifier(
-      browser()->profile()->GetPath().AsUTF8Unsafe());
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
   expected_event.set_profile_user_name(kUserName);
 
   event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
@@ -2147,7 +2299,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
   base::HistogramTester histogram_tester;
   ASSERT_TRUE(content::NavigateToURL(contents(), GURL("about:blank")));
 
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
                                    "name": "warn_rule",
                                    "rule_id": "333",
                                    "sources": {
@@ -2183,7 +2335,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
   *expected_event.add_triggered_rule_info() = triggered_rule;
   expected_event.set_profile_identifier(
-      browser()->profile()->GetPath().AsUTF8Unsafe());
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
   expected_event.set_profile_user_name(kUserName);
 
   event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
@@ -2206,9 +2358,336 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
       data_controls::Rule::Level::kWarn, 1);
 }
 
+IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
+                       CopyContentAnalysisWarningBypassed) {
+  active_user_test_mixin_->SetFakeCookieValue();
+  SetupDMToken();
+
+  enterprise_connectors::test::SetAnalysisConnector(
+      browser()->GetProfile()->GetPrefs(),
+      enterprise_connectors::AnalysisConnector::DATA_COPIED,
+      R"(
+        {
+          "service_provider": "google",
+          "enable": [
+            {
+              "url_list": ["*"],
+              "tags": ["dlp"]
+            }
+          ],
+          "block_until_verdict": 1
+        })",
+      machine_scope());
+  enterprise_connectors::ContentAnalysisDelegate::SetFactoryForTesting(
+      base::BindRepeating(
+          &enterprise_connectors::test::FakeContentAnalysisDelegate::Create,
+          base::DoNothing(),
+          base::BindRepeating([](const std::string&, const base::FilePath&) {
+            return enterprise_connectors::test::FakeContentAnalysisDelegate::
+                DlpResponse(
+                    enterprise_connectors::ContentAnalysisResponse::Result::
+                        SUCCESS,
+                    "dlp",
+                    enterprise_connectors::ContentAnalysisResponse::Result::
+                        TriggeredRule::WARN);
+          }),
+          "dm_token"));
+
+  ASSERT_TRUE(embedded_test_server()->Start());
+  GURL url = embedded_test_server()->GetURL("/empty.html");
+  ASSERT_TRUE(content::NavigateToURL(contents(), url));
+
+  auto source = content::ClipboardEndpoint(
+      ui::DataTransferEndpoint(url),
+      base::BindLambdaForTesting(
+          [this]() { return contents()->GetBrowserContext(); }),
+      *contents()->GetPrimaryMainFrame());
+
+  ui::ClipboardMetadata metadata = {.size = 100};
+  content::ClipboardPasteData data;
+  data.text = std::u16string(100, 'a');
+
+  base::test::TestFuture<const ui::ClipboardFormatType&,
+                         const content::ClipboardPasteData&,
+                         std::optional<std::u16string>>
+      future;
+
+  data_controls::GetLastReplacedClipboardData() = {};
+  ui::ClipboardMonitor::GetInstance()->NotifyClipboardDataChanged();
+
+  IsClipboardCopyAllowedByPolicy(source, metadata, data, future.GetCallback());
+
+  auto* toast_controller = browser()->GetFeatures().toast_controller();
+  ASSERT_TRUE(toast_controller);
+
+  // Wait until the warning creates the Toast.
+  while (!toast_controller->IsShowingToast()) {
+    base::RunLoop().RunUntilIdle();
+  }
+
+  EXPECT_EQ(toast_controller->GetCurrentToastId(),
+            ToastId::kEnterpriseCopyWarning);
+
+  enterprise_connectors::CopyWarningDelegateTracker::BypassAndClear(contents());
+
+  EXPECT_EQ(data_controls::GetLastReplacedClipboardData().restriction_level,
+            data_controls::CopyRestrictionLevel::kOngoingScan);
+
+  EXPECT_EQ(future.Get<0>(), metadata.format_type);
+
+  EXPECT_EQ(future.Get<1>().text, data.text);
+
+  auto replacement = future.Get<2>();
+  EXPECT_FALSE(replacement.has_value());
+
+  {
+    ui::ScopedClipboardWriter scw(ui::ClipboardBuffer::kCopyPaste);
+    scw.WriteText(data.text);
+  }
+
+  // Bypassing successfully overwrites the physical OS clipboard with true data,
+  // generating a new OS sequence number that outpaces the tracked placeholder.
+  EXPECT_NE(data_controls::GetLastReplacedClipboardData().seqno,
+            ui::Clipboard::GetForCurrentThread()->GetSequenceNumber(
+                ui::ClipboardBuffer::kCopyPaste));
+
+  base::test::TestFuture<std::u16string> text_future;
+  ui::Clipboard::GetForCurrentThread()->ReadText(
+      ui::ClipboardBuffer::kCopyPaste, /*data_dst=*/std::nullopt,
+      text_future.GetCallback());
+  EXPECT_EQ(text_future.Get(), data.text);
+}
+
+IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
+                       Copy_ContentAnalysisBlocked) {
+  active_user_test_mixin_->SetFakeCookieValue();
+
+  SetupDMToken();
+
+  enterprise_connectors::test::SetAnalysisConnector(
+      browser()->GetProfile()->GetPrefs(),
+      enterprise_connectors::AnalysisConnector::DATA_COPIED,
+      R"(
+        {
+          "service_provider": "google",
+          "enable": [
+            {
+              "url_list": ["*"],
+              "tags": ["dlp"]
+            }
+          ],
+          "block_until_verdict": 1
+        })",
+      machine_scope());
+  enterprise_connectors::ContentAnalysisDelegate::SetFactoryForTesting(
+      base::BindRepeating(
+          &enterprise_connectors::test::FakeContentAnalysisDelegate::Create,
+          base::DoNothing(),
+          base::BindRepeating([](const std::string&, const base::FilePath&) {
+            return enterprise_connectors::test::FakeContentAnalysisDelegate::
+                DlpResponse(
+                    enterprise_connectors::ContentAnalysisResponse::Result::
+                        SUCCESS,
+                    "dlp",
+                    enterprise_connectors::ContentAnalysisResponse::Result::
+                        TriggeredRule::BLOCK);
+          }),
+          "dm_token"));
+
+  ASSERT_TRUE(embedded_test_server()->Start());
+  GURL url = embedded_test_server()->GetURL("/empty.html");
+  ASSERT_TRUE(content::NavigateToURL(contents(), url));
+
+  auto source = content::ClipboardEndpoint(
+      ui::DataTransferEndpoint(url),
+      base::BindLambdaForTesting(
+          [this]() { return contents()->GetBrowserContext(); }),
+      *contents()->GetPrimaryMainFrame());
+
+  ui::ClipboardMetadata metadata = {.size = 100};
+  content::ClipboardPasteData data;
+  data.text = std::u16string(100, 'a');
+
+  base::test::TestFuture<const ui::ClipboardFormatType&,
+                         const content::ClipboardPasteData&,
+                         std::optional<std::u16string>>
+      future;
+
+  data_controls::GetLastReplacedClipboardData() = {};
+  ui::ClipboardMonitor::GetInstance()->NotifyClipboardDataChanged();
+
+  IsClipboardCopyAllowedByPolicy(source, metadata, data, future.GetCallback());
+
+  EXPECT_EQ(data_controls::GetLastReplacedClipboardData().restriction_level,
+            data_controls::CopyRestrictionLevel::kOngoingScan);
+
+  EXPECT_EQ(future.Get<0>(), metadata.format_type);
+
+  EXPECT_TRUE(future.Get<1>().empty());
+
+  auto replacement = future.Get<2>();
+  EXPECT_TRUE(replacement.has_value());
+
+  {
+    ui::ScopedClipboardWriter scw(ui::ClipboardBuffer::kCopyPaste);
+    scw.WriteText(replacement.value_or(u""));
+  }
+
+  EXPECT_EQ(data_controls::GetLastReplacedClipboardData().restriction_level,
+            data_controls::CopyRestrictionLevel::kBlocked);
+}
+
+IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
+                       Copy_ContentAnalysisKeptInManagedChrome) {
+  active_user_test_mixin_->SetFakeCookieValue();
+
+  SetupDMToken();
+
+  enterprise_connectors::test::SetAnalysisConnector(
+      browser()->GetProfile()->GetPrefs(),
+      enterprise_connectors::AnalysisConnector::DATA_COPIED,
+      R"(
+        {
+          "service_provider": "google",
+          "enable": [
+            {
+              "url_list": ["*"],
+              "tags": ["dlp"]
+            }
+          ],
+          "block_until_verdict": 1
+        })",
+      machine_scope());
+  enterprise_connectors::ContentAnalysisDelegate::SetFactoryForTesting(
+      base::BindRepeating(
+          &enterprise_connectors::test::FakeContentAnalysisDelegate::Create,
+          base::DoNothing(),
+          base::BindRepeating([](const std::string&, const base::FilePath&) {
+            return enterprise_connectors::test::FakeContentAnalysisDelegate::
+                DlpResponse(enterprise_connectors::ContentAnalysisResponse::
+                                Result::SUCCESS,
+                            "dlp",
+                            enterprise_connectors::ContentAnalysisResponse::
+                                Result::TriggeredRule::KEEP_IN_MANAGED_CHROME);
+          }),
+          "dm_token"));
+
+  ASSERT_TRUE(embedded_test_server()->Start());
+  GURL url = embedded_test_server()->GetURL("/empty.html");
+  ASSERT_TRUE(content::NavigateToURL(contents(), url));
+
+  auto source = content::ClipboardEndpoint(
+      ui::DataTransferEndpoint(url),
+      base::BindLambdaForTesting(
+          [this]() { return contents()->GetBrowserContext(); }),
+      *contents()->GetPrimaryMainFrame());
+
+  ui::ClipboardMetadata metadata = {.size = 100};
+  content::ClipboardPasteData data;
+  data.text = std::u16string(100, 'a');
+
+  base::test::TestFuture<const ui::ClipboardFormatType&,
+                         const content::ClipboardPasteData&,
+                         std::optional<std::u16string>>
+      future;
+
+  data_controls::GetLastReplacedClipboardData() = {};
+  ui::ClipboardMonitor::GetInstance()->NotifyClipboardDataChanged();
+
+  IsClipboardCopyAllowedByPolicy(source, metadata, data, future.GetCallback());
+
+  EXPECT_EQ(data_controls::GetLastReplacedClipboardData().restriction_level,
+            data_controls::CopyRestrictionLevel::kOngoingScan);
+
+  EXPECT_EQ(future.Get<0>(), metadata.format_type);
+
+  EXPECT_TRUE(future.Get<1>().empty());
+
+  auto replacement = future.Get<2>();
+  EXPECT_TRUE(replacement.has_value());
+
+  {
+    ui::ScopedClipboardWriter scw(ui::ClipboardBuffer::kCopyPaste);
+    scw.WriteText(replacement.value_or(u""));
+  }
+
+  EXPECT_EQ(data_controls::GetLastReplacedClipboardData().restriction_level,
+            data_controls::CopyRestrictionLevel::kKeptInManagedChrome);
+}
+
+IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
+                       Copy_ContentAnalysisAllowed) {
+  active_user_test_mixin_->SetFakeCookieValue();
+
+  SetupDMToken();
+
+  enterprise_connectors::test::SetAnalysisConnector(
+      browser()->GetProfile()->GetPrefs(),
+      enterprise_connectors::AnalysisConnector::DATA_COPIED,
+      R"(
+        {
+          "service_provider": "google",
+          "enable": [
+            {
+              "url_list": ["*"],
+              "tags": ["dlp"]
+            }
+          ],
+          "block_until_verdict": 1
+        })",
+      machine_scope());
+  enterprise_connectors::ContentAnalysisDelegate::SetFactoryForTesting(
+      base::BindRepeating(
+          &enterprise_connectors::test::FakeContentAnalysisDelegate::Create,
+          base::DoNothing(),
+          base::BindRepeating([](const std::string&, const base::FilePath&) {
+            return enterprise_connectors::test::FakeContentAnalysisDelegate::
+                SuccessfulResponse(
+                    {"dlp"});
+          }),
+          "dm_token"));
+
+  ASSERT_TRUE(embedded_test_server()->Start());
+  GURL url = embedded_test_server()->GetURL("/empty.html");
+  ASSERT_TRUE(content::NavigateToURL(contents(), url));
+
+  auto source = content::ClipboardEndpoint(
+      ui::DataTransferEndpoint(url),
+      base::BindLambdaForTesting(
+          [this]() { return contents()->GetBrowserContext(); }),
+      *contents()->GetPrimaryMainFrame());
+
+  ui::ClipboardMetadata metadata = {.size = 100};
+  content::ClipboardPasteData data;
+  data.text = std::u16string(100, 'a');
+
+  base::test::TestFuture<const ui::ClipboardFormatType&,
+                         const content::ClipboardPasteData&,
+                         std::optional<std::u16string>>
+      future;
+
+  data_controls::GetLastReplacedClipboardData() = {};
+  ui::ClipboardMonitor::GetInstance()->NotifyClipboardDataChanged();
+
+  IsClipboardCopyAllowedByPolicy(source, metadata, data, future.GetCallback());
+
+  EXPECT_EQ(data_controls::GetLastReplacedClipboardData().restriction_level,
+            data_controls::CopyRestrictionLevel::kOngoingScan);
+
+  EXPECT_EQ(future.Get<0>(), metadata.format_type);
+
+  EXPECT_EQ(future.Get<1>().text, data.text);
+
+  auto replacement = future.Get<2>();
+  EXPECT_FALSE(replacement.has_value());
+}
+
 IN_PROC_BROWSER_TEST_P(
     DataControlsClipboardUtilsBrowserTest,
     PasteFromGeminiIfAllowedByPolicy_ContentAnalysisBlocked) {
+  active_user_test_mixin_->SetFakeCookieValue();
+
+  SetupDMToken();
   SetupContentAnalysisToBlock();
 
   ASSERT_TRUE(embedded_test_server()->Start());
@@ -2216,16 +2695,53 @@ IN_PROC_BROWSER_TEST_P(
   ASSERT_TRUE(content::NavigateToURL(contents(), url));
 
   base::test::TestFuture<bool> future;
+  base::HistogramTester histogram_tester;
   PasteFromGeminiIfAllowedByPolicy(contents()->GetPrimaryMainFrame(),
                                    std::string(1000, 'a'),
                                    future.GetCallback());
 
   EXPECT_FALSE(future.Get());
+  histogram_tester.ExpectUniqueSample(
+      "Enterprise.DataControls.GlicPaste.Verdict",
+      data_controls::Rule::Level::kNotSet, 1);
+  histogram_tester.ExpectTotalCount(
+      "Enterprise.DataControls.GlicPaste.EvaluationLatency", 1);
 }
 
 IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                        PasteFromGeminiIfAllowedByPolicy_WarnedThenBlocked) {
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  active_user_test_mixin_->SetFakeCookieValue();
+  SetupDMToken();
+  ASSERT_TRUE(embedded_test_server()->Start());
+  GURL url = embedded_test_server()->GetURL("/empty.html");
+  ASSERT_TRUE(content::NavigateToURL(contents(), url));
+
+  base::RunLoop run_loop;
+  auto event_validator = event_report_validator_helper_->CreateValidator();
+
+  event_validator.SetDoneClosure(run_loop.QuitClosure());
+  chrome::cros::reporting::proto::DlpSensitiveDataEvent expected_event;
+  expected_event.set_url(url.spec());
+  expected_event.set_tab_url(url.spec());
+  expected_event.set_source("GEMINI");
+  expected_event.set_destination(url.spec());
+  expected_event.set_content_type("text/plain");
+  expected_event.set_content_size(1000);
+  expected_event.set_trigger(chrome::cros::reporting::proto::
+                                 DataTransferEventTrigger::WEB_CONTENT_UPLOAD);
+  expected_event.set_event_result(
+      chrome::cros::reporting::proto::EventResult::EVENT_RESULT_WARNED);
+
+  ::chrome::cros::reporting::proto::TriggeredRuleInfo triggered_rule;
+  triggered_rule.set_rule_name("");
+  *expected_event.add_triggered_rule_info() = triggered_rule;
+  expected_event.set_profile_identifier(
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
+  expected_event.set_profile_user_name(kUserName);
+
+  event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
+
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
         "restrictions": [
           {"class": "CLIPBOARD", "level": "WARN"}
         ],
@@ -2237,10 +2753,6 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
   SetupContentAnalysisToBlock();
 
-  ASSERT_TRUE(embedded_test_server()->Start());
-  GURL url = embedded_test_server()->GetURL("/empty.html");
-  ASSERT_TRUE(content::NavigateToURL(contents(), url));
-
   data_controls::DesktopDataControlsDialogTestHelper dialog_helper(
       data_controls::DataControlsDialog::Type::kClipboardPasteWarn);
 
@@ -2250,15 +2762,77 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                                    future.GetCallback());
 
   dialog_helper.WaitForDialogToInitialize();
+  run_loop.Run();
+
+  base::RunLoop run_loop_bypass;
+  event_validator = event_report_validator_helper_->CreateValidator();
+
+  event_validator.SetDoneClosure(run_loop_bypass.QuitClosure());
+  chrome::cros::reporting::proto::DlpSensitiveDataEvent expected_event_bypass;
+  expected_event_bypass.set_url(url.spec());
+  expected_event_bypass.set_tab_url(url.spec());
+  expected_event_bypass.set_source("GEMINI");
+  expected_event_bypass.set_destination(url.spec());
+  expected_event_bypass.set_content_type("text/plain");
+  expected_event_bypass.set_content_size(1000);
+  expected_event_bypass.set_trigger(
+      chrome::cros::reporting::proto::DataTransferEventTrigger::
+          WEB_CONTENT_UPLOAD);
+  expected_event_bypass.set_event_result(
+      chrome::cros::reporting::proto::EventResult::EVENT_RESULT_BYPASSED);
+
+  ::chrome::cros::reporting::proto::TriggeredRuleInfo triggered_rule_bypass;
+  triggered_rule_bypass.set_rule_name("");
+  *expected_event_bypass.add_triggered_rule_info() = triggered_rule_bypass;
+  expected_event_bypass.set_profile_identifier(
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
+  expected_event_bypass.set_profile_user_name(kUserName);
+
+  event_validator.ExpectSensitiveDataEvent(std::move(expected_event_bypass));
+
   dialog_helper.BypassWarning();
   dialog_helper.WaitForDialogToClose();
 
   EXPECT_FALSE(future.Get());
+  run_loop_bypass.Run();
 }
 
 IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                        PasteFromGeminiIfAllowedByPolicy_DataControlsBlocked) {
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  active_user_test_mixin_->SetFakeCookieValue();
+
+  SetupDMToken();
+
+  ASSERT_TRUE(embedded_test_server()->Start());
+  GURL url = embedded_test_server()->GetURL("/empty.html");
+  ASSERT_TRUE(content::NavigateToURL(contents(), url));
+
+  base::RunLoop run_loop;
+  auto event_validator = event_report_validator_helper_->CreateValidator();
+
+  event_validator.SetDoneClosure(run_loop.QuitClosure());
+  chrome::cros::reporting::proto::DlpSensitiveDataEvent expected_event;
+  expected_event.set_url(url.spec());
+  expected_event.set_tab_url(url.spec());
+  expected_event.set_source("GEMINI");
+  expected_event.set_destination(url.spec());
+  expected_event.set_content_type("text/plain");
+  expected_event.set_content_size(1000);
+  expected_event.set_trigger(chrome::cros::reporting::proto::
+                                 DataTransferEventTrigger::WEB_CONTENT_UPLOAD);
+  expected_event.set_event_result(
+      chrome::cros::reporting::proto::EventResult::EVENT_RESULT_BLOCKED);
+
+  ::chrome::cros::reporting::proto::TriggeredRuleInfo triggered_rule;
+  triggered_rule.set_rule_name("");
+  *expected_event.add_triggered_rule_info() = triggered_rule;
+  expected_event.set_profile_identifier(
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
+  expected_event.set_profile_user_name(kUserName);
+
+  event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
+
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
         "restrictions": [
           {"class": "CLIPBOARD", "level": "BLOCK"}
         ],
@@ -2268,21 +2842,57 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
       })"},
                                  machine_scope());
 
-  ASSERT_TRUE(embedded_test_server()->Start());
-  GURL url = embedded_test_server()->GetURL("/empty.html");
-  ASSERT_TRUE(content::NavigateToURL(contents(), url));
-
   base::test::TestFuture<bool> future;
+  base::HistogramTester histogram_tester;
   PasteFromGeminiIfAllowedByPolicy(contents()->GetPrimaryMainFrame(),
                                    std::string(1000, 'a'),
                                    future.GetCallback());
 
   EXPECT_FALSE(future.Get());
+  run_loop.Run();
+  histogram_tester.ExpectUniqueSample(
+      "Enterprise.DataControls.GlicPaste.Verdict",
+      data_controls::Rule::Level::kBlock, 1);
+  histogram_tester.ExpectTotalCount(
+      "Enterprise.DataControls.GlicPaste.EvaluationLatency", 1);
 }
 
 IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                        PasteFromGeminiIfAllowedByPolicy_DataControlsWarned) {
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+  active_user_test_mixin_->SetFakeCookieValue();
+
+  SetupDMToken();
+
+  ASSERT_TRUE(embedded_test_server()->Start());
+  GURL url = embedded_test_server()->GetURL("/empty.html");
+  ASSERT_TRUE(content::NavigateToURL(contents(), url));
+
+  base::RunLoop run_loop;
+  auto event_validator = event_report_validator_helper_->CreateValidator();
+  event_validator.SetDoneClosure(run_loop.QuitClosure());
+
+  chrome::cros::reporting::proto::DlpSensitiveDataEvent expected_event;
+  expected_event.set_url(url.spec());
+  expected_event.set_tab_url(url.spec());
+  expected_event.set_source("GEMINI");
+  expected_event.set_destination(url.spec());
+  expected_event.set_content_type("text/plain");
+  expected_event.set_content_size(1000);
+  expected_event.set_trigger(chrome::cros::reporting::proto::
+                                 DataTransferEventTrigger::WEB_CONTENT_UPLOAD);
+  expected_event.set_event_result(
+      chrome::cros::reporting::proto::EventResult::EVENT_RESULT_WARNED);
+
+  ::chrome::cros::reporting::proto::TriggeredRuleInfo triggered_rule;
+  triggered_rule.set_rule_name("");
+  *expected_event.add_triggered_rule_info() = triggered_rule;
+  expected_event.set_profile_identifier(
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
+  expected_event.set_profile_user_name(kUserName);
+
+  event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
+
+  data_controls::SetDataControls(browser()->GetProfile()->GetPrefs(), {R"({
         "restrictions": [
           {"class": "CLIPBOARD", "level": "WARN"}
         ],
@@ -2292,22 +2902,53 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
       })"},
                                  machine_scope());
 
-  ASSERT_TRUE(embedded_test_server()->Start());
-  GURL url = embedded_test_server()->GetURL("/empty.html");
-  ASSERT_TRUE(content::NavigateToURL(contents(), url));
-
   data_controls::DesktopDataControlsDialogTestHelper dialog_helper(
       data_controls::DataControlsDialog::Type::kClipboardPasteWarn);
 
   base::test::TestFuture<bool> future;
+  base::HistogramTester histogram_tester;
   PasteFromGeminiIfAllowedByPolicy(contents()->GetPrimaryMainFrame(),
                                    std::string(1000, 'a'),
                                    future.GetCallback());
 
   dialog_helper.WaitForDialogToInitialize();
+  run_loop.Run();
+  histogram_tester.ExpectUniqueSample(
+      "Enterprise.DataControls.GlicPaste.Verdict",
+      data_controls::Rule::Level::kWarn, 1);
+  histogram_tester.ExpectTotalCount(
+      "Enterprise.DataControls.GlicPaste.EvaluationLatency", 1);
+
+  base::RunLoop run_loop_bypass;
+  event_validator = event_report_validator_helper_->CreateValidator();
+  event_validator.SetDoneClosure(run_loop_bypass.QuitClosure());
+
+  chrome::cros::reporting::proto::DlpSensitiveDataEvent expected_event_bypass;
+  expected_event_bypass.set_url(url.spec());
+  expected_event_bypass.set_tab_url(url.spec());
+  expected_event_bypass.set_source("GEMINI");
+  expected_event_bypass.set_destination(url.spec());
+  expected_event_bypass.set_content_type("text/plain");
+  expected_event_bypass.set_content_size(1000);
+  expected_event_bypass.set_trigger(
+      chrome::cros::reporting::proto::DataTransferEventTrigger::
+          WEB_CONTENT_UPLOAD);
+  expected_event_bypass.set_event_result(
+      chrome::cros::reporting::proto::EventResult::EVENT_RESULT_BYPASSED);
+
+  ::chrome::cros::reporting::proto::TriggeredRuleInfo triggered_rule_bypass;
+  triggered_rule_bypass.set_rule_name("");
+  *expected_event_bypass.add_triggered_rule_info() = triggered_rule_bypass;
+  expected_event_bypass.set_profile_identifier(
+      browser()->GetProfile()->GetPath().AsUTF8Unsafe());
+  expected_event_bypass.set_profile_user_name(kUserName);
+
+  event_validator.ExpectSensitiveDataEvent(std::move(expected_event_bypass));
+
   dialog_helper.BypassWarning();
   dialog_helper.WaitForDialogToClose();
 
   EXPECT_TRUE(future.Get());
+  run_loop_bypass.Run();
 }
 }  // namespace enterprise_data_protection

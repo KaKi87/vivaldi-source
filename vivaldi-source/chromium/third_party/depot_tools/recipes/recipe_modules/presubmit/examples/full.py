@@ -1,12 +1,9 @@
-# Copyright 2016 The Chromium Authors. All rights reserved.
+# Copyright 2016 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 
-DEPS = [
-  'presubmit',
-  'recipe_engine/json'
-]
+DEPS = ["presubmit", "recipe_engine/json"]
 
 
 def RunSteps(api):
@@ -14,7 +11,4 @@ def RunSteps(api):
 
 
 def GenTests(api):
-  yield (
-    api.test('basic') +
-    api.step_data('presubmit', api.json.output({}))
-  )
+  yield (api.test("basic") + api.step_data("presubmit", api.json.output({})))

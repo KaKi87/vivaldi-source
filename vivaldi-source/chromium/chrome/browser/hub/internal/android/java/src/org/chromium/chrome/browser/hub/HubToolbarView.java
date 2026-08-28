@@ -14,6 +14,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
@@ -38,7 +39,6 @@ import androidx.annotation.ColorInt;
 import androidx.annotation.Px;
 import androidx.annotation.StringRes;
 import androidx.appcompat.content.res.AppCompatResources;
-import androidx.core.widget.ImageViewCompat;
 
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.tabs.TabLayout.OnTabSelectedListener;
@@ -63,7 +63,9 @@ import org.chromium.build.BuildConfig;
 
 /** Toolbar for the Hub. May contain a single or multiple rows, of which this view is the parent. */
 @NullMarked
-public class HubToolbarView extends RelativeLayout { // Vivaldi
+public class HubToolbarView extends LinearLayout { // Vivaldi
+    private final HubColorMixerRegistrationHelper mColorMixerHelper =
+            new HubColorMixerRegistrationHelper();
     private TabLayout mPaneSwitcher;
     private LinearLayout mMenuButtonContainer;
     private ImageButton mMenuButton;
@@ -73,6 +75,7 @@ public class HubToolbarView extends RelativeLayout { // Vivaldi
     private ImageView mSearchLoupeView;
     private ImageView mHairline;
     private FrameLayout mPaneSwitcherCard;
+    private ImageButton mCloseButton;
 
     private Callback<Integer> mToolbarOverviewColorSetter;
     private @Nullable OnTabSelectedListener mOnTabSelectedListener;
@@ -112,6 +115,10 @@ public class HubToolbarView extends RelativeLayout { // Vivaldi
         mSearchBoxTextView = findViewById(R.id.search_box_text);
         mSearchLoupeView = findViewById(R.id.search_loupe);
         mHairline = findViewById(R.id.toolbar_bottom_hairline);
+        mCloseButton = mMenuButtonContainer.findViewById(R.id.toolbar_close_button);
+
+        registerColorBlends();
+        registerSearchBoxColorBlends();
     }
 
     void setMenuButtonVisible(boolean visible) {
@@ -121,9 +128,34 @@ public class HubToolbarView extends RelativeLayout { // Vivaldi
             View menuButtonContainer
                     = ((View) getParent().getParent()).findViewById(R.id.menu_button_container_top);
             assertNonNull(menuButtonContainer);
-            menuButtonContainer.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
+            menuButtonContainer.setVisibility(visible ? View.VISIBLE : View.GONE);
         } else // End Vivaldi
-        mMenuButtonWrapper.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
+        mMenuButtonWrapper.setVisibility(visible ? View.VISIBLE : View.GONE);
+    }
+
+    void setCloseButtonVisible(boolean visible) {
+        if (mCloseButton != null) {
+            mCloseButton.setVisibility(visible ? View.VISIBLE : View.GONE);
+        }
+    }
+
+    void setPaneSwitcherScrollPosition(int position, float positionOffset) {
+        mPaneSwitcher.setScrollPosition(
+                position,
+                positionOffset,
+                /* updateSelectedTabView= */ false,
+                /* updateIndicatorPosition= */ true);
+    }
+
+    /**
+     * Blocks or unblocks tab selection callbacks during active swipe-to-switch gestures to prevent
+     * intermediate scroll position changes or simultaneous taps from firing extra pane selection
+     * events while a gesture is active.
+     */
+    @SuppressLint("ClickableViewAccessibility") // Intentionally swallows touches mid-swipe.
+    void setBlockTabSelectionCallback(boolean block) {
+        mBlockTabSelectionCallback = block;
+        mPaneSwitcher.setOnTouchListener(block ? (v, event) -> true : null);
     }
 
     void setPaneSwitcherButtonData(
@@ -288,21 +320,20 @@ public class HubToolbarView extends RelativeLayout { // Vivaldi
     }
 
     void setColorMixer(HubColorMixer mixer) {
-        registerColorBlends(mixer);
-        registerSearchBoxColorBlends(mixer);
+        mColorMixerHelper.setColorMixer(mixer);
     }
 
-    private void registerColorBlends(HubColorMixer mixer) {
+    private void registerColorBlends() {
         Context context = getContext();
         boolean isGtsUpdateEnabled = HubUtils.isGtsUpdateEnabled();
 
-        mixer.registerBlend(
+        mColorMixerHelper.registerBlend(
                 new SingleHubViewColorBlend(
                         PANE_COLOR_BLEND_ANIMATION_DURATION_MS,
                         colorScheme -> getBackgroundColor(context, colorScheme),
                         this::setBackgroundColor));
 
-        mixer.registerBlend(
+        mColorMixerHelper.registerBlend(
                 new SingleHubViewColorBlend(
                         PANE_COLOR_BLEND_ANIMATION_DURATION_MS,
                         colorScheme -> {
@@ -315,7 +346,7 @@ public class HubToolbarView extends RelativeLayout { // Vivaldi
                         },
                         mPaneSwitcher::setSelectedTabIndicatorColor));
 
-        mixer.registerBlend(
+        mColorMixerHelper.registerBlend(
                 new SingleHubViewColorBlend(
                         PANE_COLOR_BLEND_ANIMATION_DURATION_MS,
                         colorScheme -> HubColors.getHairlineColor(context, colorScheme),
@@ -348,28 +379,30 @@ public class HubToolbarView extends RelativeLayout { // Vivaldi
                     animation.setInterpolator(Interpolators.LINEAR_INTERPOLATOR);
                     return animation;
                 };
-        mixer.registerBlend(multiColorBlend);
+        mColorMixerHelper.registerBlend(multiColorBlend);
 
-        mixer.registerBlend(
+        mColorMixerHelper.registerBlend(
                 new SingleHubViewColorBlend(
                         PANE_COLOR_BLEND_ANIMATION_DURATION_MS,
                         colorScheme -> HubColors.getIconColor(context, colorScheme),
                         interpolatedColor -> {
-                            ColorStateList menuButtonColor =
-                                    ColorStateList.valueOf(interpolatedColor);
-                            ImageViewCompat.setImageTintList(mMenuButton, menuButtonColor);
+                            ColorStateList iconColor = ColorStateList.valueOf(interpolatedColor);
+                            mMenuButton.setImageTintList(iconColor);
+                            if (mCloseButton != null) {
+                                mCloseButton.setImageTintList(iconColor);
+                            }
                         }));
 
         // We don't want to pass a method reference. Lambdas will ensure we run the most recent
         // setter.
-        mixer.registerBlend(
+        mColorMixerHelper.registerBlend(
                 new SingleHubViewColorBlend(
                         PANE_COLOR_BLEND_ANIMATION_DURATION_MS,
                         colorScheme -> HubColors.getBackgroundColor(context, colorScheme),
                         color -> mToolbarOverviewColorSetter.onResult(color)));
 
         if (isGtsUpdateEnabled) {
-            mixer.registerBlend(
+            mColorMixerHelper.registerBlend(
                     new SingleHubViewColorBlend(
                             PANE_COLOR_BLEND_ANIMATION_DURATION_MS,
                             colorScheme ->
@@ -380,7 +413,7 @@ public class HubToolbarView extends RelativeLayout { // Vivaldi
                                 mPaneSwitcherCard.getBackground().setColorFilter(filter);
                             }));
 
-            mixer.registerBlend(
+            mColorMixerHelper.registerBlend(
                     new SingleHubViewColorBlend(
                             PANE_COLOR_BLEND_ANIMATION_DURATION_MS,
                             colorScheme ->
@@ -388,7 +421,7 @@ public class HubToolbarView extends RelativeLayout { // Vivaldi
                                             context, colorScheme),
                             color -> updateTabItemBackgroundColor(context, color)));
 
-            mixer.registerBlend(
+            mColorMixerHelper.registerBlend(
                     new SingleHubViewColorBlend(
                             PANE_COLOR_BLEND_ANIMATION_DURATION_MS,
                             colorScheme ->
@@ -398,10 +431,10 @@ public class HubToolbarView extends RelativeLayout { // Vivaldi
         }
     }
 
-    private void registerSearchBoxColorBlends(HubColorMixer mixer) {
+    private void registerSearchBoxColorBlends() {
         Context context = getContext();
 
-        mixer.registerBlend(
+        mColorMixerHelper.registerBlend(
                 new SingleHubViewColorBlend(
                         PANE_COLOR_BLEND_ANIMATION_DURATION_MS,
                         colorScheme -> HubColors.getSearchBoxHintTextColor(context, colorScheme),
@@ -409,13 +442,13 @@ public class HubToolbarView extends RelativeLayout { // Vivaldi
 
         GradientDrawable backgroundDrawable =
                 (GradientDrawable) mSearchBoxLayout.getBackground().mutate();
-        mixer.registerBlend(
+        mColorMixerHelper.registerBlend(
                 new SingleHubViewColorBlend(
                         PANE_COLOR_BLEND_ANIMATION_DURATION_MS,
                         colorScheme -> HubColors.getSearchBoxBgColor(context, colorScheme),
                         backgroundDrawable::setColor));
 
-        mixer.registerBlend(
+        mColorMixerHelper.registerBlend(
                 new SingleHubViewColorBlend(
                         PANE_COLOR_BLEND_ANIMATION_DURATION_MS,
                         colorScheme -> HubColors.getIconColor(context, colorScheme),
@@ -656,5 +689,15 @@ public class HubToolbarView extends RelativeLayout { // Vivaldi
             NonNullObservableSupplier<Boolean> xrSpaceModeObservableSupplier) {
         mXrSpaceModeObservableSupplier = xrSpaceModeObservableSupplier;
         HubColors.setXrSpaceModeObservableSupplier(xrSpaceModeObservableSupplier);
+    }
+
+    public void destroy() {
+        mHubSearchAnimatorHandler.forceFinishAnimation();
+        mColorMixerHelper.destroy();
+        mHandler.removeCallbacksAndMessages(null);
+        if (mOnTabSelectedListener != null) {
+            mPaneSwitcher.removeOnTabSelectedListener(mOnTabSelectedListener);
+            mOnTabSelectedListener = null;
+        }
     }
 }

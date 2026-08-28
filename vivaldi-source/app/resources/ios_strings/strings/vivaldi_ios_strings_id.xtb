@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Minta untuk Buka Tautan dari Aplikasi Lain di Pribadi</translation>
 <translation id="1624481300475123200">Isi otomatis sandi</translation>
 <translation id="1743244221910283364">Buang perubahan</translation>
+<translation id="1972589975368876259">Edit Susunan</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Tambahkan Tab ke Susunan}
         other {Tambahkan Tab ke Susunan}}</translation>
@@ -48,7 +49,6 @@
 <translation id="4772190485302020393">Tutup Semua Tap dan Susunan</translation>
 <translation id="4802185666270672526">Sembunyikan Minta Situs Desktop</translation>
 <translation id="4828571836982833289">Batalkan tab susun?</translation>
-<translation id="4838250035189612538">Ubah Nama Susunan</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 tab susun ditutup dan disimpan}
             other {{count} tab susun ditutup dan disimpan}}</translation>

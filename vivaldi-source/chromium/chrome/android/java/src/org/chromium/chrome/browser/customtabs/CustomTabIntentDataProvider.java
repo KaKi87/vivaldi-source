@@ -62,7 +62,6 @@ import androidx.browser.customtabs.CustomTabsIntent.ActivitySideSheetRoundedCorn
 import androidx.browser.customtabs.CustomTabsIntent.CloseButtonPosition;
 import androidx.browser.customtabs.CustomTabsIntent.OpenInBrowserState;
 import androidx.browser.customtabs.CustomTabsSessionToken;
-import androidx.browser.customtabs.ExperimentalCustomContentAction;
 import androidx.browser.customtabs.TrustedWebUtils;
 import androidx.browser.trusted.FileHandlingData;
 import androidx.browser.trusted.LaunchHandlerClientMode;
@@ -134,6 +133,9 @@ import org.vivaldi.browser.common.VivaldiIntentHandler;
 @NullMarked
 public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvider {
     private static final String TAG = "CustomTabIntentData";
+    // Special menu item title used to induce a Java crash for testing purposes.
+    // TODO (crbug.com/527591870): Remove before kSessionRestoreAfterCrash launches.
+    private static final String CRASH_MENU_TITLE = "Induce CCT Crash";
 
     @IntDef({LaunchSourceType.OTHER, LaunchSourceType.MEDIA_LAUNCHER_ACTIVITY})
     @Retention(RetentionPolicy.SOURCE)
@@ -407,12 +409,6 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
      * Holds the current individual zoom factor for the custom tab.
      */
     private final float mInitialZoomFactor;
-
-    /** Add extras to customize menu items for opening Reader Mode UI custom tab from Chrome. */
-    public static void addReaderModeUiExtras(Intent intent) {
-        intent.putExtra(EXTRA_UI_TYPE, CustomTabsUiType.READER_MODE);
-        IntentUtils.addTrustedIntentExtras(intent);
-    }
 
     /**
      * Evaluates whether the passed Intent and/or CustomTabsSessionToken are from a trusted source.
@@ -829,6 +825,10 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
             if (TextUtils.isEmpty(title) || pendingIntent == null) {
                 continue;
             }
+            if (CRASH_MENU_TITLE.equals(title)
+                    && !ChromeFeatureList.sSessionRestoreAfterCrash.isEnabled()) {
+                continue;
+            }
             mMenuEntries.add(new Pair<>(title, pendingIntent));
         }
     }
@@ -851,6 +851,10 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
             // Media viewers pass in PendingIntents that contain CHOOSER Intents.  Setting the data
             // in these cases prevents the Intent from firing correctly.
             String menuTitle = mMenuEntries.get(menuIndex).first;
+            if (CRASH_MENU_TITLE.equals(menuTitle)
+                    && ChromeFeatureList.sSessionRestoreAfterCrash.isEnabled()) {
+                throw new RuntimeException("Intentional Java Crash via CCT Menu Option");
+            }
             PendingIntent pendingIntent = mMenuEntries.get(menuIndex).second;
             ActivityOptions options = ActivityOptions.makeBasic();
             ApiCompatibilityUtils.setActivityOptionsBackgroundActivityStartAllowAlways(options);
@@ -1120,7 +1124,6 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
     private static boolean isOpenInBrowserAllowedForType(int type) {
         switch (type) {
             case CustomTabsUiType.MEDIA_VIEWER:
-            case CustomTabsUiType.READER_MODE:
             case CustomTabsUiType.OFFLINE_PAGE:
             case CustomTabsUiType.AUTH_TAB:
             case CustomTabsUiType.NETWORK_BOUND_TAB:
@@ -1378,10 +1381,6 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
         if (IntentUtils.safeHasExtra(
                 intent, CustomTabActivityTimeoutHandler.EXTRA_TIMEOUT_MINUTES)) {
             featureUsage.log(CustomTabsFeature.EXTRA_TIMEOUT_MINUTES);
-        }
-        if (IntentUtils.safeHasExtra(
-                intent, CustomTabActivityTimeoutHandler.EXTRA_TIMEOUT_MINUTES_ALLOWED)) {
-            featureUsage.log(CustomTabsFeature.EXTRA_TIMEOUT_MINUTES_ALLOWED);
         }
         if (IntentUtils.safeHasExtra(
                 intent, CustomTabActivityTimeoutHandler.EXTRA_TIMEOUT_PENDING_INTENT)) {
@@ -1896,7 +1895,6 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
         return mShareState;
     }
 
-    @ExperimentalCustomContentAction
     @Override
     public List<CustomContentAction> getCustomContentActions() {
         if (ChromeFeatureList.sCctContextualMenuItems.isEnabled()) {

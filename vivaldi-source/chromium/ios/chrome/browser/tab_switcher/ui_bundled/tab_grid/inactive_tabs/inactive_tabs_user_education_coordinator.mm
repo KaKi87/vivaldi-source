@@ -87,8 +87,7 @@ UIImage* ConfirmationAlertImage() {
     [UIColor.whiteColor setFill];
     } // End Vivaldi
 
-    UIImage* icon =
-        DefaultSymbolTemplateWithPointSize(kSquareOnSquareDashedSymbol, 0);
+    UIImage* icon = SymbolTemplateWithPointSize(SymbolSquareOnSquareDashed, 0);
 
     if (IsVivaldiRunning()) {
       icon = [UIImage imageNamed:vTabGridInactiveTabsEduIcon];

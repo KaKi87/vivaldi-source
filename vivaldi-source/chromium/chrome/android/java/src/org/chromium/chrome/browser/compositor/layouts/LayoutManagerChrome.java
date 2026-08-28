@@ -239,8 +239,8 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
     public void showLayout(int layoutType, boolean animate) {
         if (mDestroyChecker.isDestroyed()) return;
 
-        if (layoutType == LayoutType.TAB_SWITCHER && mHubLayout == null) {
-            initTabSwitcher();
+        if (layoutType == LayoutType.HUB && mHubLayout == null) {
+            initHubLayout();
         }
         super.showLayout(layoutType, animate);
     }
@@ -249,7 +249,7 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
      * For lazy initialization of {@link HubLayout} This always happens the first time the tab
      * switcher is shown on tablets and phones.
      */
-    private void initTabSwitcher() {
+    private void initHubLayout() {
         var tabSwitcher = mTabSwitcherSupplier.get();
         if (tabSwitcher != null) {
             return;
@@ -298,7 +298,7 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
         Layout layout = null;
         if (layoutType == LayoutType.TOOLBAR_SWIPE) {
             layout = mToolbarSwipeLayout;
-        } else if (layoutType == LayoutType.TAB_SWITCHER) {
+        } else if (layoutType == LayoutType.HUB) {
             if (mHubLayout != null) {
                 layout = mHubLayout;
             }
@@ -329,18 +329,18 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
     protected void tabClosed(int id, int nextId, boolean incognito, boolean tabRemoved) {
         boolean showOverview = nextId == Tab.INVALID_TAB_ID;
         boolean animate = !tabRemoved && animationsEnabled();
-        if (getActiveLayoutType() != LayoutType.TAB_SWITCHER
+        if (getActiveLayoutType() != LayoutType.HUB
                 && showOverview
-                && getNextLayoutType() != LayoutType.TAB_SWITCHER
+                && getNextLayoutType() != LayoutType.HUB
                 && !DeviceInfo.isXr()) {
             if (!BuildConfig.IS_VIVALDI) // Vivaldi
-            showLayout(LayoutType.TAB_SWITCHER, animate);
-        } else if (getActiveLayoutType() == LayoutType.TAB_SWITCHER
+            showLayout(LayoutType.HUB, animate);
+        } else if (getActiveLayoutType() == LayoutType.HUB
                 && assumeNonNull(getActiveLayout()).isStartingToHide()
                 && showOverview
                 && getNextLayoutType() == LayoutType.BROWSING
                 && !DeviceInfo.isXr()) {
-            showLayout(LayoutType.TAB_SWITCHER, animate);
+            showLayout(LayoutType.HUB, animate);
         }
         super.tabClosed(id, nextId, incognito, tabRemoved);
     }
@@ -351,7 +351,7 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
             // Note(david@vivaldi.com): We always create a new tab rather then showing the tab
             // switcher.
             if (!ChromeApplicationImpl.isVivaldi())
-            showLayout(LayoutType.TAB_SWITCHER, /* animate= */ false);
+            showLayout(LayoutType.HUB, /* animate= */ false);
         }
         super.tabsAllClosing(incognito);
     }
@@ -374,8 +374,8 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
                     if (getActiveLayout() == mStaticLayout
                             && !incognitoActive
                             && tabModelSelector.getModel(false).getCount() == 0
-                            && getNextLayoutType() != LayoutType.TAB_SWITCHER) {
-                        showLayout(LayoutType.TAB_SWITCHER, /* animate= */ false);
+                            && getNextLayoutType() != LayoutType.HUB) {
+                        showLayout(LayoutType.HUB, /* animate= */ false);
                     }
                 });
         } // End Vivaldi
@@ -383,7 +383,7 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
 
     /** Initializes HubLayout without needing to open the Tab Switcher. */
     public void initHubLayoutForTesting() {
-        initTabSwitcher();
+        initHubLayout();
     }
 
     /**
@@ -467,7 +467,7 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
                     && VivaldiUtils.isAddressBarSwipeGestureEnabled()) { // Vivaldi
                 // No need to test scroll direction here, as we've ruled out other possibilities.
                 RecordUserAction.record("MobileToolbarSwipeOpenStackView");
-                showLayout(LayoutType.TAB_SWITCHER, true);
+                showLayout(LayoutType.HUB, true);
             }
 
             mToolbarSwipeLayout.swipeStarted(time(), mScrollDirection, x, y);

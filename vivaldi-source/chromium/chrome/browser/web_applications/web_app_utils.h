@@ -159,7 +159,8 @@ enum class AppSettingsPageEntryPoint {
   kSubAppsInstallPrompt = 3,
   kNotificationSettingsButton = 4,
   kSiteDataDialog = 5,
-  kMaxValue = kSiteDataDialog,
+  kNavigationCapturingIphBubble = 6,
+  kMaxValue = kNavigationCapturingIphBubble,
 };
 
 apps::LaunchContainer ConvertDisplayModeToAppLaunchContainer(
@@ -179,10 +180,6 @@ content::mojom::AlternativeErrorPageOverrideInfoPtr ConstructWebAppErrorPage(
     std::u16string supplementary_icon);
 
 bool IsValidScopeForLinkCapturing(const GURL& scope);
-
-// Resets all content settings for the given `app_scope` to their default
-// values.
-void ResetAllContentSettingsForWebApp(Profile* profile, const GURL& app_scope);
 
 // TODO(http://b/331208955): Remove after migration.
 // Returns whether |app_id| will soon refer to a system web app given |sources|.

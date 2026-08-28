@@ -69,7 +69,7 @@ void SetFallbackImageToImageView(UIImageView* image_view,
                                  UIView* background_view,
                                  CGFloat favicon_size) {
   image_view.image =
-      DefaultSymbolWithPointSize(kGlobeAmericasSymbol, kCenterSymbolSize);
+      SymbolWithPointSize(SymbolGlobeAmericas, kCenterSymbolSize);
   image_view.backgroundColor = [UIColor colorNamed:kBlue500Color];
   background_view.backgroundColor = [UIColor colorNamed:kBlue500Color];
   image_view.tintColor = UIColor.whiteColor;
@@ -108,10 +108,8 @@ bool HasPriceDropOnTab(TabResumptionConfig* config) {
 - (instancetype)initWithConfig:(TabResumptionConfig*)config {
   if ((self = [super init])) {
     _config = config;
-    if (IsNTPBackgroundCustomizationEnabled()) {
-      [self registerForTraitChanges:@[ NewTabPageTrait.class ]
-                         withAction:@selector(applyBackgroundColors)];
-    }
+    [self registerForTraitChanges:@[ NewTabPageTrait.class ]
+                       withAction:@selector(applyBackgroundColors)];
   }
   return self;
 }

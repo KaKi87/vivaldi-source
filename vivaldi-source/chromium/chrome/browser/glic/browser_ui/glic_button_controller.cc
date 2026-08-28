@@ -4,41 +4,38 @@
 
 #include "chrome/browser/glic/browser_ui/glic_button_controller.h"
 
-#include "chrome/browser/glic/browser_ui/glic_button_controller_delegate.h"
+#include "chrome/browser/glic/browser_ui/glic_split_button_delegate.h"
 #include "chrome/browser/glic/browser_ui/glic_vector_icon_manager.h"
-#include "chrome/browser/glic/fre/glic_fre_controller.h"
 #include "chrome/browser/glic/glic_pref_names.h"
-#include "chrome/browser/glic/public/features.h"
 #include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/service/glic_instance_coordinator.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/tab_list/tab_list_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "components/feature_engagement/public/feature_list.h"
-#include "components/pdf/common/constants.h"
 #include "components/prefs/pref_service.h"
-#include "content/public/browser/web_contents.h"
 #include "ui/views/widget/widget.h"
 
 namespace glic {
 
+DEFINE_USER_DATA(GlicButtonController);
+
+// static
+GlicButtonController* GlicButtonController::From(
+    BrowserWindowInterface* browser) {
+  return browser ? GlicButtonController::Get(browser->GetUnownedUserDataHost())
+                 : nullptr;
+}
+
 GlicButtonController::GlicButtonController(
     Profile* profile,
     BrowserWindowInterface& browser,
-    GlicButtonControllerDelegate* tab_strip_delegate,
-    GlicButtonControllerDelegate* toolbar_delegate,
     GlicKeyedService* service)
     : profile_(profile),
       browser_(browser),
-      tab_strip_glic_controller_delegate_(tab_strip_delegate),
-      toolbar_glic_controller_delegate_(toolbar_delegate),
-      glic_keyed_service_(service) {
-  CHECK(tab_strip_glic_controller_delegate_);
-  CHECK(toolbar_glic_controller_delegate_);
+      glic_keyed_service_(service),
+      scoped_unowned_user_data_(browser.GetUnownedUserDataHost(), *this) {
   CHECK(glic_keyed_service_);
-
-  tab_strip_glic_controller_delegate_->SetButtonController(this);
-  toolbar_glic_controller_delegate_->SetButtonController(this);
 
   // Set initial button state.
   UpdateButton();
@@ -55,19 +52,28 @@ GlicButtonController::GlicButtonController(
   subscriptions_.push_back(
       glic_keyed_service_->instance_coordinator().AddGlobalShowHideCallback(
           update_callback));
-  subscriptions_.push_back(
-      glic_keyed_service_->fre_controller().AddWebUiStateChangedCallback(
-          base::BindRepeating(&GlicButtonController::OnFreStateChanged,
-                              base::Unretained(this))));
 }
 
-GlicButtonController::~GlicButtonController() {
+GlicButtonController::~GlicButtonController() = default;
+
+void GlicButtonController::SetHorizontalTabsDelegate(
+    GlicSplitButtonDelegate* delegate) {
+  tab_strip_glic_controller_delegate_ = delegate;
   if (tab_strip_glic_controller_delegate_) {
-    tab_strip_glic_controller_delegate_->SetButtonController(nullptr);
+    UpdateButton();
   }
+}
+
+void GlicButtonController::SetVerticalTabsDelegate(
+    GlicSplitButtonDelegate* delegate) {
+  toolbar_glic_controller_delegate_ = delegate;
   if (toolbar_glic_controller_delegate_) {
-    toolbar_glic_controller_delegate_->SetButtonController(nullptr);
+    UpdateButton();
   }
+}
+
+base::WeakPtr<GlicButtonController> GlicButtonController::GetWeakPtr() {
+  return weak_ptr_factory_.GetWeakPtr();
 }
 
 void GlicButtonController::UpdateButton() {
@@ -84,46 +90,38 @@ void GlicButtonController::UpdateButton() {
       profile_->GetPrefs()->GetBoolean(prefs::kGlicPinnedToTabstrip);
   if (!should_show_button || !is_pinned_to_tabstrip) {
     // If the button shouldn't be shown, just hide it.
-    tab_strip_glic_controller_delegate_->SetGlicShowState(false);
-    toolbar_glic_controller_delegate_->SetGlicShowState(false);
+    if (tab_strip_glic_controller_delegate_) {
+      tab_strip_glic_controller_delegate_->SetGlicShowState(false);
+    }
+    if (toolbar_glic_controller_delegate_) {
+      toolbar_glic_controller_delegate_->SetGlicShowState(false);
+    }
     return;
   }
 
-  tab_strip_glic_controller_delegate_->SetGlicShowState(true);
-  toolbar_glic_controller_delegate_->SetGlicShowState(true);
+  if (tab_strip_glic_controller_delegate_) {
+    tab_strip_glic_controller_delegate_->SetGlicShowState(true);
+  }
+  if (toolbar_glic_controller_delegate_) {
+    toolbar_glic_controller_delegate_->SetGlicShowState(true);
+  }
 
   bool is_glic_panel_open =
       glic_keyed_service_->IsPanelShowingForBrowser(*browser_);
-  tab_strip_glic_controller_delegate_->SetGlicPanelIsOpen(is_glic_panel_open);
-  toolbar_glic_controller_delegate_->SetGlicPanelIsOpen(is_glic_panel_open);
-}
-
-void GlicButtonController::OnFreStateChanged(mojom::FreWebUiState) {
-  UpdateButton();
-}
-
-bool GlicButtonController::ShouldAutoSummarize() const {
-  if (!base::FeatureList::IsEnabled(features::kGlicButtonAutoSummarize) ||
-      !browser_->GetActiveTabInterface()) {
-    return false;
+  if (tab_strip_glic_controller_delegate_) {
+    tab_strip_glic_controller_delegate_->SetGlicPanelIsOpen(is_glic_panel_open);
   }
-
-  content::WebContents* web_contents =
-      browser_->GetActiveTabInterface()->GetContents();
-  if (!web_contents) {
-    return false;
+  if (toolbar_glic_controller_delegate_) {
+    toolbar_glic_controller_delegate_->SetGlicPanelIsOpen(is_glic_panel_open);
   }
-
-  return web_contents->GetContentsMimeType() == pdf::kPDFMimeType;
 }
+
 
 mojom::InvocationSource GlicButtonController::GetInvocationSource(
     bool is_showing_nudge,
     bool is_toolbar) const {
   if (is_showing_nudge) {
     return mojom::InvocationSource::kNudge;
-  } else if (ShouldAutoSummarize()) {
-    return mojom::InvocationSource::kZeroStateAutoSummarize;
   }
 
   return is_toolbar ? mojom::InvocationSource::kToolbarButton

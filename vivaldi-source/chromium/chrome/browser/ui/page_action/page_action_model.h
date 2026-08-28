@@ -71,10 +71,13 @@ class PageActionModelInterface {
       PageActionPassKey pass_key,
       const std::optional<ui::ImageModel>& override_image,
       PageActionColorSource color_source,
-      std::optional<int> animation_resource_id) = 0;
+      std::optional<PageActionAnimationParams> animation_parameters) = 0;
   virtual void SetOverrideTooltip(
       PageActionPassKey pass_key,
       const std::optional<std::u16string>& override_tooltip) = 0;
+  virtual void SetOverrideBackgroundColorId(
+      PageActionPassKey pass_key,
+      std::optional<ui::ColorId> override_background_color_id) = 0;
   virtual void SetAnchoredMessageText(
       PageActionPassKey pass_key,
       const std::u16string& anchored_message) = 0;
@@ -99,6 +102,11 @@ class PageActionModelInterface {
   virtual void SetIsAnchoredMessageShowing(
       PageActionPassKey pass_key,
       bool is_anchored_message_showing) = 0;
+  virtual void SetAnimationStyle(PageActionPassKey pass_key,
+                                 PageActionAnimationStyle style) = 0;
+  virtual void SetTrailingImage(PageActionPassKey pass_key,
+                                const std::optional<ui::ImageModel>& image) = 0;
+  virtual void SetShowTrailingIcon(PageActionPassKey pass_key, bool show) = 0;
 
   virtual bool GetVisible() const = 0;
   virtual bool IsChipShowing() const = 0;
@@ -110,7 +118,8 @@ class PageActionModelInterface {
   virtual bool ShouldShowAnchoredMessage() const = 0;
   virtual bool IsAnchoredMessageShowing() const = 0;
   virtual const ui::ImageModel& GetImage() const = 0;
-  virtual int GetImageAnimationResourceId() const = 0;
+  virtual std::optional<PageActionAnimationParams> GetImageAnimationParameters()
+      const = 0;
   virtual const std::u16string& GetText() const = 0;
   virtual const std::u16string& GetTooltipText() const = 0;
   virtual const std::u16string& GetAccessibleName() const = 0;
@@ -125,6 +134,10 @@ class PageActionModelInterface {
   virtual bool GetActionItemIsShowingBubble() const = 0;
   virtual bool GetActionActive() const = 0;
   virtual PageActionColorSource GetColorSource() const = 0;
+  virtual PageActionAnimationStyle GetAnimationStyle() const = 0;
+  virtual std::optional<ui::ImageModel> GetTrailingImage() const = 0;
+  virtual bool GetShowTrailingIcon() const = 0;
+  virtual std::optional<ui::ColorId> GetOverrideBackgroundColorId() const = 0;
 
   virtual bool IsEphemeral() const = 0;
 };
@@ -166,14 +179,17 @@ class PageActionModel : public PageActionModelInterface {
       PageActionPassKey pass_key,
       const std::optional<std::u16string>& override_accessible_name) override;
 
-  void SetOverrideImage(PageActionPassKey pass_key,
-                        const std::optional<ui::ImageModel>& override_image,
-                        PageActionColorSource color_source,
-                        std::optional<int> animation_resource_id) override;
-
+  void SetOverrideImage(
+      PageActionPassKey pass_key,
+      const std::optional<ui::ImageModel>& override_image,
+      PageActionColorSource color_source,
+      std::optional<PageActionAnimationParams> animation_parameters) override;
   void SetOverrideTooltip(
       PageActionPassKey pass_key,
       const std::optional<std::u16string>& override_tooltip) override;
+  void SetOverrideBackgroundColorId(
+      PageActionPassKey pass_key,
+      std::optional<ui::ColorId> override_background_color_id) override;
 
   void SetAnchoredMessageText(PageActionPassKey pass_key,
                               const std::u16string& anchored_message) override;
@@ -207,6 +223,11 @@ class PageActionModel : public PageActionModelInterface {
 
   void SetIsAnchoredMessageShowing(PageActionPassKey pass_key,
                                    bool is_anchored_message_showing) override;
+  void SetAnimationStyle(PageActionPassKey pass_key,
+                         PageActionAnimationStyle style) override;
+  void SetTrailingImage(PageActionPassKey pass_key,
+                        const std::optional<ui::ImageModel>& image) override;
+  void SetShowTrailingIcon(PageActionPassKey pass_key, bool show) override;
 
   // The model distills all visibility properties into a single result.
   bool GetVisible() const override;
@@ -220,7 +241,8 @@ class PageActionModel : public PageActionModelInterface {
   bool IsAnchoredMessageShowing() const override;
 
   const ui::ImageModel& GetImage() const override;
-  int GetImageAnimationResourceId() const override;
+  std::optional<PageActionAnimationParams> GetImageAnimationParameters()
+      const override;
   const std::u16string& GetText() const override;
   const std::u16string& GetAccessibleName() const override;
   const std::u16string& GetAnchoredMessageText() const override;
@@ -234,6 +256,10 @@ class PageActionModel : public PageActionModelInterface {
   bool GetActionItemIsShowingBubble() const override;
   bool GetActionActive() const override;
   PageActionColorSource GetColorSource() const override;
+  PageActionAnimationStyle GetAnimationStyle() const override;
+  std::optional<ui::ImageModel> GetTrailingImage() const override;
+  bool GetShowTrailingIcon() const override;
+  std::optional<ui::ColorId> GetOverrideBackgroundColorId() const override;
 
   bool IsEphemeral() const override;
 
@@ -261,7 +287,11 @@ class PageActionModel : public PageActionModelInterface {
     kIsAnchoredMessageShowing,
     kAnchoredMessageIcon,
     kAnchoredMessageExpandableContent,
-    kMaxValue = kAnchoredMessageExpandableContent,
+    kAnimationStyle,
+    kTrailingImage,
+    kShowTrailingIcon,
+    kOverrideBackgroundColor,
+    kMaxValue = kOverrideBackgroundColor,
   };
   using PropertySet =
       base::EnumSet<Property, Property::kShowRequested, Property::kMaxValue>;
@@ -325,7 +355,7 @@ class PageActionModel : public PageActionModelInterface {
   // When set, it will always take precedence over `action_item_image_`.
   std::optional<ui::ImageModel> override_image_;
   std::optional<PageActionColorSource> color_source_;
-  std::optional<int> image_animation_resource_id_;
+  std::optional<PageActionAnimationParams> image_animation_parameters_;
 
   // When set, it will always take precedence over `text_`.
   std::optional<std::u16string> override_text_;
@@ -354,6 +384,12 @@ class PageActionModel : public PageActionModelInterface {
   // Represents whether this page action should ignore visibility override set
   // by `is_suppressed_by_omnibox_` variable (eg. AI mode page action).
   bool is_exempt_from_omnibox_suppression_ = false;
+
+  PageActionAnimationStyle animation_style_ =
+      PageActionAnimationStyle::kStandard;
+  std::optional<ui::ImageModel> trailing_image_;
+  bool show_trailing_icon_ = false;
+  std::optional<ui::ColorId> override_background_color_id_;
 
   // Flag used while notifying observers.
   bool is_notifying_observers_ = false;

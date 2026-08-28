@@ -2,7 +2,6 @@
 
 #include "browser/vivaldi_browser_finder.h"
 
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -40,7 +39,8 @@ VivaldiBrowserWindow* FindWindowForEmbedderWebContents(
 
 Browser* FindBrowserWithTab(const content::WebContents* web_contents) {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  Browser* browser = chrome::FindBrowserWithTab(web_contents);
+  BrowserWindowInterface* const browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(web_contents);
 
   // NOTE(espen@vivaldi.com): Some elements (e.g., within panels) will not match
   // in the function above. We have to find the window that contains the web
@@ -49,7 +49,7 @@ Browser* FindBrowserWithTab(const content::WebContents* web_contents) {
     return FindBrowserWithNonTabContent(web_contents);
   }
 
-  return browser;
+  return browser->GetBrowserForMigrationOnly();
 #else
   return nullptr;
 #endif

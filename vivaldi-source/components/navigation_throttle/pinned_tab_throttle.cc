@@ -5,7 +5,7 @@
 #include "app/vivaldi_constants.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/ext_data/tab_ext_data.h"
 #include "components/prefs/pref_service.h"
@@ -46,13 +46,14 @@ std::optional<bool> GetExtDataRetainDomain(content::WebContents* web_contents) {
 }
 
 bool IsTabPinned(content::WebContents* web_contents) {
-  Browser* browser = chrome::FindBrowserWithTab(web_contents);
+  BrowserWindowInterface* const browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(web_contents);
 
   if (!browser) {
     return false;
   }
 
-  TabStripModel* tab_strip = browser->tab_strip_model();
+  TabStripModel* tab_strip = browser->GetTabStripModel();
   int index = tab_strip->GetIndexOfWebContents(web_contents);
 
   if (index != TabStripModel::kNoTab) {

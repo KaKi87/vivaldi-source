@@ -17,7 +17,6 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
@@ -28,6 +27,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import static org.chromium.build.NullUtil.assertNonNull;
+import static org.chromium.ui.test.util.MockitoHelper.clearInvocations;
 
 import android.app.Activity;
 import android.content.Context;
@@ -77,9 +77,11 @@ import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.FuseboxLay
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.FuseboxState;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.PopupState;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxMetrics.FuseboxAttachmentButtonType;
+import org.chromium.chrome.browser.omnibox.fusebox.FuseboxProperties.BackgroundStyle;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxProperties.PopupButtonData;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.omnibox.suggestions.AutocompleteController;
+import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileResolver;
 import org.chromium.chrome.browser.profiles.ProfileResolverJni;
@@ -99,6 +101,7 @@ import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.Page
 import org.chromium.components.omnibox.AimModelsProto.ModelMode;
 import org.chromium.components.omnibox.AutocompleteInput;
 import org.chromium.components.omnibox.AutocompleteInput.AutocompleteState;
+import org.chromium.components.omnibox.AutocompleteInput.SiteSearchData;
 import org.chromium.components.omnibox.AutocompleteRequestType;
 import org.chromium.components.omnibox.IconProto.Icon;
 import org.chromium.components.omnibox.IconResourceIdsProto.IconResourceIds;
@@ -110,6 +113,10 @@ import org.chromium.components.omnibox.OmniboxFocusReason;
 import org.chromium.components.omnibox.SectionConfigProto.SectionConfig;
 import org.chromium.components.omnibox.ToolConfigProto.ToolConfig;
 import org.chromium.components.omnibox.ToolModeProto.ToolMode;
+import org.chromium.components.prefs.PrefChangeRegistrar;
+import org.chromium.components.prefs.PrefChangeRegistrarJni;
+import org.chromium.components.prefs.PrefService;
+import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.content_public.browser.RenderWidgetHostView;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.KeyboardVisibilityDelegate;
@@ -117,6 +124,7 @@ import org.chromium.ui.base.MimeTypeUtils;
 import org.chromium.ui.base.TestActivity;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modelutil.PropertyModel;
+import org.chromium.ui.test.util.MockitoHelper;
 import org.chromium.url.GURL;
 import org.chromium.url.JUnitTestGURLs;
 
@@ -132,6 +140,8 @@ import java.util.function.Function;
 /** Unit tests for {@link FuseboxMediator}. */
 @RunWith(BaseRobolectricTestRunner.class)
 public class FuseboxMediatorUnitTest {
+    private static final Bitmap BITMAP = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888);
+
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Mock private FuseboxViewHolder mViewHolder;
@@ -139,7 +149,6 @@ public class FuseboxMediatorUnitTest {
     @Mock private Profile mProfile;
     @Mock private WindowAndroid mWindowAndroid;
     @Mock private ComposeboxQueryControllerBridge mComposeboxQueryControllerBridge;
-
     @Mock private TabModelSelector mTabModelSelector;
     @Mock private TabModel mTabModel;
     @Mock private AutocompleteController mAutocompleteController;
@@ -155,6 +164,10 @@ public class FuseboxMediatorUnitTest {
     @Mock private KeyboardVisibilityDelegate mKeyboardVisibilityDelegate;
     @Mock private BackPressManager mBackPressManager;
     @Mock private Runnable mOnFirstPickerInteractionCanceledCallback;
+    @Mock private PrefService mPrefService;
+    @Mock private PrefChangeRegistrar.Natives mPrefChangeRegistrarJni;
+    @Mock private Runnable mOnActivationChipClickedWithQuery;
+    @Mock private Runnable mClearUrlBarTextCallback;
 
     @Captor private ArgumentCaptor<Intent> mIntentCaptor;
     @Captor private ArgumentCaptor<WindowAndroid.IntentCallback> mIntentCallbackCaptor;
@@ -165,8 +178,9 @@ public class FuseboxMediatorUnitTest {
     private PropertyModel mModel;
     private FuseboxMediator mMediator;
     private FuseboxAttachmentModelList mAttachments;
-    private final LinkedHashMap<Integer, Tab> mTabMap = new LinkedHashMap<>();
     private SettableNonNullObservableSupplier<TabModelSelector> mTabModelSelectorSupplier;
+
+    private final LinkedHashMap<Integer, Tab> mTabMap = new LinkedHashMap<>();
     private final SettableNonNullObservableSupplier<@FuseboxState Integer> mFuseboxStateSupplier =
             ObservableSuppliers.createNonNull(FuseboxState.DISABLED);
     private final SettableMonotonicObservableSupplier<InputState> mInputStateSupplier =
@@ -175,13 +189,20 @@ public class FuseboxMediatorUnitTest {
             ObservableSuppliers.createNonNull(List.of());
     private final SettableNonNullObservableSupplier<@PopupState Integer> mPopupStateSupplier =
             ObservableSuppliers.createNonNull(PopupState.HIDDEN);
-
-    private final Bitmap mBitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888);
-
+    private final SettableNonNullObservableSupplier<Boolean> mActivationChipVisibilitySupplier =
+            ObservableSuppliers.createNonNull(false);
+    private final SettableNonNullObservableSupplier<String> mUrlBarText =
+            ObservableSuppliers.createNonNull("");
+    private final SettableNonNullObservableSupplier<Boolean> mHasAttachmentsSupplier =
+            ObservableSuppliers.createNonNull(false);
     private final AutocompleteInput mInput = new AutocompleteInput();
 
     @Before
     public void setUp() {
+        UserPrefs.setPrefServiceForTesting(mPrefService);
+        lenient().doReturn(true).when(mPrefService).getBoolean(Pref.SHOW_AI_MODE_OMNIBOX_BUTTON);
+        PrefChangeRegistrarJni.setInstanceForTesting(mPrefChangeRegistrarJni);
+        lenient().doReturn(1L).when(mPrefChangeRegistrarJni).init(any(), any());
         OmniboxFeatures.sMultiattachmentFusebox.setForTesting(true);
         mTabModelSelectorSupplier = ObservableSuppliers.createNonNull(mTabModelSelector);
         mActivityController = Robolectric.buildActivity(TestActivity.class).setup();
@@ -207,7 +228,7 @@ public class FuseboxMediatorUnitTest {
         mAttachments = new FuseboxAttachmentModelList();
         mAttachments.setComposeboxQueryControllerBridge(mComposeboxQueryControllerBridge);
         OmniboxResourceProvider.setTabFaviconFactory(mTabFaviconFactory);
-        doReturn(mBitmap).when(mTabFaviconFactory).apply(any());
+        doReturn(BITMAP).when(mTabFaviconFactory).apply(any());
         when(mComposeboxQueryControllerBridge.getInputStateSupplier())
                 .thenReturn(mInputStateSupplier);
         when(mComposeboxQueryControllerBridge.getSuggestedTabsSupplier())
@@ -252,7 +273,12 @@ public class FuseboxMediatorUnitTest {
                         mScrimManager,
                         () -> null,
                         mBackPressManager,
-                        mOnFirstPickerInteractionCanceledCallback);
+                        mOnFirstPickerInteractionCanceledCallback,
+                        mActivationChipVisibilitySupplier,
+                        mOnActivationChipClickedWithQuery,
+                        mClearUrlBarTextCallback,
+                        mUrlBarText,
+                        mHasAttachmentsSupplier);
         mMediator.beginInput(createSession());
     }
 
@@ -382,6 +408,7 @@ public class FuseboxMediatorUnitTest {
 
         mMediator.uploadAndAddAttachment(attachment);
         RobolectricUtil.runAllBackgroundAndUi();
+        assertTrue(mHasAttachmentsSupplier.get());
         return attachment;
     }
 
@@ -446,6 +473,19 @@ public class FuseboxMediatorUnitTest {
     }
 
     @Test
+    public void testAutocompleteStateChange_updatesFuseboxState() {
+        mInput.setAutocompleteState(AutocompleteState.STANDBY);
+        recreateMediator();
+        assertEquals(FuseboxState.DISABLED, mModel.get(FuseboxProperties.FUSEBOX_STATE).intValue());
+
+        mInput.setAutocompleteState(AutocompleteState.ENABLED);
+        assertEquals(FuseboxState.COMPACT, mModel.get(FuseboxProperties.FUSEBOX_STATE).intValue());
+
+        mInput.setAutocompleteState(AutocompleteState.STANDBY);
+        assertEquals(FuseboxState.DISABLED, mModel.get(FuseboxProperties.FUSEBOX_STATE).intValue());
+    }
+
+    @Test
     public void beginInput_withStandbyNoFocusState_isDisabled() {
         mInput.setAutocompleteState(AutocompleteState.STANDBY_NO_FOCUS);
         recreateMediator();
@@ -470,7 +510,6 @@ public class FuseboxMediatorUnitTest {
 
     @Test
     public void startInAiMode_isExpanded() {
-        OmniboxFeatures.sCompactFusebox.setForTesting(true);
         mInput.setRequestType(AutocompleteRequestType.AI_MODE);
         recreateMediator();
         assertEquals(FuseboxState.EXPANDED, mModel.get(FuseboxProperties.FUSEBOX_STATE).intValue());
@@ -478,7 +517,6 @@ public class FuseboxMediatorUnitTest {
 
     @Test
     public void updateFuseboxState_desktopPlatform_conventional_emptyModelList_isCompact() {
-        OmniboxFeatures.sCompactFusebox.setForTesting(true);
         OmniboxCapabilities.setIsDesktopPlatformForTesting(true);
         mInput.setRequestType(AutocompleteRequestType.SEARCH);
         recreateMediator();
@@ -488,7 +526,6 @@ public class FuseboxMediatorUnitTest {
 
     @Test
     public void updateFuseboxState_desktopPlatform_nonConventional_emptyModelList_isExpanded() {
-        OmniboxFeatures.sCompactFusebox.setForTesting(true);
         OmniboxCapabilities.setIsDesktopPlatformForTesting(true);
         mModel.set(FuseboxProperties.FUSEBOX_LAYOUT_MODE, FuseboxLayoutMode.SUGGESTIONS_POPOVER);
         mInput.setRequestType(AutocompleteRequestType.AI_MODE);
@@ -498,8 +535,40 @@ public class FuseboxMediatorUnitTest {
     }
 
     @Test
+    public void plusButtonBackground_aiModePopover() {
+        mInput.setRequestType(AutocompleteRequestType.AI_MODE);
+        mModel.set(FuseboxProperties.FUSEBOX_LAYOUT_MODE, FuseboxLayoutMode.SUGGESTIONS_POPOVER);
+        recreateMediator();
+
+        assertEquals(
+                BackgroundStyle.ALWAYS_VISIBLE_WIDE,
+                mModel.get(FuseboxProperties.PLUS_BUTTON_BACKGROUND_STYLE).intValue());
+    }
+
+    @Test
+    public void plusButtonBackground_imageGenPopover() {
+        mInput.setRequestType(AutocompleteRequestType.IMAGE_GENERATION);
+        mModel.set(FuseboxProperties.FUSEBOX_LAYOUT_MODE, FuseboxLayoutMode.SUGGESTIONS_POPOVER);
+        recreateMediator();
+
+        assertEquals(
+                BackgroundStyle.INTERACT_ONLY_SMALL,
+                mModel.get(FuseboxProperties.PLUS_BUTTON_BACKGROUND_STYLE).intValue());
+    }
+
+    @Test
+    public void plusButtonBackground_aiModeToolbar() {
+        mInput.setRequestType(AutocompleteRequestType.AI_MODE);
+        mModel.set(FuseboxProperties.FUSEBOX_LAYOUT_MODE, FuseboxLayoutMode.TOOLBAR);
+        recreateMediator();
+
+        assertEquals(
+                BackgroundStyle.INTERACT_ONLY_SMALL,
+                mModel.get(FuseboxProperties.PLUS_BUTTON_BACKGROUND_STYLE).intValue());
+    }
+
+    @Test
     public void updateFuseboxState_desktopPlatform_nonEmptyModelList_isExpanded() {
-        OmniboxFeatures.sCompactFusebox.setForTesting(true);
         OmniboxCapabilities.setIsDesktopPlatformForTesting(true);
         recreateMediator();
 
@@ -510,20 +579,18 @@ public class FuseboxMediatorUnitTest {
 
     @Test
     public void testClickRequestTypeChip_transitionsToCompactWhenHasAttachments() {
-        OmniboxFeatures.sCompactFusebox.setForTesting(true);
         recreateMediator();
 
         addAttachment("title", "token", FuseboxAttachmentType.ATTACHMENT_IMAGE);
         assertEquals(FuseboxState.EXPANDED, mModel.get(FuseboxProperties.FUSEBOX_STATE).intValue());
 
-        mModel.get(FuseboxProperties.AUTOCOMPLETE_REQUEST_TYPE_CLICKED).run();
+        mModel.get(FuseboxProperties.REQUEST_TYPE_BUTTON_CLICKED).run();
 
         assertEquals(FuseboxState.COMPACT, mModel.get(FuseboxProperties.FUSEBOX_STATE).intValue());
     }
 
     @Test
     public void updateFuseboxState_notDesktop_textWrapping_isExpanded() {
-        OmniboxFeatures.sCompactFusebox.setForTesting(true);
         OmniboxCapabilities.setIsDesktopPlatformForTesting(false);
         mInput.setRequestType(AutocompleteRequestType.SEARCH);
         recreateMediator();
@@ -535,7 +602,6 @@ public class FuseboxMediatorUnitTest {
 
     @Test
     public void updateFuseboxState_notDesktop_notSearchRequest_isExpanded() {
-        OmniboxFeatures.sCompactFusebox.setForTesting(true);
         OmniboxCapabilities.setIsDesktopPlatformForTesting(false);
         mInput.setRequestType(AutocompleteRequestType.AI_MODE);
         recreateMediator();
@@ -544,8 +610,15 @@ public class FuseboxMediatorUnitTest {
     }
 
     @Test
+    public void updateFuseboxState_standby_isDisabled() {
+        mInput.setAutocompleteState(AutocompleteState.STANDBY);
+        recreateMediator();
+
+        assertEquals(FuseboxState.DISABLED, mModel.get(FuseboxProperties.FUSEBOX_STATE).intValue());
+    }
+
+    @Test
     public void updateFuseboxState_standbyNoFocus_isDisabled() {
-        OmniboxFeatures.sCompactFusebox.setForTesting(true);
         mInput.setAutocompleteState(AutocompleteState.STANDBY_NO_FOCUS);
         recreateMediator();
 
@@ -565,44 +638,123 @@ public class FuseboxMediatorUnitTest {
     }
 
     @Test
-    public void updateFuseboxState_setsShowRequestTypeButton_true() {
+    public void testActivationChipClicked_otherText() {
+        mInput.setRequestType(AutocompleteRequestType.SEARCH);
+        mInput.setInitialUserText("google.com");
+        mUrlBarText.set("suggestion text");
+        recreateMediator();
+
+        mModel.get(FuseboxProperties.ACTIVATION_CHIP_CLICKED).run();
+
+        assertEquals(AutocompleteRequestType.AI_MODE, mInput.getRequestType());
+        verify(mOnActivationChipClickedWithQuery).run();
+    }
+
+    @Test
+    public void testActivationChipClicked_emptyText() {
+        mInput.setRequestType(AutocompleteRequestType.SEARCH);
+        mInput.setInitialUserText("google.com");
+        mUrlBarText.set("");
+        recreateMediator();
+
+        mModel.get(FuseboxProperties.ACTIVATION_CHIP_CLICKED).run();
+
+        assertEquals(AutocompleteRequestType.AI_MODE, mInput.getRequestType());
+        verify(mOnActivationChipClickedWithQuery, never()).run();
+    }
+
+    @Test
+    public void testActivationChipClicked_currentUrl() {
+        mInput.setRequestType(AutocompleteRequestType.SEARCH);
+        mInput.setInitialUserText("google.com");
+        mUrlBarText.set("google.com");
+        recreateMediator();
+
+        mModel.get(FuseboxProperties.ACTIVATION_CHIP_CLICKED).run();
+
+        assertEquals(AutocompleteRequestType.AI_MODE, mInput.getRequestType());
+        verify(mOnActivationChipClickedWithQuery, never()).run();
+        verify(mClearUrlBarTextCallback).run();
+    }
+
+    @Test
+    public void testActivationChipSelectionChanged_clearsUrl() {
+        mInput.setRequestType(AutocompleteRequestType.SEARCH);
+        mInput.setInitialUserText("google.com");
+        mUrlBarText.set("google.com");
+        recreateMediator();
+
+        mMediator.onActivationChipSelectionChanged(true);
+
+        verify(mClearUrlBarTextCallback).run();
+    }
+
+    @Test
+    public void testActivationChipSelectionChanged_doesNotClearIfDifferent() {
+        mInput.setRequestType(AutocompleteRequestType.SEARCH);
+        mInput.setInitialUserText("google.com");
+        mUrlBarText.set("different text");
+        recreateMediator();
+
+        mMediator.onActivationChipSelectionChanged(true);
+
+        verify(mClearUrlBarTextCallback, never()).run();
+    }
+
+    @Test
+    public void testActivationChipSelectionChanged_doesNotClearIfEmpty() {
+        mInput.setRequestType(AutocompleteRequestType.SEARCH);
+        mInput.setInitialUserText("google.com");
+        mUrlBarText.set("");
+        recreateMediator();
+
+        mMediator.onActivationChipSelectionChanged(true);
+
+        verify(mClearUrlBarTextCallback, never()).run();
+    }
+
+    @Test
+    public void updateFuseboxState_setsRequestTypeButtonVisible_true() {
         OmniboxCapabilities.setIsDesktopPlatformForTesting(false);
         mInput.setRequestType(AutocompleteRequestType.AI_MODE);
         recreateMediator();
 
-        assertTrue(mModel.get(FuseboxProperties.SHOW_REQUEST_TYPE_BUTTON));
+        assertTrue(mModel.get(FuseboxProperties.REQUEST_TYPE_BUTTON_VISIBLE));
     }
 
     @Test
-    public void updateFuseboxState_setsShowRequestTypeButton_false_conventional() {
+    public void updateFuseboxState_setsRequestTypeButtonVisible_false_conventional() {
         OmniboxCapabilities.setIsDesktopPlatformForTesting(false);
         mInput.setRequestType(AutocompleteRequestType.SEARCH);
         recreateMediator();
 
-        assertFalse(mModel.get(FuseboxProperties.SHOW_REQUEST_TYPE_BUTTON));
+        assertFalse(mModel.get(FuseboxProperties.REQUEST_TYPE_BUTTON_VISIBLE));
     }
 
     @Test
-    public void updateFuseboxState_setsShowRequestTypeButton_false_desktopAiMode() {
+    public void updateFuseboxState_setsRequestTypeButtonVisible_false_desktopAiMode() {
         OmniboxCapabilities.setIsDesktopPlatformForTesting(true);
         mInput.setRequestType(AutocompleteRequestType.AI_MODE);
         recreateMediator();
 
-        assertFalse(mModel.get(FuseboxProperties.SHOW_REQUEST_TYPE_BUTTON));
+        assertFalse(mModel.get(FuseboxProperties.REQUEST_TYPE_BUTTON_VISIBLE));
     }
 
     @Test
     public void endInput_clearsState() {
         assertNotEquals(
                 FuseboxState.DISABLED, mModel.get(FuseboxProperties.FUSEBOX_STATE).intValue());
+        addAttachment("title", "token", FuseboxAttachmentType.ATTACHMENT_IMAGE);
+        assertTrue(mHasAttachmentsSupplier.get());
 
         mMediator.endInput();
         assertEquals(FuseboxState.DISABLED, mModel.get(FuseboxProperties.FUSEBOX_STATE).intValue());
+        assertFalse(mHasAttachmentsSupplier.get());
     }
 
     @Test
-    public void onAddButtonClicked_togglePopup() {
-        Runnable runnable = mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED);
+    public void onPlusButtonClicked_togglePopup() {
+        Runnable runnable = mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED);
         assertNotNull(runnable);
 
         // Show popup.
@@ -615,10 +767,10 @@ public class FuseboxMediatorUnitTest {
     }
 
     @Test
-    public void onAddButtonClicked_bottomSheet_hidesKeyboard() {
+    public void onPlusButtonClicked_bottomSheet_hidesKeyboard() {
         OmniboxFeatures.setShowBottomSheetPopupForTesting(true);
         recreateMediator();
-        Runnable runnable = mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED);
+        Runnable runnable = mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED);
         assertNotNull(runnable);
 
         // Show popup.
@@ -627,9 +779,9 @@ public class FuseboxMediatorUnitTest {
     }
 
     @Test
-    public void onAddButtonClicked_updatesPopupStateSupplier() {
+    public void onPlusButtonClicked_updatesPopupStateSupplier() {
         assertEquals(PopupState.HIDDEN, mPopupStateSupplier.get().intValue());
-        mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED).run();
+        mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED).run();
         assertEquals(PopupState.FLOATING, mPopupStateSupplier.get().intValue());
     }
 
@@ -637,24 +789,24 @@ public class FuseboxMediatorUnitTest {
     public void onHidePopup_bottomSheet_showsKeyboardIfFocused() {
         OmniboxFeatures.setShowBottomSheetPopupForTesting(true);
         ConstraintLayout spyParent = spy(mViewHolder.parentView);
-        doReturn(mViewHolder.addButton).when(spyParent).findFocus();
+        doReturn(mViewHolder.plusButton).when(spyParent).findFocus();
         mViewHolder = new FuseboxViewHolder(spyParent, mPopup);
         recreateMediator();
 
         // Show popup first
-        mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED).run();
+        mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED).run();
 
         // Hide popup
-        mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED).run();
+        mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED).run();
 
         verify(mKeyboardVisibilityDelegate).showKeyboard(any());
     }
 
     @Test
-    public void onAddButtonClicked_floatingPopup_doesNotHideKeyboard() {
+    public void onPlusButtonClicked_floatingPopup_doesNotHideKeyboard() {
         OmniboxFeatures.setShowBottomSheetPopupForTesting(false);
         recreateMediator();
-        Runnable runnable = mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED);
+        Runnable runnable = mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED);
         assertNotNull(runnable);
 
         // Show popup.
@@ -667,7 +819,7 @@ public class FuseboxMediatorUnitTest {
         OmniboxCapabilities.setIsDesktopPlatformForTesting(false);
         OmniboxFeatures.setShowBottomSheetPopupForTesting(true);
         recreateMediator();
-        Runnable runnable = mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED);
+        Runnable runnable = mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED);
         assertNotNull(runnable);
 
         // Show popup.
@@ -696,12 +848,11 @@ public class FuseboxMediatorUnitTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     public void testDoubleBeginInput_doesNotReapplyPopupState() {
         mInput.setFocusReason(OmniboxFocusReason.FAKE_BOX_PLUS_BUTTON_TAP);
         recreateMediator();
 
-        org.chromium.base.Callback<Integer> observer = mock(org.chromium.base.Callback.class);
+        org.chromium.base.Callback<Integer> observer = MockitoHelper.mockCallback();
         mPopupStateSupplier.addSyncObserverAndCallIfNonNull(observer);
         verify(observer).onResult(PopupState.FLOATING);
         clearInvocations(observer);
@@ -716,7 +867,7 @@ public class FuseboxMediatorUnitTest {
     public void testPopupShowHide_floatingMode_doesNotTriggerScrim() {
         OmniboxFeatures.setShowBottomSheetPopupForTesting(false);
         recreateMediator();
-        Runnable runnable = mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED);
+        Runnable runnable = mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED);
         assertNotNull(runnable);
 
         // Show popup.
@@ -729,7 +880,7 @@ public class FuseboxMediatorUnitTest {
         OmniboxCapabilities.setIsDesktopPlatformForTesting(true);
         OmniboxFeatures.setShowBottomSheetPopupForTesting(true);
         recreateMediator();
-        Runnable runnable = mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED);
+        Runnable runnable = mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED);
         assertNotNull(runnable);
 
         // Show popup.
@@ -739,7 +890,7 @@ public class FuseboxMediatorUnitTest {
 
     @Test
     public void testEndInput_DismissesPopup() {
-        mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED).run();
+        mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED).run();
         assertEquals(PopupState.FLOATING, (int) mModel.get(FuseboxProperties.POPUP_STATE));
 
         mMediator.endInput();
@@ -771,7 +922,7 @@ public class FuseboxMediatorUnitTest {
         assertFalse(mMediator.getHandleBackPressChangedSupplier().get());
 
         // Show popup toggles supplier to true.
-        mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED).run();
+        mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED).run();
         assertTrue(mMediator.getHandleBackPressChangedSupplier().get());
 
         // Handle back press hides popup and returns SUCCESS.
@@ -809,30 +960,30 @@ public class FuseboxMediatorUnitTest {
         doReturn(89L).when(mTab2).getTimestampMillis();
         doReturn(false).when(mPopup).isShowing();
 
-        mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED).run();
+        mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED).run();
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_VISIBLE));
         assertNonNull(mModel.get(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_FAVICON));
 
         OmniboxFeatures.sAllowCurrentTab.setForTesting(false);
-        mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED).run();
-        mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED).run();
+        mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED).run();
+        mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED).run();
         assertFalse(mModel.get(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_VISIBLE));
 
         OmniboxFeatures.sAllowCurrentTab.setForTesting(true);
         doReturn(null).when(mTabFaviconFactory).apply(any());
-        mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED).run();
-        mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED).run();
+        mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED).run();
+        mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED).run();
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_VISIBLE));
         assertNull(mModel.get(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_FAVICON));
 
-        doReturn(mBitmap).when(mTabFaviconFactory).apply(any());
+        doReturn(BITMAP).when(mTabFaviconFactory).apply(any());
         doReturn("token").when(mComposeboxQueryControllerBridge).addTabContext(mTab1, false);
         mModel.get(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_CLICKED).run();
         verify(mComposeboxQueryControllerBridge).addTabContext(mTab1, false);
-        assertEquals(mBitmap, ((BitmapDrawable) mAttachments.get(0).thumbnail).getBitmap());
+        assertEquals(BITMAP, ((BitmapDrawable) mAttachments.get(0).thumbnail).getBitmap());
 
         doReturn(mTab2).when(mTabModelSelector).getCurrentTab();
-        mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED).run();
+        mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED).run();
         assertFalse(mModel.get(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_VISIBLE));
     }
 
@@ -871,6 +1022,7 @@ public class FuseboxMediatorUnitTest {
                         FuseboxAttachmentButtonType.FILES);
         mMediator.uploadAndAddAttachment(attachment);
         assertTrue(mModel.get(FuseboxProperties.ATTACHMENTS_VISIBLE));
+        assertTrue(mHasAttachmentsSupplier.get());
         verify(mComposeboxQueryControllerBridge).addFile("title", "image", byteArray);
     }
 
@@ -889,29 +1041,41 @@ public class FuseboxMediatorUnitTest {
                         FuseboxAttachmentButtonType.FILES);
         mMediator.uploadAndAddAttachment(attachment);
         assertFalse(mModel.get(FuseboxProperties.ATTACHMENTS_VISIBLE));
+        assertFalse(mHasAttachmentsSupplier.get());
+    }
+
+    @Test
+    public void attachmentsVisibility_hiddenWhenInStandby() {
+        addAttachment("title", "token1", FuseboxAttachmentType.ATTACHMENT_TAB);
+        assertTrue(mModel.get(FuseboxProperties.ATTACHMENTS_VISIBLE));
+
+        mInput.setAutocompleteState(AutocompleteState.STANDBY);
+        assertFalse(mModel.get(FuseboxProperties.ATTACHMENTS_VISIBLE));
+        assertEquals(FuseboxState.DISABLED, mModel.get(FuseboxProperties.FUSEBOX_STATE).intValue());
+
+        mInput.setAutocompleteState(AutocompleteState.ENABLED);
+        assertTrue(mModel.get(FuseboxProperties.ATTACHMENTS_VISIBLE));
+        assertEquals(FuseboxState.EXPANDED, mModel.get(FuseboxProperties.FUSEBOX_STATE).intValue());
     }
 
     @Test
     public void dedicatedButton_clearsAttachmentsAndAbandonsSession() {
         addAttachment("title", "token1", FuseboxAttachmentType.ATTACHMENT_TAB);
         assertEquals(
-                AutocompleteRequestType.AI_MODE,
-                (int) mModel.get(FuseboxProperties.AUTOCOMPLETE_REQUEST_TYPE));
+                AutocompleteRequestType.AI_MODE, (int) mModel.get(FuseboxProperties.REQUEST_TYPE));
 
-        mModel.get(FuseboxProperties.AUTOCOMPLETE_REQUEST_TYPE_CLICKED).run();
+        mModel.get(FuseboxProperties.REQUEST_TYPE_BUTTON_CLICKED).run();
         assertEquals(
-                AutocompleteRequestType.SEARCH,
-                (int) mModel.get(FuseboxProperties.AUTOCOMPLETE_REQUEST_TYPE));
+                AutocompleteRequestType.SEARCH, (int) mModel.get(FuseboxProperties.REQUEST_TYPE));
         assertEquals(0, mAttachments.size());
     }
 
     @Test
     public void dedicatedButton_startsSession() {
-        mModel.get(FuseboxProperties.AUTOCOMPLETE_REQUEST_TYPE_CLICKED).run();
+        mModel.get(FuseboxProperties.REQUEST_TYPE_BUTTON_CLICKED).run();
         verify(mComposeboxQueryControllerBridge, never()).notifySessionStarted();
         assertEquals(
-                AutocompleteRequestType.AI_MODE,
-                (int) mModel.get(FuseboxProperties.AUTOCOMPLETE_REQUEST_TYPE));
+                AutocompleteRequestType.AI_MODE, (int) mModel.get(FuseboxProperties.REQUEST_TYPE));
     }
 
     @Test
@@ -934,7 +1098,7 @@ public class FuseboxMediatorUnitTest {
         verify(mComposeboxQueryControllerBridge, never()).notifySessionStarted();
         assertEquals(
                 AutocompleteRequestType.IMAGE_GENERATION,
-                (int) mModel.get(FuseboxProperties.AUTOCOMPLETE_REQUEST_TYPE));
+                (int) mModel.get(FuseboxProperties.REQUEST_TYPE));
         histogramWatcher.assertExpected();
     }
 
@@ -942,18 +1106,15 @@ public class FuseboxMediatorUnitTest {
     public void clickSelectedTool_transitionsToSearchMode() {
         // Initially in Search mode.
         assertEquals(
-                AutocompleteRequestType.SEARCH,
-                (int) mModel.get(FuseboxProperties.AUTOCOMPLETE_REQUEST_TYPE));
+                AutocompleteRequestType.SEARCH, (int) mModel.get(FuseboxProperties.REQUEST_TYPE));
 
         clickToolButton(ToolMode.TOOL_MODE_UNSPECIFIED_VALUE);
         assertEquals(
-                AutocompleteRequestType.AI_MODE,
-                (int) mModel.get(FuseboxProperties.AUTOCOMPLETE_REQUEST_TYPE));
+                AutocompleteRequestType.AI_MODE, (int) mModel.get(FuseboxProperties.REQUEST_TYPE));
 
         clickToolButton(ToolMode.TOOL_MODE_UNSPECIFIED_VALUE);
         assertEquals(
-                AutocompleteRequestType.SEARCH,
-                (int) mModel.get(FuseboxProperties.AUTOCOMPLETE_REQUEST_TYPE));
+                AutocompleteRequestType.SEARCH, (int) mModel.get(FuseboxProperties.REQUEST_TYPE));
     }
 
     @Test
@@ -961,12 +1122,11 @@ public class FuseboxMediatorUnitTest {
         clickToolButton(ToolMode.TOOL_MODE_IMAGE_GEN_VALUE);
         assertEquals(
                 AutocompleteRequestType.IMAGE_GENERATION,
-                (int) mModel.get(FuseboxProperties.AUTOCOMPLETE_REQUEST_TYPE));
+                (int) mModel.get(FuseboxProperties.REQUEST_TYPE));
 
         clickToolButton(ToolMode.TOOL_MODE_IMAGE_GEN_VALUE);
         assertEquals(
-                AutocompleteRequestType.SEARCH,
-                (int) mModel.get(FuseboxProperties.AUTOCOMPLETE_REQUEST_TYPE));
+                AutocompleteRequestType.SEARCH, (int) mModel.get(FuseboxProperties.REQUEST_TYPE));
     }
 
     @Test
@@ -984,7 +1144,7 @@ public class FuseboxMediatorUnitTest {
         recreateMediator();
         RobolectricUtil.runAllBackgroundAndUi();
 
-        mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED).run();
+        mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED).run();
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_VISIBLE));
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_ENABLED));
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_TAB_PICKER_ENABLED));
@@ -992,7 +1152,7 @@ public class FuseboxMediatorUnitTest {
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_FILE_ENABLED));
 
         clickToolButton(ToolMode.TOOL_MODE_IMAGE_GEN_VALUE);
-        mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED).run();
+        mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED).run();
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_VISIBLE));
         assertFalse(mModel.get(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_ENABLED));
         assertFalse(mModel.get(FuseboxProperties.POPUP_ATTACH_TAB_PICKER_ENABLED));
@@ -1005,8 +1165,7 @@ public class FuseboxMediatorUnitTest {
         mInput.setRequestType(AutocompleteRequestType.SEARCH);
         addAttachment("title1", "token1", FuseboxAttachmentType.ATTACHMENT_IMAGE);
         assertEquals(
-                AutocompleteRequestType.AI_MODE,
-                (int) mModel.get(FuseboxProperties.AUTOCOMPLETE_REQUEST_TYPE));
+                AutocompleteRequestType.AI_MODE, (int) mModel.get(FuseboxProperties.REQUEST_TYPE));
         assertEquals(PopupState.HIDDEN, (int) mModel.get(FuseboxProperties.POPUP_STATE));
     }
 
@@ -1016,7 +1175,7 @@ public class FuseboxMediatorUnitTest {
         addAttachment("title1", "token1", FuseboxAttachmentType.ATTACHMENT_IMAGE);
         assertEquals(
                 AutocompleteRequestType.IMAGE_GENERATION,
-                (int) mModel.get(FuseboxProperties.AUTOCOMPLETE_REQUEST_TYPE));
+                (int) mModel.get(FuseboxProperties.REQUEST_TYPE));
         assertEquals(PopupState.HIDDEN, (int) mModel.get(FuseboxProperties.POPUP_STATE));
     }
 
@@ -1124,10 +1283,10 @@ public class FuseboxMediatorUnitTest {
     }
 
     @Test
-    public void autocompleteRequestTypeClicked_activatesSearchMode() {
+    public void requestTypeButtonClicked_activatesSearchMode() {
         mInput.setRequestType(AutocompleteRequestType.AI_MODE);
 
-        mModel.get(FuseboxProperties.AUTOCOMPLETE_REQUEST_TYPE_CLICKED).run();
+        mModel.get(FuseboxProperties.REQUEST_TYPE_BUTTON_CLICKED).run();
 
         assertEquals(PopupState.HIDDEN, (int) mModel.get(FuseboxProperties.POPUP_STATE));
         assertEquals(AutocompleteRequestType.SEARCH, mInput.getRequestType());
@@ -1350,14 +1509,14 @@ public class FuseboxMediatorUnitTest {
     @Test
     public void onRequestTypeButtonClicked_fromDeepSearch_activatesSearchMode() {
         mInput.setRequestType(AutocompleteRequestType.DEEP_SEARCH);
-        mModel.get(FuseboxProperties.AUTOCOMPLETE_REQUEST_TYPE_CLICKED).run();
+        mModel.get(FuseboxProperties.REQUEST_TYPE_BUTTON_CLICKED).run();
         assertEquals(AutocompleteRequestType.SEARCH, mInput.getRequestType());
     }
 
     @Test
     public void onRequestTypeButtonClicked_fromCanvas_activatesSearchMode() {
         mInput.setRequestType(AutocompleteRequestType.CANVAS);
-        mModel.get(FuseboxProperties.AUTOCOMPLETE_REQUEST_TYPE_CLICKED).run();
+        mModel.get(FuseboxProperties.REQUEST_TYPE_BUTTON_CLICKED).run();
         assertEquals(AutocompleteRequestType.SEARCH, mInput.getRequestType());
     }
 
@@ -1534,17 +1693,17 @@ public class FuseboxMediatorUnitTest {
         doReturn(false).when(mWebContents).isLoading();
         doReturn(mRenderWidgetHostView).when(mWebContents).getRenderWidgetHostView();
 
-        mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED).run();
+        mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED).run();
         assertTrue(isToolEnabled(ToolMode.TOOL_MODE_IMAGE_GEN_VALUE));
 
         mModel.get(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_CLICKED).run();
         assertEquals(1, mAttachments.size());
-        mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED).run();
+        mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED).run();
         assertFalse(isToolEnabled(ToolMode.TOOL_MODE_IMAGE_GEN_VALUE));
 
         mAttachments.remove(mAttachments.get(0), /* isFailure= */ false);
         assertEquals(0, mAttachments.size());
-        mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED).run();
+        mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED).run();
         assertTrue(isToolEnabled(ToolMode.TOOL_MODE_IMAGE_GEN_VALUE));
 
         addAttachment("title", "token1", FuseboxAttachmentType.ATTACHMENT_FILE);
@@ -1592,7 +1751,6 @@ public class FuseboxMediatorUnitTest {
 
     @Test
     public void testCompactMode() {
-        OmniboxFeatures.sCompactFusebox.setForTesting(true);
         recreateMediator();
         assertEquals(FuseboxState.COMPACT, mModel.get(FuseboxProperties.FUSEBOX_STATE).intValue());
 
@@ -1603,13 +1761,6 @@ public class FuseboxMediatorUnitTest {
         assertEquals(FuseboxState.COMPACT, mModel.get(FuseboxProperties.FUSEBOX_STATE).intValue());
 
         mMediator.setIsTextWrapping(true);
-        assertEquals(FuseboxState.EXPANDED, mModel.get(FuseboxProperties.FUSEBOX_STATE).intValue());
-    }
-
-    @Test
-    public void testExpandedMode() {
-        mInput.setRequestType(AutocompleteRequestType.SEARCH);
-        mMediator.setIsTextWrapping(false);
         assertEquals(FuseboxState.EXPANDED, mModel.get(FuseboxProperties.FUSEBOX_STATE).intValue());
     }
 
@@ -1869,7 +2020,6 @@ public class FuseboxMediatorUnitTest {
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_ENABLED));
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_TAB_PICKER_ENABLED));
         assertTrue(mModel.get(FuseboxProperties.POPUP_RECENT_TABS_ENABLED));
-
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_CAMERA_ENABLED));
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_GALLERY_ENABLED));
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_FILE_ENABLED));
@@ -1882,7 +2032,6 @@ public class FuseboxMediatorUnitTest {
         assertFalse(mModel.get(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_ENABLED));
         assertFalse(mModel.get(FuseboxProperties.POPUP_ATTACH_TAB_PICKER_ENABLED));
         assertFalse(mModel.get(FuseboxProperties.POPUP_RECENT_TABS_ENABLED));
-
         assertFalse(mModel.get(FuseboxProperties.POPUP_ATTACH_CAMERA_ENABLED));
         assertFalse(mModel.get(FuseboxProperties.POPUP_ATTACH_GALLERY_ENABLED));
         assertFalse(mModel.get(FuseboxProperties.POPUP_ATTACH_FILE_ENABLED));
@@ -1893,7 +2042,6 @@ public class FuseboxMediatorUnitTest {
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_ENABLED));
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_TAB_PICKER_ENABLED));
         assertTrue(mModel.get(FuseboxProperties.POPUP_RECENT_TABS_ENABLED));
-
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_CAMERA_ENABLED));
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_GALLERY_ENABLED));
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_FILE_ENABLED));
@@ -1906,7 +2054,6 @@ public class FuseboxMediatorUnitTest {
         assertFalse(mModel.get(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_ENABLED));
         assertFalse(mModel.get(FuseboxProperties.POPUP_ATTACH_TAB_PICKER_ENABLED));
         assertFalse(mModel.get(FuseboxProperties.POPUP_RECENT_TABS_ENABLED));
-
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_CAMERA_ENABLED));
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_GALLERY_ENABLED));
         assertFalse(mModel.get(FuseboxProperties.POPUP_ATTACH_FILE_ENABLED));
@@ -2163,7 +2310,6 @@ public class FuseboxMediatorUnitTest {
         assertFalse(mModel.get(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_ENABLED));
         assertFalse(mModel.get(FuseboxProperties.POPUP_ATTACH_TAB_PICKER_ENABLED));
         assertFalse(mModel.get(FuseboxProperties.POPUP_RECENT_TABS_ENABLED));
-
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_CAMERA_ENABLED));
         assertTrue(mModel.get(FuseboxProperties.POPUP_ATTACH_GALLERY_ENABLED));
         assertFalse(mModel.get(FuseboxProperties.POPUP_ATTACH_FILE_ENABLED));
@@ -2289,7 +2435,7 @@ public class FuseboxMediatorUnitTest {
         clearInvocations(mComposeboxQueryControllerBridge);
 
         // The active model should be reset to the default (Pro).
-        mModel.get(FuseboxProperties.AUTOCOMPLETE_REQUEST_TYPE_CLICKED).run();
+        mModel.get(FuseboxProperties.REQUEST_TYPE_BUTTON_CLICKED).run();
         verify(mComposeboxQueryControllerBridge)
                 .setActiveModel(ModelMode.MODEL_MODE_GEMINI_PRO_VALUE);
         assertEquals(AutocompleteRequestType.SEARCH, mInput.getRequestType());
@@ -2341,7 +2487,7 @@ public class FuseboxMediatorUnitTest {
     @Test
     public void updateModelForRecentTabs_nonDesktop_remainsHidden() {
         OmniboxCapabilities.setIsDesktopPlatformForTesting(false);
-        mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED).run();
+        mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED).run();
         assertFalse(mModel.get(FuseboxProperties.POPUP_RECENT_TABS_HEADER_VISIBLE));
     }
 
@@ -2360,7 +2506,7 @@ public class FuseboxMediatorUnitTest {
         Tab tab3 = mockTab(3, JUnitTestGURLs.URL_1);
         Tab tab4 = mockTab(4, JUnitTestGURLs.URL_2);
 
-        mModel.get(FuseboxProperties.BUTTON_ADD_CLICKED).run();
+        mModel.get(FuseboxProperties.PLUS_BUTTON_CLICKED).run();
 
         assertTrue(mModel.get(FuseboxProperties.POPUP_RECENT_TABS_HEADER_VISIBLE));
         assertTrue(mModel.get(FuseboxProperties.POPUP_RECENT_TABS_DIVIDER_VISIBLE));
@@ -2386,6 +2532,14 @@ public class FuseboxMediatorUnitTest {
     }
 
     @Test
+    public void cameraButtonVisibility_desktopPlatform() {
+        OmniboxCapabilities.setIsDesktopPlatformForTesting(true);
+        recreateMediator();
+
+        assertFalse(mModel.get(FuseboxProperties.POPUP_ATTACH_CAMERA_VISIBLE));
+    }
+
+    @Test
     public void activationChip() {
         mModel.set(FuseboxProperties.FUSEBOX_LAYOUT_MODE, FuseboxLayoutMode.SUGGESTIONS_POPOVER);
 
@@ -2393,6 +2547,18 @@ public class FuseboxMediatorUnitTest {
         assertFalse(mModel.get(FuseboxProperties.ACTIVATION_CHIP_VISIBLE));
 
         mMediator.beginInput(createSession());
+        assertTrue(mModel.get(FuseboxProperties.ACTIVATION_CHIP_VISIBLE));
+
+        mInput.setSiteSearchData(new SiteSearchData("test", "Test"));
+        assertFalse(mModel.get(FuseboxProperties.ACTIVATION_CHIP_VISIBLE));
+
+        mInput.setSiteSearchData(null);
+        assertTrue(mModel.get(FuseboxProperties.ACTIVATION_CHIP_VISIBLE));
+
+        mInput.getPreviewMatchUrlSupplier().set(new GURL("https://example.com"));
+        assertFalse(mModel.get(FuseboxProperties.ACTIVATION_CHIP_VISIBLE));
+
+        mInput.getPreviewMatchUrlSupplier().set(null);
         assertTrue(mModel.get(FuseboxProperties.ACTIVATION_CHIP_VISIBLE));
 
         mInput.setRequestType(AutocompleteRequestType.AI_MODE);
@@ -2413,5 +2579,131 @@ public class FuseboxMediatorUnitTest {
 
         mInput.setRequestType(AutocompleteRequestType.SEARCH);
         assertEquals(0, mAttachments.size());
+    }
+
+    @Test
+    public void onAutocompleteRequestTypeChanged_setsRequestTypeButtonText() {
+        mInput.setRequestType(AutocompleteRequestType.AI_MODE);
+        assertEquals(
+                mContext.getString(R.string.ai_mode_entrypoint_label),
+                mModel.get(FuseboxProperties.REQUEST_TYPE_BUTTON_TEXT));
+
+        mInput.setRequestType(AutocompleteRequestType.IMAGE_GENERATION);
+        assertEquals(
+                mContext.getString(R.string.omnibox_create_image),
+                mModel.get(FuseboxProperties.REQUEST_TYPE_BUTTON_TEXT));
+
+        mInput.setRequestType(AutocompleteRequestType.DEEP_SEARCH);
+        assertEquals(
+                mContext.getString(R.string.ntp_compose_deep_search),
+                mModel.get(FuseboxProperties.REQUEST_TYPE_BUTTON_TEXT));
+
+        mInput.setRequestType(AutocompleteRequestType.CANVAS);
+        assertEquals(
+                mContext.getString(R.string.ntp_compose_canvas),
+                mModel.get(FuseboxProperties.REQUEST_TYPE_BUTTON_TEXT));
+
+        mInput.setRequestType(AutocompleteRequestType.SEARCH);
+        assertEquals("", mModel.get(FuseboxProperties.REQUEST_TYPE_BUTTON_TEXT));
+    }
+
+    @Test
+    public void onInputStateChanged_setsRequestTypeButtonText_modelPickerEnabled() {
+        OmniboxFeatures.sShowModelPicker.setForTesting(true);
+        recreateMediator();
+
+        ToolConfig canvasConfig =
+                ToolConfig.newBuilder()
+                        .setTool(ToolMode.TOOL_MODE_CANVAS)
+                        .setMenuLabel("Canvas Menu")
+                        .setChipLabel("Canvas Chip")
+                        .build();
+        InputState stateWithTool =
+                new InputState.Builder()
+                        .withActiveTool(ToolMode.TOOL_MODE_CANVAS_VALUE)
+                        .withAllowedTools(ToolMode.TOOL_MODE_CANVAS_VALUE)
+                        .withToolConfigs(new byte[][] {canvasConfig.toByteArray()})
+                        .build();
+
+        mInputStateSupplier.set(stateWithTool);
+        assertEquals("Canvas Chip", mModel.get(FuseboxProperties.REQUEST_TYPE_BUTTON_TEXT));
+
+        mInput.setRequestType(AutocompleteRequestType.AI_MODE);
+        ToolConfig secondConfig =
+                ToolConfig.newBuilder()
+                        .setTool(ToolMode.TOOL_MODE_CANVAS)
+                        .setMenuLabel("Canvas Menu")
+                        .setChipLabel("Canvas Chip")
+                        .build();
+        InputState secondInputState =
+                new InputState.Builder()
+                        .withActiveTool(ToolMode.TOOL_MODE_UNSPECIFIED_VALUE)
+                        .withAllowedTools(ToolMode.TOOL_MODE_CANVAS_VALUE)
+                        .withToolConfigs(new byte[][] {secondConfig.toByteArray()})
+                        .build();
+        mInputStateSupplier.set(secondInputState);
+        assertEquals("AI Mode", mModel.get(FuseboxProperties.REQUEST_TYPE_BUTTON_TEXT));
+    }
+
+    @Test
+    public void testUpdateClientControlledToolButtonList_setsCorrectIcons_desktopPlatform() {
+        OmniboxFeatures.sShowModelPicker.setForTesting(false);
+        OmniboxCapabilities.setIsDesktopPlatformForTesting(true);
+        recreateMediator();
+        RobolectricUtil.runAllBackgroundAndUi();
+
+        List<PopupButtonData> toolButtons =
+                mModel.get(FuseboxProperties.POPUP_TOOL_BUTTON_DATA_LIST);
+        assertThat(toolButtons).hasSize(1);
+        assertEquals(IconResourceIds.BANANA_VALUE, toolButtons.get(0).iconId);
+    }
+
+    @Test
+    public void testOnInputStateChange_desktopPlatform() {
+        OmniboxFeatures.sShowModelPicker.setForTesting(true);
+        OmniboxCapabilities.setIsDesktopPlatformForTesting(true);
+        recreateMediator();
+        mInput.setRequestType(AutocompleteRequestType.AI_MODE);
+
+        ToolConfig deepSearchConfig =
+                ToolConfig.newBuilder()
+                        .setTool(ToolMode.TOOL_MODE_DEEP_SEARCH)
+                        .setMenuLabel("Deep Search")
+                        .build();
+        InputState state =
+                new InputState.Builder()
+                        .withAllowedTools(ToolMode.TOOL_MODE_DEEP_SEARCH_VALUE)
+                        .withToolConfigs(new byte[][] {deepSearchConfig.toByteArray()})
+                        .build();
+        mInputStateSupplier.set(state);
+
+        List<PopupButtonData> tools = mModel.get(FuseboxProperties.POPUP_TOOL_BUTTON_DATA_LIST);
+        assertEquals(1, tools.size());
+        assertEquals("Deep Search", tools.get(0).text);
+        assertFalse(isToolVisible(ToolMode.TOOL_MODE_UNSPECIFIED_VALUE));
+    }
+
+    @Test
+    public void testAlwaysShowAiModePrefChangesActivationChipVisibility() {
+        mModel.set(FuseboxProperties.FUSEBOX_LAYOUT_MODE, FuseboxLayoutMode.SUGGESTIONS_POPOVER);
+        mInput.setRequestType(AutocompleteRequestType.SEARCH);
+        mInput.getPreviewMatchUrlSupplier().set(null);
+        recreateMediator();
+
+        // Verify registrar is initialized
+        assertNotNull(mMediator.mPrefChangeRegistrar);
+
+        // Activation chip should be visible when the pref is true by default
+        assertTrue(mModel.get(FuseboxProperties.ACTIVATION_CHIP_VISIBLE));
+
+        // When the pref is turned off (set to false), activation chip becomes invisible
+        doReturn(false).when(mPrefService).getBoolean(Pref.SHOW_AI_MODE_OMNIBOX_BUTTON);
+        mMediator.updateActivationChip();
+
+        assertFalse(mModel.get(FuseboxProperties.ACTIVATION_CHIP_VISIBLE));
+
+        // Verify registrar is destroyed when ending input
+        mMediator.endInput();
+        assertNull(mMediator.mPrefChangeRegistrar);
     }
 }

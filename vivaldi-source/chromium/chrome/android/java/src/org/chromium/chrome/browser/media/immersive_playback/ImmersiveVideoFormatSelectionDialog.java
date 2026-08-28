@@ -12,12 +12,12 @@ import android.view.WindowManager;
 
 import androidx.activity.ComponentDialog;
 
-import org.chromium.blink.mojom.ImmersivePlaybackConfirmationStatus;
-import org.chromium.blink.mojom.ImmersiveProjectionType;
-import org.chromium.blink.mojom.ImmersiveStereoMode;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
+import org.chromium.content_public.browser.ImmersivePlaybackConfirmationStatus;
+import org.chromium.content_public.browser.ImmersiveProjectionType;
+import org.chromium.content_public.browser.ImmersiveStereoMode;
 import org.chromium.ui.modaldialog.DialogDismissalCause;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modaldialog.ModalDialogProperties;
@@ -64,12 +64,8 @@ public class ImmersiveVideoFormatSelectionDialog {
     }
 
     public void show() {
-        int padding =
-                mResources.getDimensionPixelSize(
-                        R.dimen.immersive_playback_confirmation_dialog_padding);
-
         mRadioGroup = new ImmersiveVideoFormatRadioGroup(mContext);
-        mRadioGroup.setPadding(padding, 0, padding, 0);
+        mRadioGroup.checkOption(ImmersiveStereoMode.MONO, ImmersiveProjectionType.QUAD);
         mRadioGroup.setLayoutParams(
                 new ViewGroup.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -112,9 +108,11 @@ public class ImmersiveVideoFormatSelectionDialog {
 
         if (dismissalCause == DialogDismissalCause.POSITIVE_BUTTON_CLICKED && mRadioGroup != null) {
             status = ImmersivePlaybackConfirmationStatus.CONFIRMED;
-            ImmersiveVideoFormatRadioGroup.FormatOption selected = mRadioGroup.getSelectedFormat();
-            stereoMode = selected.stereoMode;
-            projectionType = selected.projectionType;
+            ImmersiveVideoFormatRadioGroup.FormatOption selected = mRadioGroup.getSelectedOption();
+            if (selected != null) {
+                stereoMode = selected.stereoMode;
+                projectionType = selected.projectionType;
+            }
         } else if (dismissalCause == DialogDismissalCause.NEGATIVE_BUTTON_CLICKED) {
             status = ImmersivePlaybackConfirmationStatus.DECLINED;
         } else if (dismissalCause == DialogDismissalCause.NAVIGATE_BACK_OR_TOUCH_OUTSIDE) {

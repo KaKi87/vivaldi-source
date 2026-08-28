@@ -28,7 +28,7 @@ class StripTabUnderlineManager::UiDelegateImpl
   }
 
   void ResetAnimationCycle() override {
-    // No-op for Android as animation is not supported yet.
+    manager_->ResetAnimationCycle(tab_id_);
   }
 
   void StartRampingDown() override {
@@ -60,8 +60,9 @@ StripTabUnderlineManager::TabUnderlineContext::~TabUnderlineContext() = default;
 StripTabUnderlineManager::TabUnderlineContext::TabUnderlineContext(
     std::unique_ptr<glic::TabUnderlineController> c,
     std::unique_ptr<UiDelegateImpl> d)
-    : controller(std::move(c)), delegate(std::move(d)) {}
+    : delegate(std::move(d)), controller(std::move(c)) {}
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi: keep disabled
+
 void StripTabUnderlineManager::Destroy(JNIEnv* env) {
   delete this;
 }
@@ -87,8 +88,7 @@ void StripTabUnderlineManager::RegisterTab(
       std::make_unique<glic::TabUnderlineController>(tab_android->GetHandle());
   auto delegate = std::make_unique<UiDelegateImpl>(this, tab_id);
 
-  controller->Initialize(delegate.get(),
-                         tab_android->GetBrowserWindowInterface());
+  controller->Initialize(delegate.get());
 
   // Call OnUiReady() so it starts observing
   controller->OnUiReady();
@@ -108,6 +108,11 @@ void StripTabUnderlineManager::SetUnderlineState(int tab_id,
   JNIEnv* env = base::android::AttachCurrentThread();
   Java_StripTabUnderlineManager_setUnderlineState(env, java_obj_, tab_id,
                                                   is_underlined);
+}
+
+void StripTabUnderlineManager::ResetAnimationCycle(int tab_id) {
+  JNIEnv* env = base::android::AttachCurrentThread();
+  Java_StripTabUnderlineManager_resetAnimationCycle(env, java_obj_, tab_id);
 }
 
 static int64_t JNI_StripTabUnderlineManager_Init(

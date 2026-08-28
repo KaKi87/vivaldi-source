@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "ash/constants/ash_features.h"
+#include "ash/constants/ash_policy_pref_names.h"
 #include "ash/constants/ash_pref_names.h"
 #include "base/check_deref.h"
 #include "base/containers/span.h"
@@ -66,12 +67,12 @@
 #include "chrome/browser/ash/policy/status_collector/enterprise_activity_storage.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/ash/settings/scoped_testing_cros_settings.h"
+#include "chrome/browser/ash/settings/stub_cros_settings_provider.h"
 #include "chrome/browser/chrome_content_browser_client.h"
 #include "chrome/browser/global_features.h"
 #include "chrome/browser/policy/profile_policy_connector.h"
 #include "chrome/common/chrome_content_client.h"
 #include "chrome/common/chrome_paths.h"
-#include "chrome/common/pref_names.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile_manager.h"
 #include "chromeos/ash/components/audio/cras_audio_handler.h"
@@ -2135,7 +2136,7 @@ TEST_F(DeviceStatusCollectorTest, KioskAndroidReporting) {
       std::make_unique<DeviceLocalAccount>(fake_kiosk_device_local_account_));
   MockRunningKioskApp(fake_kiosk_device_local_account_,
                       DeviceLocalAccountType::kKioskApp);
-  testing_profile_->GetPrefs()->SetBoolean(prefs::kReportArcStatusEnabled,
+  testing_profile_->GetPrefs()->SetBoolean(ash::prefs::kReportArcStatusEnabled,
                                            true);
 
   GetStatus();
@@ -2174,7 +2175,7 @@ TEST_F(DeviceStatusCollectorTest, RegularUserAndroidReporting) {
   const AccountId account_id(
       AccountId::FromUserEmailGaiaId("user0@managed.com", GaiaId("123456789")));
   MockRegularUserWithAffiliation(account_id, true);
-  testing_profile_->GetPrefs()->SetBoolean(prefs::kReportArcStatusEnabled,
+  testing_profile_->GetPrefs()->SetBoolean(ash::prefs::kReportArcStatusEnabled,
                                            true);
 
   GetStatus();
@@ -2399,7 +2400,7 @@ TEST_F(DeviceStatusCollectorTest,
   const AccountId account_id(
       AccountId::FromUserEmailGaiaId("user0@managed.com", GaiaId("123456789")));
   MockRegularUserWithAffiliation(account_id, false);
-  testing_profile_->GetPrefs()->SetBoolean(prefs::kReportArcStatusEnabled,
+  testing_profile_->GetPrefs()->SetBoolean(ash::prefs::kReportArcStatusEnabled,
                                            true);
 
   GetStatus();
@@ -2574,7 +2575,7 @@ TEST_F(DeviceStatusCollectorTest, NoSessionStatusIfSessionReportingDisabled) {
   // Set up a device-local account for single-app kiosk mode.
   MockRunningKioskApp(fake_kiosk_device_local_account_,
                       DeviceLocalAccountType::kKioskApp);
-  testing_profile_->GetPrefs()->SetBoolean(prefs::kReportArcStatusEnabled,
+  testing_profile_->GetPrefs()->SetBoolean(ash::prefs::kReportArcStatusEnabled,
                                            false);
 
   GetStatus();

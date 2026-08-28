@@ -17,10 +17,8 @@
 #include "base/functional/bind.h"
 #include "base/i18n/rtl.h"
 #include "base/memory/raw_ptr.h"
-#include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
-#include "base/test/simple_test_clock.h"
 #include "base/test/simple_test_tick_clock.h"
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
@@ -38,38 +36,26 @@
 #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
 #include "chrome/browser/ui/omnibox/omnibox_tab_helper.h"
 #include "chrome/browser/ui/views/bubble_anchor_util_views.h"
-#include "chrome/common/pref_names.h"
 #include "chrome/test/base/test_browser_window.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/views/chrome_views_test_base.h"
-#include "components/lookalikes/core/safety_tip_test_utils.h"
 #include "components/omnibox/browser/test_location_bar_model.h"
-#include "components/omnibox/common/omnibox_feature_configs.h"
-#include "components/omnibox/common/omnibox_features.h"
-#include "components/unified_consent/pref_names.h"
 #include "content/public/browser/browser_accessibility_state.h"
-#include "content/public/browser/focused_node_details.h"
 #include "content/public/browser/scoped_accessibility_mode.h"
-#include "content/public/test/browser_task_environment.h"
-#include "content/public/test/mock_navigation_handle.h"
 #include "content/public/test/test_renderer_host.h"
 #include "content/public/test/web_contents_tester.h"
 #include "services/network/test/test_url_loader_factory.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/input/web_input_event.h"
-#include "third_party/blink/public/common/input/web_keyboard_event.h"
-#include "third_party/blink/public/common/input/web_mouse_event.h"
 #include "third_party/metrics_proto/omnibox_event.pb.h"
-#include "ui/accessibility/accessibility_features.h"
 #include "ui/base/clipboard/clipboard.h"
 #include "ui/base/clipboard/scoped_clipboard_writer.h"
 #include "ui/base/clipboard/test/clipboard_test_util.h"
+#include "ui/base/dragdrop/drag_drop_types.h"
 #include "ui/base/ime/input_method.h"
 #include "ui/base/ime/text_edit_commands.h"
 #include "ui/events/event_utils.h"
 #include "ui/events/keycodes/dom/dom_code.h"
-#include "ui/gfx/animation/animation_container_element.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/render_text.h"
 #include "ui/gfx/render_text_test_api.h"
@@ -101,10 +87,6 @@ class TestingOmniboxView : public OmniboxViewViews {
                                 const Range& selection_range);
 
   void CheckUpdatePopupNotCalled();
-
-  void SetClipboardTextForTesting(const std::u16string& text) {
-    clipboard_text_for_menu_ = text;
-  }
 
   Range scheme_range() const { return scheme_range_; }
   Range emphasis_range() const { return emphasis_range_; }
@@ -324,13 +306,15 @@ class TestLocationBar : public LocationBar {
   }
 
   ui::TrackedElement* GetAnchorOrNull() override { return nullptr; }
-  Browser* GetBrowser() override { return nullptr; }
+  BrowserWindowInterface* GetBrowser() override { return nullptr; }
   Profile* GetProfile() override { return profile_; }
   bool IsInitialized() const override { return true; }
   bool IsVisible() const override { return true; }
   bool IsDrawn() const override { return true; }
   bool IsFullscreen() const override { return false; }
   bool IsEditingOrEmpty() const override { return false; }
+  bool IsMouseHovered() const override { return false; }
+  bool IsFocusWithin() const override { return false; }
   void InvalidateLayout() override {}
   gfx::Rect Bounds() const override { return gfx::Rect(); }
   gfx::Rect BoundsInScreen() const override { return gfx::Rect(); }
@@ -509,8 +493,7 @@ void OmniboxViewViewsTest::SetUp() {
   util_ = std::make_unique<TemplateURLServiceFactoryTestUtil>(profile_.get());
 
   // We need a widget so OmniboxView can be correctly focused and unfocused.
-  widget_ =
-      CreateTestWidget(views::Widget::InitParams::CLIENT_OWNS_WIDGET);
+  widget_ = CreateTestWidget(views::Widget::InitParams::CLIENT_OWNS_WIDGET);
   widget_->Show();
 
   AutocompleteClassifierFactory::GetInstance()->SetTestingFactoryAndUse(
@@ -1164,10 +1147,16 @@ TEST_F(OmniboxViewViewsTest, SchemeStrikethrough) {
 }
 
 #if BUILDFLAG(SUPPORTS_AX_TEXT_OFFSETS)
+#if BUILDFLAG(IS_WIN) && defined(ARCH_CPU_ARM64)
+// TODO(crbug.com/533683545): Fix this test on Win ARM64.
+#define MAYBE_AccessibleTextOffsetsUpdatesAfterElideBehaviorChange \
+  DISABLED_AccessibleTextOffsetsUpdatesAfterElideBehaviorChange
+#else
+#define MAYBE_AccessibleTextOffsetsUpdatesAfterElideBehaviorChange \
+  AccessibleTextOffsetsUpdatesAfterElideBehaviorChange
+#endif
 TEST_F(OmniboxViewViewsTest,
-       AccessibleTextOffsetsUpdatesAfterElideBehaviorChange) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeature(::features::kUiaProvider);
+       MAYBE_AccessibleTextOffsetsUpdatesAfterElideBehaviorChange) {
   EnableDeferredLoadingAccessibility();
   CHECK(omnibox_view()->GetViewAccessibility().is_initialized());
 
@@ -1872,4 +1861,31 @@ TEST_F(OmniboxViewViewsTest, SetUserTextForTab) {
   ASSERT_TRUE(state2);
   EXPECT_EQ(injected_text, state2->model_state.user_text);
   EXPECT_TRUE(state2->model_state.user_input_in_progress);
+}
+
+TEST_F(OmniboxViewViewsTest, DragAndDropTextWithinOmnibox) {
+  // Setup: Set text to "abcdef" and select "bcd".
+  omnibox_view()->SetText(u"abcdef");
+  omnibox_view()->SetSelectedRange(gfx::Range(1, 4));
+  EXPECT_EQ(omnibox_textfield()->GetSelectedText(), u"bcd");
+
+  // Simulate dragging from the Omnibox itself.
+  GetTextfieldTestApi().SetInitiatingDrag(true);
+
+  // Perform a drag & drop.
+  ui::OSExchangeData data;
+  data.SetString(u"bcd");
+  ui::DropTargetEvent event(data, {}, {}, ui::DragDropTypes::DRAG_MOVE);
+  views::View::DropCallback drop_callback =
+      omnibox_view()->GetDropCallback(event);
+  ASSERT_FALSE(drop_callback.is_null());
+  ui::mojom::DragOperation output_drag_op = ui::mojom::DragOperation::kNone;
+  std::move(drop_callback)
+      .Run(event, output_drag_op,
+           /*drag_image_layer_owner=*/nullptr);
+
+  // The text should be moved to the start instead of replacing all omnibox text
+  // like dragging from outside the omnibox would.
+  EXPECT_EQ(omnibox_view()->GetText(), u"bcdaef");
+  EXPECT_EQ(output_drag_op, ui::mojom::DragOperation::kMove);
 }

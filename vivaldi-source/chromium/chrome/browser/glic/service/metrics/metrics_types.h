@@ -120,10 +120,10 @@ enum class ResponseSegmentation {
   kTextSelectionWidgetAttachedAudio = 102,
   kTextSelectionWidgetDetachedText = 103,
   kTextSelectionWidgetDetachedAudio = 104,
-  kZeroStateAutoSummarizeAttachedText = 105,
-  kZeroStateAutoSummarizeAttachedAudio = 106,
-  kZeroStateAutoSummarizeDetachedText = 107,
-  kZeroStateAutoSummarizeDetachedAudio = 108,
+  kObsoleteZeroStateAutoSummarizeAttachedText = 105,
+  kObsoleteZeroStateAutoSummarizeAttachedAudio = 106,
+  kObsoleteZeroStateAutoSummarizeDetachedText = 107,
+  kObsoleteZeroStateAutoSummarizeDetachedAudio = 108,
   kUniversalCartAttachedText = 109,
   kUniversalCartAttachedAudio = 110,
   kUniversalCartDetachedText = 111,
@@ -156,7 +156,35 @@ enum class ResponseSegmentation {
   kPromotionPageAttachedAudio = 138,
   kPromotionPageDetachedText = 139,
   kPromotionPageDetachedAudio = 140,
-  kMaxValue = kPromotionPageDetachedAudio,
+  kDaisyChainOnNewTabAttachedText = 141,
+  kDaisyChainOnNewTabAttachedAudio = 142,
+  kDaisyChainOnNewTabDetachedText = 143,
+  kDaisyChainOnNewTabDetachedAudio = 144,
+  kDaisyChainOnFollowLinkAttachedText = 145,
+  kDaisyChainOnFollowLinkAttachedAudio = 146,
+  kDaisyChainOnFollowLinkDetachedText = 147,
+  kDaisyChainOnFollowLinkDetachedAudio = 148,
+  kConversationSwitchAttachedText = 149,
+  kConversationSwitchAttachedAudio = 150,
+  kConversationSwitchDetachedText = 151,
+  kConversationSwitchDetachedAudio = 152,
+  kDetachAttachButtonAttachedText = 153,
+  kDetachAttachButtonAttachedAudio = 154,
+  kDetachAttachButtonDetachedText = 155,
+  kDetachAttachButtonDetachedAudio = 156,
+  kTabRestoreAttachedText = 157,
+  kTabRestoreAttachedAudio = 158,
+  kTabRestoreDetachedText = 159,
+  kTabRestoreDetachedAudio = 160,
+  kReshowInactiveAttachedText = 161,
+  kReshowInactiveAttachedAudio = 162,
+  kReshowInactiveDetachedText = 163,
+  kReshowInactiveDetachedAudio = 164,
+  kTabContextMenuAttachedText = 165,
+  kTabContextMenuAttachedAudio = 166,
+  kTabContextMenuDetachedText = 167,
+  kTabContextMenuDetachedAudio = 168,
+  kMaxValue = kTabContextMenuDetachedAudio,
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicResponseSegmentation)
 
@@ -182,6 +210,137 @@ enum class DaisyChainSource {
   kMaxValue = kBookmark,
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/histograms.xml:Source)
+
+// LINT.IfChange(GlicDragAndDropValidationResult)
+enum class GlicDragAndDropValidationResult {
+  kSuccess = 0,
+  kBlockedByFeatureFlag = 1,
+  kInvalidDragId = 2,
+  kCrossProfileDragBlocked = 3,
+  kSourceWebContentsDestroyed = 4,
+  kSourceTabClosed = 5,
+  kTargetWebContentsDestroyed = 6,
+  kSourceFrameNavigatedBeforeContextFetched = 7,
+  kContextFetchFailed = 8,
+  kMaxValue = kContextFetchFailed,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicDragAndDropValidationResult)
+
+// LINT.IfChange(GlicDragAndDropContentType)
+enum class GlicDragAndDropContentType {
+  kUnknown = 0,
+  kImage = 1,
+  kText = 2,
+  kHtml = 3,
+  kUrl = 4,
+  kFile = 5,
+  kMaxValue = kFile,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicDragAndDropContentType)
+
+// This enumerates a set of possible lifecycle errors which are logged when the
+// sequence of received events was not expected.
+// LINT.IfChange(GlicInstanceMetricsError)
+enum class GlicInstanceMetricsError {
+  kResponseStartWithoutInput = 0,
+  kResponseStopWithoutInput = 1,
+  kResponseStartWhileHidingOrHidden = 2,
+  kInputSubmittedWhileResponseInProgress = 3,
+  kSidePanelOpenedWhileAlreadyOpen = 4,
+  kFloatyOpenedWhileAlreadyOpen = 5,
+  kInputSubmittedWhileHidden = 6,
+  kTabUnbindWithoutOpen = 7,
+  kSidePanelClosedWithoutOpen = 8,
+  kFloatyClosedWithoutOpen = 9,
+  kMaxValue = kFloatyClosedWithoutOpen,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicInstanceMetricsError)
+
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+// This enum should be kept in sync with GlicInstanceEvent in enums.xml. Each
+// value is recorded at most once per instance.
+
+// LINT.IfChange(GlicInstanceEvent)
+enum class GlicInstanceEvent {
+  kInstanceCreated = 0,
+  kWarmedInstanceCreated = 1,
+  kInstanceCreatedWithoutWarming = 2,
+  kInstancePromoted = 3,
+  kSidePanelShown = 4,
+  kFloatyShown = 5,
+  kDetachedToFloaty = 6,
+  kTabBound = 7,
+  kTabBoundViaDaisyChain = 8,
+  kDaisyChainFailed = 9,
+  kConversationSwitchedFromFloaty = 10,
+  kConversationSwitchedFromSidePanel = 11,
+  kConversationSwitchedToFloaty = 12,
+  kConversationSwitchedToSidePanel = 13,
+  kRegisterConversation = 14,
+  kInstanceHidden = 15,
+  kClose = 16,
+  kToggle = 17,
+  kBoundTabDestroyed = 18,
+  kCreateTab = 19,
+  kCreateTask = 20,
+  kPerformActions = 21,
+  kStopActorTask = 22,
+  kPauseActorTask = 23,
+  kResumeActorTask = 24,
+  kInterruptActorTask = 25,
+  kUninterruptActorTask = 26,
+  kWebUiStateUninitialized = 27,
+  kWebUiStateBeginLoad = 28,
+  kWebUiStateShowLoading = 29,
+  kWebUiStateHoldLoading = 30,
+  kWebUiStateFinishLoading = 31,
+  kWebUiStateError = 32,
+  kWebUiStateOffline = 33,
+  kWebUiStateUnavailable = 34,
+  kWebUiStateReady = 35,
+  kWebUiStateUnresponsive = 36,
+  kWebUiStateSignIn = 37,
+  kWebUiStateGuestError = 38,
+  kWebUiStateDisabledByAdmin = 39,
+  kUnbindEmbedder = 40,
+  kUserInputSubmitted = 41,
+  kContextRequested = 42,
+  kResponseStarted = 43,
+  kResponseStopped = 44,
+  kTurnCompleted = 45,
+  kReaction = 46,
+  kShown = 47,
+  kOpen = 48,
+  kWebUiStateWarmed = 49,
+  // kOpen2 = 50 - Only used in Canary M150
+  kWebUiStateLocationMismatch = 51,
+  kWebUiStateIneligibleAccount = 52,
+  kClientReady = 53,
+  kMaxValue = kClientReady,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicInstanceEvent)
+
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+// LINT.IfChange(SkillsInvokeFunnel)
+enum class SkillsInvokeFunnel {
+  kOpenedMenu = 0,
+  kInvokedSkill = 1,
+  kMaxValue = kInvokedSkill,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:SkillsInvokeFunnel)
+
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+// LINT.IfChange(SkillBuilderEvent)
+enum class SkillBuilderEvent {
+  kClickedPromoChip = 0,
+  kPromptGenerated = 1,
+  kClickedSaveAsSkill = 2,
+  kMaxValue = kClickedSaveAsSkill,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:SkillBuilderEvent)
 
 std::string GetDaisyChainSourceString(DaisyChainSource source);
 

@@ -237,7 +237,7 @@ public class FuseboxSessionStateUnitTest {
         FuseboxSessionState session = FuseboxSessionState.from(mLocationBarDataProvider);
         session.activate(ContextUtils.getApplicationContext(), null, mProfileSupplier, null);
 
-        assertEquals("www.google.com/", session.getAutocompleteInput().getUserText());
+        assertEquals("www.google.com", session.getAutocompleteInput().getUserText());
     }
 
     @Test
@@ -274,5 +274,18 @@ public class FuseboxSessionStateUnitTest {
         session.activate(ContextUtils.getApplicationContext(), null, mProfileSupplier, null);
 
         assertEquals("", session.getAutocompleteInput().getUserText());
+    }
+
+    @Test
+    public void testDeactivate_setsDisabledState() {
+        FuseboxSessionState session = FuseboxSessionState.from(mLocationBarDataProvider);
+        session.activate(ContextUtils.getApplicationContext(), null, mProfileSupplier, null);
+        RobolectricUtil.runAllBackgroundAndUi();
+        assertTrue(session.isSessionActive());
+
+        session.deactivate();
+        assertEquals(
+                AutocompleteInput.AutocompleteState.DISABLED,
+                session.getAutocompleteInput().getAutocompleteState());
     }
 }

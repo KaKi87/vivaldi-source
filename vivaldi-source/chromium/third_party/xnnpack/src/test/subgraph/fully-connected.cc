@@ -238,6 +238,13 @@ void TestStaticB(xnn_datatype convert_to = xnn_datatype_invalid,
       // Align the input channels to the number of filter elements per byte.
       input_channels = round_up(input_channels, filter_channel_factor);
     }
+#ifdef XNNPACK_USE_YNNPACK
+    // In XNNPACK, the weights for sub-byte types are treated as if they are
+    // transposed, which means we need to transpose them again to make the
+    // weights consistent with other types, which means we need the output
+    // channels to be aligned to the number of elements per byte too.
+    output_channels = round_up(output_channels, filter_channel_factor);
+#endif
 
     uint32_t flags = 0;
     if (filter_channel_factor > 1) {
@@ -495,9 +502,7 @@ void TestStaticB(xnn_datatype convert_to = xnn_datatype_invalid,
 
 TEST(FullyConnectedQC8, static_b) { TestStaticB<qint8, qcint8, qcint32>(); }
 TEST(FullyConnectedQS8, static_b) { TestStaticB<qint8, qint8, qint32>(); }
-#ifndef XNNPACK_USE_YNNPACK
 TEST(FullyConnectedQU8, static_b) { TestStaticB<quint8, quint8, qint32>(); }
-#endif  // XNNPACK_USE_YNNPACK
 
 TEST(FullyConnectedQS8QC8W, static_b) { TestStaticB<qint8, qcint8, qcint32>(); }
 TEST(FullyConnectedQS8QC4W, static_b) { TestStaticB<qint8, qcint4, qcint32>(); }
@@ -508,6 +513,9 @@ TEST(FullyConnectedF16F32F16, static_b) {
 }
 TEST(FullyConnectedF16, static_b) {
   TestStaticB<xnn_float16, xnn_float16, xnn_float16>();
+}
+TEST(FullyConnectedF16F16F32, static_b) {
+  TestStaticB<xnn_float16, xnn_float16, float>();
 }
 TEST(FullyConnectedF32, static_b) { TestStaticB<float, float, float>(); }
 TEST(FullyConnectedF32F16F16, static_b) {
@@ -537,7 +545,6 @@ TEST(FullyConnectedBF16F32, static_b) {
   TestStaticB<xnn_bfloat16, xnn_bfloat16, float, float>();
 }
 
-#ifndef XNNPACK_USE_YNNPACK
 TEST(FullyConnectedQD8F16QC2W, static_b) {
   TestStaticB<xnn_float16, qcint2, float>(/*convert_to=*/xnn_datatype_qdint8);
 }
@@ -545,7 +552,6 @@ TEST(FullyConnectedQD8F16QC2W, static_b) {
 TEST(FullyConnectedQD8F16QC4W, static_b) {
   TestStaticB<xnn_float16, qcint4, float>(/*convert_to=*/xnn_datatype_qdint8);
 }
-#endif  // XNNPACK_USE_YNNPACK
 
 TEST(FullyConnectedQD8F16QC8W, static_b) {
   TestStaticB<xnn_float16, qcint8, float>(/*convert_to=*/xnn_datatype_qdint8);
@@ -855,6 +861,52 @@ TEST(FullyConnectedF32, zero_dim_input_rejected) {
 
   xnn_delete_runtime(runtime);
   xnn_delete_subgraph(subgraph);
+}
+
+// Regression test: fully-connected reshape must reject an input whose innermost
+// dimension does not match the filter input channels. The batch size is derived
+// as num_input_elements / input_channels, so a mismatched innermost dimension
+// decouples it from the input batch dimensions. The dynamically-quantized
+// parameter buffer is sized from the input batch dimensions, so the larger
+// batch size over-indexes it at invoke time, reading out of bounds.
+TEST(FullyConnectedQD8F32QC8W, reshape_rejects_input_channel_mismatch) {
+  ASSERT_EQ(xnn_status_success, xnn_initialize(nullptr));
+  const size_t output_channels = 4;
+  const size_t input_channels = 2;
+  SubgraphTester subgraph(3);
+  const uint32_t input_id = 0, filter_id = 1, output_id = 2;
+  subgraph.AddInputTensor(2, xnn_datatype_fp32, input_id);
+  uint32_t fc_input_id = input_id;
+  subgraph.AddInternalDynamicallyQuantizedTensor(
+      2, xnn_datatype_qdint8, /*num_nonbatch_dims=*/1, &fc_input_id);
+  subgraph.AddConvert(input_id, fc_input_id);
+
+  Tensor<int8_t> filter({output_channels, input_channels}, XnnExtraBytes);
+  filter.fill(0);
+  Tensor<float> filter_scale({output_channels});
+  filter_scale.fill(1.0f);
+  subgraph.AddStaticChannelwiseQuantizedTensor(
+      {output_channels, input_channels}, /*channel_dim=*/0,
+      xnn_datatype_qcint8, filter_scale.base(), filter_id, /*flags=*/0,
+      filter.base());
+
+  subgraph.AddOutputTensor(2, xnn_datatype_fp32, output_id)
+      .AddFullyConnected(-std::numeric_limits<float>::infinity(),
+                         std::numeric_limits<float>::infinity(), fc_input_id,
+                         filter_id, XNN_INVALID_VALUE_ID, output_id);
+  const xnn_status create_status = subgraph.CreateRuntime();
+  if (create_status == xnn_status_unsupported_hardware) {
+    GTEST_SKIP();
+  }
+  ASSERT_EQ(xnn_status_success, create_status);
+
+  // Innermost input dimension (8) is a multiple of input_channels (2) but does
+  // not equal it, so the old divisibility check passed this shape through.
+  Tensor<float> input({1, 8}, XnnExtraBytes);
+  input.fill(0.0f);
+  subgraph.ReshapeExternalTensor({1, 8}, input.base(), input_id)
+      .ReshapeRuntime();
+  ASSERT_NE(xnn_status_success, subgraph.Status());
 }
 
 }  // namespace xnnpack

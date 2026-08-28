@@ -6,7 +6,6 @@
 
 #include "base/metrics/field_trial_params.h"
 #include "chrome/browser/browser_process.h"
-//#include "chrome/browser/glic/host/glic_features.mojom.h"
 //#include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/common/chrome_features.h"
 #include "components/variations/service/variations_service.h"
@@ -21,8 +20,6 @@ BASE_FEATURE(kZeroStateSuggestionsUsePrivateAi,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kEnableAutoOpenGlicSidePanel, base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kUseAnchoredMessage, base::FEATURE_DISABLED_BY_DEFAULT);
 
 bool IsContextualCueingEnabled() {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
@@ -159,7 +156,7 @@ const base::FeatureParam<base::TimeDelta> kZSSPageContextTimeout(
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 const base::FeatureParam<int> kMaxPinnedPagesForTriggeringSuggestions(
-    &glic::mojom::features::kZeroStateSuggestionsV2,
+    &kGlicZeroStateSuggestions,
     "ZSSMaxPinnedPagesForTriggeringSuggestions",
     10);
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled

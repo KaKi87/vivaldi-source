@@ -34,6 +34,7 @@
 #import "ios/chrome/test/earl_grey/test_switches.h"
 #import "ios/testing/earl_grey/app_launch_configuration.h"
 #import "ios/testing/earl_grey/app_launch_manager.h"
+#import "ios/testing/earl_grey/disabled_test_macros.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
 #import "ios/web/public/test/element_selector.h"
 #import "ui/base/l10n/l10n_util.h"
@@ -63,6 +64,22 @@ std::vector<std::string> PopulateExpectedPolicy(const std::string& name,
   expected_policy.push_back("Machine");
   expected_policy.push_back("Mandatory");
   expected_policy.push_back("OK");
+
+  return expected_policy;
+}
+
+std::vector<std::string> PopulateExpectedRestartPolicy(
+    const std::string& name,
+    const std::string& value) {
+  std::vector<std::string> expected_policy;
+
+  // Populate expected policy column and row fields.
+  expected_policy.push_back(name);
+  expected_policy.push_back(value);
+  expected_policy.push_back("Platform");
+  expected_policy.push_back("Machine");
+  expected_policy.push_back("Mandatory");
+  expected_policy.push_back("Restart required");
 
   return expected_policy;
 }
@@ -111,13 +128,54 @@ void VerifyPolicies(
 }
 
 ElementSelector* ReloadPoliciesButton() {
-  return [ElementSelector
-      selectorWithElementID:base::SysNSStringToUTF8(kReloadPoliciesButton)];
+  NSString* script = @"(function() {"
+                      "  var app = document.querySelector('policy-app');"
+                      "  return app && app.shadowRoot ? "
+                      "app.shadowRoot.querySelector('#reload-policies') : null;"
+                      "})()";
+  return [ElementSelector selectorWithScript:script
+                         selectorDescription:@"reload policies button"];
+}
+
+ElementSelector* MoreActionsButton() {
+  NSString* script =
+      @"(function() {"
+       "  var app = document.querySelector('policy-app');"
+       "  return app && app.shadowRoot ? "
+       "app.shadowRoot.querySelector('#more-actions-button') : null;"
+       "})()";
+  return [ElementSelector selectorWithScript:script
+                         selectorDescription:@"more actions button"];
+}
+
+ElementSelector* ViewLogsButton() {
+  NSString* script = @"(function() {"
+                      "  var app = document.querySelector('policy-app');"
+                      "  return app && app.shadowRoot ? "
+                      "app.shadowRoot.querySelector('#view-logs') : null;"
+                      "})()";
+  return [ElementSelector selectorWithScript:script
+                         selectorDescription:@"view logs button"];
 }
 
 ElementSelector* RefreshLogsButton() {
-  return [ElementSelector
-      selectorWithElementID:base::SysNSStringToUTF8(kRefreshLogsButton)];
+  NSString* script =
+      @"(function() {"
+       "  var app = document.querySelector('policy-logs-app');"
+       "  return app ? app.shadowRoot.getElementById('logs-refresh') : null;"
+       "})()";
+  return [ElementSelector selectorWithScript:script
+                         selectorDescription:@"'logs-refresh' button"];
+}
+
+ElementSelector* ExportLogsButton() {
+  NSString* script =
+      @"(function() {"
+       "  var app = document.querySelector('policy-logs-app');"
+       "  return app ? app.shadowRoot.getElementById('logs-dump') : null;"
+       "})()";
+  return [ElementSelector selectorWithScript:script
+                         selectorDescription:@"'logs-dump' button"];
 }
 
 ElementSelector* ApplyPoliciesButton() {
@@ -197,7 +255,8 @@ id<GREYMatcher> DownloadButton() {
 - (void)testPolicyPageLoadsCorrectly {
   [ChromeEarlGrey loadURL:GURL(kChromeUIPolicyURL)];
   [ChromeEarlGrey waitForWebStateContainingElement:ReloadPoliciesButton()];
-  [ChromeEarlGrey tapWebStateElementWithID:kReloadPoliciesButton];
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::WebViewMatcher()]
+      performAction:chrome_test_util::TapWebElement(ReloadPoliciesButton())];
 
   // Open in new incognito tab.
   [ChromeEarlGrey openNewIncognitoTab];
@@ -210,7 +269,14 @@ id<GREYMatcher> DownloadButton() {
 - (void)testPolicyLogsPageLoadsCorrectly {
   [ChromeEarlGrey loadURL:GURL(kChromeUIPolicyLogsURL)];
   [ChromeEarlGrey waitForWebStateContainingElement:RefreshLogsButton()];
-  [ChromeEarlGrey tapWebStateElementWithID:kRefreshLogsButton];
+  [ChromeEarlGrey
+      evaluateJavaScriptForSideEffect:
+          @"(function() {"
+           "  var app = document.querySelector('policy-logs-app');"
+           "  if (app && app.shadowRoot) {"
+           "    app.shadowRoot.getElementById('logs-refresh').click();"
+           "  }"
+           "})()"];
 
   // Open in new incognito tab.
   [ChromeEarlGrey openNewIncognitoTab];
@@ -282,7 +348,7 @@ id<GREYMatcher> DownloadButton() {
   expected_policies.push_back(
       PopulateExpectedPolicy("AutofillCreditCardEnabled", "false"));
   expected_policies.push_back(
-      PopulateExpectedPolicy("IncognitoModeAvailability", "1"));
+      PopulateExpectedRestartPolicy("IncognitoModeAvailability", "1"));
   VerifyPolicies(expected_policies);
 }
 
@@ -327,9 +393,11 @@ id<GREYMatcher> DownloadButton() {
 - (void)testViewLogsRedirectsToLogsPage {
   [ChromeEarlGrey loadURL:GURL(kChromeUIPolicyURL)];
   // Click the dropdown and wait until the button shows.
-  [ChromeEarlGrey tapWebStateElementWithID:kMoreActionsButton];
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::WebViewMatcher()]
+      performAction:chrome_test_util::TapWebElement(MoreActionsButton())];
   // Click "View Logs"
-  [ChromeEarlGrey tapWebStateElementWithID:kViewLogsButton];
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::WebViewMatcher()]
+      performAction:chrome_test_util::TapWebElement(ViewLogsButton())];
   // Verify that the logs page is opened.
   [ChromeEarlGrey waitForWebStateContainingElement:RefreshLogsButton()];
 }
@@ -340,9 +408,20 @@ id<GREYMatcher> DownloadButton() {
 
 // Tests that the export button successfully downloads a file.
 - (void)testExportLogsToJson {
+  if ([ChromeEarlGrey isIPadIdiom]) {
+    // TODO(crbug.com/520106708): Failing on ipad device.
+    EARL_GREY_TEST_SKIPPED(@"Disabled on iPad");
+  }
   [ChromeEarlGrey loadURL:GURL(kChromeUIPolicyLogsURL)];
+  [ChromeEarlGrey waitForWebStateContainingElement:ExportLogsButton()];
   // Click "Export Logs to JSON" button
-  [ChromeEarlGrey tapWebStateElementWithID:kExportLogsButton];
+  [ChromeEarlGrey evaluateJavaScriptForSideEffect:
+                      @"(function() {"
+                       "  var app = document.querySelector('policy-logs-app');"
+                       "  if (app && app.shadowRoot) {"
+                       "    app.shadowRoot.getElementById('logs-dump').click();"
+                       "  }"
+                       "})()"];
   // Verify the download button at the bottom shows.
   GREYAssert(WaitForDownloadButton(), @"Download button did not show up");
   [[EarlGrey selectElementWithMatcher:DownloadButton()]

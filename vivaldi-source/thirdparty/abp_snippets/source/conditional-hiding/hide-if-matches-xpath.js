@@ -14,24 +14,24 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 
 import {hideElement, initQueryAndApply} from "../utils/dom.js";
-import {formatArguments} from "../utils/general.js";
+import {formatArguments, sendSnippetHitEvent} from "../utils/general.js";
 import {waitUntilEvent} from "../utils/execution.js";
 import {profile} from "../introspection/profile.js";
 import {raceWinner} from "../introspection/race.js";
 import {getDebugger} from "../introspection/log.js";
 
 let {MutationObserver, WeakSet} = $(window);
+const hitFilters = new Set();
 
 const {ELEMENT_NODE} = Node;
 
 /**
- * Hide a specific element through a XPath 1.0 query string.
+ * @description Hide a specific element through a XPath 1.0 query string.
  * See {@tutorial xpath-filters} to know more.
- * @alias module:content/snippets.hide-if-matches-xpath
+ * @memberof module:snippets/conditional-hiding
  *
  * @param {string} query The XPath query that targets the element to hide.
  * @param {string} scopeQuery CSS or XPath selector that the filter devs can
@@ -41,7 +41,13 @@ const {ELEMENT_NODE} = Node;
  * @param {string} waitUntil Optional parameter that can be used to delay
  * the running of the snippet until the given state is reached.
  * Accepts: loading, interactive, complete, load or any event name
- *
+ * @example
+ * hide-if-matches-xpath
+ * '//{@literal *}[contains(concat(" ",normalize-space(@class)," "),
+ * " ad-container ")]' =>
+ * Hides all elements which have a class named ad-container.
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69959720/hide-if-matches-xpath} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/conditional-hiding-snippets/hide-if-matches-xpath} for external documentation.
  * @since Adblock Plus 3.9.0
  */
 export function hideIfMatchesXPath(query, scopeQuery, waitUntil) {
@@ -66,6 +72,13 @@ export function hideIfMatchesXPath(query, scopeQuery, waitUntil) {
                  node,
                  "\nFILTER: hide-if-matches-xpath",
                  formattedArguments);
+        const filter =
+          "hide-if-matches-xpath " +
+          formattedArguments;
+        if (!hitFilters.has(filter)) {
+          hitFilters.add(filter);
+          sendSnippetHitEvent(filter);
+        }
       };
 
       const callback = () => {

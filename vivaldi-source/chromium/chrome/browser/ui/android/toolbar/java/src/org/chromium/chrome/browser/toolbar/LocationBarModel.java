@@ -7,6 +7,7 @@ package org.chromium.chrome.browser.toolbar;
 import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.content.Context;
+import android.content.res.Resources;
 import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
 import android.util.LruCache;
@@ -27,6 +28,7 @@ import org.chromium.build.annotations.EnsuresNonNullIf;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;
+import org.chromium.chrome.browser.contextual_tasks.ContextualTasksUtils;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.omnibox.ChromeAutocompleteSchemeClassifier;
 import org.chromium.chrome.browser.omnibox.FuseboxSessionState;
@@ -445,6 +447,15 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
             }
 
             GURL gurl = getCurrentGurl();
+            if (ContextualTasksUtils.isContextualTasksUrl(gurl)) {
+                String urlForDisplay = getUrlForDisplay();
+                String formattedUrl = getFormattedFullUrl();
+                if (isUrlRewritten(gurl, urlForDisplay, formattedUrl)) {
+                    return buildUrlBarData(gurl, false, urlForDisplay);
+                }
+                return UrlBarData.EMPTY;
+            }
+
             boolean shouldShowUrl = UrlBarData.shouldShowUrl(gurl, isOffTheRecord());
 
             if (!shouldShowUrl) {
@@ -452,7 +463,7 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
                 // the underlying URL would normally be suppressed.
                 String urlForDisplay = getUrlForDisplay();
                 String formattedUrl = getFormattedFullUrl();
-                if (isUrlRewritten(urlForDisplay, formattedUrl)) {
+                if (isUrlRewritten(gurl, urlForDisplay, formattedUrl)) {
                     // Use urlForDisplay for both display and editing to avoid exposing the
                     // underlying URL (e.g. chrome://contextual-tasks).
                     return buildUrlBarData(
@@ -509,8 +520,25 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
         }
     }
 
-    private boolean isUrlRewritten(String displayUrl, String formattedUrl) {
-        return !TextUtils.isEmpty(displayUrl) && !displayUrl.equals(formattedUrl);
+    /**
+     * Determines whether the URL has been rewritten (e.g. AI Mode origin-swapping) by comparing the
+     * base page URL, display URL, and formatted URL.
+     *
+     * @param basePageUrl The underlying, un-rewritten GURL of the page.
+     * @param displayUrl The URL string intended to be displayed in the omnibox.
+     * @param formattedUrl The formatted URL string used for editing or full representation.
+     * @return True if the display URL represents a rewritten URL, false otherwise.
+     */
+    private boolean isUrlRewritten(GURL basePageUrl, String displayUrl, String formattedUrl) {
+        boolean rewritten = false;
+        if (ContextualTasksUtils.isContextualTasksUrl(basePageUrl)) {
+            rewritten =
+                    !TextUtils.isEmpty(displayUrl)
+                            && !displayUrl.contains(ContextualTasksUtils.CONTEXTUAL_TASKS_HOST);
+        } else {
+            rewritten = !TextUtils.isEmpty(displayUrl) && !displayUrl.equals(formattedUrl);
+        }
+        return rewritten;
     }
 
     private UrlBarData buildUrlBarData(GURL url, boolean isOfflinePage) {
@@ -816,11 +844,22 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
             return R.drawable.omnibox_info;
         }
 
-        // Return early if native initialization hasn't been done yet.
+        // Return early if native initialization hasn't been done yet. Keep hidden until native is
+        // ready if the toolbar refactor is enabled.
         if ((securityLevel == ConnectionSecurityLevel.NONE
                         || securityLevel == ConnectionSecurityLevel.WARNING)
                 && mNativeLocationBarModelAndroid == 0) {
-            return R.drawable.omnibox_info;
+            return ToolbarVariationUtils.isToolbarUiRefactorEnabled(mContext)
+                    ? Resources.ID_NULL
+                    : R.drawable.omnibox_info;
+        }
+
+        // Suppress neutral/info icon during page load to avoid transition jank if the toolbar
+        // refactor is enabled.
+        if (ToolbarVariationUtils.isToolbarUiRefactorEnabled(mContext)
+                && securityLevel == ConnectionSecurityLevel.NONE
+                && isLoading()) {
+            return Resources.ID_NULL;
         }
 
         boolean skipIconForNeutralState = mNtpDelegate.isCurrentlyVisible();
@@ -875,6 +914,12 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
             boolean isIncognito) {
         // Return regular color scheme if the website does not show warning.
         if (connectionSecurityLevel == ConnectionSecurityLevel.DANGEROUS) {
+            if (getMaliciousContentStatus()
+                    == ConnectionMaliciousContentStatus.WARNABLE_SUSPICIOUS_SITE) {
+                // Return Resources.ID_NULL to skip color tinting so the shield_question icon
+                // retains its internal red fill and white question mark vector colors.
+                return Resources.ID_NULL;
+            }
             // Assign red color only on light or dark background including Incognito mode.
             // We will not change the security icon to red when BrandedColorScheme is
             // LIGHT_BRANDED_THEME for the purpose of improving contrast.

@@ -6,86 +6,149 @@
 
 #include <utility>
 
-#include "base/base64.h"
 #include "base/check.h"
-#include "base/hash/hash.h"
-#include "base/hash/sha1.h"
-#include "base/memory/ptr_util.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/trace_event/memory_usage_estimator.h"
 #include "components/notes/note_node.h"
+#include "components/sync/base/deletion_origin.h"
 #include "components/sync/engine/commit_and_get_updates_types.h"
-#include "components/sync/protocol/entity_data.h"
 #include "components/sync/protocol/entity_metadata.pb.h"
 #include "components/sync/protocol/entity_specifics.pb.h"
-#include "components/sync/protocol/proto_memory_estimations.h"
 #include "components/sync/protocol/unique_position.pb.h"
+#include "sync/file_sync/file_store.h"
 
 namespace sync_notes {
 
-namespace {
-
-void HashSpecifics(const sync_pb::EntitySpecifics& specifics,
-                   std::string* hash) {
-  DCHECK_GT(specifics.ByteSizeLong(), 0u);
-  *hash =
-      base::Base64Encode(base::SHA1HashString(specifics.SerializeAsString()));
-}
-
-}  // namespace
-
 SyncedNoteTrackerEntity::SyncedNoteTrackerEntity(
     const vivaldi::NoteNode* note_node,
-    sync_pb::EntityMetadata metadata)
-    : note_node_(note_node), metadata_(std::move(metadata)) {
+    syncer::ProcessorEntityMetadata entity_metadata,
+    file_sync::SyncedFileStore* synced_file_store)
+    : note_node_(note_node),
+      metadata_(std::move(entity_metadata)),
+      synced_file_store_(synced_file_store) {
   if (note_node) {
-    DCHECK(!metadata_.is_deleted());
+    DCHECK(!metadata_.IsDeleted());
   } else {
-    DCHECK(metadata_.is_deleted());
+    DCHECK(metadata_.IsDeleted());
   }
 }
 
 SyncedNoteTrackerEntity::~SyncedNoteTrackerEntity() = default;
 
+bool SyncedNoteTrackerEntity::IsDeleted() const {
+  return metadata_.IsDeleted();
+}
+
 bool SyncedNoteTrackerEntity::IsUnsynced() const {
-  return metadata_.sequence_number() > metadata_.acked_sequence_number();
+  return metadata_.IsUnsynced();
 }
 
 bool SyncedNoteTrackerEntity::IsUnsyncedLocalCreation() const {
-  // `kUncommittedVersion` implies that the entity is unsynced but add this
-  // condition for clarity.
-  return metadata_.server_version() == syncer::kUncommittedVersion &&
-         IsUnsynced();
+  return metadata_.IsUnsyncedLocalCreation();
+}
+
+bool SyncedNoteTrackerEntity::IsVersionAlreadyKnown(
+    int64_t update_version) const {
+  return metadata_.IsVersionAlreadyKnown(update_version);
 }
 
 bool SyncedNoteTrackerEntity::MatchesData(
     const syncer::EntityData& data) const {
-  if (metadata_.is_deleted() || data.is_deleted()) {
-    // In case of deletion, no need to check the specifics.
-    return metadata_.is_deleted() == data.is_deleted();
-  }
-  return MatchesSpecificsHash(data.specifics);
+  return metadata_.MatchesData(data);
+}
+
+bool SyncedNoteTrackerEntity::MatchesBaseData(
+    const syncer::EntityData& data) const {
+  return metadata_.MatchesBaseData(data);
 }
 
 bool SyncedNoteTrackerEntity::MatchesSpecificsHash(
     const sync_pb::EntitySpecifics& specifics) const {
-  DCHECK(!metadata_.is_deleted());
-  DCHECK_GT(specifics.ByteSizeLong(), 0u);
-  std::string hash;
-  HashSpecifics(specifics, &hash);
-  return hash == metadata_.specifics_hash();
+  return metadata_.MatchesSpecificsHash(specifics);
 }
 
 syncer::ClientTagHash SyncedNoteTrackerEntity::GetClientTagHash() const {
-  return syncer::ClientTagHash::FromHashed(metadata_.client_tag_hash());
+  return metadata_.GetClientTagHash();
 }
 
 size_t SyncedNoteTrackerEntity::EstimateMemoryUsage() const {
   using base::trace_event::EstimateMemoryUsage;
-  size_t memory_usage = 0;
-  // Include the size of the pointer to the note node.
+  size_t memory_usage = metadata_.EstimateMemoryUsage();
   memory_usage += sizeof(note_node_);
-  memory_usage += EstimateMemoryUsage(metadata_);
   return memory_usage;
+}
+
+void SyncedNoteTrackerEntity::RecordAcceptedRemoteUpdate(
+    const syncer::UpdateResponseData& update) {
+  std::optional<sync_pb::UniquePosition> unique_position;
+  if (update.entity.specifics.notes().has_unique_position()) {
+    unique_position = update.entity.specifics.notes().unique_position();
+  }
+  if (note_node() && note_node()->is_attachment()) {
+    synced_file_store_->SetSyncFileRef(
+        metadata().server_id(), syncer::NOTES,
+        base::UTF16ToASCII(note_node()->GetContent()));
+  }
+  metadata_.RecordAcceptedRemoteUpdate(
+      update, /*trimmed_specifics=*/sync_pb::EntitySpecifics(),
+      std::move(unique_position));
+}
+
+void SyncedNoteTrackerEntity::RecordForcedRemoteUpdate(
+    const syncer::UpdateResponseData& update) {
+  std::optional<sync_pb::UniquePosition> unique_position;
+  if (update.entity.specifics.notes().has_unique_position()) {
+    unique_position = update.entity.specifics.notes().unique_position();
+  }
+  metadata_.RecordForcedRemoteUpdate(
+      update, /*trimmed_specifics=*/sync_pb::EntitySpecifics(),
+      std::move(unique_position));
+}
+
+void SyncedNoteTrackerEntity::RecordIgnoredRemoteUpdate(
+    const syncer::UpdateResponseData& update) {
+  metadata_.RecordIgnoredRemoteUpdate(update);
+}
+
+void SyncedNoteTrackerEntity::OverrideServerMetadata(
+    const std::string& server_id,
+    int64_t server_version) {
+  metadata_.OverrideServerMetadata(server_id, server_version);
+}
+
+void SyncedNoteTrackerEntity::RecordLocalUpdate(
+    const sync_pb::EntitySpecifics& specifics,
+    base::Time modification_time) {
+  CHECK(!IsDeleted());
+  metadata_.UpdateMetadataForLocalUpdate(specifics, modification_time,
+                                         specifics.notes().unique_position());
+}
+
+void SyncedNoteTrackerEntity::RecordCommitResponse(
+    const syncer::CommitResponseData& ack) {
+  metadata_.RecordCommitResponse(ack);
+}
+
+void SyncedNoteTrackerEntity::RecordLocalDeletion(
+    PassKey,
+    const syncer::DeletionOrigin& origin) {
+  metadata_.RecordLocalDeletion(origin);
+}
+
+void SyncedNoteTrackerEntity::IncrementSequenceNumber() {
+  metadata_.IncrementSequenceNumber();
+}
+
+void SyncedNoteTrackerEntity::UndeleteTombstoneForNoteNode(
+    PassKey,
+    const vivaldi::NoteNode* node,
+    const sync_pb::EntitySpecifics& specifics,
+    base::Time modification_time) {
+  DCHECK(node);
+  DCHECK(IsDeleted());
+  note_node_ = node;
+  metadata_.UpdateMetadataForLocalUpdate(
+      specifics, modification_time, specifics.bookmark().unique_position());
 }
 
 }  // namespace sync_notes

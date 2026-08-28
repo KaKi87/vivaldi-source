@@ -127,7 +127,10 @@ const CGFloat vPopupContainerCornerRadius = 8;
     viewController.overrideUserInterfaceStyle = userInterfaceStyle;
 
     if (IsComposeboxIOSEnabled()) {
-      [self.delegate popupDidInitializePresenter:self];
+      if ([self.delegate
+              respondsToSelector:@selector(popupDidInitializePresenter:)]) {
+        [self.delegate popupDidInitializePresenter:self];
+      }
     }
     if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
         _popupContainerView.backgroundColor =
@@ -208,6 +211,9 @@ const CGFloat vPopupContainerCornerRadius = 8;
 /// Therefore, on trait collection change, re-add the popup and recreate the
 /// constraints to make sure the correct ones are used.
 - (void)updatePopupAfterTraitCollectionChange {
+  if (!self.isOpen) {
+    return;
+  }
   // Re-add the popup container to break any existing constraints.
   [self.popupContainerView removeFromSuperview];
   [[self.delegate popupParentViewForPresenter:self]

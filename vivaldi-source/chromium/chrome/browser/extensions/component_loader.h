@@ -211,7 +211,11 @@ class ComponentLoader : public KeyedService {
 
   void AddNetworkSpeechSynthesisExtension();
 
+  void AddAimEligibilityExtension();
+
   void AddGlicExtension();
+
+  void AddContextualTasksExtension();
 
   void AddVivaldiApp(const base::FilePath* path);
   void AddVivaldiPIP();

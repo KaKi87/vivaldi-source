@@ -4,47 +4,44 @@
 
 #include "chrome/browser/android/webapps/twa_launch_queue_delegate.h"
 
+#include <optional>
+
 #include "base/files/file_path.h"
-#include "components/webapps/browser/launch_queue/launch_params.h"
+#include "base/files/file_util.h"
+#include "base/files/scoped_temp_dir.h"
+#include "base/test/android/content_uri_test_utils.h"
+#include "content/public/browser/file_system_access_permission_context.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace webapps {
 
-TEST(TwaLaunchQueueDelegateTest, IsValidLaunchParams) {
-  TwaLaunchQueueDelegate delegate;
+class TwaLaunchQueueDelegateTest : public testing::Test {
+ protected:
+  TwaLaunchQueueDelegate delegate_;
+};
 
-  // Helper lambda to test a single path
-  auto check_path = [&](const std::string& path_str) {
-    LaunchParams params;
-    params.paths.emplace_back(path_str);
-    return delegate.IsValidLaunchParams(params);
-  };
+TEST_F(TwaLaunchQueueDelegateTest, GetPathInfo_LocalPath) {
+  base::FilePath local_path("/path/to/local_file.txt");
+  content::PathInfo path_info = delegate_.GetPathInfo(local_path);
+  EXPECT_EQ(path_info.path, local_path);
+  EXPECT_EQ(path_info.display_name, "local_file.txt");
+}
 
-  // Legitimate Content URIs should be allowed
-  EXPECT_TRUE(check_path("content://com.example.provider/file"));
+TEST_F(TwaLaunchQueueDelegateTest, GetPathInfo_ContentUri) {
+  base::ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
+  base::FilePath file_path =
+      temp_dir.GetPath().AppendASCII("test_display_name.txt");
+  ASSERT_TRUE(base::WriteFile(file_path, "test"));
 
-  // Empty path should be blocked (IsSensitivePath returns true for empty)
-  EXPECT_FALSE(check_path(""));
+  std::optional<base::FilePath> content_uri =
+      base::test::android::GetInMemoryContentDocumentUriFromCacheDirFilePath(
+          file_path);
+  ASSERT_TRUE(content_uri.has_value());
 
-  // Absolute paths should be blocked
-  EXPECT_FALSE(check_path("/absolute/path"));
-
-  // Parent references should be blocked
-  EXPECT_FALSE(check_path("relative/../path"));
-
-  // file:// URIs should be blocked
-  EXPECT_FALSE(check_path("file:///absolute/path"));
-  EXPECT_FALSE(check_path("file://relative/path"));
-
-  // Relative paths should be blocked (VULNERABILITY)
-  EXPECT_FALSE(check_path("relative/path"));
-  EXPECT_FALSE(check_path("data/data/com.android.chrome/cookies"));
-
-  // Chrome's own Content URIs should be blocked.
-  // We don't know the package name at compile time, but it should start with
-  // content://pkg. Since we cannot easily mock apk_info package name in this
-  // test without more setup, we might need to be careful. If apk_info is not
-  // initialized, it might crash or return empty. Let's see what happens.
+  content::PathInfo path_info = delegate_.GetPathInfo(*content_uri);
+  EXPECT_EQ(path_info.path, *content_uri);
+  EXPECT_EQ(path_info.display_name, "test_display_name.txt");
 }
 
 }  // namespace webapps

@@ -43,6 +43,8 @@
 #include "ui/vivaldi_browser_ui_data.h"
 #include "ui/vivaldi_browser_window.h"
 
+#include "chromium/chrome/browser/ui/browser_init_state.h"
+
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "components/tabs/tab_helpers.h"
@@ -133,8 +135,9 @@ void SessionService::OnExtDataUpdated(content::WebContents* web_contents) {
 /* static */
 bool SessionServiceBase::ShouldTrackVivaldiBrowser(Browser* browser) {
   // First ask the window if it knows if it should be included in the session.
-  if (browser->window() &&
-      static_cast<VivaldiBrowserWindow*>(browser->window())->TrackInSession()) {
+  if (browser->GetWindow() &&
+      static_cast<VivaldiBrowserWindow*>(browser->GetWindow())
+          ->TrackInSession()) {
     return true;
   }
 
@@ -306,18 +309,19 @@ bool VivaldiSessionService::Save(const base::FilePath& file_name) {
 
 bool VivaldiSessionService::ShouldTrackWindow(Browser* browser) {
   if (browser->is_type_app() && browser->is_type_popup() &&
-      !browser->is_trusted_source()) {
+      !WindowFeatureController::From(browser)->IsTrustedSource()) {
     return false;
   }
 
   // Prevent tracking another "person" (user profile).
-  if (profile_->GetPath() != browser->profile()->GetPath()) {
+  if (profile_->GetPath() != browser->GetProfile()->GetPath()) {
     return false;
   }
 
   // Prevent tracking otr (and quest) profiles form a regular.
-  if (profile_ != browser->profile()) {
-    if (!profile_->IsOffTheRecord() && browser->profile()->IsOffTheRecord()) {
+  if (profile_ != browser->GetProfile()) {
+    if (!profile_->IsOffTheRecord() &&
+        browser->GetProfile()->IsOffTheRecord()) {
       return false;
     }
   }
@@ -529,8 +533,8 @@ void VivaldiSessionService::BuildCommandsForBrowser(
   DCHECK(browser->session_id().id());
 
   ScheduleCommand(sessions::CreateSetWindowBoundsCommand(
-      browser->session_id(), browser->window()->GetRestoredBounds(),
-      browser->window()->GetRestoredState()));
+      browser->session_id(), browser->GetWindow()->GetRestoredBounds(),
+      browser->GetWindow()->GetRestoredState()));
 
   ScheduleCommand(sessions::CreateSetWindowTypeCommand(
       browser->session_id(), WindowTypeForBrowserType(browser->type())));
@@ -673,8 +677,8 @@ void VivaldiSessionService::ShowBrowser(Browser* browser,
   if (browser_ == browser)
     return;
 
-  browser->window()->Show();
-  browser->set_is_session_restore(false);
+  browser->GetWindow()->Show();
+  BrowserInitState::From(browser)->set_is_session_restore(false);
 
   // TODO(jcampan): http://crbug.com/8123 we should not need to set the
   //                initial focus explicitly.
@@ -883,7 +887,8 @@ Browser* VivaldiSessionService::ProcessSessionWindows(
     }
     if (i == windows->begin() && !opts_.newWindow_ &&
         (*i)->type == sessions::SessionWindow::TYPE_NORMAL && browser_ &&
-        browser_->is_type_normal() && !browser_->profile()->IsOffTheRecord()) {
+        browser_->is_type_normal() &&
+        !browser_->GetProfile()->IsOffTheRecord()) {
       // The first set of tabs is added to the existing browser.
       browser = browser_;
     } else {
@@ -932,7 +937,7 @@ Browser* VivaldiSessionService::ProcessSessionWindows(
     last_browser = browser_to_activate;
 
   if (browser_to_activate)
-    browser_to_activate->window()->Activate();
+    browser_to_activate->GetWindow()->Activate();
 
   // sessionStorages needed for the session restore have now been recreated
   // by RestoreTab. Now it's safe for the DOM storage system to start

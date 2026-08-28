@@ -71,6 +71,7 @@ import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
 import org.chromium.chrome.browser.fullscreen.FullscreenOptions;
+import org.chromium.chrome.browser.glic.GlicEnabling;
 import org.chromium.chrome.browser.layouts.LayoutManager;
 import org.chromium.chrome.browser.layouts.LayoutStateProvider;
 import org.chromium.chrome.browser.layouts.LayoutStateProvider.LayoutStateObserver;
@@ -122,6 +123,7 @@ import org.chromium.content_public.browser.SelectionClient;
 import org.chromium.content_public.browser.SelectionPopupController;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.net.ConnectionType;
+import org.chromium.ui.accessibility.AccessibilityFeatures;
 import org.chromium.ui.base.ActivityWindowAndroid;
 import org.chromium.url.GURL;
 import org.chromium.url.JUnitTestGURLs;
@@ -134,7 +136,6 @@ import java.util.Locale;
 /** Unit tests for {@link ReadAloudController}. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
-@EnableFeatures({ChromeFeatureList.READALOUD_PLAYBACK})
 @DisableFeatures({ChromeFeatureList.READALOUD_AUDIO_OVERVIEWS, ChromeFeatureList.GLIC})
 public class ReadAloudControllerUnitTest {
     private static final GURL sTestGURL = JUnitTestGURLs.EXAMPLE_URL;
@@ -319,6 +320,7 @@ public class ReadAloudControllerUnitTest {
         TapToSeekSelectionManager.setSmartSelectionClient(mSelectionClient);
         TapToSeekSelectionManager.setSelectionPopupController(mSelectionPopupController);
 
+        GlicEnabling.setEnabledForTesting(false);
         mController = createController();
         verify(mLayoutStateProvider).addObserver(mLayoutStateObserver.capture());
         verify(mFullscreenManager).addObserver(mFullscreenObserver.capture());
@@ -366,7 +368,8 @@ public class ReadAloudControllerUnitTest {
                         mActivityWindowAndroid,
                         mActivityLifecycleDispatcher,
                         mLayoutStateProviderSupplier,
-                        mFullscreenManager);
+                        mFullscreenManager,
+                        /* sideUiStateProviderSupplier= */ null);
         RobolectricUtil.runAllBackgroundAndUiIncludingDelayed();
         return controller;
     }
@@ -385,19 +388,19 @@ public class ReadAloudControllerUnitTest {
     @Test
     public void testHideShowPlayer_tabSwitcher() {
         requestAndStartPlayback();
-        mLayoutStateObserver.getValue().onStartedShowing(LayoutType.TAB_SWITCHER);
+        mLayoutStateObserver.getValue().onStartedShowing(LayoutType.HUB);
         verify(mPlayerCoordinator).hidePlayers();
 
-        mLayoutStateObserver.getValue().onFinishedHiding(LayoutType.TAB_SWITCHER);
+        mLayoutStateObserver.getValue().onFinishedHiding(LayoutType.HUB);
         verify(mPlayerCoordinator).restorePlayers();
     }
 
     @Test
     public void testDontHidePlayerWithNoPlayback_tabSwitcherUi() {
-        mLayoutStateObserver.getValue().onStartedShowing(LayoutType.TAB_SWITCHER);
+        mLayoutStateObserver.getValue().onStartedShowing(LayoutType.HUB);
         verify(mPlayerCoordinator, never()).hidePlayers();
 
-        mLayoutStateObserver.getValue().onFinishedHiding(LayoutType.TAB_SWITCHER);
+        mLayoutStateObserver.getValue().onFinishedHiding(LayoutType.HUB);
         verify(mPlayerCoordinator, never()).restorePlayers();
     }
 
@@ -456,6 +459,18 @@ public class ReadAloudControllerUnitTest {
         // test returns false when policy pref is false
         when(mPrefService.getBoolean("readaloud.listen_to_this_page_enabled")).thenReturn(false);
         assertFalse(mController.isAvailable());
+    }
+
+    @Test
+    @EnableFeatures(AccessibilityFeatures.READ_ALOUD_NATIVE)
+    public void testReadAloudNativeEnabled() {
+        assertTrue(ReadAloudFeatures.isNativeEnabled());
+    }
+
+    @Test
+    @DisableFeatures(AccessibilityFeatures.READ_ALOUD_NATIVE)
+    public void testReadAloudNativeDisabled() {
+        assertFalse(ReadAloudFeatures.isNativeEnabled());
     }
 
     @Test
@@ -1022,8 +1037,8 @@ public class ReadAloudControllerUnitTest {
     }
 
     @Test
-    @EnableFeatures(ChromeFeatureList.GLIC)
     public void testPlayTab_WithGlicActive_Confirm() {
+        GlicEnabling.setEnabledForTesting(true);
         when(mActorUiTabController.isActorActive()).thenReturn(true);
         when(mActorUiTabController.showTaskAbortConfirmationDialog(any()))
                 .thenAnswer(
@@ -1044,8 +1059,8 @@ public class ReadAloudControllerUnitTest {
     }
 
     @Test
-    @EnableFeatures(ChromeFeatureList.GLIC)
     public void testPlayTab_WithGlicActive_Cancel() {
+        GlicEnabling.setEnabledForTesting(true);
         when(mActorUiTabController.isActorActive()).thenReturn(true);
         when(mActorUiTabController.showTaskAbortConfirmationDialog(any())).thenReturn(true);
 
@@ -1060,8 +1075,8 @@ public class ReadAloudControllerUnitTest {
     }
 
     @Test
-    @EnableFeatures(ChromeFeatureList.GLIC)
     public void testPlayTab_WithGlicActive_Confirm_AfterDestroy() {
+        GlicEnabling.setEnabledForTesting(true);
         // Setup: Mock active Glic task and capture dialogue confirm callback
         when(mActorUiTabController.isActorActive()).thenReturn(true);
         when(mActorUiTabController.showTaskAbortConfirmationDialog(mGlicCallbackCaptor.capture()))
@@ -3103,13 +3118,13 @@ public class ReadAloudControllerUnitTest {
     public void testMaybeShowPlayer_suppressedByTabSwitcher() {
         requestAndStartPlayback();
 
-        mLayoutStateObserver.getValue().onStartedShowing(LayoutType.TAB_SWITCHER);
+        mLayoutStateObserver.getValue().onStartedShowing(LayoutType.HUB);
 
         reset(mPlayerCoordinator);
         mController.maybeShowPlayer();
         verify(mPlayerCoordinator, never()).restorePlayers();
 
-        mLayoutStateObserver.getValue().onFinishedHiding(LayoutType.TAB_SWITCHER);
+        mLayoutStateObserver.getValue().onFinishedHiding(LayoutType.HUB);
         verify(mPlayerCoordinator).restorePlayers();
     }
 

@@ -4,12 +4,13 @@
 
 package org.chromium.chrome.browser.incognito;
 
-import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.assertion.ViewAssertions.doesNotExist;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
+import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
+import static org.hamcrest.core.AllOf.allOf;
 import static org.hamcrest.core.AnyOf.anyOf;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.StringContains.containsString;
@@ -47,6 +48,7 @@ import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Features.DisableFeatures;
+import org.chromium.base.test.util.ForgivingClickAction;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.customtabs.IncognitoCustomTabActivityTestRule;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
@@ -65,7 +67,6 @@ import org.chromium.content_public.browser.test.util.JavaScriptUtils;
 import org.chromium.device.geolocation.LocationProviderOverrider;
 import org.chromium.device.geolocation.MockLocationProvider;
 import org.chromium.net.test.EmbeddedTestServer;
-import org.chromium.ui.base.DeviceFormFactor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -82,7 +83,6 @@ import java.util.concurrent.TimeoutException;
 // TODO(http://crbug.com/495529795): Enable side panel and fix this test.
 @DisableFeatures({ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL})
 @Batch(Batch.PER_CLASS)
-@DisableIf.Device(DeviceFormFactor.DESKTOP) // https://crbug.com/479863847
 public class IncognitoPermissionLeakageTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -141,12 +141,21 @@ public class IncognitoPermissionLeakageTest {
     }
 
     private void grantPermission() {
-        Espresso.onView(withText(anyOf(is("Allow"), is("Allow this time")))).perform(click());
+        // TODO(crbug.com/531793849): See if we want to keep using ForgivingClickAction.
+        Espresso.onView(allOf(withText(anyOf(is("Allow"), is("Allow this time"))), isDisplayed()))
+                .perform(ForgivingClickAction.forgivingClick());
     }
 
     private void blockPermission() {
-        Espresso.onView(withText(anyOf(containsString("Block"), containsString("Never allow"))))
-                .perform(click());
+        // TODO(crbug.com/531793849): See if we want to keep using ForgivingClickAction.
+        Espresso.onView(
+                        allOf(
+                                withText(
+                                        anyOf(
+                                                containsString("Block"),
+                                                containsString("Never allow"))),
+                                isDisplayed()))
+                .perform(ForgivingClickAction.forgivingClick());
     }
 
     /**
@@ -255,7 +264,7 @@ public class IncognitoPermissionLeakageTest {
     @Test
     @LargeTest
     @UseMethodParameter(TestParams.RegularToIncognito.class)
-    @DisabledTest(message = "crbug.com/390130917, crbug.com/479863847")
+    @DisabledTest(message = "crbug.com/390130917")
     public void testBlockPermissionLeakFromRegularToIncognito(
             String regularActivityType, String incognitoActivityType) throws Exception {
         ActivityType regularActivity = ActivityType.valueOf(regularActivityType);

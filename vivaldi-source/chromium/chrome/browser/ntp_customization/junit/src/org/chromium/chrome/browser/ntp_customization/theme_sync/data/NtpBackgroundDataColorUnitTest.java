@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.ntp_customization.theme_sync.data;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 
 import android.content.Context;
 import android.view.ContextThemeWrapper;
@@ -23,7 +24,6 @@ import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundType;
 import org.chromium.chrome.browser.ntp_customization.R;
 import org.chromium.chrome.browser.ntp_customization.theme.chrome_colors.NtpThemeColorInfo.NtpThemeColorId;
-import org.chromium.chrome.browser.ntp_customization.theme_sync.data.NtpBackgroundDataBase.PlatformType;
 
 /** Tests for {@link NtpBackgroundDataColor}. */
 @RunWith(BaseRobolectricTestRunner.class)
@@ -47,19 +47,21 @@ public class NtpBackgroundDataColorUnitTest {
         NtpBackgroundDataColor data1 =
                 new NtpBackgroundDataColor(
                         mContext,
-                        PlatformType.ANDROID_LOCAL,
+                        PlatformType.ANDROID,
                         id1,
                         /* isChromeColorDailyRefreshEnabled= */ true);
+        assertNotNull(data1.getImageDrawable());
+
         NtpBackgroundDataColor data2 =
                 new NtpBackgroundDataColor(
                         mContext,
-                        PlatformType.ANDROID_LOCAL,
+                        PlatformType.ANDROID,
                         id1,
                         /* isChromeColorDailyRefreshEnabled= */ true);
         NtpBackgroundDataColor data3 =
                 new NtpBackgroundDataColor(
                         mContext,
-                        PlatformType.ANDROID_LOCAL,
+                        PlatformType.ANDROID,
                         id2,
                         /* isChromeColorDailyRefreshEnabled= */ true);
         NtpBackgroundDataColor data4 =
@@ -77,7 +79,7 @@ public class NtpBackgroundDataColorUnitTest {
 
     @Test
     public void testToJsonAndFromJson() throws JSONException {
-        @PlatformType int platformType = PlatformType.ANDROID_LOCAL;
+        @PlatformType int platformType = PlatformType.ANDROID;
         @NtpThemeColorId int colorId = NtpThemeColorId.NTP_COLORS_AQUA;
         boolean isChromeColorDailyRefreshEnabled = true;
 

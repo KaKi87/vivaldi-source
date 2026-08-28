@@ -893,14 +893,15 @@ public class PaymentUiService
     public @Nullable WebContents showPaymentHandlerUi(GURL url) {
         if (mPaymentHandlerUi != null) return null;
         PaymentHandlerCoordinator paymentHandlerUi = new PaymentHandlerCoordinator();
+        mPaymentHandlerUi = paymentHandlerUi;
         WebContents paymentHandlerWebContents =
                 paymentHandlerUi.show(
                         /* paymentRequestWebContents= */ mWebContents, url, /* uiObserver= */ this);
         if (paymentHandlerWebContents == null) {
             paymentHandlerUi.hide();
+            mPaymentHandlerUi = null;
             return null;
         }
-        mPaymentHandlerUi = paymentHandlerUi;
 
         return paymentHandlerWebContents;
     }
@@ -1168,7 +1169,7 @@ public class PaymentUiService
             if (mLayoutStateProvider != null) {
                 mLayoutStateProvider.removeObserver(this);
             }
-            if (layoutStateProvider.isLayoutVisible(LayoutType.TAB_SWITCHER)) {
+            if (layoutStateProvider.isLayoutVisible(LayoutType.HUB)) {
                 return ErrorStrings.TAB_OVERVIEW_MODE;
             }
             mLayoutStateProvider = layoutStateProvider;
@@ -1476,10 +1477,10 @@ public class PaymentUiService
 
         mHandler.post(
                 () -> {
-                    if (mPaymentRequestUi != null
-                            && mPaymentInformationCallback
-                                    != null // Verify callback not canceled before post.
-                    ) providePaymentInformationToPaymentRequestUi();
+                    if (mPaymentRequestUi != null && mPaymentInformationCallback != null) {
+                        // Verify callback not canceled before post.
+                        providePaymentInformationToPaymentRequestUi();
+                    }
                 });
     }
 

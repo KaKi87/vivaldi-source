@@ -54,12 +54,12 @@ class WasmTracingTest : public TestWithContextAndZone {
     Tagged<WasmTrustedInstanceData> instance_data_b =
         instance_b->trusted_data(v8_isolate);
 
-    bool globals_match =
-        fuzzing::GlobalsMatch(v8_isolate, instance_a->module(), instance_data_a,
-                              instance_data_b, false);
-    bool memories_match =
-        fuzzing::MemoriesMatch(v8_isolate, instance_a->module(),
-                               instance_data_a, instance_data_b, false);
+    const WasmModule* module_a = instance_data_a->module();
+
+    bool globals_match = fuzzing::GlobalsMatch(
+        v8_isolate, module_a, instance_data_a, instance_data_b, false);
+    bool memories_match = fuzzing::MemoriesMatch(
+        v8_isolate, module_a, instance_data_a, instance_data_b, false);
 
     if (globals_match && memories_match) {
       return result;
@@ -120,12 +120,12 @@ class WasmTracingTest : public TestWithContextAndZone {
     ValueType i32 = ValueType::Primitive(kI32);
     builder.AddGlobal(i32, true, WasmInitExpr::DefaultValue(i32));
 
-    StructType::Builder<Zone> type_builder(zone(), 1, false, SharedFlag::kNo);
+    StructType::Builder<Zone> type_builder(zone(), 1, false, SharedFlag{false});
     type_builder.AddField(i32, true);
     StructType* struct_type = type_builder.Build();
     ModuleTypeIndex struct_type_index =
         builder.AddStructType(struct_type, false);
-    ValueType struct_ref = ValueType::Ref(struct_type_index, SharedFlag::kNo,
+    ValueType struct_ref = ValueType::Ref(struct_type_index, SharedFlag{false},
                                           RefTypeKind::kStruct);
     builder.AddGlobal(struct_ref, true,
                       WasmInitExpr::StructNewDefault(struct_type_index));
@@ -153,7 +153,7 @@ class WasmTracingTest : public TestWithContextAndZone {
 
     DirectHandle<WasmInstanceObject> instance =
         GetWasmEngine()
-            ->SyncInstantiate(v8_isolate, &thrower, module, {}, {})
+            ->SyncInstantiate(v8_isolate, &thrower, module, {})
             .ToHandleChecked();
     CHECK(!instance.is_null());
 

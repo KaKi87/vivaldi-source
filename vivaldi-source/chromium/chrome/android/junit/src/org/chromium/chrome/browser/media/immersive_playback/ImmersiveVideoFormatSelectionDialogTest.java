@@ -11,7 +11,6 @@ import static org.mockito.Mockito.verify;
 
 import android.app.Activity;
 import android.content.Context;
-import android.widget.RadioButton;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -23,9 +22,10 @@ import org.robolectric.Robolectric;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.blink.mojom.ImmersivePlaybackConfirmationStatus;
-import org.chromium.blink.mojom.ImmersiveProjectionType;
-import org.chromium.blink.mojom.ImmersiveStereoMode;
+import org.chromium.chrome.R;
+import org.chromium.content_public.browser.ImmersivePlaybackConfirmationStatus;
+import org.chromium.content_public.browser.ImmersiveProjectionType;
+import org.chromium.content_public.browser.ImmersiveStereoMode;
 import org.chromium.ui.modaldialog.DialogDismissalCause;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modaldialog.ModalDialogProperties;
@@ -45,6 +45,7 @@ public class ImmersiveVideoFormatSelectionDialogTest {
     public void setUp() {
         MockitoAnnotations.openMocks(this);
         mContext = Robolectric.buildActivity(Activity.class).get();
+        mContext.setTheme(R.style.Theme_BrowserUI_DayNight);
         mDialog = new ImmersiveVideoFormatSelectionDialog(mContext, mModalDialogManager, mCallback);
     }
 
@@ -101,19 +102,19 @@ public class ImmersiveVideoFormatSelectionDialogTest {
                 (ImmersiveVideoFormatRadioGroup) model.get(ModalDialogProperties.CUSTOM_VIEW);
         assertNotNull(radioGroup);
 
-        // Change selection to the 3rd option (VR180)
-        RadioButton radioButton = (RadioButton) radioGroup.getChildAt(2);
-        radioButton.setChecked(true);
+        // Change selection to 180° stereoscopic
+        radioGroup.checkOption(
+                ImmersiveStereoMode.SIDE_BY_SIDE, ImmersiveProjectionType.HEMISPHERE);
 
         // Dismiss with positive button click
         model.get(ModalDialogProperties.CONTROLLER)
                 .onDismiss(model, DialogDismissalCause.POSITIVE_BUTTON_CLICKED);
 
-        // VR180 options are MONO and HEMISPHERE
+        // 180° stereoscopic options are SIDE_BY_SIDE and HEMISPHERE
         verify(mCallback)
                 .onResult(
                         ImmersivePlaybackConfirmationStatus.CONFIRMED,
-                        ImmersiveStereoMode.MONO,
+                        ImmersiveStereoMode.SIDE_BY_SIDE,
                         ImmersiveProjectionType.HEMISPHERE);
     }
 

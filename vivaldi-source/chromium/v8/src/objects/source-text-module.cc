@@ -884,6 +884,14 @@ bool SourceTextModule::MaybeHandleEvaluationException(
       // iii. Set m.[[EvaluationError]] to result.
       descendant->RecordError(isolate, exception);
     }
+    // A stack overflow at the InnerModuleEvaluation entry STACK_CHECK can throw
+    // before this module was appended to `stack`, leaving its
+    // [[EvaluationError]] empty. Record it directly so the top-level capability
+    // rejects with the actual exception rather than the EMPTY (TheHole)
+    // sentinel.
+    if (IsTheHole(this->exception())) {
+      RecordError(isolate, exception);
+    }
     return true;
   }
   // If the exception was a termination exception, rejecting the promise
@@ -903,7 +911,12 @@ bool SourceTextModule::MaybeHandleEvaluationException(
 MaybeDirectHandle<Object> SourceTextModule::Evaluate(
     Isolate* isolate, Handle<SourceTextModule> module) {
   CHECK(module->status() == kLinked || module->status() == kEvaluatingAsync ||
-        module->status() == kEvaluated);
+        module->status() == kEvaluated || module->status() == kErrored);
+  // An errored module can only reach here if it was never an evaluation
+  // entry point; otherwise Module::Evaluate would have returned its
+  // already-rejected top-level capability.
+  CHECK_IMPLIES(module->status() == kErrored,
+                IsUndefined(module->top_level_capability()));
 
   // 5. Let stack be a new empty List.
   Zone zone(isolate->allocator(), ZONE_NAME);

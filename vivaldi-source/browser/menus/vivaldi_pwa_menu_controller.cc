@@ -32,7 +32,7 @@ namespace vivaldi {
 
 // Returns the appropriate menu label for the IDC_INSTALL_PWA command if
 // available. Copied from app_menu_model.cc
-std::u16string GetInstallPWALabel(const Browser* browser) {
+std::u16string GetInstallPWALabel(Browser* browser) {
   // There may be no active web contents in tests.
   auto* const web_contents = browser->tab_strip_model()->GetActiveWebContents();
   if (!web_contents) {
@@ -52,7 +52,7 @@ std::u16string GetInstallPWALabel(const Browser* browser) {
   const webapps::AppId* app_id =
       web_app::WebAppTabHelper::GetAppId(web_contents);
   web_app::WebAppProvider* const provider =
-      web_app::WebAppProvider::GetForLocalAppsUnchecked(browser->profile());
+      web_app::WebAppProvider::GetForLocalAppsUnchecked(browser->GetProfile());
   if (app_id &&
       provider->registrar_unsafe().GetInstallState(*app_id) ==
           web_app::proto::INSTALLED_WITH_OS_INTEGRATION &&
@@ -124,7 +124,7 @@ void PWAMenuController::PopulateModel(ui::SimpleMenuModel* menu_model) {
   std::optional<webapps::AppId> pwa = web_app::GetWebAppForActiveTab(browser_);
   if (pwa) {
     auto* provider =
-        web_app::WebAppProvider::GetForWebApps(browser_->profile());
+        web_app::WebAppProvider::GetForWebApps(browser_->GetProfile());
     menu_model->AddItem(
         IDC_OPEN_IN_PWA_WINDOW,
         l10n_util::GetStringFUTF16(

@@ -3,8 +3,10 @@
 // found in the LICENSE file.
 
 import {assert, assertNotReached} from 'chrome://resources/js/assert.js';
+import {dedupingMixin as litDedupingMixin} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import type {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
 import type {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-import {dedupingMixin} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {dedupingMixin as polymerDedupingMixin} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {loadTimeData} from './i18n_setup.js';
 
@@ -28,6 +30,7 @@ export interface SettingsRoutes {
   COMPARE: Route;
   COOKIES: Route;
   DEFAULT_BROWSER: Route;
+  DICTATION: Route;
   DOWNLOADS: Route;
   EDIT_DICTIONARY: Route;
   FONTS: Route;
@@ -46,11 +49,6 @@ export interface SettingsRoutes {
   PRELOADING: Route;
   PRIVACY: Route;
   PRIVACY_GUIDE: Route;
-  //PRIVACY_SANDBOX: Route;
-  //PRIVACY_SANDBOX_AD_MEASUREMENT: Route;
-  //PRIVACY_SANDBOX_FLEDGE: Route;
-  //PRIVACY_SANDBOX_TOPICS: Route;
-  //PRIVACY_SANDBOX_MANAGE_TOPICS: Route;
   RESET: Route;
   RESET_DIALOG: Route;
   SAFETY_HUB: Route;
@@ -79,6 +77,7 @@ export interface SettingsRoutes {
   SITE_SETTINGS_HID_DEVICES: Route;
   SITE_SETTINGS_IDLE_DETECTION: Route;
   SITE_SETTINGS_IMAGES: Route;
+  SITE_SETTINGS_INLINE_CUE_MENU: Route;
   SITE_SETTINGS_KEYBOARD_LOCK: Route;
   SITE_SETTINGS_LOCAL_FONTS: Route;
   SITE_SETTINGS_LOCAL_NETWORK: Route;
@@ -113,6 +112,7 @@ export interface SettingsRoutes {
   SITE_SETTINGS_WEB_PRINTING: Route;
   SKILLS: Route;
   SPELL_CHECK: Route;
+  SUGGESTIONS_FROM_GEMINI: Route;
   SYNC: Route;
   SYNC_ADVANCED: Route;
   SYSTEM: Route;
@@ -482,7 +482,7 @@ export class Router {
 
 type Constructor<T> = new (...args: any[]) => T;
 
-export const RouteObserverMixin = dedupingMixin(
+export const RouteObserverMixin = polymerDedupingMixin(
     <T extends Constructor<PolymerElement>>(superClass: T): T&
     Constructor<RouteObserverMixinInterface> => {
       class RouteObserverMixin extends superClass implements
@@ -510,6 +510,36 @@ export const RouteObserverMixin = dedupingMixin(
         }
       }
       return RouteObserverMixin;
+    });
+
+export const RouteObserverMixinLit = litDedupingMixin(
+    <T extends Constructor<CrLitElement>>(superClass: T): T&
+    Constructor<RouteObserverMixinInterface> => {
+      class RouteObserverMixinLit extends superClass implements
+          RouteObserverMixinInterface {
+        override connectedCallback() {
+          super.connectedCallback();
+
+          assert(routerInstance);
+          routerInstance.addObserver(this);
+
+          // Emulating Polymer data bindings, the observer is called when the
+          // element starts observing the route.
+          this.currentRouteChanged(routerInstance.currentRoute, undefined);
+        }
+
+        override disconnectedCallback() {
+          super.disconnectedCallback();
+
+          assert(routerInstance);
+          routerInstance.removeObserver(this);
+        }
+
+        currentRouteChanged(_newRoute: Route, _oldRoute?: Route) {
+          assertNotReached();
+        }
+      }
+      return RouteObserverMixinLit;
     });
 
 export interface RouteObserverMixinInterface {

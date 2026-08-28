@@ -1,0 +1,1248 @@
+// Copyright (c) 2018 Vivaldi Technologies AS. All rights reserved
+
+#include "extensions/api/mail_private/mail_private_api.h"
+
+#include "base/containers/span.h"
+#include "base/files/file_enumerator.h"
+#include "base/files/file_util.h"
+#include "base/lazy_instance.h"
+#include "base/strings/stringprintf.h"
+#include "base/strings/utf_string_conversions.h"
+#include "base/task/thread_pool.h"
+#include "base/values.h"
+#include "build/build_config.h"
+#include "chrome/browser/platform_util.h"
+#include "chrome/browser/profiles/profile.h"
+#include "components/db/mail_client/mail_client_service_factory.h"
+#include "extensions/browser/api/file_handlers/app_file_handler_util.h"
+#include "extensions/schema/mail_private.h"
+
+using base::Value;
+using mail_client::MailClientService;
+using mail_client::MailClientServiceFactory;
+using mail_client::StatusCB;
+
+using ResponseAction = ExtensionFunction::ResponseAction;
+
+namespace {
+const base::FilePath::CharType kMailDirectory[] = FILE_PATH_LITERAL("Mail");
+
+// Should only be called on background thread to avoid blocking the UI thread
+// with file I/O. Returns an empty string on success, or error message on
+// error.
+std::string WriteHeadersOnFileThread(const base::FilePath& file_path,
+                                     const std::string& message_status,
+                                     const std::string& message_location) {
+  base::File mail_file(file_path, base::File::FLAG_OPEN |
+                                      base::File::FLAG_READ |
+                                      base::File::FLAG_WRITE);
+
+  if (!mail_file.IsValid()) {
+    return base::StringPrintf("Failed to open message file: %s",
+                              file_path.AsUTF8Unsafe().c_str());
+  }
+
+  int64_t current_offset = 0;
+
+  // --- Read Vivaldi Status Header ---
+  const std::string kVivaldiStatusHeader = "X-Vivaldi-Status";
+  std::vector<uint8_t> status_header_buffer(kVivaldiStatusHeader.length());
+
+  if (mail_file.Read(current_offset, status_header_buffer).value_or(0) !=
+          status_header_buffer.size() ||
+      std::string(status_header_buffer.begin(), status_header_buffer.end()) !=
+          kVivaldiStatusHeader) {
+    LOG(WARNING) << "Status header missing - so we look no further";
+    return base::StringPrintf("%s header not found in %s", kVivaldiStatusHeader,
+                              file_path.AsUTF8Unsafe().c_str());
+  }
+  current_offset += kVivaldiStatusHeader.length();
+
+  // Skip colon and space
+  current_offset += 2;
+  int64_t status_index = current_offset;
+
+  // This must be in line with code in vivaldiHeaderForRaw.js.
+  // See constant VIVALDI_HEADER_STATUS_MAX_LENGTH there. Its value must
+  // match this value here.
+  const size_t kStatusLength = 20;
+  std::vector<uint8_t> status_value_buffer(kStatusLength);
+  mail_file.Read(current_offset, status_value_buffer);
+  current_offset += kStatusLength;
+
+  // Rfc5322  78 max line length + \r + \n = 80
+  const int kVivaldiHeaderLineLength = 80;
+
+  // Skip down to the next line
+  for (int i = 0; i < kVivaldiHeaderLineLength; i++) {
+    std::array<uint8_t, 1> c;
+    if (mail_file.Read(current_offset, c).value_or(0) != 1)
+      break;
+    current_offset++;
+    if (c[0] == '\n') {
+      break;
+    }
+  }
+
+  // --- Read Location Header ---
+  const std::string kVivaldiLocationHeader = "X-Vivaldi-Location";
+  std::vector<uint8_t> location_header_buffer(kVivaldiLocationHeader.length());
+  if (mail_file.Read(current_offset, location_header_buffer).value_or(0) !=
+          location_header_buffer.size() ||
+      std::string(location_header_buffer.begin(),
+                  location_header_buffer.end()) != kVivaldiLocationHeader) {
+    LOG(WARNING) << "Location header missing - but status header exists!";
+    return base::StringPrintf("%s header not found in %s",
+                              kVivaldiLocationHeader,
+                              file_path.AsUTF8Unsafe().c_str());
+  }
+  current_offset += kVivaldiLocationHeader.length();
+
+  // Skip colon and space
+  current_offset += 2;
+  int64_t location_index = current_offset;
+
+  // Read location value to verify length/format
+  std::string location_value_read;
+  for (int i = 0; i < kVivaldiHeaderLineLength; i++) {
+    std::array<uint8_t, 1> c;
+    if (mail_file.Read(current_offset, c).value_or(0) != 1)
+      break;
+    current_offset++;
+    if (c[0] == '\r' || c[0] == '\n') {
+      if (c[0] == '\r') {
+        current_offset++;  // skip the trailing newline after \r
+      }
+      break;
+    } else {
+      location_value_read += static_cast<char>(c[0]);
+    }
+  }
+
+  // Write Status
+  if (message_status.length() != kStatusLength) {
+    return base::StringPrintf("New %s header not of correct length for %s",
+                              kVivaldiStatusHeader,
+                              file_path.AsUTF8Unsafe().c_str());
+  }
+  mail_file.Write(status_index, base::as_byte_span(message_status));
+
+  // 80 - 2 (\r\n)   - strlen("X-Vivaldi-Location: ") = 58
+  const int kRoomForLocation = 58;
+  if (location_value_read.length() != kRoomForLocation) {
+    return base::StringPrintf(
+        "Location header read from file too long. %ld is not of correct length "
+        "(58) in: %s",
+        location_value_read.length(), file_path.AsUTF8Unsafe().c_str());
+  }
+
+  if (message_location.length() > kRoomForLocation) {
+    return base::StringPrintf(
+        "Location header value to be written is too long. %i. Allowed: %i. in: "
+        "%s",
+        message_location.length(), kRoomForLocation,
+        file_path.AsUTF8Unsafe().c_str());
+  }
+
+  std::string formatted_location = message_location.substr(0, kRoomForLocation);
+  formatted_location.insert(formatted_location.end(),
+                            kRoomForLocation - formatted_location.length(),
+                            ' ');
+  mail_file.Write(location_index, base::as_byte_span(formatted_location));
+
+  return "";  // Empty string indicates success
+}
+
+bool deleteFile(base::FilePath file_path,
+                base::FilePath::StringType file_name) {
+  if (file_name.length() > 0) {
+    file_path = file_path.Append(file_name);
+  }
+
+  if (!file_path.IsAbsolute()) {
+    return false;
+  }
+
+  if (!base::PathExists(file_path)) {
+    return false;
+  }
+
+  return base::DeleteFile(file_path);
+}
+
+bool renameFile(base::FilePath file_path,
+                base::FilePath::StringType file_name,
+                base::FilePath::StringType new_file_name) {
+  if (file_name.length() == 0) {
+    return false;
+  }
+
+  if (new_file_name.length() == 0) {
+    return false;
+  }
+
+  if (!file_path.IsAbsolute()) {
+    return false;
+  }
+  base::FilePath new_file_path = file_path.Append(new_file_name);
+  file_path = file_path.Append(file_name);
+
+  if (!base::PathExists(file_path)) {
+    return false;
+  }
+
+  if (base::PathExists(new_file_path)) {
+    return false;
+  }
+
+  bool success = base::Move(file_path, new_file_path);
+  DCHECK(success);
+
+  return success;
+}
+
+base::FilePath::StringType FilePathAsString(const base::FilePath& path) {
+#if BUILDFLAG(IS_WIN)
+  return path.value();
+#else
+  return path.value().c_str();
+#endif
+}
+
+base::FilePath::StringType StringToStringType(const std::string& str) {
+#if BUILDFLAG(IS_WIN)
+  return base::UTF8ToWide(str);
+#else
+  return str;
+#endif
+}
+
+std::string StringTypeToString(const base::FilePath::StringType& str) {
+#if BUILDFLAG(IS_WIN)
+  return base::WideToUTF8(str);
+#else
+  return str;
+#endif
+}
+
+std::vector<base::FilePath::StringType> FindMailFiles(
+    base::FilePath file_path) {
+  base::FileEnumerator file_enumerator(
+      file_path, true, base::FileEnumerator::FILES, FILE_PATH_LITERAL("*"),
+      base::FileEnumerator::FolderSearchPolicy::ALL);
+
+  std::vector<base::FilePath::StringType> string_paths;
+  for (base::FilePath locale_file_path = file_enumerator.Next();
+       !locale_file_path.empty(); locale_file_path = file_enumerator.Next()) {
+    string_paths.push_back(FilePathAsString(locale_file_path));
+  }
+
+  return string_paths;
+}
+
+}  // namespace
+
+namespace extensions {
+
+namespace mail_private = vivaldi::mail_private;
+
+namespace CheckMailSearchDBHealth = mail_private::CheckMailSearchDBHealth;
+namespace OnUpgradeProgress = vivaldi::mail_private::OnUpgradeProgress;
+namespace OnDeleteMessagesProgress =
+    vivaldi::mail_private::OnDeleteMessagesProgress;
+
+Profile* MailPrivateAsyncFunction::GetProfile() const {
+  return Profile::FromBrowserContext(browser_context());
+}
+
+MailClientService* MailPrivateAsyncFunction::GetMailClientService() {
+  return MailClientServiceFactory::GetForProfile(GetProfile());
+}
+
+MailEventRouter::MailEventRouter(Profile* profile,
+                                 MailClientService* mail_client_service)
+    : profile_(profile) {
+  DCHECK(profile);
+  mail_service_observation_.Observe(mail_client_service);
+}
+
+MailEventRouter::~MailEventRouter() {}
+
+void MailEventRouter::OnMigrationProgress(MailClientService* service,
+                                          int progress,
+                                          int total,
+                                          std::string msg) {
+  base::ListValue args = OnUpgradeProgress::Create(progress, total, msg);
+  DispatchEvent(profile_, OnUpgradeProgress::kEventName, std::move(args));
+}
+
+void MailEventRouter::OnDeleteMessagesProgress(MailClientService* service,
+                                               int total) {
+  base::ListValue args = OnDeleteMessagesProgress::Create(total);
+  DispatchEvent(profile_, OnDeleteMessagesProgress::kEventName,
+                std::move(args));
+}
+
+// Helper to actually dispatch an event to extension listeners.
+void MailEventRouter::DispatchEvent(Profile* profile,
+                                    const std::string& event_name,
+                                    base::ListValue event_args) {
+  if (profile && EventRouter::Get(profile)) {
+    EventRouter* event_router = EventRouter::Get(profile);
+    if (event_router) {
+      event_router->BroadcastEvent(base::WrapUnique(
+          new extensions::Event(extensions::events::VIVALDI_EXTENSION_EVENT,
+                                event_name, std::move(event_args))));
+    }
+  }
+}
+
+MailAPI::MailAPI(content::BrowserContext* context) : browser_context_(context) {
+  EventRouter* event_router = EventRouter::Get(browser_context_);
+  event_router->RegisterObserver(this, OnUpgradeProgress::kEventName);
+  event_router->RegisterObserver(this, OnDeleteMessagesProgress::kEventName);
+}
+
+MailAPI::~MailAPI() {}
+
+void MailAPI::Shutdown() {
+  mail_client_event_router_.reset();
+  EventRouter::Get(browser_context_)->UnregisterObserver(this);
+}
+
+static base::LazyInstance<
+    BrowserContextKeyedAPIFactory<MailAPI>>::DestructorAtExit g_factory_mail =
+    LAZY_INSTANCE_INITIALIZER;
+
+// static
+BrowserContextKeyedAPIFactory<MailAPI>* MailAPI::GetFactoryInstance() {
+  return g_factory_mail.Pointer();
+}
+
+void MailAPI::OnListenerAdded(const EventListenerInfo& details) {
+  Profile* profile = Profile::FromBrowserContext(browser_context_);
+
+  mail_client_event_router_ = std::make_unique<MailEventRouter>(
+      profile, MailClientServiceFactory::GetForProfile(profile));
+
+  EventRouter::Get(browser_context_)->UnregisterObserver(this);
+}
+
+ResponseAction MailPrivateGetFilePathsFunction::Run() {
+  std::optional<mail_private::GetFilePaths::Params> params(
+      mail_private::GetFilePaths::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  base::FilePath file_path = base::FilePath::FromUTF8Unsafe(params->path);
+
+  if (!file_path.IsAbsolute()) {
+    return RespondNow(Error(base::StringPrintf(
+        "Path must be absolute %s", file_path.AsUTF8Unsafe().c_str())));
+  }
+  file_path_ = file_path;
+  base::OnceCallback<void(bool)> check_directory_callback =
+      base::BindOnce(&MailPrivateGetFilePathsFunction::GetFilePaths, this);
+
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
+      base::BindOnce(&base::DirectoryExists, file_path),
+      std::move(check_directory_callback));
+
+  return RespondLater();
+}
+
+void MailPrivateGetFilePathsFunction::GetFilePaths(bool directory_exists) {
+  if (!directory_exists) {
+    Respond(Error(base::StringPrintf("Directory does not exist %s",
+                                     file_path_.AsUTF8Unsafe().c_str())));
+    return;
+  }
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      base::BindOnce(&FindMailFiles, file_path_),
+      base::BindOnce(&MailPrivateGetFilePathsFunction::OnFinished, this));
+}
+
+ResponseAction MailPrivateCheckFolderFunction::Run() {
+  std::optional<mail_private::CheckFolder::Params> params(
+      mail_private::CheckFolder::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  base::FilePath file_path = base::FilePath::FromUTF8Unsafe(params->path);
+
+  if (!file_path.IsAbsolute()) {
+    return RespondNow(Error(base::StringPrintf(
+        "Path must be absolute %s", file_path.AsUTF8Unsafe().c_str())));
+  }
+  base::OnceCallback<void(bool)> check_directory_callback =
+      base::BindOnce(&MailPrivateCheckFolderFunction::CheckFolderResult, this);
+
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
+      base::BindOnce(&base::DirectoryExists, file_path),
+      std::move(check_directory_callback));
+
+  return RespondLater();
+}
+
+void MailPrivateCheckFolderFunction::CheckFolderResult(bool directory_exists) {
+  Respond(ArgumentList(
+      mail_private::CheckFolder::Results::Create(directory_exists)));
+}
+
+ResponseAction MailPrivateOpenFolderFunction::Run() {
+  std::optional<mail_private::OpenFolder::Params> params(
+      mail_private::OpenFolder::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  base::FilePath folder_path = base::FilePath::FromUTF8Unsafe(params->path);
+
+  if (!folder_path.IsAbsolute()) {
+    return RespondNow(Error(base::StringPrintf(
+        "Path must be absolute %s", folder_path.AsUTF8Unsafe().c_str())));
+  }
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  platform_util::ShowItemInFolder(profile, folder_path);
+
+  return RespondNow(NoArguments());
+}
+
+ResponseAction MailPrivateGetFullPathFunction::Run() {
+  std::optional<mail_private::GetFullPath::Params> params(
+      mail_private::GetFullPath::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  const std::string& filesystem_name = params->filesystem;
+  const std::string& filesystem_path = params->path;
+
+  base::FilePath file_path;
+  std::string error;
+  if (!app_file_handler_util::ValidateFileEntryAndGetPath(
+          filesystem_name, filesystem_path, source_process_id(), &file_path,
+          &error)) {
+    return RespondNow(Error(std::move(error)));
+  }
+
+  return RespondNow(WithArguments(base::Value(file_path.AsUTF8Unsafe())));
+}
+
+void MailPrivateGetFilePathsFunction::OnFinished(
+    const std::vector<base::FilePath::StringType>& results) {
+  std::vector<std::string> string_paths;
+  for (const auto& result : results) {
+    string_paths.push_back(StringTypeToString(result));
+  }
+  Respond(
+      ArgumentList(mail_private::GetFilePaths::Results::Create(string_paths)));
+}
+
+ResponseAction MailPrivateGetMailFilePathsFunction::Run() {
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  base::FilePath file_path = profile->GetPath();
+
+  file_path = file_path.Append(kMailDirectory);
+
+  if (!file_path.IsAbsolute()) {
+    return RespondNow(Error(base::StringPrintf(
+        "Path must be absolute %s", file_path.AsUTF8Unsafe().c_str())));
+  }
+
+  file_path_ = file_path;
+  base::OnceCallback<void(bool)> check_directory_callback = base::BindOnce(
+      &MailPrivateGetMailFilePathsFunction::GetMailFilePaths, this);
+
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
+      base::BindOnce(&base::DirectoryExists, file_path),
+      std::move(check_directory_callback));
+
+  return RespondLater();
+}
+
+void MailPrivateGetMailFilePathsFunction::GetMailFilePaths(
+    bool directory_exists) {
+  if (!directory_exists) {
+    Respond(Error(base::StringPrintf("Directory does not exist %s",
+                                     file_path_.AsUTF8Unsafe().c_str())));
+    return;
+  }
+
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      base::BindOnce(&FindMailFiles, file_path_),
+      base::BindOnce(&MailPrivateGetMailFilePathsFunction::OnFinished, this));
+}
+
+void MailPrivateGetMailFilePathsFunction::OnFinished(
+    const std::vector<base::FilePath::StringType>& results) {
+  std::vector<std::string> string_paths;
+  for (const auto& result : results) {
+    string_paths.push_back(StringTypeToString(result));
+  }
+  Respond(
+      ArgumentList(mail_private::GetFilePaths::Results::Create(string_paths)));
+}
+
+base::FilePath GetSavePath(base::FilePath file_path,
+                           std::vector<base::FilePath::StringType> string_paths,
+                           base::FilePath::StringType file_name) {
+  base::FilePath data_dir;
+  size_t count = string_paths.size();
+
+  file_path = file_path.Append(kMailDirectory);
+  for (size_t i = 0; i < count; i++) {
+    file_path = file_path.Append(string_paths[i]);
+    if (!base::DirectoryExists(file_path))
+      base::CreateDirectory(file_path);
+  }
+
+  if (file_name.length() > 0) {
+    file_path = file_path.Append(file_name);
+  }
+
+  return file_path;
+}
+
+bool Save(base::FilePath file_path,
+          std::vector<base::FilePath::StringType> string_paths,
+          base::FilePath::StringType file_name,
+          std::string data,
+          bool append) {
+  file_path = GetSavePath(file_path, string_paths, file_name);
+  if (!file_path.IsAbsolute()) {
+    return false;
+  }
+
+  // AppendToFile returns true if all data was written, whereas WriteToFile
+  // returns number of bytes and -1 on failure.
+  if (append) {
+    return base::AppendToFile(file_path, data.data());
+  } else {
+    return base::WriteFile(file_path, data);
+  }
+}
+
+bool SaveBuffer(base::FilePath file_path,
+                std::vector<base::FilePath::StringType> string_paths,
+                base::FilePath::StringType file_name,
+                const std::vector<uint8_t>& data,
+                bool append) {
+  file_path = GetSavePath(file_path, string_paths, file_name);
+  if (!file_path.IsAbsolute()) {
+    return false;
+  }
+  if (append) {
+    return base::AppendToFile(file_path, data);
+  } else {
+    return base::WriteFile(file_path, data);
+  }
+}
+
+GetDirectoryResult CreateDirectory(base::FilePath file_path,
+                                   std::string directory) {
+  GetDirectoryResult result;
+
+  file_path = file_path.Append(kMailDirectory);
+  file_path = file_path.AppendASCII(directory);
+
+  if (!file_path.IsAbsolute()) {
+    result.success = false;
+  }
+
+  if (!base::DirectoryExists(file_path)) {
+    result.success = base::CreateDirectory(file_path);
+    result.path = FilePathAsString(file_path);
+  }
+
+  return result;
+}
+
+ResponseAction MailPrivateWriteTextToMessageFileFunction::Run() {
+  std::optional<mail_private::WriteTextToMessageFile::Params> params(
+      mail_private::WriteTextToMessageFile::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  std::vector<base::FilePath::StringType> string_paths;
+  for (const auto& path : params->paths) {
+    string_paths.push_back(StringToStringType(path));
+  }
+
+  base::FilePath::StringType file_name = StringToStringType(params->file_name);
+  std::string data = params->raw;
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  base::FilePath file_path = profile->GetPath();
+
+  bool append = params->append ? *(params->append) : false;
+
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      base::BindOnce(&Save, file_path, string_paths, file_name, data, append),
+      base::BindOnce(&MailPrivateWriteTextToMessageFileFunction::OnFinished,
+                     this));
+
+  return RespondLater();
+}
+
+void MailPrivateWriteTextToMessageFileFunction::OnFinished(bool result) {
+  if (result == true) {
+    Respond(NoArguments());
+  } else {
+    Respond(Error("Error saving file"));
+  }
+}
+
+ResponseAction MailPrivateWriteBufferToMessageFileFunction::Run() {
+  std::optional<mail_private::WriteBufferToMessageFile::Params> params(
+      mail_private::WriteBufferToMessageFile::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  std::vector<base::FilePath::StringType> string_paths;
+  for (const auto& path : params->paths) {
+    string_paths.push_back(StringToStringType(path));
+  }
+
+  base::FilePath::StringType file_name = StringToStringType(params->file_name);
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  base::FilePath file_path = profile->GetPath();
+
+  bool append = params->append ? *(params->append) : false;
+
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      base::BindOnce(&SaveBuffer, file_path, string_paths, file_name,
+                     params->raw, append),
+      base::BindOnce(&MailPrivateWriteBufferToMessageFileFunction::OnFinished,
+                     this));
+
+  return RespondLater();
+}
+void MailPrivateWriteBufferToMessageFileFunction::OnFinished(bool result) {
+  if (result == true) {
+    Respond(NoArguments());
+  } else {
+    Respond(Error("Error saving file"));
+  }
+}
+
+bool Delete(base::FilePath file_path, base::FilePath::StringType file_name) {
+  return deleteFile(file_path, file_name);
+}
+
+ResponseAction MailPrivateDeleteMessageFileFunction::Run() {
+  std::optional<mail_private::DeleteMessageFile::Params> params(
+      mail_private::DeleteMessageFile::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  std::vector<std::string>& string_paths = params->paths;
+  base::FilePath::StringType file_name = StringToStringType(params->file_name);
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  base::FilePath file_path = profile->GetPath();
+
+  file_path = file_path.Append(kMailDirectory);
+
+  size_t count = string_paths.size();
+
+  for (size_t i = 0; i < count; i++) {
+    file_path = file_path.AppendASCII(string_paths[i]);
+  }
+
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      base::BindOnce(&Delete, file_path, file_name),
+      base::BindOnce(&MailPrivateDeleteMessageFileFunction::OnFinished, this));
+
+  return RespondLater();
+}
+
+void MailPrivateDeleteMessageFileFunction::OnFinished(bool result) {
+  if (result == true) {
+    Respond(NoArguments());
+  } else {
+    Respond(Error(base::StringPrintf("Error deleting file")));
+  }
+}
+
+ResponseAction MailPrivateRenameMessageFileFunction::Run() {
+  std::optional<mail_private::RenameMessageFile::Params> params(
+      mail_private::RenameMessageFile::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  std::vector<std::string>& string_paths = params->paths;
+  base::FilePath::StringType file_name = StringToStringType(params->file_name);
+  base::FilePath::StringType new_file_name =
+      StringToStringType(params->new_file_name);
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  base::FilePath file_path = profile->GetPath();
+
+  file_path = file_path.Append(kMailDirectory);
+
+  size_t count = string_paths.size();
+
+  for (size_t i = 0; i < count; i++) {
+    file_path = file_path.AppendASCII(string_paths[i]);
+  }
+
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      base::BindOnce(&renameFile, file_path, file_name, new_file_name),
+      base::BindOnce(&MailPrivateRenameMessageFileFunction::OnFinished, this));
+
+  return RespondLater();
+}
+
+void MailPrivateRenameMessageFileFunction::OnFinished(bool result) {
+  Respond(
+      ArgumentList(mail_private::RenameMessageFile::Results::Create(result)));
+}
+
+ReadFileResult Read(base::FilePath file_path) {
+  std::string raw = "";
+  ReadFileResult result;
+
+  if (!base::PathExists(file_path)) {
+    result.success = false;
+    return result;
+  }
+
+  if (base::ReadFileToString(file_path, &raw)) {
+    result.raw = raw;
+    result.success = true;
+
+  } else {
+    result.success = false;
+  }
+  return result;
+}
+
+ResponseAction MailPrivateReadFileToBufferFunction::Run() {
+  std::optional<mail_private::ReadFileToBuffer::Params> params(
+      mail_private::ReadFileToBuffer::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  base::FilePath file_path = base::FilePath::FromUTF8Unsafe(params->file_name);
+
+  if (!file_path.IsAbsolute()) {
+    return RespondNow(Error(base::StringPrintf(
+        "Path must be absolute %s", file_path.AsUTF8Unsafe().c_str())));
+  }
+
+  if (!base::PathExists(file_path)) {
+    return RespondNow(Error(base::StringPrintf(
+        "File path does not exist %s", file_path.AsUTF8Unsafe().c_str())));
+  }
+
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      base::BindOnce(&Read, file_path),
+      base::BindOnce(&MailPrivateReadFileToBufferFunction::OnFinished, this));
+
+  return RespondLater();
+}
+
+void MailPrivateReadFileToBufferFunction::OnFinished(ReadFileResult result) {
+  if (result.success == true) {
+    Respond(WithArguments(base::Value(base::as_bytes(base::span(result.raw)))));
+  } else {
+    Respond(Error(base::StringPrintf("Error reading file")));
+  }
+}
+ResponseAction MailPrivateMessageFileExistsFunction::Run() {
+  std::optional<mail_private::MessageFileExists::Params> params(
+      mail_private::MessageFileExists::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  std::vector<std::string>& string_paths = params->paths;
+  std::string file_name = params->file_name;
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  base::FilePath file_path = profile->GetPath();
+
+  file_path = file_path.Append(kMailDirectory);
+
+  size_t count = string_paths.size();
+
+  for (size_t i = 0; i < count; i++) {
+    file_path = file_path.AppendASCII(string_paths[i]);
+  }
+
+  if (file_name.length() > 0) {
+    file_path = file_path.AppendASCII(file_name);
+  }
+  bool exists = base::PathExists(file_path);
+  return RespondNow(
+      ArgumentList(mail_private::MessageFileExists::Results::Create(exists)));
+}
+
+ResponseAction MailPrivateWriteVivaldiHeadersFunction::Run() {
+  std::optional<mail_private::WriteVivaldiHeaders::Params> params(
+      mail_private::WriteVivaldiHeaders::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  std::string message_status = params->message_status;
+  std::string message_location = params->message_location;
+
+  std::vector<std::string> string_paths;
+  for (const auto& path : params->paths) {
+    string_paths.push_back(path);
+  }
+
+  base::FilePath::StringType file_name = StringToStringType(params->file_name);
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  base::FilePath profile_path = profile->GetPath();
+
+  base::FilePath file_path = profile_path.Append(kMailDirectory);
+  for (const auto& string_path : string_paths) {
+    file_path = file_path.AppendASCII(string_path);
+  }
+  file_path = file_path.Append(file_name);
+
+  // Post the file operations to a background thread
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE,
+      {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
+       base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
+      base::BindOnce(&WriteHeadersOnFileThread, file_path, message_status,
+                     message_location),
+      base::BindOnce(&MailPrivateWriteVivaldiHeadersFunction::OnHeadersWritten,
+                     this));
+
+  // Signal that we will respond asynchronously
+  return RespondLater();
+}
+
+void MailPrivateWriteVivaldiHeadersFunction::OnHeadersWritten(
+    const std::string& error_response) {
+  if (!error_response.empty()) {
+    Respond(Error(error_response));
+  } else {
+    Respond(NoArguments());
+  }
+}
+
+ResponseAction MailPrivateReadMessageFileToBufferFunction::Run() {
+  std::optional<mail_private::ReadMessageFileToBuffer::Params> params(
+      mail_private::ReadMessageFileToBuffer::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  std::vector<std::string>& string_paths = params->paths;
+  std::string file_name = params->file_name;
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  base::FilePath file_path = profile->GetPath();
+
+  file_path = file_path.Append(kMailDirectory);
+
+  size_t count = string_paths.size();
+
+  for (size_t i = 0; i < count; i++) {
+    file_path = file_path.AppendASCII(string_paths[i]);
+  }
+
+  if (file_name.length() > 0) {
+    file_path = file_path.AppendASCII(file_name);
+  }
+
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      base::BindOnce(&Read, file_path),
+      base::BindOnce(&MailPrivateReadMessageFileToBufferFunction::OnFinished,
+                     this));
+
+  return RespondLater();
+}
+
+void MailPrivateReadMessageFileToBufferFunction::OnFinished(
+    ReadFileResult result) {
+  if (result.success == true) {
+    Respond(WithArguments(base::Value(base::as_bytes(base::span(result.raw)))));
+  } else {
+    Respond(Error(base::StringPrintf("Error reading file")));
+  }
+}
+
+ResponseAction MailPrivateReadFileToTextFunction::Run() {
+  std::optional<mail_private::ReadFileToText::Params> params(
+      mail_private::ReadFileToText::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  std::string path = params->path;
+  base::FilePath base_path;
+  base::FilePath file_path = base_path.AppendASCII(path);
+
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      base::BindOnce(&Read, file_path),
+      base::BindOnce(&MailPrivateReadFileToTextFunction::OnFinished, this));
+
+  return RespondLater();
+}
+
+void MailPrivateReadFileToTextFunction::OnFinished(ReadFileResult result) {
+  if (result.success == true) {
+    Respond(ArgumentList(
+        mail_private::ReadFileToText::Results::Create(result.raw)));
+  } else {
+    Respond(Error(base::StringPrintf("Error reading file")));
+  }
+}
+
+GetDirectoryResult GetDirectory(base::FilePath file_path) {
+  std::string path = "";
+  GetDirectoryResult result;
+
+  if (!base::PathExists(file_path)) {
+    result.success = false;
+    return result;
+  }
+
+  result.path = FilePathAsString(file_path);
+  result.success = true;
+
+  return result;
+}
+
+ResponseAction MailPrivateGetFileDirectoryFunction::Run() {
+  std::optional<mail_private::GetFileDirectory::Params> params(
+      mail_private::GetFileDirectory::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  base::FilePath::StringType hashed_account_id =
+      StringToStringType(params->hashed_account_id);
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  base::FilePath file_path = profile->GetPath();
+
+  file_path = file_path.Append(kMailDirectory);
+  file_path = file_path.Append(hashed_account_id);
+
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      base::BindOnce(&GetDirectory, file_path),
+      base::BindOnce(&MailPrivateGetFileDirectoryFunction::OnFinished, this));
+
+  return RespondLater();
+}
+
+void MailPrivateGetFileDirectoryFunction::OnFinished(
+    GetDirectoryResult result) {
+  if (result.success == true) {
+    Respond(ArgumentList(mail_private::GetFileDirectory::Results::Create(
+        StringTypeToString(result.path))));
+  } else {
+    Respond(Error("Directory not found"));
+  }
+}
+
+ResponseAction MailPrivateCreateFileDirectoryFunction::Run() {
+  std::optional<mail_private::CreateFileDirectory::Params> params(
+      mail_private::CreateFileDirectory::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  std::string hashed_account_id = params->hashed_account_id;
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  base::FilePath file_path = profile->GetPath();
+
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      base::BindOnce(&CreateDirectory, file_path, hashed_account_id),
+      base::BindOnce(&MailPrivateCreateFileDirectoryFunction::OnFinished,
+                     this));
+
+  return RespondLater();
+}
+
+void MailPrivateCreateFileDirectoryFunction::OnFinished(
+    GetDirectoryResult result) {
+  if (result.success == true) {
+    Respond(ArgumentList(mail_private::CreateFileDirectory::Results::Create(
+        StringTypeToString(result.path))));
+  } else {
+    Respond(Error("Directory not created"));
+  }
+}
+
+mail_client::MessageRow GetMessageRow(const mail_private::Message& message) {
+  mail_client::MessageRow row;
+  row.searchListId = message.search_list_id;
+
+  row.to = base::UTF8ToUTF16(message.to);
+  row.body = base::UTF8ToUTF16(message.body);
+  row.subject = base::UTF8ToUTF16(message.subject);
+  row.from = base::UTF8ToUTF16(message.from);
+  row.cc = base::UTF8ToUTF16(message.cc);
+  row.replyTo = base::UTF8ToUTF16(message.reply_to);
+
+  return row;
+}
+
+ResponseAction MailPrivateCreateMessagesFunction::Run() {
+  std::optional<mail_private::CreateMessages::Params> params(
+      mail_private::CreateMessages::Params::Create(args()));
+
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  std::vector<mail_private::Message>& emails = params->messages;
+  size_t count = emails.size();
+  EXTENSION_FUNCTION_VALIDATE(count > 0);
+
+  std::vector<mail_client::MessageRow> message_rows;
+
+  for (size_t i = 0; i < count; ++i) {
+    mail_private::Message& email_details = emails[i];
+    mail_client::MessageRow em = GetMessageRow(email_details);
+    message_rows.push_back(em);
+  }
+
+  MailClientService* client_service =
+      MailClientServiceFactory::GetForProfile(GetProfile());
+
+  client_service->CreateMessages(
+      message_rows,
+      base::BindOnce(&MailPrivateCreateMessagesFunction::CreateMessagesComplete,
+                     this),
+      &task_tracker_);
+
+  return RespondLater();  // CreateMessagesComplete() will be called
+                          // asynchronously.
+}
+
+void MailPrivateCreateMessagesFunction::CreateMessagesComplete(bool result) {
+  Respond(ArgumentList(mail_private::CreateMessages::Results::Create(result)));
+}
+
+ResponseAction MailPrivateDeleteMessagesFunction::Run() {
+  std::optional<mail_private::DeleteMessages::Params> params(
+      mail_private::DeleteMessages::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  std::vector<int>& messages = params->messages;
+  mail_client::SearchListIDs messageIds;
+
+  for (size_t i = 0; i < messages.size(); i++) {
+    messageIds.push_back(messages[i]);
+  }
+
+  MailClientService* service =
+      MailClientServiceFactory::GetForProfile(GetProfile());
+  service->DeleteMessages(
+      messageIds,
+      base::BindOnce(&MailPrivateDeleteMessagesFunction::DeleteMessagesComplete,
+                     this),
+      &task_tracker_);
+
+  return RespondLater();
+}
+
+void MailPrivateDeleteMessagesFunction::DeleteMessagesComplete(bool result) {
+  Respond(ArgumentList(mail_private::DeleteMessages::Results::Create(result)));
+}
+
+ResponseAction MailPrivateUpdateMessageFunction::Run() {
+  std::optional<mail_private::UpdateMessage::Params> params(
+      mail_private::UpdateMessage::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  mail_private::Message& email = params->message;
+  mail_client::MessageRow messageRow = GetMessageRow(email);
+
+  MailClientService* service =
+      MailClientServiceFactory::GetForProfile(GetProfile());
+
+  service->UpdateMessage(
+      messageRow,
+      base::BindOnce(&MailPrivateUpdateMessageFunction::UpdateMessageComplete,
+                     this),
+      &task_tracker_);
+
+  return RespondLater();
+}
+
+void MailPrivateUpdateMessageFunction::UpdateMessageComplete(StatusCB status) {
+  if (!status.result) {
+    Respond(Error(status.message));
+  } else {
+    Respond(ArgumentList(
+        mail_private::UpdateMessage::Results::Create(status.result)));
+  }
+}
+
+ResponseAction MailPrivateSearchMessagesFunction::Run() {
+  std::optional<mail_private::SearchMessages::Params> params(
+      mail_private::SearchMessages::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  std::string search = params->search_value;
+  std::u16string searchParam = base::UTF8ToUTF16(search);
+
+  MailClientService* service =
+      MailClientServiceFactory::GetForProfile(GetProfile());
+
+  service->SearchEmail(
+      searchParam,
+      base::BindOnce(&MailPrivateSearchMessagesFunction::MessagesSearchComplete,
+                     this),
+      &task_tracker_);
+
+  return RespondLater();  // MessagesSearchComplete() will be called
+                          // asynchronously.
+}
+
+void MailPrivateSearchMessagesFunction::MessagesSearchComplete(
+    mail_client::MailSearchCB cb) {
+  mail_private::SearchResults res;
+  res.success = cb.success;
+
+  if (cb.success) {
+    res.search_list_ids.assign(cb.search_list_ids.begin(),
+                               cb.search_list_ids.end());
+    Respond(ArgumentList(mail_private::SearchMessages::Results::Create(res)));
+  } else {
+    Respond(Error(cb.message));
+  }
+}
+
+ResponseAction MailPrivateMatchMessageFunction::Run() {
+  std::optional<mail_private::MatchMessage::Params> params(
+      mail_private::MatchMessage::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  std::string search = params->search_value;
+  std::u16string searchParam = base::UTF8ToUTF16(search);
+
+  mail_client::SearchListID search_list_id = params->search_list_id;
+
+  MailClientService* service =
+      MailClientServiceFactory::GetForProfile(GetProfile());
+
+  service->MatchMessage(
+      search_list_id, searchParam,
+      base::BindOnce(&MailPrivateMatchMessageFunction::MatchMessageComplete,
+                     this),
+      &task_tracker_);
+
+  return RespondLater();  // MatchMessageComplete() will be called
+                          // asynchronously.
+}
+
+void MailPrivateMatchMessageFunction::MatchMessageComplete(bool match) {
+  Respond(ArgumentList(mail_private::MatchMessage::Results::Create(match)));
+}
+
+ResponseAction MailPrivateGetDBVersionFunction::Run() {
+  MailClientService* service =
+      MailClientServiceFactory::GetForProfile(GetProfile());
+
+  service->GetDBVersion(
+      base::BindOnce(&MailPrivateGetDBVersionFunction::OnGetDBVersionFinished,
+                     this),
+      &task_tracker_);
+  return RespondLater();
+}
+
+void MailPrivateGetDBVersionFunction::OnGetDBVersionFinished(
+    mail_client::Migration migration_row) {
+  mail_private::Migration migration;
+  migration.db_version = migration_row.db_version;
+  migration.migration_needed = migration_row.migration_needed;
+
+  Respond(ArgumentList(mail_private::GetDBVersion::Results::Create(migration)));
+}
+
+ResponseAction MailPrivateStartMigrationFunction::Run() {
+  MailClientService* service =
+      MailClientServiceFactory::GetForProfile(GetProfile());
+
+  service->MigrateSearchDB(
+      base::BindOnce(&MailPrivateStartMigrationFunction::OnMigrationFinished,
+                     this),
+      &task_tracker_);
+  return RespondLater();
+}
+
+void MailPrivateStartMigrationFunction::OnMigrationFinished(bool success) {
+  Respond(ArgumentList(mail_private::StartMigration::Results::Create(success)));
+}
+
+ResponseAction MailPrivateDeleteMailSearchDBFunction::Run() {
+  MailClientService* service =
+      MailClientServiceFactory::GetForProfile(GetProfile());
+
+  service->DeleteMailSearchDB(
+      base::BindOnce(&MailPrivateDeleteMailSearchDBFunction::OnDeleteFinished,
+                     this),
+      &task_tracker_);
+  return RespondLater();
+}
+
+void MailPrivateDeleteMailSearchDBFunction::OnDeleteFinished(bool success) {
+  Respond(
+      ArgumentList(mail_private::DeleteMailSearchDB::Results::Create(success)));
+}
+
+ResponseAction MailPrivateCheckMailSearchDBHealthFunction::Run() {
+  MailClientService* service =
+      MailClientServiceFactory::GetForProfile(GetProfile());
+
+  service->CheckDBHealth(
+      base::BindOnce(
+          &MailPrivateCheckMailSearchDBHealthFunction::OnCheckDBFinished, this),
+      &task_tracker_);
+  return RespondLater();
+}
+
+void MailPrivateCheckMailSearchDBHealthFunction::OnCheckDBFinished(
+    StatusCB status) {
+  CheckMailSearchDBHealth::Results::MailSearchDBHealth api_result;
+
+  api_result.result = status.result;
+  api_result.message = status.message;
+
+  Respond(ArgumentList(CheckMailSearchDBHealth::Results::Create(api_result)));
+}
+
+ResponseAction MailPrivateGetMailSearchDBCountFunction::Run() {
+  MailClientService* service =
+      MailClientServiceFactory::GetForProfile(GetProfile());
+
+  service->CountMailSearchMessages(
+      base::BindOnce(&MailPrivateGetMailSearchDBCountFunction::OnCountFinished,
+                     this),
+      &task_tracker_);
+  return RespondLater();
+}
+
+void MailPrivateGetMailSearchDBCountFunction::OnCountFinished(int count) {
+  Respond(
+      ArgumentList(mail_private::GetMailSearchDBCount::Results::Create(count)));
+}
+ResponseAction MailPrivateGetMailSearchDBIdsFunction::Run() {
+  MailClientService* service =
+      MailClientServiceFactory::GetForProfile(GetProfile());
+
+  service->GetMailSearchDBSearchListIds(
+      base::BindOnce(
+          &MailPrivateGetMailSearchDBIdsFunction::GetMailSearchDBIdsComplete,
+          this),
+      &task_tracker_);
+
+  return RespondLater();
+}
+
+void MailPrivateGetMailSearchDBIdsFunction::GetMailSearchDBIdsComplete(
+    mail_client::MailSearchCB cb) {
+  if (cb.success) {
+    std::vector<int> search_list_ids(cb.search_list_ids.begin(),
+                                     cb.search_list_ids.end());
+
+    Respond(ArgumentList(
+        mail_private::GetMailSearchDBIds::Results::Create(search_list_ids)));
+  } else {
+    Respond(Error(cb.message));
+  }
+}
+
+}  //  namespace extensions

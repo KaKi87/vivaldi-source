@@ -16,11 +16,8 @@
 #include "chrome/browser/ui/views/accessibility/theme_tracking_non_accessible_image_view.h"
 #include "chrome/browser/ui/views/bubble_anchor_util_views.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
-#include "chrome/browser/ui/views/chrome_typography.h"
-#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
-#include "chrome/browser/ui/views/page_action/page_action_view.h"
 #include "chrome/browser/ui/views/passwords/manage_passwords_view.h"
 #include "chrome/browser/ui/views/passwords/move_to_account_store_bubble_view.h"
 #include "chrome/browser/ui/views/passwords/password_add_username_view.h"
@@ -30,18 +27,14 @@
 #include "chrome/browser/ui/views/passwords/post_save_compromised_bubble_view.h"
 #include "chrome/browser/ui/views/passwords/shared_passwords_notification_view.h"
 #include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.h"
-#include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/browser/ui/views/webauthn/passkey_deleted_confirmation_view.h"
 #include "chrome/browser/ui/views/webauthn/passkey_not_accepted_bubble_view.h"
 #include "chrome/browser/ui/views/webauthn/passkey_saved_confirmation_view.h"
 #include "chrome/browser/ui/views/webauthn/passkey_updated_confirmation_view.h"
 #include "chrome/browser/ui/views/webauthn/passkey_upgrade_bubble_view.h"
-#include "components/password_manager/core/browser/features/password_features.h"
-#include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/common/password_manager_ui.h"
 #include "components/tabs/public/tab_interface.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/views/controls/button/button.h"
 
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 #include "chrome/browser/ui/views/passwords/password_relaunch_chrome_view.h"
@@ -66,8 +59,9 @@ void PasswordBubbleViewBase::ShowBubble(content::WebContents* web_contents,
                                         DisplayReason reason) {
   BrowserWindowInterface* browser =
       GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(web_contents);
-  DCHECK(browser);
-  DCHECK(browser->GetWindow());
+  if (!browser) {
+    return;
+  }
   DCHECK(!g_manage_passwords_bubble_ ||
          !g_manage_passwords_bubble_->GetWidget()->IsVisible());
 
@@ -136,9 +130,11 @@ void PasswordBubbleViewBase::ShowBubble(content::WebContents* web_contents,
     return;
   }
 
-  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
-  ToolbarButtonProvider* button_provider =
-      browser_view->toolbar_button_provider();
+  auto* button_provider = ToolbarButtonProvider::From(browser);
+  if (!button_provider) {
+    // TODO(crbug.com/520672542): Support password bubble in WebUI Browser.
+    return;
+  }
   views::BubbleAnchor anchor =
       button_provider->GetBubbleAnchor(kActionShowPasswordsBubbleOrPage);
 
@@ -172,14 +168,16 @@ void PasswordBubbleViewBase::ShowBubble(content::WebContents* web_contents,
       },
       bubble));
 
-  auto* passwords_action_item = actions::ActionManager::Get().FindAction(
-      kActionShowPasswordsBubbleOrPage,
-      browser->GetActions()->root_action_item());
-  CHECK(passwords_action_item);
-  bool should_suppress_next_button_trigger =
-      g_manage_passwords_bubble_->ShouldCloseOnDeactivate();
-  passwords_action_item->SetIsShowingBubble(
-      should_suppress_next_button_trigger);
+  if (browser->GetActions()->root_action_item()) {
+    if (auto* passwords_action_item = actions::ActionManager::Get().FindAction(
+            kActionShowPasswordsBubbleOrPage,
+            browser->GetActions()->root_action_item())) {
+      bool should_suppress_next_button_trigger =
+          g_manage_passwords_bubble_->ShouldCloseOnDeactivate();
+      passwords_action_item->SetIsShowingBubble(
+          should_suppress_next_button_trigger);
+    }
+  }
 }
 
 // static
@@ -320,12 +318,12 @@ PasswordBubbleViewBase::PasswordBubbleViewBase(
 PasswordBubbleViewBase::~PasswordBubbleViewBase() {
   CHECK(this != g_manage_passwords_bubble_);
   // It is possible in tests for |browser_| not to exist.
-  if (browser_) {
-    auto* passwords_action_item = actions::ActionManager::Get().FindAction(
-        kActionShowPasswordsBubbleOrPage,
-        browser_->GetActions()->root_action_item());
-    CHECK(passwords_action_item);
-    passwords_action_item->SetIsShowingBubble(false);
+  if (browser_ && browser_->GetActions()->root_action_item()) {
+    if (auto* passwords_action_item = actions::ActionManager::Get().FindAction(
+            kActionShowPasswordsBubbleOrPage,
+            browser_->GetActions()->root_action_item())) {
+      passwords_action_item->SetIsShowingBubble(false);
+    }
   }
 }
 

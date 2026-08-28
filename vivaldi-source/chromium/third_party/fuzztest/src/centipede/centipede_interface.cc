@@ -18,20 +18,17 @@
 
 #include <algorithm>
 #include <atomic>
-#include <csignal>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>  // NOLINT
 #include <iostream>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
-#include "absl/base/optimization.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -77,26 +74,11 @@ namespace fuzztest::internal {
 
 namespace {
 
-// Sets signal handler for SIGINT.
-// TODO(b/378532202): Replace this with a more generic mechanism that allows
-// the called or `CentipedeMain()` to indicate when to stop.
-void SetSignalHandlers() {
-  struct sigaction sigact = {};
-  sigact.sa_flags = SA_ONSTACK;
-  sigact.sa_handler = [](int received_signum) {
-    if (received_signum == SIGINT) {
-      FUZZTEST_LOG(INFO) << "Ctrl-C pressed: winding down";
-      RequestEarlyStop(EXIT_FAILURE);
-      return;
-    }
-    ABSL_UNREACHABLE();
-  };
-  sigaction(SIGINT, &sigact, nullptr);
-}
+constexpr absl::Duration kDefaultRegressionTtl = absl::Hours(24 * 7);
 
 // Runs env.for_each_blob on every blob extracted from env.args.
 // Returns EXIT_SUCCESS on success, EXIT_FAILURE otherwise.
-int ForEachBlob(const Environment& env) {
+void ForEachBlob(const Environment& env, StopCondition& stop_condition) {
   auto tmpdir = TemporaryLocalDirPath();
   CreateLocalDirRemovedAtExit(tmpdir);
   std::string tmpfile = std::filesystem::path(tmpdir).append("t");
@@ -107,7 +89,8 @@ int ForEachBlob(const Environment& env) {
     absl::Status open_status = blob_reader->Open(arg);
     if (!open_status.ok()) {
       FUZZTEST_LOG(INFO) << "Failed to open " << arg << ": " << open_status;
-      return EXIT_FAILURE;
+      stop_condition.RequestEarlyStop(EXIT_FAILURE);
+      return;
     }
     ByteSpan blob;
     while (blob_reader->Read(blob) == absl::OkStatus()) {
@@ -119,10 +102,9 @@ int ForEachBlob(const Environment& env) {
       // If this flag gets active use, we may want to define special cases,
       // e.g. if for_each_blob=="cp %P /some/where" we can do it in-process.
       cmd.Execute();
-      if (ShouldStop()) return ExitCode();
+      if (stop_condition.ShouldStop()) return;
     }
   }
-  return EXIT_SUCCESS;
 }
 
 // Loads corpora from work dirs provided in `env.args`, if there are two args
@@ -155,12 +137,13 @@ void SavePCTableToFile(const PCTable& pc_table, std::string_view file_path) {
 
 BinaryInfo PopulateBinaryInfoAndSavePCsIfNecessary(
     const Environment& env, CentipedeCallbacksFactory& callbacks_factory,
-    std::string& pcs_file_path) {
+    std::string& pcs_file_path, StopCondition& stop_condition) {
   BinaryInfo binary_info;
   // Some fuzz targets have coverage not based on instrumenting binaries.
   // For those target, we should not populate binary info.
   if (env.populate_binary_info) {
-    ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
+    ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env,
+                                              stop_condition);
     scoped_callbacks.callbacks()->PopulateBinaryInfo(binary_info);
   }
   if (env.save_binary_info) {
@@ -192,9 +175,10 @@ std::vector<Environment> CreateEnvironmentsForThreads(
   return envs;
 }
 
-int Fuzz(const Environment& env, const BinaryInfo& binary_info,
-         std::string_view pcs_file_path,
-         CentipedeCallbacksFactory& callbacks_factory) {
+void Fuzz(const Environment& env, const BinaryInfo& binary_info,
+          std::string_view pcs_file_path,
+          CentipedeCallbacksFactory& callbacks_factory,
+          StopCondition& stop_condition) {
   CoverageLogger coverage_logger(binary_info.pc_table, binary_info.symbols);
 
   std::vector<Environment> envs =
@@ -226,20 +210,22 @@ int Fuzz(const Environment& env, const BinaryInfo& binary_info,
         });
   }
 
-  auto fuzzing_worker =
-      [&env, &callbacks_factory, &binary_info, &coverage_logger](
-          Environment& my_env, std::atomic<Stats>& stats, bool create_tmpdir) {
-        if (create_tmpdir) CreateLocalDirRemovedAtExit(TemporaryLocalDirPath());
-        // Uses TID, call in this thread.
-        my_env.seed = GetRandomSeed(env.seed);
+  auto fuzzing_worker = [&env, &callbacks_factory, &binary_info,
+                         &coverage_logger, &stop_condition](
+                            Environment& my_env, std::atomic<Stats>& stats,
+                            bool create_tmpdir) {
+    if (create_tmpdir) CreateLocalDirRemovedAtExit(TemporaryLocalDirPath());
+    // Uses TID, call in this thread.
+    my_env.seed = GetRandomSeed(env.seed);
 
-        if (env.dry_run) return;
+    if (env.dry_run) return;
 
-        ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, my_env);
-        Centipede centipede(my_env, *scoped_callbacks.callbacks(), binary_info,
-                            coverage_logger, stats);
-        centipede.FuzzingLoop();
-      };
+    ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, my_env,
+                                              stop_condition);
+    Centipede centipede(my_env, *scoped_callbacks.callbacks(), binary_info,
+                        coverage_logger, stats, stop_condition);
+    centipede.FuzzingLoop();
+  };
 
   if (env.num_threads == 1) {
     // When fuzzing with one thread, run fuzzing loop in the current
@@ -268,8 +254,6 @@ int Fuzz(const Environment& env, const BinaryInfo& binary_info,
   }
 
   if (!env.knobs_file.empty()) PrintRewardValues(stats_vec, std::cerr);
-
-  return ExitCode();
 }
 
 TestShard SetUpTestSharding() {
@@ -351,67 +335,36 @@ PeriodicAction RecordFuzzingTime(std::string_view fuzzing_time_file,
           PeriodicAction::ZeroDelayConstInterval(absl::Seconds(15))};
 }
 
-int UpdateCorpusDatabaseForFuzzTests(
-    Environment env, const fuzztest::internal::Configuration& fuzztest_config,
-    CentipedeCallbacksFactory& callbacks_factory) {
-  env.UpdateWithTargetConfig(fuzztest_config);
-
-  absl::Time start_time = absl::Now();
-  FUZZTEST_LOG(INFO)
-      << "Starting the update of the corpus database for fuzz tests:"
-      << "\nBinary: " << env.binary
-      << "\nCorpus database: " << fuzztest_config.corpus_database;
+void UpdateCorpusDatabase(Environment env,
+                          CentipedeCallbacksFactory& callbacks_factory,
+                          StopCondition& stop_condition) {
+  FUZZTEST_LOG(INFO) << "Starting the update of the corpus database for:"
+                     << "\nFuzz test: " << env.test_name
+                     << "\nBinary: " << env.binary
+                     << "\nCorpus database: " << env.fuzztest_corpus_database;
 
   // Step 1: Preliminary set up of test sharding, binary info, etc.
   const auto [test_shard_index, total_test_shards] = SetUpTestSharding();
   const auto corpus_database_path =
-      std::filesystem::path(fuzztest_config.corpus_database) /
-      fuzztest_config.binary_identifier;
+      std::filesystem::path(env.fuzztest_corpus_database) /
+      env.fuzztest_binary_identifier;
   const auto stats_root_path =
-      fuzztest_config.stats_root.empty()
+      env.fuzztest_stats_root.empty()
           ? std::filesystem::path()
-          : std::filesystem::path(fuzztest_config.stats_root) /
-                fuzztest_config.binary_identifier;
+          : std::filesystem::path(env.fuzztest_stats_root) /
+                env.fuzztest_binary_identifier;
   const auto workdir_root_path =
-      fuzztest_config.workdir_root.empty()
+      env.fuzztest_workdir_root.empty()
           ? corpus_database_path
-          : std::filesystem::path(fuzztest_config.workdir_root) /
-                fuzztest_config.binary_identifier;
+          : std::filesystem::path(env.fuzztest_workdir_root) /
+                env.fuzztest_binary_identifier;
   const auto execution_stamp = [] {
     std::string stamp =
         absl::FormatTime("%Y-%m-%d-%H-%M-%S", absl::Now(), absl::UTCTimeZone());
     return stamp;
   }();
-  std::vector<std::string> fuzz_tests_to_run;
-  if (!env.fuzztest_multi_test_mode_soon_to_be_removed) {
-    FUZZTEST_CHECK(fuzztest_config.fuzz_tests_in_current_shard.size() == 1)
-        << "Centipede handles only one test when using FuzzTest. Use "
-           "`--fuzztest_multi_test_mode_soon_to_be_removed` if you need "
-           "Centipede to operate on multiple tests in one invocation - this "
-           "feature is going to be removed soon.";
-    fuzz_tests_to_run = fuzztest_config.fuzz_tests_in_current_shard;
-  } else {
-    // TODO: xinhaoyuan - remove this branch after merging the FuzzTest
-    // configuration into Centipede flags.
-    //
-    // We hide shard information when querying the available tests. So we use
-    // `fuzz_tests_in_current_shard` as the full list and shard it here. We
-    // cannot use `fuzz_tests` because it does not take test filter into
-    // account.
-    for (int i = 0; i < fuzztest_config.fuzz_tests_in_current_shard.size();
-         ++i) {
-      if (i % total_test_shards == test_shard_index) {
-        fuzz_tests_to_run.push_back(
-            fuzztest_config.fuzz_tests_in_current_shard[i]);
-      }
-    }
-  }
-  FUZZTEST_LOG(INFO) << "Fuzz tests to run: "
-                     << absl::StrJoin(fuzz_tests_to_run, ", ");
 
   const bool is_workdir_specified = !env.workdir.empty();
-  FUZZTEST_CHECK(!is_workdir_specified ||
-                 !env.fuzztest_multi_test_mode_soon_to_be_removed);
   // When env.workdir is empty, the full workdir paths will be formed by
   // appending the fuzz test names to the base workdir path. We use different
   // path when only replaying to avoid replaying an unfinished fuzzing sessions.
@@ -420,258 +373,223 @@ int UpdateCorpusDatabaseForFuzzTests(
           ? std::filesystem::path{}  // Will not be used.
           : workdir_root_path /
                 absl::StrFormat("workdir%s.%03d",
-                                fuzztest_config.only_replay ? "-replay" : "",
+                                env.fuzztest_only_replay ? "-replay" : "",
                                 test_shard_index);
   // There's no point in saving the binary info to the workdir, since the
   // workdir is deleted at the end.
   env.save_binary_info = false;
   std::string pcs_file_path;
   BinaryInfo binary_info = PopulateBinaryInfoAndSavePCsIfNecessary(
-      env, callbacks_factory, pcs_file_path);
+      env, callbacks_factory, pcs_file_path, stop_condition);
 
   FUZZTEST_LOG(INFO) << "Test shard index: " << test_shard_index
                      << " Total test shards: " << total_test_shards;
 
-  int exit_code = EXIT_SUCCESS;
+  // Step 2: Run the fuzz test.
 
-  // Step 2: Iterate over the fuzz tests and run them.
-  const std::string binary = env.binary;
-  for (int i = 0; i < fuzz_tests_to_run.size(); ++i) {
-    // Clean up previous stop requests. stop_time will be set later.
-    ClearEarlyStopRequestAndSetStopTime(/*stop_time=*/absl::InfiniteFuture());
-    if (env.fuzztest_multi_test_mode_soon_to_be_removed &&
-        fuzztest_config.GetTimeLimitPerTest() < absl::InfiniteDuration()) {
-      const absl::Duration test_time_limit =
-          fuzztest_config.GetTimeLimitPerTest();
-      const absl::Status has_enough_time = VerifyBazelHasEnoughTimeToRunTest(
-          start_time, test_time_limit,
-          /*executed_tests_in_shard=*/i, fuzztest_config.fuzz_tests.size());
-      FUZZTEST_CHECK_OK(has_enough_time)
-          << "Not enough time for running the fuzz test "
-          << fuzz_tests_to_run[i] << " for " << test_time_limit;
-    }
-    if (!is_workdir_specified) {
-      env.workdir = base_workdir_path / fuzz_tests_to_run[i];
-    }
-    const auto execution_id_path =
-        (base_workdir_path /
-         absl::StrCat(fuzz_tests_to_run[i], ".execution_id"))
-            .string();
+  // Unset stop time. stop_time will be set later.
+  stop_condition.SetStopTime(absl::InfiniteFuture());
 
-    bool is_resuming = false;
-    if (!is_workdir_specified && fuzztest_config.execution_id.has_value()) {
-      // Use the execution IDs to resume or skip tests.
-      const bool execution_id_matched = [&] {
-        if (!RemotePathExists(execution_id_path)) return false;
-        FUZZTEST_CHECK(!RemotePathIsDirectory(execution_id_path));
-        std::string prev_execution_id;
-        FUZZTEST_CHECK_OK(
-            RemoteFileGetContents(execution_id_path, prev_execution_id));
-        return prev_execution_id == *fuzztest_config.execution_id;
-      }();
-      if (execution_id_matched) {
-        // If execution IDs match but the previous coverage is missing, it means
-        // the test was previously finished, and we skip running for the test.
-        if (!RemotePathExists(WorkDir{env}.CoverageDirPath())) {
-          FUZZTEST_LOG(INFO)
-              << "Skipping running the fuzz test " << fuzz_tests_to_run[i];
-          continue;
-        }
-        // If execution IDs match and the previous coverage exists, it means
-        // the same workflow got interrupted when running the test. So we resume
-        // the test.
-        is_resuming = true;
-        FUZZTEST_LOG(INFO) << "Resuming running the fuzz test "
-                           << fuzz_tests_to_run[i];
-      } else {
-        // If the execution IDs mismatch, we start a new run.
-        is_resuming = false;
-        FUZZTEST_LOG(INFO) << "Starting a new run of the fuzz test "
-                           << fuzz_tests_to_run[i];
-      }
-    }
-    if (RemotePathExists(env.workdir) && !is_resuming) {
-      // This could be a workdir from a failed run that used a different version
-      // of the binary. We delete it so that we don't have to deal with
-      // the assumptions under which it is safe to reuse an old workdir.
-      FUZZTEST_CHECK_OK(RemotePathDelete(env.workdir, /*recursively=*/true));
-    }
-    const WorkDir workdir{env};
-    FUZZTEST_CHECK_OK(RemoteMkdir(
-        workdir.CoverageDirPath()));  // Implicitly creates the workdir
+  if (!is_workdir_specified) {
+    env.workdir = base_workdir_path / env.test_name;
+  }
+  const auto execution_id_path =
+      (base_workdir_path / absl::StrCat(env.test_name, ".execution_id"))
+          .string();
 
-    // Updating execution ID must be after creating the coverage dir. Otherwise
-    // if it fails to create coverage dir after updating execution ID, next
-    // attempt would skip this test.
-    if (!is_workdir_specified && fuzztest_config.execution_id.has_value() &&
-        !is_resuming) {
-      FUZZTEST_CHECK_OK(RemoteFileSetContents(execution_id_path,
-                                              *fuzztest_config.execution_id));
-    }
-
-    absl::Cleanup clean_up_workdir = [is_workdir_specified, &env] {
-      if (!is_workdir_specified && !EarlyStopRequested()) {
-        FUZZTEST_CHECK_OK(RemotePathDelete(env.workdir, /*recursively=*/true));
-      }
-    };
-
-    const std::filesystem::path fuzztest_db_path =
-        corpus_database_path / fuzz_tests_to_run[i];
-    const std::filesystem::path regression_dir =
-        fuzztest_db_path / "regression";
-    const std::filesystem::path coverage_dir = fuzztest_db_path / "coverage";
-
-    // Seed the fuzzing session with the latest coverage corpus and regression
-    // inputs from the previous fuzzing session.
-    if (!is_resuming) {
-      FUZZTEST_CHECK_OK(GenerateSeedCorpusFromConfig(
-          GetSeedCorpusConfig(env, regression_dir.c_str(),
-                              fuzztest_config.replay_coverage_inputs
-                                  ? coverage_dir.c_str()
-                                  : ""),
-          env.binary_name, env.binary_hash))
-          << "while generating the seed corpus";
-    }
-
-    if (env.fuzztest_multi_test_mode_soon_to_be_removed) {
-      // TODO: b/338217594 - Call the FuzzTest binary in a flag-agnostic way.
-      constexpr std::string_view kFuzzTestFuzzFlag = "--fuzz=";
-      constexpr std::string_view kFuzzTestReplayCorpusFlag =
-          "--replay_corpus=";
-      std::string_view test_selection_flag = fuzztest_config.only_replay
-                                                 ? kFuzzTestReplayCorpusFlag
-                                                 : kFuzzTestFuzzFlag;
-      env.binary =
-          absl::StrCat(binary, " ", test_selection_flag, fuzz_tests_to_run[i]);
-    }
-
-    absl::Duration time_limit = fuzztest_config.GetTimeLimitPerTest();
-    absl::Duration time_spent = absl::ZeroDuration();
-    const std::string fuzzing_time_file =
-        std::filesystem::path(env.workdir) / "fuzzing_time";
-    if (is_resuming && RemotePathExists(fuzzing_time_file)) {
-      time_spent = ReadFuzzingTime(fuzzing_time_file);
-      time_limit = std::max(time_limit - time_spent, absl::ZeroDuration());
-    }
-    is_resuming = false;
-
-    if (EarlyStopRequested()) {
-      if (ExitCode() != EXIT_SUCCESS) {
-        exit_code = ExitCode();
-        FUZZTEST_LOG(ERROR)
-            << "Early stop requested for test " << fuzz_tests_to_run[i]
-            << " with failure exit code " << exit_code;
-      } else {
-        FUZZTEST_LOG(INFO) << "Skipping test " << fuzz_tests_to_run[i]
-                           << " due to early stop requested without failure.";
-      }
-      continue;
-    }
-
-    FUZZTEST_LOG(INFO) << (fuzztest_config.only_replay ? "Replaying "
-                                                       : "Fuzzing ")
-                       << fuzz_tests_to_run[i] << " for " << time_limit
-                       << "\n\tTest binary: " << env.binary;
-
-    const absl::Time start_time = absl::Now();
-    ClearEarlyStopRequestAndSetStopTime(/*stop_time=*/start_time + time_limit);
-    PeriodicAction record_fuzzing_time =
-        RecordFuzzingTime(fuzzing_time_file, start_time - time_spent);
-    Fuzz(env, binary_info, pcs_file_path, callbacks_factory);
-    record_fuzzing_time.Nudge();
-    record_fuzzing_time.Stop();
-
-    if (!stats_root_path.empty()) {
-      const auto stats_dir = stats_root_path / fuzz_tests_to_run[i];
-      FUZZTEST_CHECK_OK(RemoteMkdir(stats_dir.c_str()));
-      FUZZTEST_CHECK_OK(RemoteFileRename(
-          workdir.FuzzingStatsPath(),
-          (stats_dir / absl::StrCat("fuzzing_stats_", execution_stamp))
-              .c_str()));
-    }
-
-    if (EarlyStopRequested()) {
-      if (ExitCode() != EXIT_SUCCESS) {
-        exit_code = ExitCode();
-        FUZZTEST_LOG(ERROR)
-            << "Early stop requested for test " << fuzz_tests_to_run[i]
-            << " with failure exit code " << exit_code;
-      } else {
-        FUZZTEST_LOG(INFO) << "Skip updating corpus database due to early stop "
-                              "requested without failure.";
-      }
-      continue;
-    }
-    // The test time limit does not apply for the rest of the steps.
-    ClearEarlyStopRequestAndSetStopTime(/*stop_time=*/absl::InfiniteFuture());
-
-    // TODO(xinhaoyuan): Have a separate flag to skip corpus updating instead
-    // of checking whether workdir is specified or not.
-    const bool skip_corpus_db_update =
-        fuzztest_config.only_replay || is_workdir_specified;
-    if (skip_corpus_db_update && !env.report_crash_summary) continue;
-
-    // Deduplicate and optionally update the crashing inputs.
-    CrashSummary crash_summary{fuzztest_config.binary_identifier,
-                               fuzz_tests_to_run[i]};
-    const absl::flat_hash_map<std::string, CrashDetails> crashes_by_signature =
-        GetCrashesFromWorkdir(workdir, env.total_shards);
-    if (skip_corpus_db_update) {
-      // Just report the crashes.
-      FUZZTEST_CHECK(env.report_crash_summary);
-      for (const auto& [crash_signature, crash_details] :
-           crashes_by_signature) {
-        crash_summary.AddCrash({/*id=*/crash_details.input_signature,
-                                /*category=*/crash_details.description,
-                                crash_signature, crash_details.description});
-      }
-      crash_summary.Report(&std::cerr);
-      continue;
-    }
-    OrganizeCrashingInputs(regression_dir, fuzztest_db_path / "crashing", env,
-                           callbacks_factory, crashes_by_signature,
-                           crash_summary);
-    if (env.report_crash_summary) crash_summary.Report(&std::cerr);
-
-    // Distill and store the coverage corpus.
-    Distill(env);
-    if (RemotePathExists(coverage_dir.c_str())) {
-      // In the future, we will store k latest coverage corpora for some k, but
-      // for now we only keep the latest one.
+  bool is_resuming = false;
+  if (!is_workdir_specified && !env.fuzztest_execution_id.empty()) {
+    // Use the execution IDs to resume or skip tests.
+    const bool execution_id_matched = [&] {
+      if (!RemotePathExists(execution_id_path)) return false;
+      FUZZTEST_CHECK(!RemotePathIsDirectory(execution_id_path));
+      std::string prev_execution_id;
       FUZZTEST_CHECK_OK(
-          RemotePathDelete(coverage_dir.c_str(), /*recursively=*/true));
-    }
-    FUZZTEST_CHECK_OK(RemoteMkdir(coverage_dir.c_str()));
-    std::vector<std::string> distilled_corpus_files;
-    FUZZTEST_CHECK_OK(
-        RemoteGlobMatch(workdir.DistilledCorpusFilePaths().AllShardsGlob(),
-                        distilled_corpus_files));
-    for (const std::string& corpus_file : distilled_corpus_files) {
-      const std::string file_name =
-          std::filesystem::path(corpus_file).filename();
-      FUZZTEST_CHECK_OK(
-          RemoteFileRename(corpus_file, (coverage_dir / file_name).c_str()));
+          RemoteFileGetContents(execution_id_path, prev_execution_id));
+      return prev_execution_id == env.fuzztest_execution_id;
+    }();
+    if (execution_id_matched) {
+      // If execution IDs match but the previous coverage is missing, it means
+      // the test was previously finished, and we skip running for the test.
+      if (!RemotePathExists(WorkDir{env}.CoverageDirPath())) {
+        FUZZTEST_LOG(INFO) << "Skipping running the fuzz test "
+                           << env.test_name;
+        return;
+      }
+      // If execution IDs match and the previous coverage exists, it means
+      // the same workflow got interrupted when running the test. So we resume
+      // the test.
+      is_resuming = true;
+      FUZZTEST_LOG(INFO) << "Resuming running the fuzz test " << env.test_name;
+    } else {
+      // If the execution IDs mismatch, we start a new run.
+      is_resuming = false;
+      FUZZTEST_LOG(INFO) << "Starting a new run of the fuzz test "
+                         << env.test_name;
     }
   }
 
-  return exit_code;
+  if (RemotePathExists(env.workdir) && !is_resuming) {
+    // This could be a workdir from a failed run that used a different version
+    // of the binary. We delete it so that we don't have to deal with
+    // the assumptions under which it is safe to reuse an old workdir.
+    FUZZTEST_CHECK_OK(RemotePathDelete(env.workdir, /*recursively=*/true));
+  }
+  const WorkDir workdir{env};
+  FUZZTEST_CHECK_OK(RemoteMkdir(
+      workdir.CoverageDirPath()));  // Implicitly creates the workdir
+
+  // Updating execution ID must be after creating the coverage dir. Otherwise
+  // if it fails to create coverage dir after updating execution ID, next
+  // attempt would skip this test.
+  if (!is_workdir_specified && !env.fuzztest_execution_id.empty() &&
+      !is_resuming) {
+    FUZZTEST_CHECK_OK(
+        RemoteFileSetContents(execution_id_path, env.fuzztest_execution_id));
+  }
+
+  absl::Cleanup clean_up_workdir = [is_workdir_specified, &env,
+                                    &stop_condition] {
+    if (!is_workdir_specified && !stop_condition.EarlyStopRequested()) {
+      FUZZTEST_CHECK_OK(RemotePathDelete(env.workdir, /*recursively=*/true));
+    }
+  };
+
+  const std::filesystem::path fuzztest_db_path =
+      corpus_database_path / env.test_name;
+  const std::filesystem::path regression_dir = fuzztest_db_path / "regression";
+  const std::filesystem::path coverage_dir = fuzztest_db_path / "coverage";
+
+  // Seed the fuzzing session with the latest coverage corpus and regression
+  // inputs from the previous fuzzing session.
+  if (!is_resuming) {
+    FUZZTEST_CHECK_OK(GenerateSeedCorpusFromConfig(
+        GetSeedCorpusConfig(
+            env, regression_dir.c_str(),
+            env.fuzztest_replay_coverage_inputs ? coverage_dir.c_str() : ""),
+        env.binary_name, env.binary_hash))
+        << "while generating the seed corpus";
+  }
+
+  absl::Duration time_limit = env.fuzztest_time_limit_per_test;
+  absl::Duration time_spent = absl::ZeroDuration();
+  const std::string fuzzing_time_file =
+      std::filesystem::path(env.workdir) / "fuzzing_time";
+  if (is_resuming && RemotePathExists(fuzzing_time_file)) {
+    time_spent = ReadFuzzingTime(fuzzing_time_file);
+    time_limit = std::max(time_limit - time_spent, absl::ZeroDuration());
+  }
+  is_resuming = false;
+
+  if (stop_condition.EarlyStopRequested()) {
+    if (const auto exit_code = stop_condition.ExitCode();
+        exit_code != EXIT_SUCCESS) {
+      FUZZTEST_LOG(ERROR) << "Early stop requested for test " << env.test_name
+                          << " with failure exit code " << exit_code;
+    } else {
+      FUZZTEST_LOG(INFO) << "Skipping test " << env.test_name
+                         << " due to early stop requested without failure.";
+    }
+    return;
+  }
+
+  FUZZTEST_LOG(INFO) << (env.fuzztest_only_replay ? "Replaying " : "Fuzzing ")
+                     << env.test_name << " for " << time_limit
+                     << "\n\tTest binary: " << env.binary;
+
+  const absl::Time start_time = absl::Now();
+  stop_condition.SetStopTime(start_time + time_limit);
+  PeriodicAction record_fuzzing_time =
+      RecordFuzzingTime(fuzzing_time_file, start_time - time_spent);
+  Fuzz(env, binary_info, pcs_file_path, callbacks_factory, stop_condition);
+  record_fuzzing_time.Nudge();
+  record_fuzzing_time.Stop();
+
+  if (!stats_root_path.empty()) {
+    const auto stats_dir = stats_root_path / env.test_name;
+    FUZZTEST_CHECK_OK(RemoteMkdir(stats_dir.c_str()));
+    FUZZTEST_CHECK_OK(RemoteFileRename(
+        workdir.FuzzingStatsPath(),
+        (stats_dir / absl::StrCat("fuzzing_stats_", execution_stamp)).c_str()));
+  }
+
+  if (stop_condition.EarlyStopRequested()) {
+    if (const auto exit_code = stop_condition.ExitCode();
+        exit_code != EXIT_SUCCESS) {
+      FUZZTEST_LOG(ERROR) << "Early stop requested for test " << env.test_name
+                          << " with failure exit code " << exit_code;
+    } else {
+      FUZZTEST_LOG(INFO) << "Skip updating corpus database due to early stop "
+                            "requested without failure.";
+    }
+    return;
+  }
+  // The test time limit does not apply for the rest of the steps.
+  stop_condition.SetStopTime(absl::InfiniteFuture());
+
+  // TODO(xinhaoyuan): Have a separate flag to skip corpus updating instead
+  // of checking whether workdir is specified or not.
+  const bool skip_corpus_db_update =
+      env.fuzztest_only_replay || is_workdir_specified;
+  if (skip_corpus_db_update && !env.report_crash_summary) return;
+
+  // Deduplicate and optionally update the crashing inputs.
+  CrashSummary crash_summary{env.fuzztest_binary_identifier, env.test_name};
+  const absl::flat_hash_map<std::string, CrashDetails> crashes_by_signature =
+      GetCrashesFromWorkdir(workdir, env.total_shards);
+  if (skip_corpus_db_update) {
+    // Just report the crashes.
+    FUZZTEST_CHECK(env.report_crash_summary);
+    for (const auto& [crash_signature, crash_details] : crashes_by_signature) {
+      crash_summary.AddCrash({/*id=*/crash_details.input_signature,
+                              /*category=*/crash_details.description,
+                              crash_signature, crash_details.description});
+    }
+    crash_summary.Report(&std::cerr);
+    return;
+  }
+  const absl::Status status = OrganizeCrashingInputs(
+      regression_dir, fuzztest_db_path / "crashing",
+      fuzztest_db_path / "incubating", env, callbacks_factory,
+      crashes_by_signature, crash_summary, stop_condition,
+      kDefaultRegressionTtl);
+  FUZZTEST_LOG_IF(ERROR, !status.ok())
+      << "Failed to organize crashing inputs: " << status;
+  if (env.report_crash_summary) crash_summary.Report(&std::cerr);
+
+  // Distill and store the coverage corpus.
+  Distill(env);
+  if (RemotePathExists(coverage_dir.c_str())) {
+    // In the future, we will store k latest coverage corpora for some k, but
+    // for now we only keep the latest one.
+    FUZZTEST_CHECK_OK(
+        RemotePathDelete(coverage_dir.c_str(), /*recursively=*/true));
+  }
+  FUZZTEST_CHECK_OK(RemoteMkdir(coverage_dir.c_str()));
+  std::vector<std::string> distilled_corpus_files;
+  FUZZTEST_CHECK_OK(
+      RemoteGlobMatch(workdir.DistilledCorpusFilePaths().AllShardsGlob(),
+                      distilled_corpus_files));
+  for (const std::string& corpus_file : distilled_corpus_files) {
+    const std::string file_name = std::filesystem::path(corpus_file).filename();
+    FUZZTEST_CHECK_OK(
+        RemoteFileRename(corpus_file, (coverage_dir / file_name).c_str()));
+  }
 }
 
-int ListCrashIds(const Environment& env,
-                 const fuzztest::internal::Configuration& target_config) {
+int ListCrashIds(const Environment& env) {
   FUZZTEST_CHECK(!env.list_crash_ids_file.empty())
       << "Need list_crash_ids_file to be set for listing crash IDs";
-  FUZZTEST_CHECK_EQ(target_config.fuzz_tests_in_current_shard.size(), 1);
+  FUZZTEST_CHECK(!env.test_name.empty());
   std::vector<std::string> crash_paths;
   // TODO: b/406003594 - move the path construction to a library.
-  const auto crash_dir = std::filesystem::path(target_config.corpus_database) /
-                         target_config.binary_identifier /
-                         target_config.fuzz_tests_in_current_shard[0] /
+  const auto crash_dir = std::filesystem::path(env.fuzztest_corpus_database) /
+                         env.fuzztest_binary_identifier / env.test_name /
                          "crashing";
   if (RemotePathExists(crash_dir.string())) {
     FUZZTEST_CHECK(RemotePathIsDirectory(crash_dir.string()))
         << "Crash dir " << crash_dir << " in the corpus database "
-        << target_config.corpus_database << " is not a directory";
+        << env.fuzztest_corpus_database << " is not a directory";
     crash_paths =
         ValueOrDie(RemoteListFiles(crash_dir.string(), /*recursively=*/false));
   }
@@ -686,17 +604,16 @@ int ListCrashIds(const Environment& env,
   return EXIT_SUCCESS;
 }
 
-int ReplayCrash(const Environment& env,
-                const fuzztest::internal::Configuration& target_config,
-                CentipedeCallbacksFactory& callbacks_factory) {
+void ReplayCrash(const Environment& env,
+                 CentipedeCallbacksFactory& callbacks_factory,
+                 StopCondition& stop_condition) {
   FUZZTEST_CHECK(!env.crash_id.empty())
       << "Need crash_id to be set for replay a crash";
-  FUZZTEST_CHECK(target_config.fuzz_tests_in_current_shard.size() == 1)
+  FUZZTEST_CHECK(!env.test_name.empty())
       << "Expecting exactly one test for replay_crash";
   // TODO: b/406003594 - move the path construction to a library.
-  const auto crash_dir = std::filesystem::path(target_config.corpus_database) /
-                         target_config.binary_identifier /
-                         target_config.fuzz_tests_in_current_shard[0] /
+  const auto crash_dir = std::filesystem::path(env.fuzztest_corpus_database) /
+                         env.fuzztest_binary_identifier / env.test_name /
                          "crashing";
   const WorkDir workdir{env};
   SeedCorpusSource crash_corpus_source;
@@ -717,10 +634,9 @@ int ReplayCrash(const Environment& env,
       crash_corpus_config, env.binary_name, env.binary_hash));
   Environment run_crash_env = env;
   run_crash_env.load_shards_only = true;
-  int fuzz_result = Fuzz(run_crash_env, {}, "", callbacks_factory);
+  Fuzz(run_crash_env, {}, "", callbacks_factory, stop_condition);
   if (env.report_crash_summary) {
-    CrashSummary crash_summary{target_config.binary_identifier,
-                               target_config.fuzz_tests_in_current_shard[0]};
+    CrashSummary crash_summary{env.fuzztest_binary_identifier, env.test_name};
     const absl::flat_hash_map<std::string, CrashDetails> crashes_by_signature =
         GetCrashesFromWorkdir(workdir, /*total_shards=*/1);
     FUZZTEST_CHECK_LE(crashes_by_signature.size(), 1);
@@ -731,21 +647,18 @@ int ReplayCrash(const Environment& env,
     }
     crash_summary.Report(&std::cerr);
   }
-  return fuzz_result;
 }
 
-int ExportCrash(const Environment& env,
-                const fuzztest::internal::Configuration& target_config) {
+int ExportCrash(const Environment& env) {
   FUZZTEST_CHECK(!env.crash_id.empty())
       << "Need crash_id to be set for exporting a crash";
   FUZZTEST_CHECK(!env.export_crash_file.empty())
       << "Need export_crash_file to be set for exporting a crash";
-  FUZZTEST_CHECK(target_config.fuzz_tests_in_current_shard.size() == 1)
+  FUZZTEST_CHECK(!env.test_name.empty())
       << "Expecting exactly one test for exporting a crash";
   // TODO: b/406003594 - move the path construction to a library.
-  const auto crash_dir = std::filesystem::path(target_config.corpus_database) /
-                         target_config.binary_identifier /
-                         target_config.fuzz_tests_in_current_shard[0] /
+  const auto crash_dir = std::filesystem::path(env.fuzztest_corpus_database) /
+                         env.fuzztest_binary_identifier / env.test_name /
                          "crashing";
   std::string crash_contents;
   const auto read_status =
@@ -768,9 +681,13 @@ int ExportCrash(const Environment& env,
 }  // namespace
 
 int CentipedeMain(const Environment& env,
-                  CentipedeCallbacksFactory& callbacks_factory) {
-  ClearEarlyStopRequestAndSetStopTime(env.stop_at);
-  SetSignalHandlers();
+                  CentipedeCallbacksFactory& callbacks_factory,
+                  StopCondition* stop_condition) {
+  StopCondition default_stop_condition;
+  if (stop_condition == nullptr) {
+    stop_condition = &default_stop_condition;
+  }
+  stop_condition->SetStopTime(env.stop_at);
 
   if (!env.corpus_to_files.empty()) {
     Centipede::CorpusToFiles(env, env.corpus_to_files);
@@ -785,12 +702,16 @@ int CentipedeMain(const Environment& env,
     return EXIT_FAILURE;
   }
 
-  if (!env.for_each_blob.empty()) return ForEachBlob(env);
+  if (!env.for_each_blob.empty()) {
+    ForEachBlob(env, *stop_condition);
+    return stop_condition->ExitCode();
+  }
 
   if (!env.minimize_crash_file_path.empty()) {
     ByteArray crashy_input;
     ReadFromLocalFile(env.minimize_crash_file_path, crashy_input);
-    return MinimizeCrash(crashy_input, env, callbacks_factory);
+    MinimizeCrash(crashy_input, env, callbacks_factory, *stop_condition);
+    return stop_condition->ExitCode();
   }
 
   // Just export the corpus from a local dir and exit.
@@ -824,49 +745,61 @@ int CentipedeMain(const Environment& env,
       // TODO: b/410051414 Use Centipede flags to pass necessary information
       // instead of passing the entirely serialized Configuration once switched
       // to the unified execution model.
-      if (!env.fuzztest_configuration.empty()) {
+      if (env.fuzztest_configuration == "(null)") {
+        return "";
+      } else if (!env.fuzztest_configuration.empty()) {
         std::string result;
         FUZZTEST_CHECK(
             absl::WebSafeBase64Unescape(env.fuzztest_configuration, &result));
         return result;
       }
-      ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env);
+      ScopedCentipedeCallbacks scoped_callbacks(callbacks_factory, env,
+                                                *stop_condition);
       return scoped_callbacks.callbacks()->GetSerializedTargetConfig();
     }();
-    FUZZTEST_CHECK_OK(serialized_target_config.status());
-    if (!serialized_target_config->empty()) {
-      const auto target_config = fuzztest::internal::Configuration::Deserialize(
-          *serialized_target_config);
-      FUZZTEST_CHECK_OK(target_config.status())
-          << "Failed to deserialize target configuration";
-      if (!target_config->corpus_database.empty()) {
-        FUZZTEST_LOG_IF(
-            FATAL, env.list_crash_ids + env.replay_crash + env.export_crash > 1)
-            << "At most one of list_crash_ids/replay_crash/export_crash can "
-               "be set, but seeing list_crash_ids: "
-            << env.list_crash_ids << ", replay_crash: " << env.replay_crash
-            << ", export_crash: " << env.export_crash;
-        if (env.list_crash_ids) {
-          return ListCrashIds(env, *target_config);
-        }
-        if (env.replay_crash) {
-          return ReplayCrash(env, *target_config, callbacks_factory);
-        }
-        if (env.export_crash) {
-          return ExportCrash(env, *target_config);
-        }
-
-        const auto time_limit_per_test = target_config->GetTimeLimitPerTest();
-        FUZZTEST_CHECK(target_config->only_replay ||
-                       time_limit_per_test < absl::InfiniteDuration() ||
-                       target_config->fuzz_tests_in_current_shard.size() == 1)
-            << "Updating corpus database requires specifying time limit per "
-               "fuzz test when there are more than one tests.";
-        FUZZTEST_CHECK(time_limit_per_test >= absl::Seconds(1))
-            << "Time limit per fuzz test must be at least 1 second.";
-        return UpdateCorpusDatabaseForFuzzTests(env, *target_config,
-                                                callbacks_factory);
+    Environment updated_env = env;
+    if (updated_env.fuzztest_corpus_database.empty()) {
+      if (!serialized_target_config.ok()) {
+        FUZZTEST_LOG(ERROR) << "Failed to get the serialized target config: "
+                            << serialized_target_config.status();
+        return EXIT_FAILURE;
       }
+      if (!serialized_target_config->empty()) {
+        const auto target_config =
+            fuzztest::internal::Configuration::Deserialize(
+                *serialized_target_config);
+        FUZZTEST_CHECK_OK(target_config.status())
+            << "Failed to deserialize target configuration";
+        updated_env.UpdateWithTargetConfig(*target_config);
+      }
+    }
+    if (!updated_env.fuzztest_corpus_database.empty()) {
+      FUZZTEST_LOG_IF(
+          FATAL, env.list_crash_ids + env.replay_crash + env.export_crash > 1)
+          << "At most one of list_crash_ids/replay_crash/export_crash can "
+             "be set, but seeing list_crash_ids: "
+          << env.list_crash_ids << ", replay_crash: " << env.replay_crash
+          << ", export_crash: " << env.export_crash;
+      if (env.list_crash_ids) {
+        return ListCrashIds(updated_env);
+      }
+      if (env.replay_crash) {
+        ReplayCrash(updated_env, callbacks_factory, *stop_condition);
+        return stop_condition->ExitCode();
+      }
+      if (env.export_crash) {
+        return ExportCrash(updated_env);
+      }
+
+      FUZZTEST_CHECK(!updated_env.fuzztest_multi_test_mode_soon_to_be_removed)
+          << "Multi-test mode is no longer supported.";
+      FUZZTEST_CHECK(!updated_env.test_name.empty())
+          << "Centipede requires the test name for FuzzTest.";
+      FUZZTEST_CHECK(updated_env.fuzztest_time_limit_per_test >=
+                     absl::Seconds(1))
+          << "Time limit per fuzz test must be at least 1 second.";
+      UpdateCorpusDatabase(updated_env, callbacks_factory, *stop_condition);
+      return stop_condition->ExitCode();
     }
   }
 
@@ -878,11 +811,13 @@ int CentipedeMain(const Environment& env,
 
   std::string pcs_file_path;
   BinaryInfo binary_info = PopulateBinaryInfoAndSavePCsIfNecessary(
-      env, callbacks_factory, pcs_file_path);
+      env, callbacks_factory, pcs_file_path, *stop_condition);
 
   if (env.analyze) return Analyze(env);
 
-  return Fuzz(env, binary_info, pcs_file_path, callbacks_factory);
+  Fuzz(env, binary_info, pcs_file_path, callbacks_factory, *stop_condition);
+  return stop_condition->ExitCode();
+
   // TODO: fniksic - Report the crash summary here if requested. What are the
   // binary identifier and the fuzz test name here?
 }

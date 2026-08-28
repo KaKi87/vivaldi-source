@@ -6,6 +6,7 @@
 
 #include <sys/types.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -36,9 +37,12 @@ struct SuccessfulEmptyParse {};
 using SuccessfulParse = ::base::span<const uint8_t>;
 
 // Parses the `signed_data` PKCS7 object to find the final certificate in the
-// list and see whether it has an extension with `kTagOID`, and if so, returns a
-// `base::span` of the tag within this `signed_data`. `success` is set to `true`
-// if there were no parse errors, even if a tag could not be found.
+// list and see whether it has an extension with `kTagOID`. Returns:
+// - `SuccessfulParse` (containing `base::span` of the tag) if the tag extension
+// is found.
+// - `SuccessfulEmptyParse` if no parse errors occurred but no tag extension was
+// found.
+// - `FailedParse` if a parse error occurred.
 std::variant<FailedParse, SuccessfulEmptyParse, SuccessfulParse> ParseTagImpl(
     base::span<const uint8_t> signed_data) {
   CBS content_info = CBSFromSpan(signed_data);
@@ -609,10 +613,7 @@ std::vector<uint8_t> MSIBinary::ReadStream(const std::string& name,
       // Ran out of sectors in copying stream.
       return {};
     }
-    uint64_t n = size;
-    if (n > sector_size) {
-      n = sector_size;
-    }
+    const uint64_t n = std::min(size, sector_size);
     const uint64_t offset = sector_size * sector;
     stream.insert(stream.end(), contents->begin() + offset,
                   contents->begin() + offset + n);

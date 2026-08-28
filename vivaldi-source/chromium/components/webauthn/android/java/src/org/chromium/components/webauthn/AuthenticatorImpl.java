@@ -18,6 +18,7 @@ import android.os.Bundle;
 import android.util.Pair;
 
 import org.chromium.base.Callback;
+import org.chromium.base.ResettersForTesting;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.blink.mojom.Authenticator;
 import org.chromium.blink.mojom.AuthenticatorStatus;
@@ -31,11 +32,10 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.components.password_manager.BrowserAssistedLoginType;
 import org.chromium.components.ukm.UkmRecorder;
+import org.chromium.content_public.browser.LifecycleState;
 import org.chromium.content_public.browser.RenderFrameHost;
 import org.chromium.content_public.browser.Visibility;
 import org.chromium.content_public.browser.WebContents;
-import org.chromium.device.DeviceFeatureList;
-import org.chromium.device.DeviceFeatureMap;
 import org.chromium.mojo.system.MojoException;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.url.Origin;
@@ -118,12 +118,15 @@ public final class AuthenticatorImpl implements Authenticator, AuthenticationCon
     }
 
     public static void overrideFido2CredentialRequestForTesting(Fido2CredentialRequest request) {
+        Fido2CredentialRequest oldValue = sFido2CredentialRequestOverrideForTesting;
         sFido2CredentialRequestOverrideForTesting = request;
+        ResettersForTesting.register(() -> sFido2CredentialRequestOverrideForTesting = oldValue);
     }
 
     private Fido2CredentialRequest getFido2CredentialRequest() {
         if (sFido2CredentialRequestOverrideForTesting != null) {
             sFido2CredentialRequestOverrideForTesting.setAuthenticationContextProvider(this);
+            mUnclosedFido2CredentialRequests.add(sFido2CredentialRequestOverrideForTesting);
             return sFido2CredentialRequestOverrideForTesting;
         }
         Fido2CredentialRequest request = new Fido2CredentialRequest(this);
@@ -159,6 +162,13 @@ public final class AuthenticatorImpl implements Authenticator, AuthenticationCon
             requestCallback.onComplete(
                     WebauthnRequestResponse.forFailedMakeCredential(
                             AuthenticatorStatus.PENDING_REQUEST,
+                            new RequestMetrics.Builder().build()));
+            return;
+        }
+        if (mRenderFrameHost.getLifecycleState() != LifecycleState.ACTIVE) {
+            requestCallback.onComplete(
+                    WebauthnRequestResponse.forFailedMakeCredential(
+                            AuthenticatorStatus.NOT_ALLOWED_ERROR,
                             new RequestMetrics.Builder().build()));
             return;
         }
@@ -248,6 +258,13 @@ public final class AuthenticatorImpl implements Authenticator, AuthenticationCon
             requestCallback.onComplete(
                     WebauthnRequestResponse.forFailedGetCredential(
                             AuthenticatorStatus.PENDING_REQUEST,
+                            new RequestMetrics.Builder().build()));
+            return;
+        }
+        if (mRenderFrameHost.getLifecycleState() != LifecycleState.ACTIVE) {
+            requestCallback.onComplete(
+                    WebauthnRequestResponse.forFailedGetCredential(
+                            AuthenticatorStatus.NOT_ALLOWED_ERROR,
                             new RequestMetrics.Builder().build()));
             return;
         }
@@ -411,10 +428,7 @@ public final class AuthenticatorImpl implements Authenticator, AuthenticationCon
                             capabilities.add(
                                     createWebAuthnClientCapability(
                                             AuthenticatorConstants.CAPABILITY_IMMEDIATE_GET,
-                                            DeviceFeatureMap.isEnabled(
-                                                            DeviceFeatureList
-                                                                    .WEBAUTHN_IMMEDIATE_GET)
-                                                    && isUvpaa));
+                                            isUvpaa));
                             capabilities.add(
                                     createWebAuthnClientCapability(
                                             AuthenticatorConstants

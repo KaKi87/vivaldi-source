@@ -28,23 +28,6 @@ namespace {
 
 DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kFirstTab);
 
-class FreWebUiStateObserver
-    : public ui::test::StateObserver<mojom::FreWebUiState> {
- public:
-  explicit FreWebUiStateObserver(GlicFreController& controller)
-      : subscription_(controller.AddWebUiStateChangedCallback(
-            base::BindRepeating(&FreWebUiStateObserver::OnWebUiStateChanged,
-                                base::Unretained(this)))) {}
-
-  void OnWebUiStateChanged(mojom::FreWebUiState new_state) {
-    OnStateObserverStateChanged(new_state);
-  }
-
- private:
-  base::CallbackListSubscription subscription_;
-};
-
-DEFINE_LOCAL_STATE_IDENTIFIER_VALUE(FreWebUiStateObserver, kFreWebUiState);
 
 }  // namespace
 
@@ -70,7 +53,7 @@ class GlicIphControllerTestBase : public TestBase {
     embedded_test_server()->ServeFilesFromSourceDirectory(
         GetChromeTestDataDir());
     TestBase::SetUpOnMainThread();
-    SetFRECompletion(browser()->profile(), prefs::FreStatus::kNotStarted);
+    SetFRECompletion(browser()->GetProfile(), prefs::FreStatus::kNotStarted);
   }
 
   GURL Title1() const {
@@ -80,9 +63,6 @@ class GlicIphControllerTestBase : public TestBase {
     return test_url.ReplaceComponents(replacements);
   }
 
-  GlicFreController& GetFreController() {
-    return glic_service()->fre_controller();
-  }
 
   auto ShowPromoForTest() {
     return Do([&]() {
@@ -113,13 +93,6 @@ class GlicIphControllerTestClassic : public GlicIphControllerTestBase {
   ~GlicIphControllerTestClassic() override = default;
 };
 
-// Test that settings changes are reflected in the show state of the controller
-// delegate.
-IN_PROC_BROWSER_TEST_F(GlicIphControllerTestClassic, ShowPromo) {
-  RunTestSequence(ObserveState(kFreWebUiState, std::ref(GetFreController())),
-                  WaitForGlicIph({feature_engagement::kIPHGlicPromoFeature}),
-                  PressDefaultPromoButton());
-}
 
 // Confirms that the promo is not shown if the user's profile has a signed-in
 // account that needs to be re-authenticated.
@@ -150,7 +123,7 @@ class GlicIphControllerTestTryIt : public GlicIphControllerTestBase {
 // TODO(b/503834154): Write a test for IPH promo leading into trust-first FRE
 
 IN_PROC_BROWSER_TEST_F(GlicIphControllerTestTryIt, ShowPromoWithCtaEndsInGlic) {
-  SetFRECompletion(browser()->profile(), prefs::FreStatus::kCompleted);
+  SetFRECompletion(browser()->GetProfile(), prefs::FreStatus::kCompleted);
   RunTestSequence(WaitForGlicIph({feature_engagement::kIPHGlicTryItFeature}),
                   PressDefaultPromoButton(),
                   WaitForAndInstrumentGlic(kHostAndContents));
@@ -168,7 +141,7 @@ class GlicIphControllerTestPromoDisabled : public GlicIphControllerTestBase {
 
 IN_PROC_BROWSER_TEST_F(GlicIphControllerTestPromoDisabled,
                        ShowPromoWithCtaEndsInGlic) {
-  SetFRECompletion(browser()->profile(), prefs::FreStatus::kCompleted);
+  SetFRECompletion(browser()->GetProfile(), prefs::FreStatus::kCompleted);
   RunTestSequence(WaitForGlicIph({feature_engagement::kIPHGlicTryItFeature}),
                   PressDefaultPromoButton(),
                   WaitForAndInstrumentGlic(kHostAndContents));
@@ -190,7 +163,7 @@ class GlicIphControllerTestMultiInstance : public GlicIphControllerTestBase {
 
 IN_PROC_BROWSER_TEST_F(GlicIphControllerTestMultiInstance,
                        ShowPromoWithCtaEndsInGlic) {
-  SetFRECompletion(browser()->profile(), prefs::FreStatus::kCompleted);
+  SetFRECompletion(browser()->GetProfile(), prefs::FreStatus::kCompleted);
   RunTestSequence(WaitForGlicIph({feature_engagement::kIPHGlicTryItFeature}),
                   PressDefaultPromoButton(),
                   WaitForAndInstrumentGlic(kHostAndContents));

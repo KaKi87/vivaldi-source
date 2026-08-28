@@ -7,6 +7,8 @@
 #import "ios/chrome/browser/composebox/menu/ui/composebox_menu_consumer.h"
 #import "ios/chrome/browser/composebox/menu/ui/composebox_menu_item_type.h"
 #import "ios/chrome/browser/composebox/public/composebox_attachment_selection.h"
+#import "ios/chrome/browser/composebox/public/features.h"
+#import "ios/chrome/browser/composebox/shared/coordinator/composebox_picker_drive_result.h"
 #import "ios/chrome/browser/composebox/shared/metrics/composebox_metrics_recorder.h"
 #import "ios/chrome/browser/composebox/ui/composebox_ui_input_state.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
@@ -55,22 +57,41 @@
 
 #pragma mark - Public
 
+- (void)updateUIInputState:(ComposeboxUIInputState*)inputState {
+  _inputState = inputState;
+  [self.consumer setUIInputState:_inputState];
+}
+
 - (void)processImageItems:(NSArray<ComposeboxPickerImageResult*>*)imageItems {
-  NSMutableArray<ComposeboxPickerImageResult*>* updatedImageResults =
+  NSMutableArray<ComposeboxPickerImageResult*>* updatedImages =
       [[NSMutableArray alloc] init];
 
-  if (_preselection.images) {
-    updatedImageResults = [_preselection.images mutableCopy];
-  }
+  BOOL isCamera =
+      imageItems.firstObject.source == ComposeboxInputItemSource::kCameraPicker;
 
-  [updatedImageResults addObjectsFromArray:imageItems];
+  if (isCamera) {
+    if (_preselection.images) {
+      updatedImages = [_preselection.images mutableCopy];
+    }
+    [updatedImages addObjectsFromArray:imageItems];
+  } else {
+    // Gallery picker results. Retain existing non-gallery images from
+    // preselection, and replace gallery images with `imageItems`.
+    for (ComposeboxPickerImageResult* imageResult in _preselection.images) {
+      if (imageResult.source != ComposeboxInputItemSource::kGalleryPicker) {
+        [updatedImages addObject:imageResult];
+      }
+    }
+    [updatedImages addObjectsFromArray:imageItems];
+  }
 
   ComposeboxAttachmentSelection* selection =
       [[ComposeboxAttachmentSelection alloc]
              initWithTabIDs:_preselection.tabIDs
           cachedWebStateIDs:_preselection.cachedWebStateIDs
-                     images:updatedImageResults
-                      files:_preselection.files];
+                     images:updatedImages
+                      files:_preselection.files
+                 driveItems:_preselection.driveItems];
 
   [self.delegate composeboxMenuMediator:self didUpdateAttachments:selection];
 }
@@ -94,7 +115,28 @@
              initWithTabIDs:_preselection.tabIDs
           cachedWebStateIDs:_preselection.cachedWebStateIDs
                      images:_preselection.images
-                      files:[updatedURLs allObjects]];
+                      files:[updatedURLs allObjects]
+                 driveItems:_preselection.driveItems];
+  [self.delegate composeboxMenuMediator:self didUpdateAttachments:selection];
+}
+
+- (void)processDriveItems:(NSArray<ComposeboxPickerDriveResult*>*)driveItems {
+  NSMutableArray<ComposeboxPickerDriveResult*>* updatedDriveItems =
+      [[NSMutableArray alloc] init];
+
+  if (_preselection.driveItems) {
+    updatedDriveItems = [_preselection.driveItems mutableCopy];
+  }
+
+  [updatedDriveItems addObjectsFromArray:driveItems];
+
+  ComposeboxAttachmentSelection* selection =
+      [[ComposeboxAttachmentSelection alloc]
+             initWithTabIDs:_preselection.tabIDs
+          cachedWebStateIDs:_preselection.cachedWebStateIDs
+                     images:_preselection.images
+                      files:_preselection.files
+                 driveItems:updatedDriveItems];
   [self.delegate composeboxMenuMediator:self didUpdateAttachments:selection];
 }
 
@@ -108,13 +150,24 @@
              initWithTabIDs:selectedWebStateIDs
           cachedWebStateIDs:cachedWebStateIDs
                      images:_preselection.images
-                      files:_preselection.files];
+                      files:_preselection.files
+                 driveItems:_preselection.driveItems];
   [self.delegate composeboxMenuMediator:self didUpdateAttachments:selection];
 }
 
 - (NSUInteger)remainingNumberOfImagesAllowed {
   CHECK(_inputState);
   return _inputState.remainingNumberOfImagesAllowed;
+}
+
+- (NSArray<NSString*>*)attachedImageAssetIDs {
+  NSMutableArray<NSString*>* assetIDs = [[NSMutableArray alloc] init];
+  for (ComposeboxPickerImageResult* imageResult in _preselection.images) {
+    if (imageResult.assetID.length > 0) {
+      [assetIDs addObject:imageResult.assetID];
+    }
+  }
+  return [assetIDs copy];
 }
 
 - (void)setConsumer:(id<ComposeboxMenuConsumer>)consumer {
@@ -163,6 +216,13 @@
           composeboxMenuMediator:self
                      didTapModel:ComposeboxModelOption::kThinkingNoGenUI];
       break;
+    case ComposeboxMenuItemType::kModelFlash:
+      [self.delegate composeboxMenuMediator:self
+                                didTapModel:ComposeboxModelOption::kFlash];
+      break;
+    case ComposeboxMenuItemType::kAttachmentSharedTabs:
+      [self.delegate composeboxMenuMediatorDidRequestSharedTabs:self];
+      break;
     case ComposeboxMenuItemType::kAttachmentTabs:
       [self.delegate composeboxMenuMediatorDidRequestTabSelection:self];
       break;
@@ -174,6 +234,10 @@
       break;
     case ComposeboxMenuItemType::kAttachmentFiles:
       [self.delegate composeboxMenuMediatorDidRequestFileSelection:self];
+      break;
+    case ComposeboxMenuItemType::kAttachmentDrive:
+      CHECK(IsComposeboxDriveOptionEnabled());
+      [self.delegate composeboxMenuMediatorDidRequestDriveFileSelection:self];
       break;
     case ComposeboxMenuItemType::kUnknown:
       break;

@@ -40,7 +40,8 @@ jclass AutocompleteMatch::GetClazz(JNIEnv* env) {
 }
 
 ScopedJavaLocalRef<jobject> AutocompleteMatch::GetOrCreateJavaObject(
-    JNIEnv* env) const {
+    JNIEnv* env,
+    const TemplateURLService* template_url_service) const {
   // Short circuit if we already built the match.
   if (java_match_)
     return ScopedJavaLocalRef<jobject>(*java_match_);
@@ -83,11 +84,11 @@ ScopedJavaLocalRef<jobject> AutocompleteMatch::GetOrCreateJavaObject(
 
   std::vector<int32_t> temp_subtypes(subtypes.begin(), subtypes.end());
 
-  std::vector<jni_zero::ScopedJavaLocalRef<jobject>> actions_list;
-  if (actions.empty() && takeover_action) {
-    actions_list = ToJavaOmniboxActionsList(env, {takeover_action});
-  } else {
-    actions_list = ToJavaOmniboxActionsList(env, actions);
+  std::vector<jni_zero::ScopedJavaLocalRef<jobject>> actions_list =
+      ToJavaOmniboxActionsList(env, actions);
+  base::android::ScopedJavaLocalRef<jobject> j_takeover_action;
+  if (takeover_action) {
+    j_takeover_action = takeover_action->GetOrCreateJavaObject(env);
   }
 
   int icon_type = omnibox::SuggestTemplateInfo::IconType::
@@ -105,23 +106,26 @@ ScopedJavaLocalRef<jobject> AutocompleteMatch::GetOrCreateJavaObject(
     }
   }
 
+  int starter_pack_id = static_cast<int>(StarterPackId(template_url_service));
+
   java_match_ = std::make_unique<ScopedJavaGlobalRef<jobject>>(
       Java_AutocompleteMatch_build(
           env, reinterpret_cast<intptr_t>(this), type, temp_subtypes,
-          IsSearchType(type), icon_type, transition, contents,
-          contents_class_offsets, contents_class_styles, description,
-          description_class_offsets, description_class_styles,
-          j_answer_template, answer_type, fill_into_edit, destination_url,
-          image_url, image_dominant_color, SupportsDeletion(), starter_pack_id,
-          post_content_type, j_post_data,
+          IsSearchType(type), static_cast<int>(GetOmniboxSuggestionKind()),
+          icon_type, transition, contents, contents_class_offsets,
+          contents_class_styles, description, description_class_offsets,
+          description_class_styles, j_answer_template, answer_type,
+          fill_into_edit, destination_url, image_url, image_dominant_color,
+          SupportsDeletion(), starter_pack_id, post_content_type, j_post_data,
           suggestion_group_id.value_or(omnibox::GROUP_INVALID),
-          j_clipboard_image_data, has_tab_match.value_or(false), android_tab_id,
-          actions_list, allowed_to_be_default_match, inline_autocompletion,
+          swap_contents_and_description, j_clipboard_image_data,
+          has_tab_match.value_or(false), android_tab_id, actions_list,
+          j_takeover_action, allowed_to_be_default_match, inline_autocompletion,
           additional_text,
           matching_tab_group_uuid
               ? std::make_optional(matching_tab_group_uuid->AsLowercaseString())
               : std::nullopt,
-          associated_keyword, j_suggest_template));
+          associated_keyword, j_suggest_template, document_type));
 
   return ScopedJavaLocalRef<jobject>(*java_match_);
 }

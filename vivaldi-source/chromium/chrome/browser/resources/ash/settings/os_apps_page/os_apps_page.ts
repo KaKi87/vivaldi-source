@@ -36,7 +36,7 @@ import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bu
 
 import {AppManagementStoreMixin} from '../common/app_management/store_mixin.js';
 import {DeepLinkingMixin} from '../common/deep_linking_mixin.js';
-import {androidAppsVisible, isAppParentalControlsFeatureAvailable, isArcVmEnabled, isPlayStoreAvailable, isPluginVmAvailable} from '../common/load_time_booleans.js';
+import {androidAppsVisible, isAppParentalControlsFeatureAvailable, isArcVmEnabled, isPlayStoreAvailable} from '../common/load_time_booleans.js';
 import {RouteOriginMixin} from '../common/route_origin_mixin.js';
 import type {DropdownMenuOptionList} from '../controls/settings_dropdown_menu.js';
 import type {SettingsToggleButtonElement} from '../controls/settings_toggle_button.js';
@@ -180,13 +180,6 @@ export class OsSettingsAppsPageElement extends OsSettingsAppsPageElementBase {
         value: false,
       },
 
-      isPluginVmAvailable_: {
-        type: Boolean,
-        value: () => {
-          return isPluginVmAvailable();
-        },
-      },
-
       isAppParentalControlsFeatureAvailable_: {
         type: Boolean,
         value: () => {
@@ -229,8 +222,8 @@ export class OsSettingsAppsPageElement extends OsSettingsAppsPageElementBase {
     };
   }
 
-  androidAppsInfo: AndroidAppsInfo;
-  searchTerm: string;
+  declare androidAppsInfo: AndroidAppsInfo;
+  declare searchTerm: string;
 
   // DeepLinkingMixin override
   override supportedSettingIds = new Set<Setting>([
@@ -240,31 +233,31 @@ export class OsSettingsAppsPageElement extends OsSettingsAppsPageElementBase {
     Setting.kEnableIsolatedWebAppsOnOff,
   ]);
 
-  private app_: App;
+  declare private app_: App;
   private appNotificationsObserverReceiver_: AppNotificationsObserverReceiver;
-  private appsWithNotifications_: AppWithNotifications[];
-  private readonly isAppParentalControlsFeatureAvailable_: boolean;
-  private isArcVmManageUsbAvailable_: boolean;
-  private isDndEnabled_: boolean;
-  private isPinVerified_: boolean;
-  private readonly isPlayStoreAvailable_: boolean;
-  private isPluginVmAvailable_: boolean;
+  declare private appsWithNotifications_: AppWithNotifications[];
+  declare private readonly isAppParentalControlsFeatureAvailable_: boolean;
+  declare private isArcVmManageUsbAvailable_: boolean;
+  declare private isDndEnabled_: boolean;
+  declare private isPinVerified_: boolean;
+  declare private readonly isPlayStoreAvailable_: boolean;
   private mojoInterfaceProvider_: AppNotificationsHandlerInterface;
   private parentalControlsHandler_: AppParentalControlsHandlerInterface;
-  private onStartupOptions_: DropdownMenuOptionList;
-  private section_: Section;
-  private readonly showAndroidApps_: boolean;
-  private showManageIsolatedWebAppsRow_: boolean;
-  private showParentalControlsDisablePinDialog_: boolean;
-  private showParentalControlsSetupPinDialog_: boolean;
-  private showParentalControlsVerifyPinDialog_: boolean;
-  private isParentalControlsSetupCompleted_: boolean;
-  private isolatedWebAppsDescription_: string;
-  private syntheticIwaPref_: chrome.settingsPrivate.PrefObject|undefined;
-  private isIwaPolicyDisabled_: boolean = true;
+  declare private onStartupOptions_: DropdownMenuOptionList;
+  declare private section_: Section;
+  declare private readonly showAndroidApps_: boolean;
+  declare private showManageIsolatedWebAppsRow_: boolean;
+  declare private showParentalControlsDisablePinDialog_: boolean;
+  declare private showParentalControlsSetupPinDialog_: boolean;
+  declare private showParentalControlsVerifyPinDialog_: boolean;
+  declare private isParentalControlsSetupCompleted_: boolean;
+  declare private isolatedWebAppsDescription_: string;
+  declare private syntheticIwaPref_: chrome.settingsPrivate.PrefObject|undefined;
+  declare private isIwaPolicyDisabled_: boolean;
 
   constructor() {
     super();
+    this.isIwaPolicyDisabled_ = true;
 
     /** RouteOriginMixin override */
     this.route = routes.APPS;

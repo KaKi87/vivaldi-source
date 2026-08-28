@@ -16,7 +16,6 @@ import org.chromium.chrome.browser.ui.favicon.FaviconUtils;
 import org.chromium.components.favicon.LargeIconBridge;
 import org.chromium.components.favicon.LargeIconBridge.GoogleFaviconServerCallback;
 import org.chromium.components.favicon.LargeIconBridge.LargeIconCallback;
-import org.chromium.components.search_engines.TemplateUrl;
 import org.chromium.net.NetworkTrafficAnnotationTag;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
@@ -70,7 +69,7 @@ public class SearchEngineIconUtils {
      *
      * @param context Context for resources.
      * @param logoView The ImageView to update.
-     * @param templateUrl The search engine template.
+     * @param builtInIcon The built-in icon for the search engine, if available.
      * @param pageUrl The web page URL associated with the search engine. This is used to query the
      *     local database or Google Favicon Server for the site's icon.
      * @param largeIconBridge The bridge to fetch icons.
@@ -79,22 +78,22 @@ public class SearchEngineIconUtils {
     public static void updateIcon(
             Context context,
             ImageView logoView,
-            TemplateUrl templateUrl,
+            @Nullable Bitmap builtInIcon,
             GURL pageUrl,
             LargeIconBridge largeIconBridge,
             @Nullable Map<GURL, Bitmap> iconCache) {
-        if (getIconFromCacheOrBuiltIn(templateUrl, pageUrl, iconCache, logoView::setImageBitmap)) {
+        if (getIconFromCacheOrBuiltIn(builtInIcon, pageUrl, iconCache, logoView::setImageBitmap)) {
             return;
         }
 
         // Vivaldi
         if (BuildConfig.IS_VIVALDI) {
             // Handling the corner case for Google search engine. Ref: VAB-11667
-            if (templateUrl.getURL().contains("{google:baseURL}")) {
+            if (pageUrl.getSpec().contains("{google:baseURL}")) {
                 logoView.setImageBitmap(BitmapFactory.decodeResource(
                         context.getResources(), R.drawable.search_engine_google));
                 return;
-            } else if (templateUrl.getURL().contains("kagi.")) { // Ref: VAB-12820
+            } else if (pageUrl.getSpec().contains("kagi.")) { // Ref: VAB-12820
                 logoView.setImageBitmap(BitmapFactory.decodeResource(
                         context.getResources(), R.drawable.search_engine_kagi));
                 return;
@@ -117,7 +116,7 @@ public class SearchEngineIconUtils {
      * @param context Context for resources.
      * @param model The PropertyModel to update.
      * @param propertyKey The key for the icon property in the model.
-     * @param templateUrl The search engine template.
+     * @param builtInIcon The built-in icon for the search engine, if available.
      * @param pageUrl The web page URL associated with the search engine. This is used to query the
      *     local database or Google Favicon Server for the site's icon.
      * @param largeIconBridge The bridge to fetch icons.
@@ -127,12 +126,12 @@ public class SearchEngineIconUtils {
             Context context,
             PropertyModel model,
             WritableObjectPropertyKey<Bitmap> propertyKey,
-            TemplateUrl templateUrl,
+            @Nullable Bitmap builtInIcon,
             GURL pageUrl,
             LargeIconBridge largeIconBridge,
             @Nullable Map<GURL, Bitmap> iconCache) {
         if (getIconFromCacheOrBuiltIn(
-                templateUrl, pageUrl, iconCache, (bitmap) -> model.set(propertyKey, bitmap))) {
+                builtInIcon, pageUrl, iconCache, (bitmap) -> model.set(propertyKey, bitmap))) {
             return;
         }
 
@@ -152,7 +151,7 @@ public class SearchEngineIconUtils {
     }
 
     private static boolean getIconFromCacheOrBuiltIn(
-            TemplateUrl templateUrl,
+            @Nullable Bitmap builtInIcon,
             GURL pageUrl,
             @Nullable Map<GURL, Bitmap> iconCache,
             Callback<Bitmap> callback) {
@@ -161,19 +160,18 @@ public class SearchEngineIconUtils {
             return true;
         }
 
-        @Nullable Bitmap bitmap = templateUrl.getBuiltInSearchEngineIcon();
-        if (bitmap != null) {
+        if (builtInIcon != null) {
             if (iconCache != null) {
-                iconCache.put(pageUrl, bitmap);
+                iconCache.put(pageUrl, builtInIcon);
             }
-            callback.onResult(bitmap);
+            callback.onResult(builtInIcon);
             return true;
         }
         return false;
     }
 
     // TODO(crbug.com/483929347): Replace this logic with the implementation from
-    // SearchEngineUtils.java and have SearchEngineUtils call this class to prevent inconsistent
+    // SearchEngineService.java and have SearchEngineService call this class to prevent inconsistent
     // icons.
     private static void fetchIconFromGoogleServer(
             Context context,

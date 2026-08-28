@@ -29,10 +29,10 @@
 
 #include <utility>
 
-#include "src/dawn/common/Log.h"
 #include "src/dawn/common/MutexProtected.h"
 #include "src/dawn/tests/MockCallback.h"
 #include "src/dawn/tests/end2end/BufferHostMappedPointerTests.h"
+#include "src/utils/log.h"
 
 namespace dawn {
 namespace {
@@ -119,10 +119,10 @@ class MMapBackend : public BufferHostMappedPointerTestBackend {
         HANDLE tmpFileHandle = CreateFile(tmpFileName,                   // file name
                                           GENERIC_READ | GENERIC_WRITE,  // open for read write
                                           0,                             // do not share
-                                          NULL,                          // default security
+                                          nullptr,                       // default security
                                           CREATE_ALWAYS,                 // overwrite existing
                                           FILE_ATTRIBUTE_NORMAL,         // normal file
-                                          NULL);                         // no template
+                                          nullptr);                      // no template
         EXPECT_NE(tmpFileHandle, INVALID_HANDLE_VALUE);
 
         LARGE_INTEGER largeSize = {};

@@ -44,10 +44,6 @@ bool FakeTabSlotController::IsFocusInTabStrip() const {
   return false;
 }
 
-bool FakeTabSlotController::ShouldCompactLeadingEdge() const {
-  return true;
-}
-
 TabSlotController::Liveness FakeTabSlotController::ContinueDrag(
     views::View* view,
     const ui::LocatedEvent& event) {
@@ -81,6 +77,10 @@ int FakeTabSlotController::GetStrokeThickness() const {
 
 bool FakeTabSlotController::CanPaintThrobberToLayer() const {
   return paint_throbber_to_layer_;
+}
+
+bool FakeTabSlotController::IsGlassFrame() const {
+  return is_glass_;
 }
 
 SkColor FakeTabSlotController::GetTabSeparatorColor() const {
@@ -136,5 +136,6 @@ BrowserWindowInterface* FakeTabSlotController::GetBrowserWindowInterface() {
 
 TabGroup* FakeTabSlotController::GetTabGroup(
     const tab_groups::TabGroupId& group_id) const {
-  return nullptr;
+  return tab_strip_controller_ ? tab_strip_controller_->GetTabGroup(group_id)
+                               : nullptr;
 }

@@ -53,10 +53,13 @@
 #include "components/prefs/scoped_user_pref_update.h"
 #include "components/translate/core/browser/language_state.h"
 #include "components/translate/core/browser/translate_driver.h"
+#include "components/translate/core/browser/translate_manager.h"
 #include "content/public/browser/browser_accessibility_state.h"
+#include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/scoped_accessibility_mode.h"
+#include "content/public/browser/service_process_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/common/content_switches.h"
@@ -65,6 +68,8 @@
 #include "extensions/browser/extension_registry.h"
 #include "net/http/http_status_code.h"
 #include "pdf/buildflags.h"
+#include "services/metrics/public/cpp/ukm_builders.h"
+#include "services/metrics/public/cpp/ukm_recorder.h"
 #include "services/network/public/cpp/header_util.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/accessibility/accessibility_features.h"
@@ -315,6 +320,11 @@ void ReadAnythingWebContentsObserver::WebContentsDestroyed() {
   page_handler_->WebContentsDestroyed();
 }
 
+void ReadAnythingWebContentsObserver::DidFinishNavigation(
+    content::NavigationHandle* navigation_handle) {
+  page_handler_->DidFinishNavigation(navigation_handle);
+}
+
 void ReadAnythingUntrustedPageHandler::MaybeUpdateImmersivePinStatus() {
   if (!features::IsImmersiveReadAnythingEnabled()) {
     return;
@@ -390,38 +400,7 @@ ReadAnythingUntrustedPageHandler::ReadAnythingUntrustedPageHandler(
       base::BindRepeating(&ReadAnythingUntrustedPageHandler::OnTabWillDetach,
                           weak_factory_.GetWeakPtr()));
 
-  PrefService* prefs = profile_->GetPrefs();
-  base::DictValue voices = base::DictValue();
-  voices = prefs->GetDict(prefs::kAccessibilityReadAnythingVoiceName).Clone();
-  read_anything::mojom::LineFocus line_focus =
-      features::IsReadAnythingLineFocusEnabled()
-          ? static_cast<read_anything::mojom::LineFocus>(
-                prefs->GetInteger(prefs::kAccessibilityReadAnythingLineFocus))
-          : read_anything::mojom::LineFocus::kDefaultValue;
-  bool line_focus_enabled = line_focus != read_anything::mojom::LineFocus::kOff;
-  read_anything::mojom::LineFocus last_non_disabled_line_focus =
-      features::IsReadAnythingLineFocusEnabled()
-          ? static_cast<read_anything::mojom::LineFocus>(prefs->GetInteger(
-                prefs::kAccessibilityReadAnythingLastNonDisabledLineFocus))
-          : read_anything::mojom::LineFocus::kDefaultValue;
-
-  page_->OnSettingsRestoredFromPrefs(
-      static_cast<read_anything::mojom::LineSpacing>(
-          prefs->GetInteger(prefs::kAccessibilityReadAnythingLineSpacing)),
-      static_cast<read_anything::mojom::LetterSpacing>(
-          prefs->GetInteger(prefs::kAccessibilityReadAnythingLetterSpacing)),
-      prefs->GetString(prefs::kAccessibilityReadAnythingFontName),
-      prefs->GetDouble(prefs::kAccessibilityReadAnythingFontScale),
-      prefs->GetBoolean(prefs::kAccessibilityReadAnythingLinksEnabled),
-      prefs->GetBoolean(prefs::kAccessibilityReadAnythingImagesEnabled),
-      static_cast<read_anything::mojom::Colors>(
-          prefs->GetInteger(prefs::kAccessibilityReadAnythingColorInfo)),
-      prefs->GetDouble(prefs::kAccessibilityReadAnythingSpeechRate),
-      std::move(voices),
-      prefs->GetList(prefs::kAccessibilityReadAnythingLanguagesEnabled).Clone(),
-      static_cast<read_anything::mojom::HighlightGranularity>(prefs->GetDouble(
-          prefs::kAccessibilityReadAnythingHighlightGranularity)),
-      last_non_disabled_line_focus, line_focus_enabled);
+  RestoreSettingsFromPrefs();
 
   // Get user's default language to check for compatible fonts.
   language::LanguageModel* language_model =
@@ -584,6 +563,11 @@ void ReadAnythingUntrustedPageHandler::TreeRemoved(ui::AXTreeID ax_tree_id) {
 
 void ReadAnythingUntrustedPageHandler::GetDependencyParserModel(
     GetDependencyParserModelCallback callback) {
+  if (!features::IsReadAnythingReadAloudPhraseHighlightingEnabled()) {
+    std::move(callback).Run(base::File());
+    return;
+  }
+
   DependencyParserModelLoader* loader =
       DependencyParserModelLoaderFactory::GetForProfile(profile_);
   if (!loader) {
@@ -833,6 +817,18 @@ void ReadAnythingUntrustedPageHandler::OnCopy() {
   }
 }
 
+content::WebContents* ReadAnythingUntrustedPageHandler::GetWebContents() const {
+  // Target the PDF observer's WebContents if available instead of the outer
+  // container frame.
+  if (pdf_observer_ != nullptr) {
+    return pdf_observer_->web_contents();
+  }
+  if (main_observer_ != nullptr) {
+    return main_observer_->web_contents();
+  }
+  return nullptr;
+}
+
 bool ReadAnythingUntrustedPageHandler::IsObservingTree(
     const ui::AXTreeID& tree_id) const {
   content::RenderFrameHost* rfh =
@@ -891,6 +887,30 @@ void ReadAnythingUntrustedPageHandler::OnFontSizeChange(double font_size) {
 void ReadAnythingUntrustedPageHandler::OnLinksEnabledChanged(bool enabled) {
   profile_->GetPrefs()->SetBoolean(
       prefs::kAccessibilityReadAnythingLinksEnabled, enabled);
+}
+
+void ReadAnythingUntrustedPageHandler::OnTranslationRequested() {
+  if (!features::IsReadAnythingTranslateEntryPointEnabled()) {
+    mojo::ReportBadMessage("Translate entry point not enabled");
+    return;
+  }
+  content::WebContents* contents = GetWebContents();
+  if (!contents) {
+    return;
+  }
+
+  ChromeTranslateClient* translate_client =
+      ChromeTranslateClient::FromWebContents(contents);
+  if (!translate_client) {
+    return;
+  }
+
+  translate::TranslateManager* translate_manager =
+      translate_client->GetTranslateManager();
+  if (translate_manager) {
+    translate_manager->ShowTranslateUI(/*auto_translate=*/true,
+                                       /*triggered_from_menu=*/true);
+  }
 }
 
 void ReadAnythingUntrustedPageHandler::OnImagesEnabledChanged(bool enabled) {
@@ -1122,6 +1142,13 @@ void ReadAnythingUntrustedPageHandler::OnSpeechEngineStalled() {
 #endif
 }
 
+void ReadAnythingUntrustedPageHandler::RequestReadabilityDistillation() {
+  if (!features::IsReadAnythingWithReadabilityEnabled()) {
+    return;
+  }
+  RequestDomDistillerDistillation(tab_->GetContents());
+}
+
 void ReadAnythingUntrustedPageHandler::PerformActionInTargetTree(
     const ui::AXActionData& data) {
   CHECK(IsObservingTree(data.target_tree_id));
@@ -1178,14 +1205,24 @@ void ReadAnythingUntrustedPageHandler::OnCollapseSelection() {
 void ReadAnythingUntrustedPageHandler::OnDistillationStatus(
     read_anything::mojom::DistillationStatus status,
     int word_count) {
-  if (last_open_trigger_.has_value() &&
-      last_open_trigger_.value() == ReadAnythingOpenTrigger::kOmniboxChip) {
-    last_open_trigger_.reset();
-    base::UmaHistogramEnumeration(
-        "Accessibility.ReadAnything.DistillationStatusAfterOmnibox", status);
-    base::UmaHistogramCustomCounts(
-        "Accessibility.ReadAnything.WordsDistilledAfterOmnibox", word_count, 1,
-        kMaxWordsDistilled, kWordsDistilledBuckets);
+  if (last_open_trigger_ == ReadAnythingOpenTrigger::kOmniboxChip) {
+    if (status != read_anything::mojom::DistillationStatus::kStillRunning) {
+      last_open_trigger_ = ReadAnythingOpenTrigger::kUnknown;
+      base::UmaHistogramEnumeration(
+          "Accessibility.ReadAnything.DistillationStatusAfterOmnibox", status);
+      base::UmaHistogramCustomCounts(
+          "Accessibility.ReadAnything.WordsDistilledAfterOmnibox", word_count,
+          1, kMaxWordsDistilled, kWordsDistilledBuckets);
+
+      content::WebContents* web_contents =
+          main_observer_ ? main_observer_->web_contents() : nullptr;
+      if (web_contents && web_contents->GetPrimaryMainFrame()) {
+        ukm::builders::Accessibility_ReadAnything_OmniboxEntryPointDistillation(
+            web_contents->GetPrimaryMainFrame()->GetPageUkmSourceId())
+            .SetDistillationStatus(static_cast<int>(status))
+            .Record(ukm::UkmRecorder::Get());
+      }
+    }
   }
 }
 
@@ -1201,17 +1238,21 @@ void ReadAnythingUntrustedPageHandler::SetDefaultLanguageCode(
 
 void ReadAnythingUntrustedPageHandler::Activate(
     bool active,
-    std::optional<ReadAnythingOpenTrigger> open_trigger,
+    ReadAnythingOpenTrigger open_trigger,
     std::optional<base::TimeDelta> completed_session_duration) {
   active_ = active;
   if (active_) {
     last_open_trigger_ = open_trigger;
+    page_->OnReadingModeShown(
+        static_cast<read_anything::mojom::ReadAnythingOpenTrigger>(
+            open_trigger));
     tab_will_detach_ = false;
     if (features::IsImmersiveReadAnythingEnabled()) {
       // Signal that reading mode has been re-opened and is no longer hidden if
       // it was previously marked as hidden.
       OnGetPresentationState();
     }
+    RestoreSettingsFromPrefs();
   }
   if (!active && !tab_will_detach_) {
     page_->OnReadingModeHidden(tab_->IsActivated());
@@ -1247,6 +1288,31 @@ void ReadAnythingUntrustedPageHandler::OnReadingModeHiddenAckTimeout() {
 
 void ReadAnythingUntrustedPageHandler::OnReadingModePresenterChanged() {
   OnGetPresentationState();
+}
+
+// This is used for same-document navigations (such as fragment navigations) in
+// the main frame.
+void ReadAnythingUntrustedPageHandler::DidFinishNavigation(
+    content::NavigationHandle* navigation_handle) {
+  if (!active_ && !features::IsImmersiveReadAnythingEnabled()) {
+    return;
+  }
+  if (!navigation_handle->IsInPrimaryMainFrame() ||
+      !navigation_handle->HasCommitted() ||
+      !navigation_handle->IsSameDocument()) {
+    return;
+  }
+
+  // When passing the URL to the untrusted renderer, make sure any credentials
+  // are stripped out of the URL.
+  GURL url = navigation_handle->GetURL();
+  if (url.has_username() || url.has_password()) {
+    GURL::Replacements replacements;
+    replacements.ClearUsername();
+    replacements.ClearPassword();
+    url = url.ReplaceComponents(replacements);
+  }
+  page_->OnMainFrameSameDocumentNavigation(url);
 }
 
 void ReadAnythingUntrustedPageHandler::OnTabDiscarded(
@@ -1526,6 +1592,9 @@ void ReadAnythingUntrustedPageHandler::ProcessDistilledArticle(
               kDistillationWithContent);
       page_->UpdateContent(dom_distiller_title().value_or(""),
                            dom_distiller_content().value());
+      if (features::IsReadAnythingDistillationQualityEvaluationEnabled()) {
+        EvaluateDistillationQuality(dom_distiller_content().value());
+      }
     }
   } else {
     page_->OnReadabilityDistillationStateChanged(
@@ -1533,6 +1602,144 @@ void ReadAnythingUntrustedPageHandler::ProcessDistilledArticle(
             kDistillationEmpty);
     page_->UpdateContent(/*title=*/"", /*content=*/"");
   }
+}
+
+void ReadAnythingUntrustedPageHandler::EvaluateDistillationQuality(
+    const std::string& distilled_html) {
+  if (!features::IsReadAnythingDistillationQualityEvaluationEnabled()) {
+    return;
+  }
+
+  if (distilled_html.empty()) {
+    base::UmaHistogramEnumeration(
+        "Accessibility.ReadAnything.DistillationQuality.EvaluationStatus",
+        reading_mode::mojom::EvaluationStatus::kEmptyDistilledHtml);
+    return;
+  }
+
+  constexpr size_t kMaxDistilledHtmlLengthForMetrics = 100 * 1024;  // 100KB
+  if (distilled_html.length() > kMaxDistilledHtmlLengthForMetrics) {
+    // To ensure a correct metrics evaluation, we need that both the AX tree
+    // and the distilled HTML are within complete. So we skip the evaluation
+    // if the distilled HTML is too large or if the AX tree is incomplete.
+    LOG(WARNING) << "Skipping distillation quality evaluation: distilled "
+                    "content too large ("
+                 << distilled_html.length() << " chars).";
+    base::UmaHistogramEnumeration(
+        "Accessibility.ReadAnything.DistillationQuality.EvaluationStatus",
+        reading_mode::mojom::EvaluationStatus::kHtmlTooLarge);
+    return;
+  }
+
+  if (!distillation_evaluator_) {
+    content::ServiceProcessHost::Launch(
+        distillation_evaluator_.BindNewPipeAndPassReceiver(),
+        content::ServiceProcessHost::Options()
+            .WithDisplayName("Reading Mode Quality Metrics")
+            .Pass());
+    distillation_evaluator_.reset_on_disconnect();
+  }
+
+  tab_->GetContents()->RequestAXTreeSnapshot(
+      base::BindOnce(
+          &ReadAnythingUntrustedPageHandler::OnAXTreeSnapshotReceived,
+          weak_factory_.GetWeakPtr(), distilled_html),
+      ui::kAXModeWebContentsOnly,
+      /* max_nodes= */ kMaxNodesForDistillationQualityEvaluation,
+      /* timeout= */ {}, content::WebContents::AXTreeSnapshotPolicy::kAll);
+}
+
+void ReadAnythingUntrustedPageHandler::OnAXTreeSnapshotReceived(
+    const std::string& distilled_html,
+    ui::AXTreeUpdate& snapshot) {
+  // If the snapshot reached the limit, it's likely incomplete. Skip evaluation.
+  if (snapshot.nodes.size() >= kMaxNodesForDistillationQualityEvaluation) {
+    LOG(WARNING) << "AXTree snapshot reached the limit of "
+                 << kMaxNodesForDistillationQualityEvaluation
+                 << " nodes. Skipping metrics evaluation for incomplete tree.";
+    base::UmaHistogramEnumeration(
+        "Accessibility.ReadAnything.DistillationQuality.EvaluationStatus",
+        reading_mode::mojom::EvaluationStatus::kSnapshotReachedLimit);
+  }
+
+  // Skip evaluation on empty snapshots to prevent metric pollution
+  // (artificially logging 0.0 averages to UKMs) and to completely avoid
+  // spawning or calling the utility process.
+  if (snapshot.nodes.empty()) {
+    VLOG(1) << "AXTree snapshot is empty. Skipping metrics evaluation.";
+    base::UmaHistogramEnumeration(
+        "Accessibility.ReadAnything.DistillationQuality.EvaluationStatus",
+        reading_mode::mojom::EvaluationStatus::kEmptySnapshot);
+    return;
+  }
+
+  distillation_evaluator_->Evaluate(
+      snapshot, distilled_html,
+      base::BindOnce(
+          &ReadAnythingUntrustedPageHandler::OnQualityMetricsEvaluated,
+          weak_factory_.GetWeakPtr()));
+}
+
+void ReadAnythingUntrustedPageHandler::OnQualityMetricsEvaluated(
+    base::expected<reading_mode::mojom::DistillationMetricsPtr,
+                   reading_mode::mojom::EvaluationStatus> result) {
+  reading_mode::mojom::EvaluationStatus status =
+      result.has_value() ? reading_mode::mojom::EvaluationStatus::kSuccess
+                         : result.error();
+  // Log distillation quality metrics to UKM to evaluate performance per page
+  // source.
+  base::UmaHistogramEnumeration(
+      "Accessibility.ReadAnything.DistillationQuality.EvaluationStatus",
+      status);
+
+  // Telemetry Integrity Protection: Commit to UKM strictly on Success.
+  if (!result.has_value() || !result.value()) {
+    return;
+  }
+
+  const auto& metrics = result.value();
+  LogDistillationQualityMetrics(metrics);
+}
+
+void ReadAnythingUntrustedPageHandler::LogDistillationQualityMetrics(
+    const reading_mode::mojom::DistillationMetricsPtr& metrics) {
+  if (tab_ && tab_->GetContents()) {
+    ukm::SourceId source_id =
+        tab_->GetContents()->GetPrimaryMainFrame()->GetPageUkmSourceId();
+    ukm::builders::Accessibility_ReadAnything_DistillationQuality(source_id)
+        .SetRougeLF1(static_cast<int>(metrics->rouge_l_f1 * 100.0))
+        .SetRougeLPrecision(
+            static_cast<int>(metrics->rouge_l_precision * 100.0))
+        .SetRougeLRecall(static_cast<int>(metrics->rouge_l_recall * 100.0))
+        .SetRougeLF2(static_cast<int>(metrics->rouge_l_f2 * 100.0))
+        .SetStructScore(static_cast<int>(metrics->struct_score * 100.0))
+        .SetFormatScore(static_cast<int>(metrics->format_score * 100.0))
+        .SetLinkDensityRatio(
+            static_cast<int>(metrics->link_density_ratio * 100.0))
+        .Record(ukm::UkmRecorder::Get());
+  }
+
+  base::UmaHistogramPercentage(
+      "Accessibility.ReadAnything.DistillationQuality.RougeLF1",
+      static_cast<int>(metrics->rouge_l_f1 * 100.0));
+  base::UmaHistogramPercentage(
+      "Accessibility.ReadAnything.DistillationQuality.RougeLPrecision",
+      static_cast<int>(metrics->rouge_l_precision * 100.0));
+  base::UmaHistogramPercentage(
+      "Accessibility.ReadAnything.DistillationQuality.RougeLRecall",
+      static_cast<int>(metrics->rouge_l_recall * 100.0));
+  base::UmaHistogramPercentage(
+      "Accessibility.ReadAnything.DistillationQuality.RougeLF2",
+      static_cast<int>(metrics->rouge_l_f2 * 100.0));
+  base::UmaHistogramPercentage(
+      "Accessibility.ReadAnything.DistillationQuality.StructScore",
+      static_cast<int>(metrics->struct_score * 100.0));
+  base::UmaHistogramPercentage(
+      "Accessibility.ReadAnything.DistillationQuality.FormatScore",
+      static_cast<int>(metrics->format_score * 100.0));
+  base::UmaHistogramPercentage(
+      "Accessibility.ReadAnything.DistillationQuality.LinkDensityRatio",
+      static_cast<int>(metrics->link_density_ratio * 100.0));
 }
 
 void ReadAnythingUntrustedPageHandler::SetLanguageCode(
@@ -1619,6 +1826,41 @@ void ReadAnythingUntrustedPageHandler::LogTextStyle() {
     base::UmaHistogramEnumeration("Accessibility.ReadAnything.LineFocus",
                                   line_focus);
   }
+}
+
+void ReadAnythingUntrustedPageHandler::RestoreSettingsFromPrefs() {
+  PrefService* prefs = profile_->GetPrefs();
+  base::DictValue voices = base::DictValue();
+  voices = prefs->GetDict(prefs::kAccessibilityReadAnythingVoiceName).Clone();
+  read_anything::mojom::LineFocus line_focus =
+      features::IsReadAnythingLineFocusEnabled()
+          ? static_cast<read_anything::mojom::LineFocus>(
+                prefs->GetInteger(prefs::kAccessibilityReadAnythingLineFocus))
+          : read_anything::mojom::LineFocus::kDefaultValue;
+  bool line_focus_enabled = line_focus != read_anything::mojom::LineFocus::kOff;
+  read_anything::mojom::LineFocus last_non_disabled_line_focus =
+      features::IsReadAnythingLineFocusEnabled()
+          ? static_cast<read_anything::mojom::LineFocus>(prefs->GetInteger(
+                prefs::kAccessibilityReadAnythingLastNonDisabledLineFocus))
+          : read_anything::mojom::LineFocus::kDefaultValue;
+
+  page_->OnSettingsRestoredFromPrefs(
+      static_cast<read_anything::mojom::LineSpacing>(
+          prefs->GetInteger(prefs::kAccessibilityReadAnythingLineSpacing)),
+      static_cast<read_anything::mojom::LetterSpacing>(
+          prefs->GetInteger(prefs::kAccessibilityReadAnythingLetterSpacing)),
+      prefs->GetString(prefs::kAccessibilityReadAnythingFontName),
+      prefs->GetDouble(prefs::kAccessibilityReadAnythingFontScale),
+      prefs->GetBoolean(prefs::kAccessibilityReadAnythingLinksEnabled),
+      prefs->GetBoolean(prefs::kAccessibilityReadAnythingImagesEnabled),
+      static_cast<read_anything::mojom::Colors>(
+          prefs->GetInteger(prefs::kAccessibilityReadAnythingColorInfo)),
+      prefs->GetDouble(prefs::kAccessibilityReadAnythingSpeechRate),
+      std::move(voices),
+      prefs->GetList(prefs::kAccessibilityReadAnythingLanguagesEnabled).Clone(),
+      static_cast<read_anything::mojom::HighlightGranularity>(prefs->GetDouble(
+          prefs::kAccessibilityReadAnythingHighlightGranularity)),
+      last_non_disabled_line_focus, line_focus_enabled);
 }
 
 void ReadAnythingUntrustedPageHandler::

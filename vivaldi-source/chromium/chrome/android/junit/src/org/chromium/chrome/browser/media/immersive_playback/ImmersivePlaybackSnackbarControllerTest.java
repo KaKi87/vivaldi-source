@@ -25,14 +25,15 @@ import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowLooper;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.blink.mojom.ImmersivePlaybackConfirmationStatus;
-import org.chromium.blink.mojom.ImmersiveProjectionType;
-import org.chromium.blink.mojom.ImmersiveStereoMode;
+import org.chromium.chrome.R;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
+import org.chromium.content_public.browser.ImmersivePlaybackConfirmationStatus;
+import org.chromium.content_public.browser.ImmersiveProjectionType;
+import org.chromium.content_public.browser.ImmersiveStereoMode;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modelutil.PropertyModel;
 
@@ -52,7 +53,8 @@ public class ImmersivePlaybackSnackbarControllerTest {
     @Before
     public void setUp() {
         MockitoAnnotations.openMocks(this);
-        mContext = Robolectric.buildActivity(Activity.class).get();
+        mContext = Robolectric.buildActivity(Activity.class).create().get();
+        mContext.setTheme(R.style.Theme_BrowserUI_DayNight);
         mController =
                 new ImmersivePlaybackSnackbarController(
                         mContext,
@@ -64,7 +66,7 @@ public class ImmersivePlaybackSnackbarControllerTest {
 
     @Test
     public void testShow_RegistersObservers() {
-        mController.show(mCallback, 0);
+        mController.show(mCallback, ImmersiveStereoMode.MONO, ImmersiveProjectionType.QUAD, 0);
         verify(mSnackbarManager).showSnackbar(any(Snackbar.class));
         verify(mTab).addObserver(any());
         verify(mFullscreenManager).addObserver(any());
@@ -72,7 +74,7 @@ public class ImmersivePlaybackSnackbarControllerTest {
 
     @Test
     public void testActionClicks_OpensDialog() {
-        mController.show(mCallback, 0);
+        mController.show(mCallback, ImmersiveStereoMode.MONO, ImmersiveProjectionType.QUAD, 0);
 
         mController.onAction(null);
 
@@ -87,7 +89,7 @@ public class ImmersivePlaybackSnackbarControllerTest {
 
     @Test
     public void testDismissNoAction_Declines() {
-        mController.show(mCallback, 0);
+        mController.show(mCallback, ImmersiveStereoMode.MONO, ImmersiveProjectionType.QUAD, 0);
 
         mController.onDismissNoAction(null);
 
@@ -102,7 +104,7 @@ public class ImmersivePlaybackSnackbarControllerTest {
 
     @Test
     public void testDismiss_DismissesSnackbar() {
-        mController.show(mCallback, 0);
+        mController.show(mCallback, ImmersiveStereoMode.MONO, ImmersiveProjectionType.QUAD, 0);
         clearInvocations(mSnackbarManager);
         mController.dismiss();
         verify(mSnackbarManager).dismissSnackbars(eq(mController));
@@ -110,7 +112,7 @@ public class ImmersivePlaybackSnackbarControllerTest {
 
     @Test
     public void testDismiss_DismissesDialog() {
-        mController.show(mCallback, 0);
+        mController.show(mCallback, ImmersiveStereoMode.MONO, ImmersiveProjectionType.QUAD, 0);
         mController.onAction(null); // consumes snackbar, shows dialog
         mController.dismiss();
         verify(mModalDialogManager).dismissDialog(any(), any(Integer.class));
@@ -122,7 +124,7 @@ public class ImmersivePlaybackSnackbarControllerTest {
                 new ImmersivePlaybackSnackbarController(
                         mContext, () -> mSnackbarManager, () -> null, mTab, mFullscreenManager);
 
-        mController.show(mCallback, 0);
+        mController.show(mCallback, ImmersiveStereoMode.MONO, ImmersiveProjectionType.QUAD, 0);
 
         verify(mCallback)
                 .onResult(
@@ -135,11 +137,11 @@ public class ImmersivePlaybackSnackbarControllerTest {
 
     @Test
     public void testShow_DuplicateCalls_GuardAddsObserversOnce() {
-        mController.show(mCallback, 0);
+        mController.show(mCallback, ImmersiveStereoMode.MONO, ImmersiveProjectionType.QUAD, 0);
         verify(mTab).addObserver(any());
         verify(mFullscreenManager).addObserver(any());
 
-        mController.show(mCallback, 0);
+        mController.show(mCallback, ImmersiveStereoMode.MONO, ImmersiveProjectionType.QUAD, 0);
 
         // Consecutive call to show() will unregister and re-register the observers.
         verify(mTab).removeObserver(any());
@@ -155,20 +157,20 @@ public class ImmersivePlaybackSnackbarControllerTest {
                 ArgumentCaptor.forClass(FullscreenManager.Observer.class);
 
         // 1. Test page load started
-        mController.show(mCallback, 0);
+        mController.show(mCallback, ImmersiveStereoMode.MONO, ImmersiveProjectionType.QUAD, 0);
         verify(mTab).addObserver(tabCaptor.capture());
         clearInvocations(mSnackbarManager);
         tabCaptor.getValue().onPageLoadStarted(mTab, null);
         verify(mSnackbarManager).dismissSnackbars(eq(mController));
 
         // 2. Test content changed
-        mController.show(mCallback, 0);
+        mController.show(mCallback, ImmersiveStereoMode.MONO, ImmersiveProjectionType.QUAD, 0);
         clearInvocations(mSnackbarManager);
         tabCaptor.getValue().onContentChanged(mTab);
         verify(mSnackbarManager).dismissSnackbars(eq(mController));
 
         // 3. Test exit fullscreen
-        mController.show(mCallback, 0);
+        mController.show(mCallback, ImmersiveStereoMode.MONO, ImmersiveProjectionType.QUAD, 0);
         verify(mFullscreenManager, times(3)).addObserver(fsCaptor.capture());
         clearInvocations(mSnackbarManager);
         fsCaptor.getValue().onExitFullscreen(mTab);
@@ -177,7 +179,7 @@ public class ImmersivePlaybackSnackbarControllerTest {
 
     @Test
     public void testShow_WithDelay_PostsSnackbar() {
-        mController.show(mCallback, 1000);
+        mController.show(mCallback, ImmersiveStereoMode.MONO, ImmersiveProjectionType.QUAD, 1000);
         verify(mSnackbarManager, never()).showSnackbar(any());
 
         ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
@@ -187,7 +189,7 @@ public class ImmersivePlaybackSnackbarControllerTest {
 
     @Test
     public void testShow_WithDelay_DismissCancelsTask() {
-        mController.show(mCallback, 1000);
+        mController.show(mCallback, ImmersiveStereoMode.MONO, ImmersiveProjectionType.QUAD, 1000);
         verify(mSnackbarManager, never()).showSnackbar(any());
 
         mController.dismiss();
@@ -195,5 +197,10 @@ public class ImmersivePlaybackSnackbarControllerTest {
         ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
 
         verify(mSnackbarManager, never()).showSnackbar(any());
+        verify(mCallback)
+                .onResult(
+                        ImmersivePlaybackConfirmationStatus.CANCELED,
+                        ImmersiveStereoMode.MONO,
+                        ImmersiveProjectionType.QUAD);
     }
 }

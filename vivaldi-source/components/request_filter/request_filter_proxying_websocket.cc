@@ -55,11 +55,12 @@ void ForwardOnBeforeSendHeadersCallback(
     network::mojom::TrustedHeaderClient::OnBeforeSendHeadersCallback callback,
     const std::optional<::net::HttpRequestHeaders>& initial_headers,
     int32_t error_code,
-    const std::optional<::net::HttpRequestHeaders>& headers) {
+    const std::optional<::net::HttpRequestHeaders>& headers,
+    std::optional<::base::DictValue> dict) {
   if (headers) {
-    std::move(callback).Run(error_code, headers);
+    std::move(callback).Run(error_code, headers, std::move(dict));
   } else {
-    std::move(callback).Run(error_code, initial_headers);
+    std::move(callback).Run(error_code, initial_headers, std::move(dict));
   }
 }
 
@@ -88,9 +89,9 @@ RequestFilterProxyingWebSocket::RequestFilterProxyingWebSocket(
         handshake_client,
     mojo::PendingRemote<network::mojom::WebSocketAuthenticationHandler>
         authentication_handler,
-    mojo::PendingRemote<network::mojom::TrustedHeaderClient> header_client,
     bool has_extra_headers,
     bool has_security_info,
+    mojo::PendingRemote<network::mojom::TrustedHeaderClient> header_client,
     int process_id,
     int render_frame_id,
     content::BrowserContext* browser_context,
@@ -102,12 +103,12 @@ RequestFilterProxyingWebSocket::RequestFilterProxyingWebSocket(
       request_handler_(request_handler),
       forwarding_handshake_client_(std::move(handshake_client)),
       forwarding_authentication_handler_(std::move(authentication_handler)),
-      forwarding_header_client_(std::move(header_client)),
+      header_client_(std::move(header_client)),
       request_headers_(request.headers),
       response_(network::mojom::URLResponseHead::New()),
       additional_headers_(std::move(additional_headers)),
-      has_extra_headers_(has_extra_headers || header_client),
-      has_security_info_(has_security_info || header_client),
+      has_extra_headers_(has_extra_headers),
+      has_security_info_(has_security_info),
       info_(request_id_generator->Generate(IPC::mojom::kRoutingIdNone, 0),
             content::GlobalRenderFrameHostId(process_id, render_frame_id),
             request,
@@ -133,7 +134,7 @@ RequestFilterProxyingWebSocket::~RequestFilterProxyingWebSocket() {
   request_handler_->OnRequestWillBeDestroyed(browser_context_, &info_);
   if (on_before_send_headers_callback_) {
     std::move(on_before_send_headers_callback_)
-        .Run(net::ERR_ABORTED, std::nullopt);
+        .Run(net::ERR_ABORTED, std::nullopt, std::nullopt);
   }
   if (on_headers_received_callback_) {
     std::move(on_headers_received_callback_)
@@ -292,6 +293,7 @@ void RequestFilterProxyingWebSocket::OnAuthRequired(
 }
 
 void RequestFilterProxyingWebSocket::OnBeforeSendHeaders(
+    const GURL& request_url,
     const net::HttpRequestHeaders& headers,
     OnBeforeSendHeadersCallback callback) {
   DCHECK(receiver_as_header_client_.is_bound());
@@ -323,17 +325,17 @@ void RequestFilterProxyingWebSocket::OnHeadersReceived(
 
 void RequestFilterProxyingWebSocket::StartProxying(
     WebSocketFactory factory,
+    const GURL& url,
     const net::SiteForCookies& site_for_cookies,
     const std::optional<std::string>& user_agent,
-    const GURL& url,
     std::vector<network::mojom::HttpHeaderPtr> additional_headers,
     mojo::PendingRemote<network::mojom::WebSocketHandshakeClient>
         handshake_client,
     mojo::PendingRemote<network::mojom::WebSocketAuthenticationHandler>
         authentication_handler,
-    mojo::PendingRemote<network::mojom::TrustedHeaderClient> header_client,
     bool has_extra_headers,
     bool has_security_info,
+    mojo::PendingRemote<network::mojom::TrustedHeaderClient> header_client,
     int process_id,
     int render_frame_id,
     RequestFilterManager::RequestIDGenerator* request_id_generator,
@@ -353,7 +355,7 @@ void RequestFilterProxyingWebSocket::StartProxying(
   auto proxy = std::make_unique<RequestFilterProxyingWebSocket>(
       std::move(factory), request, std::move(additional_headers),
       std::move(handshake_client), std::move(authentication_handler),
-      std::move(header_client), has_extra_headers, has_security_info,
+      has_extra_headers, has_security_info, std::move(header_client),
       process_id, render_frame_id, browser_context, request_id_generator,
       request_handler, proxies);
 
@@ -405,13 +407,13 @@ void RequestFilterProxyingWebSocket::OnBeforeSendHeadersComplete(
     DCHECK(on_before_send_headers_callback_);
     if (forwarding_header_client_) {
       forwarding_header_client_->OnBeforeSendHeaders(
-          request_headers_,
+          redirect_url_, request_headers_,
           base::BindOnce(&ForwardOnBeforeSendHeadersCallback,
                          std::move(on_before_send_headers_callback_),
                          request_headers_));
     } else {
       std::move(on_before_send_headers_callback_)
-          .Run(error_code, request_headers_);
+          .Run(error_code, request_headers_, std::nullopt);
     }
   }
 
@@ -443,8 +445,11 @@ void RequestFilterProxyingWebSocket::ContinueToStartRequest(int error_code) {
   }
 
   mojo::PendingRemote<network::mojom::TrustedHeaderClient>
-      trusted_header_client = mojo::NullRemote();
+      trusted_header_client = std::move(header_client_);
   if (has_extra_headers_ || has_security_info_) {
+    if (trusted_header_client) {
+      forwarding_header_client_.Bind(std::move(trusted_header_client));
+    }
     trusted_header_client =
         receiver_as_header_client_.BindNewPipeAndPassRemote();
   }

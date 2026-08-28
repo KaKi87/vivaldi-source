@@ -6,7 +6,7 @@ import 'chrome://new-tab-page/new_tab_page.js';
 
 import {SearchboxBrowserProxy} from 'chrome://new-tab-page/new_tab_page.js';
 import type {SearchboxMatchElement} from 'chrome://new-tab-page/new_tab_page.js';
-import {createAutocompleteMatch} from 'chrome://resources/cr_components/searchbox/searchbox_browser_proxy.js';
+import {createAutocompleteMatch, createKeywordModelForTesting} from 'chrome://resources/cr_components/searchbox/searchbox_browser_proxy.js';
 import {NavigationPredictor} from 'chrome://resources/mojo/components/omnibox/browser/omnibox.mojom-webui.js';
 import {SelectionLineState} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
 import {assertArrayEquals, assertDeepEquals, assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
@@ -76,10 +76,10 @@ suite('CrComponentsRealboxMatchTest', () => {
           clickArgs.url,
           clickArgs.areMatchesShowing,
           clickArgs.mouseButton,
-          clickArgs.altKey,
-          clickArgs.ctrlKey,
-          clickArgs.metaKey,
-          clickArgs.shiftKey,
+          clickArgs.modifiers.altKey,
+          clickArgs.modifiers.ctrlKey,
+          clickArgs.modifiers.metaKey,
+          clickArgs.modifiers.shiftKey,
         ]);
     testProxy.handler.reset();
 
@@ -155,7 +155,7 @@ suite('CrComponentsRealboxMatchTest', () => {
   test('UpdateSelectionUpdatesClasses', async () => {
     // Add keyword chip and 2 actions.
     const match = createAutocompleteMatch();
-    match.keywordChipHint = 'keyword';
+    match.keywordModel = createKeywordModelForTesting({chipHint: 'keyword'});
     match.actions.push({
       hint: 'hint',
       suggestionContents: 'suggestionContents',
@@ -343,5 +343,72 @@ suite('CrComponentsRealboxMatchTest', () => {
         '<span>&lt;img src=x onerror=alert(1)&gt;Safe Description</span>',
         descriptionEl.innerHTML);
     assertEquals(0, descriptionEl.querySelectorAll('img').length);
+  });
+
+  test('AriaLabelUpdatingWithVirtualFocus', async () => {
+    matchEl.virtualFocusEnabled = true;
+    const match = createAutocompleteMatch();
+    match.a11yLabel = 'Search Google';
+    match.description = 'Google';
+    match.keywordModel = createKeywordModelForTesting(
+        {chipA11y: 'Search Google in Keyword Mode'});
+    match.actions = [
+      {
+        hint: 'action hint',
+        suggestionContents: 'suggestionContents',
+        iconPath: 'iconPath',
+        a11yLabel: 'First Action A11y Label',
+      },
+    ];
+    match.supportsDeletion = true;
+    match.removeButtonA11yLabel = 'Remove Suggestion';
+    matchEl.match = match;
+    matchEl.matchIndex = 0;
+    await microtasksFinished();
+
+    // 1. Normal state selection
+    matchEl.selection = {
+      line: 0,
+      state: SelectionLineState.kNormal,
+      actionIndex: 0,
+    };
+    await microtasksFinished();
+    assertEquals('Search Google, Google', matchEl.ariaLabel);
+
+    // 2. Keyword Mode chip selection
+    matchEl.selection = {
+      line: 0,
+      state: SelectionLineState.kKeywordMode,
+      actionIndex: 0,
+    };
+    await microtasksFinished();
+    assertEquals('Search Google in Keyword Mode', matchEl.ariaLabel);
+
+    // 3. Action chip selection
+    matchEl.selection = {
+      line: 0,
+      state: SelectionLineState.kFocusedButtonAction,
+      actionIndex: 0,
+    };
+    await microtasksFinished();
+    assertEquals('First Action A11y Label', matchEl.ariaLabel);
+
+    // 4. Remove button selection
+    matchEl.selection = {
+      line: 0,
+      state: SelectionLineState.kFocusedButtonRemoveSuggestion,
+      actionIndex: 0,
+    };
+    await microtasksFinished();
+    assertEquals('Remove Suggestion', matchEl.ariaLabel);
+
+    // 5. Selection index mismatch (different match line selected)
+    matchEl.selection = {
+      line: 1,
+      state: SelectionLineState.kNormal,
+      actionIndex: 0,
+    };
+    await microtasksFinished();
+    assertEquals('Search Google, Google', matchEl.ariaLabel);
   });
 });

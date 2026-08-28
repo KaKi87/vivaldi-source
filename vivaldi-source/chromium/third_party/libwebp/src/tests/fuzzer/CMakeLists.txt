@@ -47,15 +47,22 @@ fuzztest_setup_fuzzing_flags()
 add_library(fuzz_utils fuzz_utils.h fuzz_utils.cc img_alpha.h img_grid.h
                        img_peak.h)
 target_link_libraries(fuzz_utils PUBLIC webpdecoder)
+target_include_directories(fuzz_utils PUBLIC ${CMAKE_SOURCE_DIR}
+                                             ${CMAKE_BINARY_DIR})
 link_fuzztest(fuzz_utils)
 
 add_webp_fuzztest(advanced_api_fuzzer webpdecode webpdspdecode webputilsdecode)
 add_webp_fuzztest(dec_fuzzer)
-add_webp_fuzztest(enc_dec_fuzzer)
+add_webp_fuzztest(enc_dec_fuzzer webpdecode webpdspdecode webputilsdecode)
 add_webp_fuzztest(enc_fuzzer imagedec)
 add_webp_fuzztest(huffman_fuzzer webpdecode webpdspdecode webputilsdecode)
 add_webp_fuzztest(imageio_fuzzer imagedec)
+add_webp_fuzztest(sharpyuv_fuzzer)
 add_webp_fuzztest(simple_api_fuzzer)
+
+if (WEBP_BUILD_ANIM_UTILS)
+  add_webp_fuzztest(anim_util_fuzzer anim_util imageioutil webpdemux)
+endif()
 
 if(WEBP_BUILD_LIBWEBPMUX)
   add_webp_fuzztest(animation_api_fuzzer webpdemux)

@@ -1,0 +1,27 @@
+caption: Enable Vivaldi Direct Match
+default: null
+desc: |-
+  Suggests direct navigation in the Omnibox when typing the name of popular websites, brands, and Vivaldi partners. Read more at https://help.vivaldi.com/desktop/navigation/what-is-direct-match/
+
+        If 'Enabled' is set or the policy is left unset, the Vivaldi Direct Match is available.
+
+        If 'Disabled' is set, the Vivaldi Direct Match is disabled.
+example_value: true
+features:
+  dynamic_refresh: true
+  per_profile: true
+items:
+- caption: Vivaldi Direct Match available
+  value: true
+- caption: Disable Vivaldi Direct Match
+  value: false
+- caption: Vivaldi Direct Match available
+  value: null
+owners:
+- dev@vivaldi.com
+schema:
+  type: boolean
+supported_on:
+- chrome.*:152-
+tags: []
+type: main

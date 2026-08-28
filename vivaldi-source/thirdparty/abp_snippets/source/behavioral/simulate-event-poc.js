@@ -14,7 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 
 import {initQueryAndApply} from "../utils/dom.js";
@@ -29,8 +28,9 @@ let {
 } = $(window);
 
 /**
- * Simulate a mouse event on the page.
- * @alias module:content/snippets.simulate-event-poc
+ * @ignore
+ * @description Simulate a mouse event on the page.
+ * @memberof module:snippets/behavioral
  *
  * @param {string} event Pattern that matches the type(s) of event
  * we want to prevent. If the string starts and ends with a slash (`/`),
@@ -39,6 +39,10 @@ let {
  * match for the event to be triggered.
  * @param {?string} delay The delay between the moment when the node is inserted
  * and the moment when the event is dispatched.
+ *
+ * @example
+ * simulate-event-poc pointerover a[href="#"] => Simulates a hover over
+ * all current anchor tags that have an href of "#".
  *
  * @since Adblock Plus 3.11.2
  */

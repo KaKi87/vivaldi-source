@@ -12,6 +12,7 @@
 #import "ios/chrome/app/application_delegate/tab_opening.h"
 #import "ios/chrome/app/application_delegate/url_opener_params.h"
 #import "ios/chrome/app/startup/chrome_app_startup_parameters.h"
+#import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/policy/model/policy_util.h"
 #import "ios/chrome/browser/shared/coordinator/scene/connection_information.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
@@ -121,14 +122,11 @@ const char* const kUMAShowDefaultPromoFromAppsHistogram =
         gurl = [params externalURL];
       }
       UrlLoadParams urlLoadParams = UrlLoadParams::InNewTab(gurl, virtualURL);
-      if (gurl.GetScheme() == kChromeUIScheme &&
-          gurl.GetHost() == kChromeUIDinoHost) {
-        urlLoadParams.web_params.transition_type =
-            ui::PAGE_TRANSITION_AUTO_BOOKMARK;
-      }
+      urlLoadParams.from_widget_or_siri =
+          params.openedViaWidgetScheme || params.openedViaSiriShortcut;
 
       BOOL dismissOmnibox = [params postOpeningAction] != FOCUS_OMNIBOX;
-      [params requestApplicationModeWithBlock:^(
+      [params fetchAppSwitcherParamsWithBlock:^(
                   ApplicationModeForTabOpening applicationMode) {
         [URLOpener handleUrlLoadParams:urlLoadParams
                              tabOpener:tabOpener

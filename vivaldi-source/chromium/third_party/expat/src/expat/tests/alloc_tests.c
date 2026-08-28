@@ -20,6 +20,7 @@
    Copyright (c) 2021      Donghee Na <donghee.na@python.org>
    Copyright (c) 2023      Sony Corporation / Snild Dolkow <snild@sony.com>
    Copyright (c) 2025      Berkay Eren Ürün <berkay.ueruen@siemens.com>
+   Copyright (c) 2026      Matthew Fernandez <matthew.fernandez@gmail.com>
    Licensed under the MIT license:
 
    Permission is  hereby granted,  free of charge,  to any  person obtaining
@@ -46,13 +47,13 @@
 #  undef NDEBUG /* because test suite relies on assert(...) at the moment */
 #endif
 
+#include "expat_config.h"
+
 #include <math.h> /* NAN, INFINITY */
 #include <stdbool.h>
 #include <stdint.h> /* for SIZE_MAX */
 #include <string.h>
 #include <assert.h>
-
-#include "expat_config.h"
 
 #include "expat.h"
 #include "internal.h"

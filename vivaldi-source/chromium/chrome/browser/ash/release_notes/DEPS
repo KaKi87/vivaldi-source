@@ -21,7 +21,13 @@ include_rules = [
   "+chrome/browser/profiles",
   "+chrome/browser/ui/chrome_pages.h",
   "+chrome/common/chrome_switches.h",
-  "+chrome/common/pref_names.h",
   "+chrome/grit",
   "+chrome/test/base",
 ]
+
+specific_include_rules = {
+  "release_notes_storage_unittest\\.cc": [
+    "+chrome/browser/ash/settings/scoped_cros_settings_test_helper.h",
+    "+chrome/common/pref_names.h",
+  ],
+}

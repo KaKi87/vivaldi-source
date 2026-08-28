@@ -147,6 +147,7 @@
 #include "extensions/common/manifest_handlers/devtools_page_handler.h"
 #include "extensions/common/mojom/api_permission_id.mojom-shared.h"
 #include "extensions/common/permissions/permissions_data.h"
+#include "extensions/common/switches.h"
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 
 using content::BrowserThread;
@@ -547,6 +548,12 @@ void StreamWrite(DevToolsUIBindings* bindings,
                              base::Value(stream_id), std::move(chunkValue),
                              base::Value(encoded));
 }
+
+enum class DevToolsFrontendLocation {
+  kLocal = 0,
+  kRemote = 1,
+  kMaxValue = kRemote,
+};
 
 bool IsLocalDevToolsFrontendURL(const GURL& url) {
   if (!url.is_valid() || url.IsAboutBlank() ||
@@ -2070,11 +2077,6 @@ base::DictValue DevToolsUIBindings::GetHostConfigDictionary(Profile* profile) {
   response_dict.Set("devToolsEnableOriginBoundCookies",
                     std::move(origin_bound_cookies_dict));
 
-  if (base::FeatureList::IsEnabled(features::kDevToolsGreenDevUi)) {
-    response_dict.Set("devToolsGreenDevUi",
-                      base::DictValue().Set("enabled", true));
-  }
-
   if (base::FeatureList::IsEnabled(
           ::features::kDevToolsAnimationStylesInStylesTab)) {
     base::DictValue devtools_animation_styles_in_styles_tab_dict;
@@ -2221,11 +2223,36 @@ base::DictValue DevToolsUIBindings::GetHostConfigDictionary(Profile* profile) {
                         "enabled", base::FeatureList::IsEnabled(
                                        blink::features::kDevToolsAdsPanel)));
 
+  response_dict.Set("devToolsPlusButton",
+                    base::DictValue().Set(
+                        "enabled", GetFeatureStateForDevTools(
+                                       ::features::kDevToolsPlusButton,
+                                       enabled_by_flags, disabled_by_flags)));
+
   response_dict.Set(
-      "devToolsPlusButton",
+      "devToolsInstrumentationBreakpoints",
+      base::DictValue().Set(
+          "enabled", GetFeatureStateForDevTools(
+                         ::features::kDevToolsInstrumentationBreakpoints,
+                         enabled_by_flags, disabled_by_flags)));
+
+  response_dict.Set(
+      "devToolsMobileSafeAreaEmulation",
+      base::DictValue().Set("enabled",
+                            GetFeatureStateForDevTools(
+                                ::features::kDevToolsMobileSafeAreaEmulation,
+                                enabled_by_flags, disabled_by_flags)));
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+  // We check AreExtensionsOnExtensionURLsAllowed() here because this is used to
+  // restrict access to chrome-extension:// URLs, and that helper covers both
+  // --extensions-on-extension-urls and the legacy --extensions-on-chrome-urls
+  // behavior.
+  response_dict.Set(
+      "extensionsOnChromeUrls",
       base::DictValue().Set(
           "enabled",
-          base::FeatureList::IsEnabled(::features::kDevToolsPlusButton)));
+          extensions::switches::AreExtensionsOnExtensionURLsAllowed()));
+#endif
 
   return response_dict;
 }
@@ -2449,6 +2476,14 @@ void DevToolsUIBindings::MaybeStartLogging() {
     if (!remote_debugging_enabled) {
       session_tags |= SessionTags::kDevToolsRemoteDebuggingDisabled;
     }
+
+    // Log the frontend location explicitly
+    GURL frontend_url = web_contents_->GetVisibleURL();
+    DevToolsFrontendLocation location = IsLocalDevToolsFrontendURL(frontend_url)
+                                            ? DevToolsFrontendLocation::kLocal
+                                            : DevToolsFrontendLocation::kRemote;
+    base::UmaHistogramEnumeration("DevTools.FrontendLocation", location);
+
     metrics::structured::StructuredMetricsClient::Record(
         metrics::structured::events::v2::dev_tools::SessionStart()
             .SetTags(session_tags)
@@ -3032,6 +3067,7 @@ void DevToolsUIBindings::ReadyToCommitNavigation(
       LOG(ERROR) << "Attempt to navigate to an invalid DevTools front-end URL: "
                  << navigation_handle->GetURL().spec();
       frontend_host_.reset();
+      extensions_api_.clear();
       return;
     }
     if (frontend_host_) {
@@ -3051,6 +3087,10 @@ void DevToolsUIBindings::ReadyToCommitNavigation(
         base::BindRepeating(
             &DevToolsUIBindings::HandleMessageFromDevToolsFrontend,
             base::Unretained(this)));
+    return;
+  }
+
+  if (!frontend_host_) {
     return;
   }
 

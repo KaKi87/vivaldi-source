@@ -31,6 +31,8 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
+#import "ios/chrome/browser/fullscreen/public/fullscreen_metrics.h"
+#import "ios/chrome/browser/shared/public/commands/fullscreen_commands.h"
 
 using vivaldi::IsVivaldiRunning;
 // End Vivaldi
@@ -288,6 +290,15 @@ const CGFloat kIpadTabSwipeDistance = 100;
   // edge swipes from the right side.
   CGRect contentViewFrame = CGRectInset(
       [[_sideSwipeUIControllerDelegate sideSwipeContentView] frame], -1, -1);
+
+  if (IsVivaldiRunning()) {
+    // Vivaldi keeps the content area inside the horizontal safe area, but edge
+    // navigation still begins from the full browser edge, so adjust the gesture
+    // area.
+    CGRect gestureBounds = gesture.view.bounds;
+    contentViewFrame.origin.x = CGRectGetMinX(gestureBounds) - 1;
+    contentViewFrame.size.width = CGRectGetWidth(gestureBounds) + 2;
+  } // End Vivaldi
 
   if (!CGRectContainsPoint(contentViewFrame, location)) {
     return NO;
@@ -621,13 +632,15 @@ const CGFloat kIpadTabSwipeDistance = 100;
     // Add horizontal stack view controller.
     CGFloat headerHeight =
         IsFullscreenRefactoringEnabled()
-            ? _fullscreenBrowserAgent->max_insets().top
-            : self.fullscreenController->GetMaxViewportInsets().top;
+            ? _fullscreenBrowserAgent->insets().top
+            : self.fullscreenController->GetCurrentViewportInsets().top;
 
     CGFloat bottomMargin = 0;
-    if (IsChromeNextIaEnabled() && IsFullscreenRefactoringEnabled()) {
-      CGFloat totalBottomInset = _fullscreenBrowserAgent->max_insets().bottom;
-      bottomMargin = std::max(0.0, totalBottomInset - kToolbarHeight);
+    if (IsFullscreenRefactoringEnabled()) {
+      bottomMargin = _fullscreenBrowserAgent->insets().bottom;
+    } else {
+      bottomMargin =
+          self.fullscreenController->GetCurrentViewportInsets().bottom;
     }
 
     if (_tabSideSwipeView) {
@@ -833,6 +846,21 @@ const CGFloat kIpadTabSwipeDistance = 100;
 #pragma mark - SideSwipeConsumer
 
 - (void)didFinishSideSwipeNavigation {
+  if (_inSwipe) {
+    // The fullscreen disabler used while recognizing the gesture is released
+    // before the side swipe navigation finishes. Explicitly expand the
+    // toolbars once navigation completes so that a restored scroll position
+    // cannot leave them collapsed.
+    if (IsFullscreenRefactoringEnabled()) {
+      [self.fullscreenHandler
+          exitFullscreenWithTrigger:FullscreenModeTransitionTrigger::
+                                        kForcedByCode
+                           animated:YES];
+    } else {
+      self.fullscreenController->ExitFullscreen(
+          FullscreenModeTransitionTrigger::kForcedByCode);
+    }
+  }
   [_sideSwipeUIControllerDelegate didFinishSideSwipeNavigation];
 }
 // End Vivaldi

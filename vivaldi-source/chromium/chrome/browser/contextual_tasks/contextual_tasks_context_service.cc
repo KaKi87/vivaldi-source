@@ -35,6 +35,7 @@
 #include "chrome/browser/contextual_tasks/contextual_tasks_tab_visit_tracker.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_ui_service.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_utils.h"
+#include "chrome/browser/contextual_tasks/entry_point_eligibility_manager.h"
 #include "chrome/browser/contextual_tasks/site_exclusion_detail.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/profiles/profile.h"
@@ -339,20 +340,27 @@ ContextualTasksContextService::ContextualTasksContextService(
       embedder_metadata_provider_);
   scoped_page_embeddings_service_observation_.Observe(page_embeddings_service_);
 
-  if (optimization_guide_keyed_service_) {
-    model_handler_ = std::make_unique<ContextualTasksContextModelHandler>(
-        optimization_guide_keyed_service_,
-        base::ThreadPool::CreateSequencedTaskRunner(
-            {base::MayBlock(), base::TaskPriority::USER_BLOCKING}));
-  }
+  model_handler_ = std::make_unique<ContextualTasksContextModelHandler>(
+      optimization_guide_keyed_service_,
+      base::ThreadPool::CreateSequencedTaskRunner(
+          {base::MayBlock(), base::TaskPriority::USER_BLOCKING}));
 }
 
 ContextualTasksContextService::~ContextualTasksContextService() = default;
 
 // static
 bool ContextualTasksContextService::GetIsSmartTabSharingEnabled(
-    const Profile* profile) {
-  if (profile && profile->GetPrefs() &&
+    Profile* profile) {
+  if (!profile) {
+    return false;
+  }
+  // Users can open the Contextual Tasks side panel even when they are not
+  // eligible for cobrowsing. Explicitly check tab sharing eligibility here
+  // so Smart Tab Sharing UI and features are hidden when ineligible.
+  if (!contextual_tasks::IsTabSharingEligible(profile)) {
+    return false;
+  }
+  if (profile->GetPrefs() &&
       profile->GetPrefs()->GetInteger(
           kContextualTasksSmartTabSharingSettings) ==
           static_cast<int>(SmartTabSharingSettingsValue::kDisabled)) {
@@ -392,16 +400,24 @@ void ContextualTasksContextService::GetRelevantTabsForQuery(
         callback) {
   base::TimeTicks now = tick_clock_->NowTicks();
 
-  std::optional<base::WeakPtr<content::WebContents>> active_tab_at_query_time;
-  if (content::WebContents* web_contents = GetActiveTabWebContents()) {
-    active_tab_at_query_time = web_contents->GetWeakPtr();
-  }
-
   AUTO_CONTEXT_LOG(base::StringPrintf("Processing query %s in mode %d", query,
                                       options.tab_selection_mode));
 
   if (query.empty()) {
     AUTO_CONTEXT_LOG("Query is empty");
+    RecordContextDeterminationStatus(ContextDeterminationStatus::kQueryEmpty);
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE,
+        base::BindOnce(std::move(callback),
+                       std::vector<base::WeakPtr<content::WebContents>>()));
+    return;
+  }
+
+  if (auto query_word_count = GetWordCount(query);
+      query_word_count < kMinQueryWords.Get()) {
+    AUTO_CONTEXT_LOG("Query has too few words.");
+    RecordContextDeterminationStatus(
+        ContextDeterminationStatus::kQueryTooFewWords);
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(callback),
@@ -430,6 +446,11 @@ void ContextualTasksContextService::GetRelevantTabsForQuery(
         base::BindOnce(&ContextualTasksContextService::OnRequestTimedOut,
                        weak_ptr_factory_.GetWeakPtr(), request_id),
         *options.tab_selection_timeout);
+  }
+
+  std::optional<base::WeakPtr<content::WebContents>> active_tab_at_query_time;
+  if (content::WebContents* web_contents = GetActiveTabWebContents()) {
+    active_tab_at_query_time = web_contents->GetWeakPtr();
   }
 
   // TODO: crbug.com/452036470 - De-couple embeddings and recency signal
@@ -488,7 +509,7 @@ void ContextualTasksContextService::OnQueryEmbeddingReady(
     int64_t request_id,
     std::vector<std::string> passages,
     std::vector<passage_embeddings::Embedding> embeddings,
-    passage_embeddings::Embedder::TaskId task_id,
+    uint64_t job_id,
     passage_embeddings::ComputeEmbeddingsStatus status) {
   base::UmaHistogramTimes("ContextualTasks.Context.QueryEmbeddingLatency",
                           tick_clock_->NowTicks() - start_time);
@@ -555,7 +576,7 @@ void ContextualTasksContextService::OnQueryEmbeddingReady(
     std::optional<optimization_guide::ModelInfo> model_info =
         model_handler_->GetModelInfo();
     if (model_info.has_value()) {
-      quality_log->set_tab_selection_model_version(model_info->GetVersion());
+      quality_log->set_tab_selection_model_version(model_info->version);
     }
   }
 
@@ -814,6 +835,8 @@ TabSignals ContextualTasksContextService::ComputeTabSignals(
     candidate_tab_embeddings =
         page_embeddings_service_->GetEmbeddings(web_contents->GetPrimaryPage());
   }
+  base::UmaHistogramBoolean("ContextualTasks.Context.CandidateTabHasEmbeddings",
+                            !candidate_tab_embeddings.empty());
 
   tab_signals.similarity_scores =
       GetEmbeddingScores(query_state.query_embedding, candidate_tab_embeddings);

@@ -78,6 +78,7 @@
 <translation id="2386292341327187942">[検索ウィジェット] ボックスに「Chromium」と入力します</translation>
 <translation id="2389827884654658221">iPad のホーム画面から Chromium にすばやくアクセスできます。</translation>
 <translation id="2426113998523353159">Chromium を使用するためにログインするよう、組織が求めています。</translation>
+<translation id="244367646885670394">このパスワードを保存し、すべてのデバイスで Chromium データを使用するには、本人確認を行ってください</translation>
 <translation id="2450140762465183767">メッセージ、ドキュメント、他のアプリのリンクをタップしたときに、常に Chromium が使えるようになります。</translation>
 <translation id="2459183986985456602">Chromium で最近使ったタブを開きます。</translation>
 <translation id="2476409803017965813">選択内容は Chromium の設定でいつでも変更できます。</translation>
@@ -108,6 +109,7 @@ Chromium を使いやすくするためにデータを使用するその他の�
 <translation id="3054480780637153380">iOS で Chromium の設定を開き、[デフォルトのブラウザアプリ] をタップして [Chromium] を選択します。</translation>
 <translation id="3115956258722352278">Chromium をデフォルトのブラウザに設定しますか？</translation>
 <translation id="3180939591219927904">[Chromium を終了するときにシークレット タブをロックする] をオンにします</translation>
+<translation id="327628223428512207">このパスワードを保存し、すべてのデバイスで Chromium データを使用するには、パスフレーズを入力してください</translation>
 <translation id="328933489847748230">{count,plural, =1{現在 1 個の Chromium ウィンドウを表示しています}other{現在 {count} 個の Chromium ウィンドウを表示しています}}</translation>
 <translation id="3344973607274501920">Chromium でパスワードを確認できませんでした。インターネット接続を確認してみてください。</translation>
 <translation id="3366305173356742781">アカウントの Chromium データ</translation>
@@ -226,6 +228,7 @@ Chromium を使いやすくするためにデータを使用するその他の�
 <translation id="5731004036450828399">パスキーを安全に保管するには、まず復元 PIN を作成する必要があります。
 
         パスキーはパスワード マネージャーに保存され、どのデバイスの Chromium でも使用できます。</translation>
+<translation id="575593940213760950"><ph name="EMAIL" /> のパスワード マネージャーに保存しました</translation>
 <translation id="584550191241316896">Chromium にログインしています</translation>
 <translation id="5862307444128926510">Chromium へようこそ</translation>
 <translation id="5889847953983052353">オンにした場合:

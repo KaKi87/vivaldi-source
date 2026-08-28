@@ -18,11 +18,13 @@
       data-parent-view-id="parent">
   </settings-autofill-section>
 
+  <if expr="_google_chrome"> // Vivaldi keep disabled
   <template is="dom-if" if="[[autofillAiAvailable_]]">
     <settings-autofill-ai-section slot="view" id="autofillAi" prefs="{{prefs}}"
         data-parent-view-id="parent">
     </settings-autofill-ai-section>
   </template>
+  </if>
 
 <if expr="is_win or is_macosx">
   <settings-passkeys-subpage slot="view" id="passkeys"

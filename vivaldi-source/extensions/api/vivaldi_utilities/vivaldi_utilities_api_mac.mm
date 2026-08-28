@@ -57,15 +57,15 @@ bool UtilitiesGetSystemDateFormatFunction::ReadDateFormats(
 void UtilitiesIsVivaldiPinnedToLaunchBarFunction::CheckIsPinned(
     IsPinnedCallback callback) {
   dock::ChromeInDockStatus dock_launch_status = dock::ChromeIsInTheDock();
-  std::move(callback).Run(dock_launch_status == dock::ChromeInDockTrue);
+  std::move(callback).Run(dock_launch_status == dock::ChromeInDockStatus::kPresent);
 }
 
 void UtilitiesPinVivaldiToLaunchBarFunction::PinToLaunchBar(
     HasPinnedCallback callback) {
   NSString* source_path = base::apple::OuterBundle().bundlePath;
   dock::AddIconStatus status = dock::AddIcon(source_path, nullptr);
-  std::move(callback).Run(status == dock::IconAddSuccess ||
-                          status == dock::IconAlreadyPresent);
+  std::move(callback).Run(status == dock::AddIconStatus::kSuccess ||
+                          status == dock::AddIconStatus::kAlreadyPresent);
 }
 
 }  // namespace extensions

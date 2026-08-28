@@ -39,7 +39,6 @@
 <translation id="1601560923496285236">Приложи</translation>
 <translation id="1603914832182249871">(частно)</translation>
 <translation id="1627276047960621195">Файлови описатели</translation>
-<translation id="1654713139320245449">Няма намерени назначения на прехвърляне. Трябва ви помощ?</translation>
 <translation id="166278006618318542">Алгоритъм на публичния ключа на лицето</translation>
 <translation id="1682548588986054654">Създай частен прозорец</translation>
 <translation id="1708338024780164500">(неразрешено)</translation>
@@ -60,7 +59,6 @@
 <translation id="1906488504371069394">Запознайте се с още разширения и теми в <ph name="BEGIN_LINK" />магазина на Chrome<ph name="END_LINK" /></translation>
 <translation id="1921584744613111023"><ph name="DPI" /> тни</translation>
 <translation id="1925021887439448749">Въведете собствен адрес</translation>
-<translation id="1932098463447129402">Не по-рано от</translation>
 <translation id="1936157145127842922">Показване на папката</translation>
 <translation id="1936931585862840749">Укажете брой отпечатвани копия с число (от 1 до <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">Отвори &amp;звука в нов раздел</translation>
@@ -102,7 +100,6 @@
 <translation id="253557089021624350">Брой пакети Keepalive</translation>
 <translation id="2550212893339833758">Разменна памет</translation>
 <translation id="2553440850688409052">Скрий приставката</translation>
-<translation id="2607101320794533334">Данни за публичния ключ на лицето</translation>
 <translation id="261305050785128654">Съобщете на сайтовете кои езици владеете. При възможност те ще покажат съдържание на тези езици.</translation>
 <translation id="26224892172169984">Не позволявай на никой сайт да обработва протоколи</translation>
 <translation id="2653275834716714682">Замествай текста</translation>
@@ -112,7 +109,6 @@
 <translation id="2719936478972253983">Блокирани в страницата са следните бисквитки</translation>
 <translation id="2721037002783622288">Потърси &amp;картината чрез <ph name="SEARCH_ENGINE" /></translation>
 <translation id="2722547199758472013">ИД: <ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">Не по-късно от</translation>
 <translation id="2749881179542288782">Проверявай граматиката с правописа</translation>
 <translation id="2785873697295365461">Файлови описатели</translation>
 <translation id="2825758591930162672">Публичен ключ на лицето</translation>
@@ -163,7 +159,6 @@
 <translation id="3387614642886316601">Ползвай подобрена проверка</translation>
 <translation id="3390013585654699824">Подробно за приложението</translation>
 <translation id="345693547134384690">Отвори &amp;картината в нов раздел</translation>
-<translation id="3493881266323043047">Валидност</translation>
 <translation id="3511307672085573050">Копирай &amp;адреса на препратката</translation>
 <translation id="354068948465830244">Може да чете и променя данните на сайта</translation>
 <translation id="3555812735919707620">Премахни разширението</translation>
@@ -179,7 +174,6 @@
 <translation id="3760460896538743390">Обследвай &amp;фоновата страница</translation>
 <translation id="3786224729726357296">Изтрий данните и разрешенията на <ph name="SITE" /></translation>
 <translation id="3797900183766075808">&amp;Потърси за „<ph name="SEARCH_TERMS" />“ чрез <ph name="SEARCH_ENGINE" /></translation>
-<translation id="3798449238516105146">Версия</translation>
 <translation id="3810973564298564668">Организирай</translation>
 <translation id="3838085852053358637">Провалено зареждане на разширението</translation>
 <translation id="383891835335927981">Няма увеличени или намалени сайтове</translation>
@@ -266,12 +260,10 @@
 <translation id="5063480226653192405">Използване</translation>
 <translation id="5116628073786783676">Запи&amp;ши звука като…</translation>
 <translation id="5154108062446123722">Разширени настройки на „<ph name="PRINTING_DESTINATION" />“</translation>
-<translation id="5154702632169343078">Лице</translation>
 <translation id="5170568018924773124">Показване на папката</translation>
 <translation id="5171343362375269016">Разменна памет</translation>
 <translation id="5233231016133573565">ИД на процеса</translation>
 <translation id="5233736638227740678">&amp;Постави</translation>
-<translation id="5244466461749935369">Пази засега</translation>
 <translation id="5256861893479663409">във всички сайтове</translation>
 <translation id="5260334392110301220">Умни кавички</translation>
 <translation id="5269977353971873915">Провалено отпечатване</translation>
@@ -310,7 +302,6 @@
 <translation id="5780973441651030252">Приоритет на процеса</translation>
 <translation id="5804241973901381774">Разрешения</translation>
 <translation id="5828633471261496623">Отпечатване…</translation>
-<translation id="5851868085455377790">Издател</translation>
 <translation id="5860491529813859533">Включи</translation>
 <translation id="5910363049092958439">Запи&amp;ши картината като…</translation>
 <translation id="5914724413750400082">Модул (<ph name="MODULUS_NUM_BITS" /> бита):
@@ -459,7 +450,6 @@
 <translation id="862750493060684461">Кеш на CSS</translation>
 <translation id="8661290697478713397">Отвори препратката в &amp;частен прозорец</translation>
 <translation id="8664389313780386848">&amp;Покажи кода на страницата</translation>
-<translation id="8705331520020532516">Сериен номер</translation>
 <translation id="8708000541097332489">Изчиствай при изход</translation>
 <translation id="8714838604780058252">Включи фоновите графики</translation>
 <translation id="8725066075913043281">Опитай отново</translation>

@@ -18,8 +18,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_trust_checker.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
-#include "chrome/browser/web_applications/isolated_web_apps/runtime_data/chrome_iwa_runtime_data_provider.h"
-#include "chrome/browser/web_applications/isolated_web_apps/runtime_data/iwa_entitlements.h"
 #include "chrome/browser/web_applications/web_app.h"
 #include "chrome/browser/web_applications/web_app_filter.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
@@ -27,6 +25,8 @@
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "components/web_package/signed_web_bundles/signed_web_bundle_id.h"
 #include "components/webapps/common/web_app_id.h"
+#include "components/webapps/isolated_web_apps/public/iwa_entitlements.h"
+#include "components/webapps/isolated_web_apps/public/iwa_runtime_data_provider.h"
 #include "components/webapps/isolated_web_apps/types/iwa_origin.h"
 #include "components/webapps/isolated_web_apps/types/iwa_version.h"
 #include "components/webapps/isolated_web_apps/url_loading/url_loader_factory.h"
@@ -105,45 +105,6 @@ constexpr net::NetworkTrafficAnnotationTag kTrafficAnnotation =
       }
     )");
 
-std::string GetPermissionsPolicyFeatureName(
-    network::mojom::PermissionsPolicyFeature feature) {
-  const auto& map = blink::GetPermissionsPolicyFeatureToNameMap();
-  auto it = map.find(feature);
-  return it != map.end() ? std::string(it->second) : std::string();
-}
-
-std::optional<std::vector<std::string>> GetAllowedOrigins(
-    const IwaPermissionsPolicyCache::CacheEntry& manifest,
-    network::mojom::PermissionsPolicyFeature feature) {
-  auto it = std::ranges::find_if(manifest, [&](const auto& entry) {
-    return entry.feature == GetPermissionsPolicyFeatureName(feature);
-  });
-
-  if (it == manifest.end()) {
-    return std::nullopt;
-  }
-
-  return it->allowed_origins;
-}
-
-void AddDirectSocketsPrivatePermissionPolicyWarningMessage(
-    std::vector<IwaPermissionsPolicyCache::ManifestWarning>& manifest_warnings,
-    network::mojom::PermissionsPolicyFeature feature) {
-  std::string feature_name = GetPermissionsPolicyFeatureName(feature);
-
-  manifest_warnings.emplace_back(
-      blink::mojom::ConsoleMessageSource::kDeprecation,
-      base::StrCat({"The 'permissions_policy' field in the manifest includes "
-                    "'direct-sockets-private' but is missing the required '",
-                    feature_name,
-                    "' policy. While Chrome is automatically including '",
-                    feature_name,
-                    "' to maintain backward compatibility, this behavior is "
-                    "deprecated and will be removed in Chrome 151. Please "
-                    "update your manifest to include '",
-                    feature_name, "' explicitly."}));
-}
-
 std::optional<IwaPermissionsPolicyCache::CacheEntry> ParseManifest(
     const std::string& manifest_content,
     std::vector<IwaPermissionsPolicyCache::ManifestWarning>&
@@ -219,44 +180,11 @@ std::optional<IwaPermissionsPolicyCache::CacheEntry> ParseManifest(
     permissions_policy.emplace_back(key, std::move(allowed_origins));
   }
 
-  // TODO(b/492476083): Remove backward compatibility code by Chrome Milestone
-  // 151. Now "direct-sockets-private" requires "loopback-network" and
-  // "local-network" to function. So "direct-sockets-private" is temporarily
-  // unpacked to "local-network" and "loopback-network" for backwards
-  // compatibility to existing apps. A DevTools warning is shown in the console.
-  // This behavior will be removed in Chrome Milestone 151.
-  auto direct_sockets_private_origins = GetAllowedOrigins(
-      permissions_policy,
-      network::mojom::PermissionsPolicyFeature::kDirectSocketsPrivate);
-  if (direct_sockets_private_origins) {
-    if (!GetAllowedOrigins(
-            permissions_policy,
-            network::mojom::PermissionsPolicyFeature::kLocalNetwork)) {
-      permissions_policy.emplace_back(
-          std::string(GetPermissionsPolicyFeatureName(
-              network::mojom::PermissionsPolicyFeature::kLocalNetwork)),
-          *direct_sockets_private_origins);
-      AddDirectSocketsPrivatePermissionPolicyWarningMessage(
-          manifest_warnings,
-          network::mojom::PermissionsPolicyFeature::kLocalNetwork);
-    }
-    if (!GetAllowedOrigins(
-            permissions_policy,
-            network::mojom::PermissionsPolicyFeature::kLoopbackNetwork)) {
-      permissions_policy.emplace_back(
-          std::string(GetPermissionsPolicyFeatureName(
-              network::mojom::PermissionsPolicyFeature::kLoopbackNetwork)),
-          *direct_sockets_private_origins);
-      AddDirectSocketsPrivatePermissionPolicyWarningMessage(
-          manifest_warnings,
-          network::mojom::PermissionsPolicyFeature::kLoopbackNetwork);
-    }
-  }
   return permissions_policy;
 }
 
 using IwaRuntimeAllowlistData =
-    ChromeIwaRuntimeDataProvider::UserInstallAllowlistItemData;
+    IwaRuntimeDataProvider::UserInstallAllowlistItemData;
 
 bool IsEntitlementGranted(const IwaRuntimeAllowlistData& allowlist_data,
                           const IwaVersion& app_version,
@@ -299,7 +227,7 @@ bool IsEntitlementGranted(const IwaRuntimeAllowlistData& allowlist_data,
 // administrator or developer.
 //
 // Algorithm:
-// 1. Retrieve the allowed entitlements from the `ChromeIwaRuntimeDataProvider`
+// 1. Retrieve the allowed entitlements from the `IwaRuntimeDataProvider`
 //    based on the Web Bundle ID.
 // 2. Iterate through each permissions policy feature requested by the app:
 //    a. Check if the feature maps to a specific IWA entitlement.
@@ -319,7 +247,7 @@ std::vector<IwaPermissionsPolicyCache::Entry> ApplyEntitlements(
   std::vector<IwaPermissionsPolicyCache::Entry> result;
 
   const IwaRuntimeAllowlistData* allowlist_data =
-      ChromeIwaRuntimeDataProvider::GetInstance().GetUserInstallAllowlistData(
+      IwaRuntimeDataProvider::GetInstance().GetUserInstallAllowlistData(
           web_bundle_id.id());
 
   const auto is_feature_allowed = [&allowlist_data,
@@ -352,7 +280,7 @@ IwaPermissionsPolicyCache::IwaPermissionsPolicyCache(WebAppProvider& provider)
   install_manager_observation_.Observe(&provider_->install_manager());
 
   runtime_data_subscription_ =
-      ChromeIwaRuntimeDataProvider::GetInstance().OnRuntimeDataChanged(
+      IwaRuntimeDataProvider::GetInstance().OnRuntimeDataChanged(
           base::BindRepeating(
               &IwaPermissionsPolicyCache::UpdateFilteredPolicies,
               weak_ptr_factory_.GetWeakPtr()));

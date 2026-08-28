@@ -110,12 +110,6 @@ action("generate_policy_templates") {
     rebase_path(policy_templates_generated_json_path, root_build_dir),
     "--depfile",
     rebase_path(policy_templates_deps_file, root_build_dir),
-    "--policies-file",
-    rebase_path("//vivaldi/components/policy/policies.yaml"),
-    "--extra-sources",
-    rebase_path("//vivaldi/components/policy/policy_definitions"),
-    "--suppression-list",
-    rebase_path("//vivaldi/components/policy/suppression_list.yaml"),
   ]
 }
 

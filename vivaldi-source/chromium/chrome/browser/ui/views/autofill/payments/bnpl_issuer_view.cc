@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "base/functional/bind.h"
-#include "base/strings/utf_string_conversions.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/views/autofill/payments/bnpl_issuer_linked_pill.h"
@@ -19,17 +18,14 @@
 #include "chrome/browser/ui/views/controls/hover_button.h"
 #include "components/autofill/core/browser/data_model/payments/bnpl_issuer.h"
 #include "components/autofill/core/browser/payments/bnpl_util.h"
-#include "components/autofill/core/browser/payments/constants.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
 #include "ui/base/models/image_model_utils.h"
-#include "ui/base/resource/resource_bundle.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_variant.h"
 #include "ui/compositor/layer.h"
 #include "ui/events/event.h"
-#include "ui/events/types/event_type.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/ink_drop.h"
@@ -39,7 +35,6 @@
 #include "ui/views/border.h"
 #include "ui/views/cascading_property.h"
 #include "ui/views/controls/button/button.h"
-#include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/theme_tracking_image_view.h"
@@ -53,8 +48,6 @@
 #include "ui/views/view_utils.h"
 
 namespace autofill::payments {
-
-using IssuerId = autofill::BnplIssuer::IssuerId;
 
 BnplIssuerView::BnplIssuerView(
     base::WeakPtr<SelectBnplIssuerDialogController> controller,
@@ -91,8 +84,7 @@ void BnplIssuerView::PopulateIssuers() {
                            kTemporarilyEligibleCheckoutAmountNotYetKnown;
     const bool issuer_linked = issuer.payment_instrument().has_value();
     const std::pair<BnplIssuer::LightModeImageId, BnplIssuer::DarkModeImageId>
-        image_ids =
-            autofill::GetBnplIssuerIconIds(issuer.issuer_id(), issuer_linked);
+        image_ids = GetBnplIssuerIconIds(issuer.issuer_id(), issuer_linked);
     auto image_view = std::make_unique<views::ThemeTrackingImageView>(
         ui::ImageModel::FromResourceId(image_ids.first.value()),
         ui::ImageModel::FromResourceId(image_ids.second.value()),

@@ -39,7 +39,6 @@
 <translation id="1601560923496285236">Terapkan</translation>
 <translation id="1603914832182249871">(Penyamaran)</translation>
 <translation id="1627276047960621195">Deskriptor Berkas</translation>
-<translation id="1654713139320245449">Tujuan siaran tidak ditemukan. Perlu bantuan?</translation>
 <translation id="166278006618318542">Algoritma Kunci Publik Subjek</translation>
 <translation id="1682548588986054654">Jendela Penyamaran Baru</translation>
 <translation id="1708338024780164500">(Tidak Aktif)</translation>
@@ -60,7 +59,6 @@
 <translation id="1906488504371069394">Temukan ekstensi dan tema lebih banyak di <ph name="BEGIN_LINK" />Chrome Web Store<ph name="END_LINK" /></translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">Masukkan alamat web kustom</translation>
-<translation id="1932098463447129402">Tidak Sebelum</translation>
 <translation id="1936157145127842922">Tampilkan di Folder</translation>
 <translation id="1936931585862840749">Gunakan angka untuk menunjukkan jumlah salinan yang akan dicetak (1 sampai <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">&amp;Buka Audio di Tab Baru</translation>
@@ -102,7 +100,6 @@
 <translation id="253557089021624350">Hitung yang tetap aktif</translation>
 <translation id="2550212893339833758">Memori yang di-swap</translation>
 <translation id="2553440850688409052">Sembunyikan Plugin Ini</translation>
-<translation id="2607101320794533334">Info Kunci Publik Subjek</translation>
 <translation id="261305050785128654">Biarkan situs web mengetahui bahasa yang Anda pakai. Mereka akan menampilkan sesuai bahasa tersebut, jika tersedia.</translation>
 <translation id="26224892172169984">Jangan izinkan situs apapun menangani protokol</translation>
 <translation id="2653275834716714682">Penggantian Teks</translation>
@@ -112,7 +109,6 @@
 <translation id="2719936478972253983">Kuki berikut diblokir</translation>
 <translation id="2721037002783622288">&amp;Telusuri <ph name="SEARCH_ENGINE" /> untuk gambar</translation>
 <translation id="2722547199758472013">ID: <ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">Tidak Setelah</translation>
 <translation id="2749881179542288782">Periksa Gramatika Dengan Ejaaan</translation>
 <translation id="2785873697295365461">Semua deskriptor berkas</translation>
 <translation id="2825758591930162672">Kunci Publik Subjek</translation>
@@ -163,7 +159,6 @@
 <translation id="3387614642886316601">Gunakan fitur periksa ejaan yang ditingkatkan</translation>
 <translation id="3390013585654699824">Detail aplikasi</translation>
 <translation id="345693547134384690">Buka &amp;gambar di tab baru</translation>
-<translation id="3493881266323043047">Validitas</translation>
 <translation id="3511307672085573050">Salin Ala&amp;mat Tautan</translation>
 <translation id="354068948465830244">Ini dapat membaca dan mengubah data situs</translation>
 <translation id="3555812735919707620">Hapus ekstensi</translation>
@@ -179,7 +174,6 @@
 <translation id="3760460896538743390">Inspeksi Halaman Latar &amp;Belakang</translation>
 <translation id="3786224729726357296">Hapus data situs dan izin untuk <ph name="SITE" /></translation>
 <translation id="3797900183766075808">&amp;Telusuri <ph name="SEARCH_ENGINE" /> untuk “<ph name="SEARCH_TERMS" />”</translation>
-<translation id="3798449238516105146">Versi</translation>
 <translation id="3810973564298564668">Kelola</translation>
 <translation id="3838085852053358637">Gagal memuat ekstensi</translation>
 <translation id="383891835335927981">Tidak ada situs yang telah diperbesar atau diperkecil</translation>
@@ -266,12 +260,10 @@
 <translation id="5063480226653192405">Penggunaan</translation>
 <translation id="5116628073786783676">Sim&amp;pan Audio Sebagai...</translation>
 <translation id="5154108062446123722">Pengaturan lanjutan untuk <ph name="PRINTING_DESTINATION" /></translation>
-<translation id="5154702632169343078">Subjek</translation>
 <translation id="5170568018924773124">Tampilkan di folder</translation>
 <translation id="5171343362375269016">Memori yang Di-swap</translation>
 <translation id="5233231016133573565">ID proses</translation>
 <translation id="5233736638227740678">&amp;Tempel</translation>
-<translation id="5244466461749935369">Biarkan untuk saat ini</translation>
 <translation id="5256861893479663409">Di Semua Situs</translation>
 <translation id="5260334392110301220">Tanda Kutip Cerdas</translation>
 <translation id="5269977353971873915">Gagal Mencetak</translation>
@@ -310,7 +302,6 @@
 <translation id="5780973441651030252">Prioritas proses</translation>
 <translation id="5804241973901381774">Semua Izin</translation>
 <translation id="5828633471261496623">Mencetak...</translation>
-<translation id="5851868085455377790">Penerbit</translation>
 <translation id="5860491529813859533">Aktifkan</translation>
 <translation id="5910363049092958439">Sim&amp;pan Gambar Sebagai...</translation>
 <translation id="5914724413750400082">Modulus (<ph name="MODULUS_NUM_BITS" /> bit):
@@ -459,7 +450,6 @@ Simpan berkas kunci anda di tempat yang aman. Anda akan membutuhkannya untuk mem
 <translation id="862750493060684461">Singgahan CSS</translation>
 <translation id="8661290697478713397">Buka Tautan di Jendela Penya&amp;maran</translation>
 <translation id="8664389313780386848">&amp;Lihat sumber halaman</translation>
-<translation id="8705331520020532516">Nomor Seri</translation>
 <translation id="8708000541097332489">Bersihkan saat keluar</translation>
 <translation id="8714838604780058252">Grafis latar belakang</translation>
 <translation id="8725066075913043281">Coba lagi</translation>

@@ -39,7 +39,6 @@
 <translation id="1601560923496285236">Uygula</translation>
 <translation id="1603914832182249871">(Gizli Mod)</translation>
 <translation id="1627276047960621195">Dosya Açıklayıcıları</translation>
-<translation id="1654713139320245449">Yayınlama hedefi bulunamadı. Yardıma mı ihtiyacınız var?</translation>
 <translation id="166278006618318542">Konu Ortak Anahtar Algoritması</translation>
 <translation id="1682548588986054654">Yeni Gizli Pencere</translation>
 <translation id="1708338024780164500">(Pasif)</translation>
@@ -60,7 +59,6 @@
 <translation id="1906488504371069394"><ph name="BEGIN_LINK" />Chrome Web Mağazası'nda<ph name="END_LINK" /> daha fazla eklenti ve tema keşfedin</translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">Özel web adresini girin</translation>
-<translation id="1932098463447129402">Şundan Önce Değil</translation>
 <translation id="1936157145127842922">Klasörde Göster</translation>
 <translation id="1936931585862840749">Yazdırılacak kopya sayısını göstermek için bir sayı (1-<ph name="MAX_COPIES" /> arası) kullanın.</translation>
 <translation id="2019718679933488176">Sesi Yeni Sekmede &amp;Aç</translation>
@@ -102,7 +100,6 @@
 <translation id="253557089021624350">Canlı tutma sayısı</translation>
 <translation id="2550212893339833758">Takas edilmiş bellek</translation>
 <translation id="2553440850688409052">Bu Eklentiyi Gizle</translation>
-<translation id="2607101320794533334">Konunun Ortak Anahtar Bilgileri</translation>
 <translation id="261305050785128654">Web sitelerine hangi dilleri konuştuğunuzu bildirin. Mümkün olduğunda, size içeriği bu dillerde göstereceklerdir.</translation>
 <translation id="26224892172169984">Protokolleri işlemek için hiçbir siteye izin verme</translation>
 <translation id="2653275834716714682">Metin Değiştirme</translation>
@@ -112,7 +109,6 @@
 <translation id="2719936478972253983">Belirtilen çerezler engellendi</translation>
 <translation id="2721037002783622288"><ph name="SEARCH_ENGINE" /> içinde resim &amp;ara</translation>
 <translation id="2722547199758472013">Kimlik: <ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">Şundan Sonra Değil</translation>
 <translation id="2749881179542288782">Dilbilgisini ve Yazımı Denetle</translation>
 <translation id="2785873697295365461">Dosya açıklayıcıları</translation>
 <translation id="2825758591930162672">Konunun Ortak Anahtarı</translation>
@@ -163,7 +159,6 @@
 <translation id="3387614642886316601">Gelişmiş yazım denetimini kullan</translation>
 <translation id="3390013585654699824">Uygulama ayrıntıları</translation>
 <translation id="345693547134384690">&amp;Resmi yeni sekmede aç</translation>
-<translation id="3493881266323043047">Geçerlilik</translation>
 <translation id="3511307672085573050">Bağlantı Adr&amp;esini Kopyala</translation>
 <translation id="354068948465830244">Bu eklenti, site verilerini okuyabilir ve değiştirebilir</translation>
 <translation id="3555812735919707620">Eklentiyi kaldır</translation>
@@ -179,7 +174,6 @@
 <translation id="3760460896538743390">&amp;Arka Plan Sayfasını İncele</translation>
 <translation id="3786224729726357296"><ph name="SITE" /> sitesinin verilerini ve izinlerini sil</translation>
 <translation id="3797900183766075808">&amp;"<ph name="SEARCH_TERMS" />" için <ph name="SEARCH_ENGINE" /> &amp;üzerinde Arama Yap</translation>
-<translation id="3798449238516105146">Sürüm</translation>
 <translation id="3810973564298564668">Yönet</translation>
 <translation id="3838085852053358637">Uzantı yüklenemedi</translation>
 <translation id="383891835335927981">Yakınlaştırılmış veya uzaklaştırılmış herhangi bir site yok</translation>
@@ -266,12 +260,10 @@
 <translation id="5063480226653192405">Kullanım</translation>
 <translation id="5116628073786783676">Sesi Farklı Kay&amp;det...</translation>
 <translation id="5154108062446123722"><ph name="PRINTING_DESTINATION" /> için gelişmiş ayarlar</translation>
-<translation id="5154702632169343078">Konu</translation>
 <translation id="5170568018924773124">Klasörde Göster</translation>
 <translation id="5171343362375269016">Takas Edilmiş Bellek</translation>
 <translation id="5233231016133573565">İşlem Kimliği</translation>
 <translation id="5233736638227740678">&amp;Yapıştır</translation>
-<translation id="5244466461749935369">Şimdilik Sakla</translation>
 <translation id="5256861893479663409">Tüm Sitelerde</translation>
 <translation id="5260334392110301220">Akıllı Tırnaklar</translation>
 <translation id="5269977353971873915">Yazdırma Başarısız</translation>
@@ -310,7 +302,6 @@
 <translation id="5780973441651030252">İşlem önceliği</translation>
 <translation id="5804241973901381774">İzinler</translation>
 <translation id="5828633471261496623">Yazdırılıyor...</translation>
-<translation id="5851868085455377790">Sertifikayı Veren</translation>
 <translation id="5860491529813859533">Aç</translation>
 <translation id="5910363049092958439">Resmi Farklı Ka&amp;ydet...</translation>
 <translation id="5914724413750400082">Katsayı (<ph name="MODULUS_NUM_BITS" /> bit):
@@ -459,7 +450,6 @@ Anahtar dosyanızı güvenli bir yerde saklayın. Eklentinizin yeni sürümlerin
 <translation id="862750493060684461">CSS önbelleği</translation>
 <translation id="8661290697478713397">Bağlantıyı Giz&amp;li Pencerede Aç</translation>
 <translation id="8664389313780386848">&amp;Sayfa kaynağını görüntüle</translation>
-<translation id="8705331520020532516">Seri Numarası</translation>
 <translation id="8708000541097332489">Çıkışta temizle</translation>
 <translation id="8714838604780058252">Arka plan grafikleri</translation>
 <translation id="8725066075913043281">Tekrar dene</translation>

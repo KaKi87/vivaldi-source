@@ -627,6 +627,7 @@ class AppWindow : public content::WebContentsDelegate,
   bool mouse_has_entered_ = false;
 
   base::WeakPtrFactory<AppWindow> image_loader_ptr_factory_{this};
+  base::WeakPtrFactory<AppWindow> weak_ptr_factory_{this};
 };
 
 }  // namespace extensions

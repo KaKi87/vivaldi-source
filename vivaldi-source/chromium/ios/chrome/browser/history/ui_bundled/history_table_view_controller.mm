@@ -87,14 +87,14 @@ const CGFloat kButtonDefaultFontSize = 15.0;
 const CGFloat kButtonHorizontalPadding = 30.0;
 }  // namespace
 
-@interface HistoryTableViewController () <UISearchControllerDelegate,
-                                          UISearchResultsUpdating,
+@interface HistoryTableViewController () <UISearchBarDelegate,
+                                          UISearchControllerDelegate,
 
                                           // Vivaldi
                                           VivaldiSearchBarViewDelegate,
                                           // End Vivaldi
 
-                                          UISearchBarDelegate>
+                                          UISearchResultsUpdating>
 
 // YES if there is a search happening.
 @property(nonatomic, assign) BOOL searchInProgress;

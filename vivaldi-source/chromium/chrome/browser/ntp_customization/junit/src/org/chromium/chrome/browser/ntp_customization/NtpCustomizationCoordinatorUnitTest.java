@@ -6,7 +6,9 @@ package org.chromium.chrome.browser.ntp_customization;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
@@ -15,6 +17,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import static org.chromium.chrome.browser.flags.ChromeFeatureList.HOME_MODULE_PREF_REFACTOR;
+import static org.chromium.chrome.browser.flags.ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_THEME_SYNC;
+import static org.chromium.chrome.browser.flags.ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_V2;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator.BottomSheetType.FEED;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator.BottomSheetType.MAIN;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator.BottomSheetType.NTP_CARDS;
@@ -27,8 +31,10 @@ import android.graphics.Bitmap;
 import android.view.ContextThemeWrapper;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ViewFlipper;
 
+import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.core.app.ApplicationProvider;
 
 import org.junit.Before;
@@ -42,6 +48,7 @@ import org.mockito.junit.MockitoRule;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.feed.FeedFeatures;
 import org.chromium.chrome.browser.feed.FeedServiceBridge;
@@ -49,7 +56,10 @@ import org.chromium.chrome.browser.feed.FeedServiceBridgeJni;
 import org.chromium.chrome.browser.magic_stack.ModuleRegistry;
 import org.chromium.chrome.browser.ntp_customization.ntp_cards.NtpCardsCoordinator;
 import org.chromium.chrome.browser.ntp_customization.theme.NtpThemeCoordinator;
+import org.chromium.chrome.browser.ntp_customization.theme.theme_collections.NtpThemeCollectionBridge;
+import org.chromium.chrome.browser.ntp_customization.theme.theme_collections.NtpThemeCollectionBridgeJni;
 import org.chromium.chrome.browser.ntp_customization.theme.tip.NtpThemeTipCoordinator;
+import org.chromium.chrome.browser.ntp_customization.theme_sync.NtpThemeSyncHistoryCoordinator;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
@@ -59,17 +69,22 @@ import org.chromium.components.prefs.PrefService;
 import org.chromium.components.search_engines.TemplateUrlService;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.ui.base.WindowAndroid;
+import org.chromium.ui.widget.ButtonCompat;
 
 /** Unit tests for {@link NtpCustomizationCoordinator} */
 @RunWith(BaseRobolectricTestRunner.class)
 @EnableFeatures(HOME_MODULE_PREF_REFACTOR)
 public class NtpCustomizationCoordinatorUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
+    @Mock private NtpThemeCollectionBridge.Natives mNtpThemeCollectionBridgeJni;
 
     @Mock private BottomSheetController mBottomSheetController;
     @Mock private NtpCustomizationMediator mMediator;
     @Mock private ViewFlipper mViewFlipper;
     @Mock private NtpThemeCoordinator mNtpThemeCoordinator;
+    @Mock private ViewGroup mHistoryContainerView;
+    @Mock private RecyclerView mRecyclerView;
+    @Mock private ButtonCompat mMoreOptionsTitle;
     @Mock private Profile mMockProfile;
     @Mock private TemplateUrlService mMockTemplateUrlService;
     @Mock private PrefService mMockPrefService;
@@ -103,6 +118,8 @@ public class NtpCustomizationCoordinatorUnitTest {
         FeedFeatures.setFakePrefsForTest(mMockPrefService);
         FeedServiceBridgeJni.setInstanceForTesting(mMockFeedServiceBridgeJni);
         when(mMockFeedServiceBridgeJni.isEnabled()).thenReturn(true);
+        NtpThemeCollectionBridgeJni.setInstanceForTesting(mNtpThemeCollectionBridgeJni);
+        when(mNtpThemeCollectionBridgeJni.init(any(), any())).thenReturn(1L);
 
         mNtpCustomizationCoordinator =
                 new NtpCustomizationCoordinator(
@@ -272,6 +289,10 @@ public class NtpCustomizationCoordinatorUnitTest {
         mNtpCustomizationCoordinator.setNtpCardsCoordinatorForTesting(ntpCardsCoordinator);
         NtpThemeTipCoordinator ntpThemeTipCoordinator = mock(NtpThemeTipCoordinator.class);
         mNtpCustomizationCoordinator.setNtpThemeTipCoordinatorForTesting(ntpThemeTipCoordinator);
+        NtpThemeSyncHistoryCoordinator ntpThemeSyncHistoryCoordinator =
+                mock(NtpThemeSyncHistoryCoordinator.class);
+        mNtpCustomizationCoordinator.setNtpThemeSyncHistoryCoordinatorForTesting(
+                ntpThemeSyncHistoryCoordinator);
 
         mNtpCustomizationCoordinator.destroy();
 
@@ -279,6 +300,7 @@ public class NtpCustomizationCoordinatorUnitTest {
         verify(mMediator).destroy();
         verify(ntpCardsCoordinator).destroy();
         verify(ntpThemeTipCoordinator).destroy();
+        verify(ntpThemeSyncHistoryCoordinator).destroy();
     }
 
     @Test
@@ -303,5 +325,30 @@ public class NtpCustomizationCoordinatorUnitTest {
         Bitmap bitmap = mock(Bitmap.class);
         delegate.onNewThemeCollectionImageSelected(bitmap);
         verify(mMediator).onNewThemeCollectionImageSelected(eq(bitmap));
+    }
+
+    @Test
+    @EnableFeatures({NEW_TAB_PAGE_CUSTOMIZATION_V2, NEW_TAB_PAGE_CUSTOMIZATION_THEME_SYNC})
+    public void testShowBottomSheet_SyncEnabled() {
+        showBottomSheetImpl();
+        assertNotNull(mNtpCustomizationCoordinator.getNtpThemeSyncHistoryCoordinatorForTesting());
+    }
+
+    @Test
+    @DisableFeatures({NEW_TAB_PAGE_CUSTOMIZATION_THEME_SYNC})
+    public void testShowBottomSheet_SyncDisabled() {
+        showBottomSheetImpl();
+        assertNull(mNtpCustomizationCoordinator.getNtpThemeSyncHistoryCoordinatorForTesting());
+    }
+
+    private void showBottomSheetImpl() {
+        when(mViewFlipper.findViewById(R.id.ntp_theme_sync_history_container))
+                .thenReturn(mHistoryContainerView);
+        when(mHistoryContainerView.findViewById(R.id.ntp_theme_sync_history_recycler_view))
+                .thenReturn(mRecyclerView);
+        when(mHistoryContainerView.findViewById(R.id.more_options_title))
+                .thenReturn(mMoreOptionsTitle);
+
+        mNtpCustomizationCoordinator.showBottomSheet();
     }
 }

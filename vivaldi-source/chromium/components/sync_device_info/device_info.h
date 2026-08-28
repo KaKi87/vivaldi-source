@@ -60,7 +60,7 @@ class DeviceInfo {
     kUnknown = 0,
     kSmsFetcher = 3,
     kRemoteCopy = 4,
-    kClickToCallV2 = 7,
+    // kClickToCallV2 = 7,  // Deprecated, do not reuse.
     kSharedClipboardV2 = 8,
     kOptimizationGuidePushNotification = 9,
     kOneTimeTokenBackendNotification = 10,
@@ -194,6 +194,7 @@ class DeviceInfo {
              const std::string& signin_scoped_device_id,
              const std::string& manufacturer_name,
              const std::string& model_name,
+             std::optional<std::string> server_determined_model_name,
              const std::string& full_hardware_class,
              base::Time last_updated_timestamp,
              base::TimeDelta pulse_interval,
@@ -206,12 +207,12 @@ class DeviceInfo {
              std::optional<base::Time> auto_sign_out_last_signin_timestamp,
              bool desktop_to_ios_promo_receiving_enabled,
              const MobilePromoOnDesktopPromoTypeSet&
-                 desktop_to_ios_promo_receiving_types //,
+                 desktop_to_ios_promo_receiving_types,
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
              GlicExperimentalTriggeringState glic_experimental_triggering_state,
-             std::optional<int> glic_experimental_triggering_version);
+             std::optional<int> glic_experimental_triggering_version,
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-  );
+             std::optional<std::string> android_os_build_fingerprint_prefix);
 
   DeviceInfo& operator=(const DeviceInfo&) = delete;
 
@@ -263,6 +264,9 @@ class DeviceInfo {
   // when UMA is disabled.
   const std::string& full_hardware_class() const;
 
+  // Prefix of the android.os.Build.FINGERPRINT. Populated on Android.
+  const std::optional<std::string>& android_os_build_fingerprint_prefix() const;
+
   // Returns the time at which this device was last updated to the sync servers.
   base::Time last_updated_timestamp() const;
 
@@ -308,6 +312,8 @@ class DeviceInfo {
   // Glic, or std::nullopt if unavailable.
   std::optional<int> glic_experimental_triggering_version() const;
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+
+  const std::optional<std::string>& server_determined_model_name() const;
 
   // Apps can set ids for a device that is meaningful to them but
   // not unique enough so the user can be tracked. Exposing |guid|
@@ -384,7 +390,11 @@ class DeviceInfo {
 
   const std::string model_name_;
 
+  const std::optional<std::string> server_determined_model_name_;
+
   std::string full_hardware_class_;
+
+  const std::optional<std::string> android_os_build_fingerprint_prefix_;
 
   const base::Time last_updated_timestamp_;
 
@@ -428,8 +438,9 @@ class DeviceInfo {
   size_t vivaldi_total_synced_files_size_;
 
   // NOTE: when adding a member, don't forget to update
-  // |StoredDeviceInfoStillAccurate| in device_info_sync_bridge.cc or else
-  // changes in that member might not trigger uploads of updated DeviceInfos.
+  // |IsStoredLocalDeviceInfoStillAccurate| in device_info_sync_bridge.cc or
+  // else changes in that member might not trigger uploads of updated
+  // DeviceInfos.
 };
 
 }  // namespace syncer

@@ -6,8 +6,8 @@ include_rules = [
   "+cc/paint",
   "+cc/test",
 
-  # Restricting uses of Chrome*Activity in favor of direct dependency aquisition. Code that lives
-  # under java/src/.../chrome/browser has a seperate exception under that same directory.
+  # Restricting uses of Chrome*Activity in favor of direct dependency acquisition. Code that lives
+  # under java/src/.../chrome/browser has a separate exception under that same directory.
   # Exceptions can be found under "specific_include_rules" below.
   "-chrome/android/java/src/org/chromium/chrome/browser/app/ChromeActivity.java",
   "-chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java",
@@ -72,6 +72,8 @@ include_rules = [
   "+components/bookmarks/managed",
   "+components/bookmarks/test",
   "+components/breadcrumbs/core",
+  "+components/browser_actuator/public",
+  "+components/browser_apis/bookmarks",
   "+components/browser_apis/browser_controls",
   "+components/browser_apis/tab_drag",
   "+components/browser_apis/tab_strip",
@@ -122,6 +124,7 @@ include_rules = [
   "+components/crash/core/browser",
   "+components/crash/core/common",
   "+components/credential_management",
+  "+components/critical_actions",
   "+components/cross_device/nearby",
   "+components/crx_file",
   "+components/desks_storage",
@@ -233,6 +236,8 @@ include_rules = [
   "+components/network_time",
   "+components/no_state_prefetch/browser",
   "+components/no_state_prefetch/common",
+  "+components/notebooks/internals/webui",
+  "+components/notebooks/public",
   "+components/ntp_tiles",
   "+components/offline_items_collection/core",
   "+components/offline_pages/buildflags",
@@ -344,6 +349,7 @@ include_rules = [
   "+components/signin/core/browser",
   "+components/signin/public",
   "+components/skills:features",
+  "+components/site_token_provider",
   "+components/site_engagement",
   "+components/site_isolation",
   "+components/skills",
@@ -373,6 +379,7 @@ include_rules = [
   "+components/sync_device_info",
   "+components/sync_preferences",
   "+components/sync_sessions",
+  "+components/sync_tab_context",
   "+components/sync_user_events",
   "+components/tabs",
   "+components/tab_groups",
@@ -531,6 +538,17 @@ include_rules = [
   # Ensure flags are usable anywhere.
   "+chrome/browser/flags",
 
+  # Do not use these legacy test fixtures in new tests.
+  # Use chrome/browser/glic/test_support/glic_browser_test.h,
+  # chrome/browser/glic/test_support/new_glic_api_test.h, or
+  # chrome/browser/glic/actor/new_glic_actor_functional_browsertest.h instead.
+  "!chrome/browser/glic/actor/glic_actor_functional_browsertest.h",
+  "!chrome/browser/glic/host/glic_actor_interactive_uitest_common.h",
+  "!chrome/browser/glic/test_support/glic_api_test.h",
+  "!chrome/browser/glic/test_support/glic_functional_browsertest.h",
+  "!chrome/browser/glic/test_support/interactive_glic_test.h",
+  "!chrome/browser/glic/test_support/non_interactive_glic_test.h",
+
   # Ensure that only the public interface of performance_manager gets used.
   "-chrome/browser/performance_manager",
   "+chrome/browser/performance_manager/public",
@@ -638,13 +656,13 @@ specific_include_rules = {
   "webauth_interactive_uitest.cc": [
     "+device/fido",
   ],
-  "shared_storage_browsertest.cc": [
-    "+components/services/storage/shared_storage/shared_storage_manager.h",
-  ],
-  "fake_server_helper_android\.cc": [
+  "fake_server_helper_android\\.cc": [
     "+components/saved_tab_groups",
   ],
   r"android/omnibox/composebox_query_controller_bridge\.cc": [
     "+components/contextual_search/internal",
+  ],
+  "spellcheck_service.cc": [
+    "+chrome/browser/search/search.h",
   ],
 }

@@ -32,22 +32,6 @@
                                      (const bookmarks::BookmarkNode*)folder;
 @end
 
-// Fake implementation of BookmarksFolderChooserCoordinator for testing.
-@interface FakeBookmarksFolderChooserCoordinator
-    : BookmarksFolderChooserCoordinator
-@property(nonatomic, assign) std::set<raw_ptr<const bookmarks::BookmarkNode>>
-    editedNodesSet;
-@end
-
-@implementation FakeBookmarksFolderChooserCoordinator
-- (const std::set<raw_ptr<const bookmarks::BookmarkNode>>&)editedNodes {
-  return _editedNodesSet;
-}
-- (void)stop {
-  // Do nothing.
-}
-@end
-
 namespace {
 
 using BookmarksHomeViewControllerTest = BookmarkIOSUnitTestSupport;
@@ -288,25 +272,45 @@ TEST_F(BookmarksHomeViewControllerTest,
   std::set<raw_ptr<const bookmarks::BookmarkNode>> selectedNodes;
   selectedNodes.insert(bookmark);
 
-  // Use a fake folder chooser coordinator.
-  FakeBookmarksFolderChooserCoordinator* fakeFolderChooserCoordinator =
-      [[FakeBookmarksFolderChooserCoordinator alloc]
+  BookmarksFolderChooserCoordinator* folderChooserCoordinator =
+      [[BookmarksFolderChooserCoordinator alloc]
           initWithBaseViewController:nil
                              browser:browser_.get()
-                         hiddenNodes:{}];
-  fakeFolderChooserCoordinator.editedNodesSet = selectedNodes;
-  [controller setFolderChooserCoordinator:fakeFolderChooserCoordinator];
+                          movedNodes:selectedNodes];
+  [folderChooserCoordinator start];
+  [controller setFolderChooserCoordinator:folderChooserCoordinator];
 
   // Call the delegate method with the same parent folder.
   // This should result in MoveBookmarksWithUndoSnackbar returning nil,
   // and showSnackbarMessage: NOT being called.
   [controller
-      bookmarksFolderChooserCoordinatorDidConfirm:fakeFolderChooserCoordinator
+      bookmarksFolderChooserCoordinatorDidConfirm:folderChooserCoordinator
                                withSelectedFolder:mobileNode];
 
   [mockSnackbarHandler verify];
 
   [controller shutdown];
+}
+
+// Tests that accessing view lifecycle methods after shutdown does not crash.
+TEST_F(BookmarksHomeViewControllerTest,
+       ViewLifecycleAfterShutdownDoesNotCrash) {
+  BookmarksHomeViewController* controller =
+      [[BookmarksHomeViewController alloc] initWithBrowser:browser_.get()];
+  [controller shutdown];
+  // Force view loading and appearing after shutdown.
+  [controller loadViewIfNeeded];
+  [controller viewWillAppear:NO];
+}
+
+// Tests that deallocating the view controller without calling shutdown does not
+// crash.
+TEST_F(BookmarksHomeViewControllerTest, DeallocWithoutShutdownDoesNotCrash) {
+  @autoreleasepool {
+    BookmarksHomeViewController* controller =
+        [[BookmarksHomeViewController alloc] initWithBrowser:browser_.get()];
+    [controller loadViewIfNeeded];
+  }
 }
 
 }  // namespace

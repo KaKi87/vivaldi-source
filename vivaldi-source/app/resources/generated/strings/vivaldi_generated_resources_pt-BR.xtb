@@ -39,7 +39,6 @@
 <translation id="1601560923496285236">Aplicar</translation>
 <translation id="1603914832182249871">(privada)</translation>
 <translation id="1627276047960621195">Descritores de arquivo</translation>
-<translation id="1654713139320245449">Nenhum destino de transmissão encontrado. Precisa de ajuda?</translation>
 <translation id="166278006618318542">Algoritmo de Chave Pública do Assunto</translation>
 <translation id="1682548588986054654">Nova janela privada</translation>
 <translation id="1708338024780164500">(inativa)</translation>
@@ -60,7 +59,6 @@
 <translation id="1906488504371069394">Descubra mais extensões e temas na <ph name="BEGIN_LINK" />Chrome Web Store<ph name="END_LINK" /></translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">Digite o endereço da Web personalizado</translation>
-<translation id="1932098463447129402">Não antes</translation>
 <translation id="1936157145127842922">Mostrar na pasta</translation>
 <translation id="1936931585862840749">Use um número para indicar quantas cópias serão impressas (1 a <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">&amp;Abrir áudio em uma nova aba</translation>
@@ -102,7 +100,6 @@
 <translation id="253557089021624350">Contagem de manutenção de atividade</translation>
 <translation id="2550212893339833758">Memória swapped</translation>
 <translation id="2553440850688409052">Ocultar este Plug-in</translation>
-<translation id="2607101320794533334">Informações da chave pública do assunto</translation>
 <translation id="261305050785128654">Informe aos sites os idiomas que você fala. Eles mostrarão conteúdo nesses idiomas, quando possível.</translation>
 <translation id="26224892172169984">Não permitir que qualquer site manipule protocolos</translation>
 <translation id="2653275834716714682">Substituição de texto</translation>
@@ -112,7 +109,6 @@
 <translation id="2719936478972253983">Os seguintes cookies foram bloqueados</translation>
 <translation id="2721037002783622288">&amp;Pesquisar imagem no <ph name="SEARCH_ENGINE" /></translation>
 <translation id="2722547199758472013">ID: <ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">Não após</translation>
 <translation id="2749881179542288782">Verificar a gramática com a ortografia</translation>
 <translation id="2785873697295365461">Descritores de arquivo</translation>
 <translation id="2825758591930162672">Chave pública do assunto</translation>
@@ -163,7 +159,6 @@
 <translation id="3387614642886316601">Usar a verificação ortográfica aprimorada</translation>
 <translation id="3390013585654699824">Detalhes do app</translation>
 <translation id="345693547134384690">Abrir &amp;imagem em uma nova aba</translation>
-<translation id="3493881266323043047">Validade</translation>
 <translation id="3511307672085573050">Copiar end&amp;ereço do link</translation>
 <translation id="354068948465830244">Pode ler e alterar os dados do site</translation>
 <translation id="3555812735919707620">Remover extensão</translation>
@@ -179,7 +174,6 @@
 <translation id="3760460896538743390">Inspecionar Página de &amp;Fundo</translation>
 <translation id="3786224729726357296">Excluir permissões e dados do site <ph name="SITE" /></translation>
 <translation id="3797900183766075808">&amp;Pesquisar por “<ph name="SEARCH_TERMS" />” no <ph name="SEARCH_ENGINE" /></translation>
-<translation id="3798449238516105146">Versão</translation>
 <translation id="3810973564298564668">Gerenciar</translation>
 <translation id="3838085852053358637">Falha ao carregar extensão</translation>
 <translation id="383891835335927981">Nenhum site teve o zoom modificado</translation>
@@ -265,12 +259,10 @@
 <translation id="5063480226653192405">Uso</translation>
 <translation id="5116628073786783676">Sal&amp;var Áudio Como...</translation>
 <translation id="5154108062446123722">Configurações avançadas para <ph name="PRINTING_DESTINATION" /></translation>
-<translation id="5154702632169343078">Assunto</translation>
 <translation id="5170568018924773124">Mostrar na pasta</translation>
 <translation id="5171343362375269016">Memória trocada</translation>
 <translation id="5233231016133573565">ID do processo</translation>
 <translation id="5233736638227740678">&amp;Colar</translation>
-<translation id="5244466461749935369">Mantenha por enquanto</translation>
 <translation id="5256861893479663409">Em Todos os Sites</translation>
 <translation id="5260334392110301220">Aspas inteligentes</translation>
 <translation id="5269977353971873915">Falha ao imprimir</translation>
@@ -309,7 +301,6 @@
 <translation id="5780973441651030252">Prioridade de processo</translation>
 <translation id="5804241973901381774">Permissões</translation>
 <translation id="5828633471261496623">Imprimindo...</translation>
-<translation id="5851868085455377790">Emissor</translation>
 <translation id="5860491529813859533">Ativar</translation>
 <translation id="5910363049092958439">Sal&amp;var Imagem Como...</translation>
 <translation id="5914724413750400082">Módulo (<ph name="MODULUS_NUM_BITS" /> bits):
@@ -457,7 +448,6 @@ Mantenha o seu arquivo de chave privada em um local seguro. Você precisará del
 <translation id="862750493060684461">Cache de CSS</translation>
 <translation id="8661290697478713397">Abrir Link na Janela &amp;Anônima</translation>
 <translation id="8664389313780386848">Exibir Código Fonte da Página</translation>
-<translation id="8705331520020532516">Número de série</translation>
 <translation id="8708000541097332489">Limpar ao sair</translation>
 <translation id="8714838604780058252">Gráficos de segundo plano</translation>
 <translation id="8725066075913043281">Tentar novamente</translation>

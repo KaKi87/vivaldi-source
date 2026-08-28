@@ -26,7 +26,6 @@ import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
@@ -48,8 +47,8 @@ import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.chrome.test.transit.testhtmls.NavigatePageStations;
 import org.chromium.chrome.test.util.ActivityTestUtils;
 import org.chromium.chrome.test.util.ChromeRenderTestRule;
-import org.chromium.components.omnibox.OmniboxFeatureList;
 import org.chromium.components.tab_groups.TabGroupColorId;
+import org.chromium.components.tab_groups.TabGroupsFeatureMap;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.PageTransition;
@@ -66,11 +65,12 @@ import java.util.concurrent.ExecutionException;
 @ParameterAnnotations.UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 // TODO(crbug.com/419289558): Re-enable color surface feature flags.
-@Features.DisableFeatures({
+@DisableFeatures({
     ChromeFeatureList.ANDROID_SURFACE_COLOR_UPDATE,
     ChromeFeatureList.GRID_TAB_SWITCHER_SURFACE_COLOR_UPDATE,
     ChromeFeatureList.ANDROID_THEME_MODULE,
-    ChromeFeatureList.HISTORY_PANE_ANDROID
+    ChromeFeatureList.HISTORY_PANE_ANDROID,
+    TabGroupsFeatureMap.UPDATE_TAB_GROUP_COLORS
 })
 public class TabSwitcherSearchRenderTest {
     private static final int SERVER_PORT = 13245;
@@ -212,7 +212,6 @@ public class TabSwitcherSearchRenderTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511287342
     public void testZeroPrefixSuggestions_HiddenInIncognito() throws IOException {
         List<String> urlsToOpen = Arrays.asList("/chrome/test/data/android/test.html");
         TabSwitcherSearchStation searchStation =
@@ -230,7 +229,6 @@ public class TabSwitcherSearchRenderTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @DisableFeatures({OmniboxFeatureList.OMNIBOX_ITEM_DECORATION})
     @ParameterAnnotations.UseMethodParameter(NightModeTestUtils.NightModeParams.class)
     public void testRenderTypedSuggestions(boolean nightModeEnabled) throws IOException {
         List<String> urlsToOpen = Arrays.asList("/chrome/test/data/android/navigate/one.html");
@@ -240,8 +238,7 @@ public class TabSwitcherSearchRenderTest {
                         .openRegularTabSwitcher()
                         .openTabSwitcherSearch();
         searchStation.typeInOmnibox("one.html");
-        searchStation.findSectionHeaderByIndexAndText(0, "Tabs and tab groups");
-        searchStation.findSuggestion(/* index= */ 1, /* title= */ "One", /* text= */ null);
+        searchStation.findSuggestion(/* index= */ 0, /* title= */ "One", /* text= */ null);
 
         mRenderTestRule.render(
                 searchStation.getActivity().findViewById(android.R.id.content), "hub_search_typed");
@@ -250,7 +247,6 @@ public class TabSwitcherSearchRenderTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511287342
     public void testRenderTypedSuggestions_Incognito() throws IOException {
         List<String> urlsToOpen = Arrays.asList("/chrome/test/data/android/navigate/one.html");
         TabSwitcherSearchStation searchStation =
@@ -269,7 +265,6 @@ public class TabSwitcherSearchRenderTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @DisableFeatures({OmniboxFeatureList.OMNIBOX_ITEM_DECORATION})
     @ParameterAnnotations.UseMethodParameter(NightModeTestUtils.NightModeParams.class)
     public void testRenderTypedTabGroupSuggestions(boolean nightModeEnabled) throws IOException {
         Tab firstTab = mInitialPage.loadedTabElement.value();
@@ -298,9 +293,8 @@ public class TabSwitcherSearchRenderTest {
 
         TabSwitcherSearchStation searchStation = tabSwitcher.openTabSwitcherSearch();
         searchStation.typeInOmnibox("foo");
-        searchStation.findSectionHeaderByIndexAndText(0, "Tabs and tab groups");
         searchStation.findSuggestion(
-                /* index= */ 1,
+                /* index= */ 0,
                 /* title= */ "   Foobar",
                 /* text= */ "127.0.0.1:13245/chrome/test/data/android/navigate/one.html,"
                         + " 127.0.0.1:13245/chrome/test/data/android/navigate/one.html");
@@ -313,9 +307,7 @@ public class TabSwitcherSearchRenderTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @DisableFeatures({OmniboxFeatureList.OMNIBOX_ITEM_DECORATION})
     @ParameterAnnotations.UseMethodParameter(NightModeTestUtils.NightModeParams.class)
-    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511287342
     public void testRenderTypedTabGroupSuggestions_URLMatch(boolean nightModeEnabled)
             throws IOException {
         Tab firstTab = mInitialPage.loadedTabElement.value();
@@ -344,9 +336,8 @@ public class TabSwitcherSearchRenderTest {
 
         TabSwitcherSearchStation searchStation = tabSwitcher.openTabSwitcherSearch();
         searchStation.typeInOmnibox("data");
-        searchStation.findSectionHeaderByIndexAndText(0, "Tabs and tab groups");
         searchStation.findSuggestion(
-                /* index= */ 2,
+                /* index= */ 1,
                 /* title= */ "   Test",
                 /* text= */ "127.0.0.1:13245/chrome/test/data/android/navigate/one.html,"
                         + " 127.0.0.1:13245/chrome/test/data/android/navigate/one.html");
@@ -359,7 +350,6 @@ public class TabSwitcherSearchRenderTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @DisableFeatures({OmniboxFeatureList.OMNIBOX_ITEM_DECORATION})
     @ParameterAnnotations.UseMethodParameter(NightModeTestUtils.NightModeParams.class)
     public void testRenderTypedTabGroupSuggestions_ChromePrefixedTabsOmmitted(
             boolean nightModeEnabled) throws IOException {
@@ -379,8 +369,7 @@ public class TabSwitcherSearchRenderTest {
 
         TabSwitcherSearchStation searchStation = tabSwitcher.openTabSwitcherSearch();
         searchStation.typeInOmnibox("test");
-        searchStation.findSectionHeaderByIndexAndText(0, "Tabs and tab groups");
-        searchStation.findSuggestion(/* index= */ 1, /* title= */ "   Test", /* text= */ null);
+        searchStation.findSuggestion(/* index= */ 0, /* title= */ "   Test", /* text= */ null);
 
         mRenderTestRule.render(
                 searchStation.getActivity().findViewById(android.R.id.content),

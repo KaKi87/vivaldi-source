@@ -13,7 +13,7 @@
 #include "base/observer_list.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "base/task/single_thread_task_runner.h"
-#include "extensions/api/auto_update/auto_update_status.h"
+#include "extensions/api/autoupdate/auto_update_status.h"
 #include "vivaldi_update_backend_notifier.h"
 
 #if BUILDFLAG(IS_WIN)

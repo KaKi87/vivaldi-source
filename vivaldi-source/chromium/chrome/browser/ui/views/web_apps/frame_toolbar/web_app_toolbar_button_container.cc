@@ -132,7 +132,8 @@ WebAppToolbarButtonContainer::WebAppToolbarButtonContainer(
                       .WithWeight(0))
       .SetFlexAllocationOrder(views::FlexAllocationOrder::kReverse);
 
-  const auto* app_controller = browser_view_->browser()->app_controller();
+  const auto* app_controller =
+      web_app::AppBrowserController::From(browser_view_->browser());
 
   // App's origin will not be shown in the unframed mode, it will only be
   // visible in App Settings UI.
@@ -149,6 +150,7 @@ WebAppToolbarButtonContainer::WebAppToolbarButtonContainer(
   if (base::FeatureList::IsEnabled(features::kWebAppInstallDialog) &&
       app_controller->CanUserUninstall() &&
       !app_controller->IsPreinstalledOnly() &&
+      !app_controller->IsIsolatedWebApp() &&
       app_controller->IsFirstLaunchAfterInstall()) {
     auto* button = AddChildView(
         std::make_unique<WebAppUninstallToolbarButton>(base::BindRepeating(
@@ -166,6 +168,8 @@ WebAppToolbarButtonContainer::WebAppToolbarButtonContainer(
     button->SetHorizontalAlignment(gfx::HorizontalAlignment::ALIGN_RIGHT);
     button->SetTooltipText(
         l10n_util::GetStringUTF16(IDS_WEB_APP_UNINSTALL_BUTTON_FRAME_TOOLTIP));
+    button->SetProperty(views::kElementIdentifierKey,
+                        kWebAppUninstallButtonElementId);
     uninstall_button_ = button;
     views::SetHitTestComponent(uninstall_button_, static_cast<int>(HTCLIENT));
   }
@@ -178,7 +182,9 @@ WebAppToolbarButtonContainer::WebAppToolbarButtonContainer(
   }
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
-  if (app_controller->AppUsesWindowControlsOverlay()) {
+  if (app_controller->AppUsesWindowControlsOverlay() &&
+      !base::FeatureList::IsEnabled(
+          features::kDesktopPWAsWindowControlsOverlayWithNoToggle)) {
     window_controls_overlay_toggle_button_ = AddChildView(
         std::make_unique<WindowControlsOverlayToggleButton>(browser_view_));
     views::SetHitTestComponent(window_controls_overlay_toggle_button_,
@@ -186,7 +192,7 @@ WebAppToolbarButtonContainer::WebAppToolbarButtonContainer(
     ConfigureWebAppToolbarButton(window_controls_overlay_toggle_button_,
                                  toolbar_button_provider_);
     window_controls_overlay_toggle_button_->SetVisible(
-        browser_view_->should_show_window_controls_overlay_toggle());
+        browser_view_->is_window_controls_overlay_available());
   }
 
   if (app_controller->HasTitlebarContentSettings()) {
@@ -347,6 +353,15 @@ void WebAppToolbarButtonContainer::UpdateStatusIconsVisibility() {
   }
 }
 
+// When Window Controls Overlay is enabled dynamically by the user clicking the
+// expand arrow toggle button, we clean up and remove the ephemeral uninstall
+// button if it exists.
+void WebAppToolbarButtonContainer::WindowControlsOverlayEnabledChanged() {
+  if (uninstall_button_ && browser_view_->IsWindowControlsOverlayEnabled()) {
+    RemoveChildViewT(std::exchange(uninstall_button_, nullptr));
+  }
+}
+
 void WebAppToolbarButtonContainer::SetColors(SkColor foreground_color,
                                              SkColor background_color,
                                              bool color_changed) {
@@ -460,8 +475,8 @@ void WebAppToolbarButtonContainer::FadeInContentSettingIcons() {
 }
 
 void WebAppToolbarButtonContainer::OnUninstallButtonClicked() {
-  browser_view_->browser()->app_controller()->Uninstall(
-      webapps::WebappUninstallSource::kToolbarPostInstall);
+  web_app::AppBrowserController::From(browser_view_->browser())
+      ->Uninstall(webapps::WebappUninstallSource::kToolbarPostInstall);
 }
 
 void WebAppToolbarButtonContainer::ChildPreferredSizeChanged(
@@ -525,7 +540,8 @@ void WebAppToolbarButtonContainer::AddedToWidget() {
 #if BUILDFLAG(IS_MAC)
 void WebAppToolbarButtonContainer::AppShimChanged(
     const webapps::AppId& changed_app_id) {
-  const auto* app_controller = browser_view_->browser()->app_controller();
+  const auto* app_controller =
+      web_app::AppBrowserController::From(browser_view_->browser());
   if (changed_app_id != app_controller->app_id()) {
     return;
   }

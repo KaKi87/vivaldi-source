@@ -5,8 +5,6 @@
 package org.chromium.chrome.browser.tasks.tab_management;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
-import static org.chromium.chrome.browser.tasks.tab_management.TabListModel.CardProperties.CARD_TYPE;
-import static org.chromium.chrome.browser.tasks.tab_management.TabListModel.CardProperties.ModelType.TAB;
 
 import android.content.Context;
 import android.view.InputDevice;
@@ -78,6 +76,15 @@ public abstract class TabListItemTouchHelperCallback extends ItemTouchHelper2.Si
         mCurrentTabModelSupplier = currentTabModelSupplier;
         mLongPressDpCancelThreshold =
                 context.getResources().getDimensionPixelSize(R.dimen.long_press_cancel_threshold);
+    }
+
+    /**
+     * Sets the RecyclerView that this callback is attached to.
+     *
+     * @param recyclerView The RecyclerView.
+     */
+    public void setRecyclerView(RecyclerView recyclerView) {
+        mRecyclerViewSupplier.set(recyclerView);
     }
 
     /**
@@ -192,7 +199,7 @@ public abstract class TabListItemTouchHelperCallback extends ItemTouchHelper2.Si
         if (viewHolder instanceof SimpleRecyclerViewAdapter.ViewHolder simpleViewHolder) {
             PropertyModel model = simpleViewHolder.model;
             assumeNonNull(model);
-            return model.get(CARD_TYPE) == TAB;
+            return TabProperties.isTabOrTabGroup(model);
         }
         return false;
     }
@@ -207,8 +214,8 @@ public abstract class TabListItemTouchHelperCallback extends ItemTouchHelper2.Si
     protected boolean isPinnedRegularTab(RecyclerView.@Nullable ViewHolder viewHolder) {
         if (viewHolder instanceof SimpleRecyclerViewAdapter.ViewHolder simpleViewHolder) {
             PropertyModel model = simpleViewHolder.model;
-            if (model != null && model.get(CARD_TYPE) == TAB) {
-                return model.get(TabProperties.IS_PINNED);
+            if (model != null) {
+                return TabProperties.isPinnedTab(model);
             }
         }
         return false;
@@ -224,7 +231,7 @@ public abstract class TabListItemTouchHelperCallback extends ItemTouchHelper2.Si
         if (viewHolder instanceof SimpleRecyclerViewAdapter.ViewHolder simpleViewHolder) {
             PropertyModel model = simpleViewHolder.model;
             assumeNonNull(model);
-            if (model.get(CARD_TYPE) == TAB) {
+            if (TabProperties.isTabOrTabGroup(model)) {
                 @Nullable TabGroupColorViewProvider provider =
                         model.get(TabProperties.TAB_GROUP_COLOR_VIEW_PROVIDER);
                 return provider != null && provider.hasCollaborationId();
@@ -256,22 +263,42 @@ public abstract class TabListItemTouchHelperCallback extends ItemTouchHelper2.Si
             int toPos,
             int x,
             int y) {
-        // If this is a mouse input we don't want to force the auto-scroll behavior that happens
-        // inside the default super implementation. Early returning here will just cancel the drag.
-        if (mIsMouseInputSource) return;
+        // Early returning here will cancel the drag.
+        if (shouldBlockOnMoved()) return;
         super.onMoved(recyclerView, viewHolder, fromPos, target, toPos, x, y);
     }
 
     /**
-     * Calculates out-of-bounds scroll speeds during drag reordering. Suppresses all auto-scroll
-     * speed interpolation when input is from a mouse source.
+     * Returns whether to block {@link #onMoved} execution. Defaults to blocking for mouse input
+     * sources to preserve behavior for Grid Tab Switcher.
+     */
+    protected boolean shouldBlockOnMoved() {
+        // If this is a mouse input don't force the auto-scroll behavior that happens
+        // inside the default super onMoved() implementation.
+        return mIsMouseInputSource;
+    }
+
+    /**
+     * Returns whether out-of-bounds scrolling (edge scrolling) should be blocked during a drag. By
+     * default, this is blocked when the input source is a mouse (cursor) to avoid unwanted list
+     * movement. Subclasses can override this to customize scroll behavior.
+     *
+     * @return True if out-of-bounds scrolling should be disabled, false otherwise.
+     */
+    protected boolean shouldBlockOutOfBoundsScroll() {
+        return mIsMouseInputSource;
+    }
+
+    /**
+     * Calculates out-of-bounds scroll speeds during drag reordering. Delays or blocks interpolation
+     * if {@link #shouldBlockOutOfBoundsScroll()} returns true.
      *
      * @param recyclerView The active RecyclerView container.
      * @param viewSize The width or height of the scrollable view depending on orientation.
      * @param viewSizeOutOfBounds The amount of pixels dragged out of the bounds.
      * @param totalSize The total scrollable range size.
      * @param msSinceStartScroll Elapsed time since the scroll operation was initiated.
-     * @return The calculated scroll distance increment; 0 if mouse-input is active.
+     * @return The calculated scroll distance increment; 0 if out-of-bounds scrolling is blocked.
      */
     @Override
     public int interpolateOutOfBoundsScroll(
@@ -280,7 +307,7 @@ public abstract class TabListItemTouchHelperCallback extends ItemTouchHelper2.Si
             int viewSizeOutOfBounds,
             int totalSize,
             long msSinceStartScroll) {
-        if (mIsMouseInputSource) return 0;
+        if (shouldBlockOutOfBoundsScroll()) return 0;
 
         return super.interpolateOutOfBoundsScroll(
                 recyclerView, viewSize, viewSizeOutOfBounds, totalSize, msSinceStartScroll);
@@ -325,7 +352,7 @@ public abstract class TabListItemTouchHelperCallback extends ItemTouchHelper2.Si
      *
      * @param listener the handler for longpress actions.
      */
-    void setOnLongPressTabItemEventListener(
+    public void setOnLongPressTabItemEventListener(
             TabGridItemLongPressOrchestrator.@Nullable OnLongPressTabItemEventListener listener) {
         assert mTabGridItemLongPressOrchestrator == null;
         if (listener != null) {
@@ -342,6 +369,11 @@ public abstract class TabListItemTouchHelperCallback extends ItemTouchHelper2.Si
     @VisibleForTesting
     void setTabGridItemLongPressOrchestrator(TabGridItemLongPressOrchestrator orchestrator) {
         mTabGridItemLongPressOrchestrator = orchestrator;
+    }
+
+    public @Nullable TabGridItemLongPressOrchestrator
+            getTabGridItemLongPressOrchestratorForTesting() {
+        return mTabGridItemLongPressOrchestrator;
     }
 
     void setSelectedTabIndexForTesting(int index) {

@@ -13,4 +13,7 @@
 <translation id="7100573672995171864">Mukauta ja hallinnoi Vivaldia</translation>
 <translation id="7642161109152167169">Kun käytössä, Vivaldi säästää akkuvirtaa rajoittamalla taustatoimintoja ja erikoistehosteita, kuten pehmeää vieritystä ja videoiden ruutunopeuksia. <ph name="BEGIN_LINK" />Lue lisää<ph name="END_LINK" /></translation>
 <translation id="8031581238030785388">Vivaldi-sovellukset</translation>
+<translation id="8532558197615073846">{NUM_EXTENSIONS, plural,
+        =1 {Tämä laajennus on poistettu käytöstä, koska Chromium ei enää tue sitä. Sen voi vielä ottaa käyttöön, mutta pian se poistuu. Harkitse vaihtoehtojen etsimistä Chromen verkkokaupasta.}
+        other {Nämä laajennukset on poistettu käytöstä, koska Chromium ei enää tue niitä. Ne voi vielä ottaa käyttöön, mutta pian ne poistuvat. Harkitse vaihtoehtojen etsimistä Chromen verkkokaupasta.}}</translation>
 </translationbundle>

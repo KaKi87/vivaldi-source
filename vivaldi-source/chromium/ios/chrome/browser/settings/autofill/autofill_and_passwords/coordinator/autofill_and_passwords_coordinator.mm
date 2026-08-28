@@ -11,10 +11,17 @@
 #import "base/not_fatal_until.h"
 #import "components/autofill/core/browser/data_manager/autofill_ai/entity_data_manager.h"
 #import "components/password_manager/core/browser/manage_passwords_referrer.h"
+#import "components/signin/public/identity_manager/identity_manager.h"
+#import "components/sync/service/sync_service.h"
+#import "ios/chrome/browser/authentication/ui_bundled/signin/signin_coordinator.h"
+#import "ios/chrome/browser/authentication/ui_bundled/signin/signin_utils.h"
+#import "ios/chrome/browser/authentication/ui_bundled/signin_promo_view_mediator.h"
 #import "ios/chrome/browser/autofill/model/ios_autofill_entity_data_manager_factory.h"
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/coordinator/autofill_and_passwords_mediator.h"
+#import "ios/chrome/browser/settings/autofill/autofill_and_passwords/coordinator/autofill_and_passwords_signin_promo_mediator.h"
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/coordinator/autofill_settings_coordinator.h"
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/coordinator/identity_docs_coordinator.h"
+#import "ios/chrome/browser/settings/autofill/autofill_and_passwords/coordinator/shopping_coordinator.h"
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/coordinator/travel_info_coordinator.h"
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/ui/autofill_and_passwords_table_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/autofill/autofill_credit_card_table_view_controller.h"
@@ -26,15 +33,40 @@
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/settings_commands.h"
+#import "ios/chrome/browser/shared/public/commands/show_signin_command.h"
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
+#import "ios/chrome/browser/signin/model/authentication_service.h"
+#import "ios/chrome/browser/signin/model/authentication_service_factory.h"
+#import "ios/chrome/browser/signin/model/chrome_account_manager_service.h"
+#import "ios/chrome/browser/signin/model/chrome_account_manager_service_factory.h"
+#import "ios/chrome/browser/signin/model/identity_manager_factory.h"
+#import "ios/chrome/browser/sync/model/sync_service_factory.h"
+
+namespace {
+// Values correspond to YourSavedInfoDataCategory in enums.xml.
+// LINT.IfChange(YourSavedInfoDataCategory)
+enum class YourSavedInfoDataCategory {
+  kPasswordManager = 0,
+  kPayments = 1,
+  kContactInfo = 2,
+  kIdentityDocs = 3,
+  kTravel = 4,
+  kShopping = 5,
+  kMaxValue = kShopping,
+};
+// LINT.ThenChange(/tools/metrics/histograms/metadata/autofill/enums.xml:YourSavedInfoDataCategory)
+}  // namespace
 
 @interface AutofillAndPasswordsCoordinator () <
     AutofillAndPasswordsTableViewControllerDelegate,
     AutofillSettingsCoordinatorDelegate,
     IdentityDocsCoordinatorDelegate,
     PasswordsCoordinatorDelegate,
-    TravelInfoCoordinatorDelegate>
+    SigninPromoViewMediatorDelegate,
+    TravelInfoCoordinatorDelegate,
+    ShoppingCoordinatorDelegate>
+
 @end
 
 @implementation AutofillAndPasswordsCoordinator {
@@ -43,7 +75,11 @@
   PasswordsCoordinator* _passwordsCoordinator;
   IdentityDocsCoordinator* _identityDocsCoordinator;
   TravelInfoCoordinator* _travelInfoCoordinator;
+  ShoppingCoordinator* _shoppingCoordinator;
   AutofillSettingsCoordinator* _autofillSettingsCoordinator;
+
+  AutofillAndPasswordsSigninPromoMediator* _signinPromoMediator;
+  SigninCoordinator* _signinCoordinator;
 }
 
 @synthesize baseNavigationController = _baseNavigationController;
@@ -64,20 +100,42 @@
       initWithStyle:ChromeTableViewStyle()];
   _viewController.delegate = self;
 
+  ProfileIOS* profile = self.browser->GetProfile();
   autofill::EntityDataManager* entityDataManager =
-      IOSAutofillEntityDataManagerFactory::GetForProfile(
-          self.browser->GetProfile());
+      IOSAutofillEntityDataManagerFactory::GetForProfile(profile);
 
   _mediator = [[AutofillAndPasswordsMediator alloc]
-      initWithUserPrefService:self.browser->GetProfile()->GetPrefs()
+      initWithUserPrefService:profile->GetPrefs()
             entityDataManager:entityDataManager];
   _mediator.consumer = _viewController;
 
+  ProfileIOS* originalProfile = profile->GetOriginalProfile();
+  ChromeAccountManagerService* accountManagerService =
+      ChromeAccountManagerServiceFactory::GetForProfile(originalProfile);
+  AuthenticationService* authService =
+      AuthenticationServiceFactory::GetForProfile(originalProfile);
+  signin::IdentityManager* identityManager =
+      IdentityManagerFactory::GetForProfile(originalProfile);
+  syncer::SyncService* syncService =
+      SyncServiceFactory::GetForProfile(originalProfile);
+
+  _signinPromoMediator = [[AutofillAndPasswordsSigninPromoMediator alloc]
+      initWithAccountManagerService:accountManagerService
+                        authService:authService
+                    identityManager:identityManager
+                        prefService:originalProfile->GetPrefs()
+                        syncService:syncService];
+  _signinPromoMediator.consumer = _viewController;
+  _signinPromoMediator.delegate = self;
+
   [self.baseNavigationController pushViewController:_viewController
                                            animated:YES];
+  base::RecordAction(base::UserMetricsAction("AutofillYourSavedInfoViewed"));
 }
 
 - (void)stop {
+  [self stopSigninCoordinator];
+
   _passwordsCoordinator.delegate = nil;
   [_passwordsCoordinator stop];
   _passwordsCoordinator = nil;
@@ -90,12 +148,21 @@
   [_travelInfoCoordinator stop];
   _travelInfoCoordinator = nil;
 
+  _shoppingCoordinator.delegate = nil;
+  [_shoppingCoordinator stop];
+  _shoppingCoordinator = nil;
+
   _autofillSettingsCoordinator.delegate = nil;
   [_autofillSettingsCoordinator stop];
   _autofillSettingsCoordinator = nil;
 
   [_mediator disconnect];
   _mediator = nil;
+
+  _signinPromoMediator.consumer = nil;
+  _signinPromoMediator.delegate = nil;
+  [_signinPromoMediator disconnect];
+  _signinPromoMediator = nil;
 
   _viewController.delegate = nil;
   _viewController = nil;
@@ -108,6 +175,21 @@
   [self.delegate autofillAndPasswordsCoordinatorDidRemove:self];
 }
 
+- (void)autofillAndPasswordsTableViewControllerDidLoadContent:
+    (AutofillAndPasswordsTableViewController*)controller {
+  [_signinPromoMediator contentDidLoad];
+}
+
+- (void)autofillAndPasswordsTableViewControllerPromoProgressStateDidChange:
+    (AutofillAndPasswordsTableViewController*)controller {
+  [_signinPromoMediator updateSignInPromoVisibility];
+}
+
+- (void)autofillAndPasswordsTableViewControllerDidTapSigninPromoClose:
+    (AutofillAndPasswordsTableViewController*)controller {
+  [_signinPromoMediator updateSignInPromoVisibility];
+}
+
 - (void)autofillAndPasswordsTableViewControllerDidSelectPasswords:
     (AutofillAndPasswordsTableViewController*)controller {
   if (_passwordsCoordinator) {
@@ -115,9 +197,12 @@
   }
 
   base::RecordAction(base::UserMetricsAction("Options_ShowPasswordManager"));
+  base::UmaHistogramEnumeration("PasswordManager.ManagePasswordsReferrer",
+                                password_manager::ManagePasswordsReferrer::
+                                    kChromeSettingsAutofillAndPasswords);
   base::UmaHistogramEnumeration(
-      "PasswordManager.ManagePasswordsReferrer",
-      password_manager::ManagePasswordsReferrer::kChromeSettings);
+      "Autofill.YourSavedInfoSettingsPage.CategoryLinkClick",
+      YourSavedInfoDataCategory::kPasswordManager);
 
   _passwordsCoordinator = [[PasswordsCoordinator alloc]
       initWithBaseNavigationController:self.baseNavigationController
@@ -133,6 +218,9 @@
   }
 
   base::RecordAction(base::UserMetricsAction("AutofillCreditCardsViewed"));
+  base::UmaHistogramEnumeration(
+      "Autofill.YourSavedInfoSettingsPage.CategoryLinkClick",
+      YourSavedInfoDataCategory::kPayments);
   AutofillCreditCardTableViewController* creditCardController =
       [[AutofillCreditCardTableViewController alloc]
           initWithBrowser:self.browser];
@@ -158,6 +246,9 @@
   }
 
   base::RecordAction(base::UserMetricsAction("AutofillAddressesViewed"));
+  base::UmaHistogramEnumeration(
+      "Autofill.YourSavedInfoSettingsPage.CategoryLinkClick",
+      YourSavedInfoDataCategory::kContactInfo);
   AutofillProfileTableViewController* profileController =
       [[AutofillProfileTableViewController alloc] initWithBrowser:self.browser];
 
@@ -181,7 +272,9 @@
     return;
   }
 
-  // TODO(crbug.com/500341282): Add missing metric.
+  base::UmaHistogramEnumeration(
+      "Autofill.YourSavedInfoSettingsPage.CategoryLinkClick",
+      YourSavedInfoDataCategory::kIdentityDocs);
 
   _identityDocsCoordinator = [[IdentityDocsCoordinator alloc]
       initWithBaseNavigationController:self.baseNavigationController
@@ -196,7 +289,9 @@
     return;
   }
 
-  // TODO(crbug.com/500341282): Add missing metric.
+  base::UmaHistogramEnumeration(
+      "Autofill.YourSavedInfoSettingsPage.CategoryLinkClick",
+      YourSavedInfoDataCategory::kTravel);
 
   _travelInfoCoordinator = [[TravelInfoCoordinator alloc]
       initWithBaseNavigationController:self.baseNavigationController
@@ -205,13 +300,27 @@
   [_travelInfoCoordinator start];
 }
 
+- (void)autofillAndPasswordsTableViewControllerDidSelectShopping:
+    (AutofillAndPasswordsTableViewController*)controller {
+  if (_shoppingCoordinator) {
+    return;
+  }
+
+  _shoppingCoordinator = [[ShoppingCoordinator alloc]
+      initWithBaseNavigationController:self.baseNavigationController
+                               browser:self.browser];
+  _shoppingCoordinator.delegate = self;
+  [_shoppingCoordinator start];
+}
+
 - (void)autofillAndPasswordsTableViewControllerDidSelectAutofillSettings:
     (AutofillAndPasswordsTableViewController*)controller {
   if (_autofillSettingsCoordinator) {
     return;
   }
 
-  // TODO(crbug.com/500341282): Add missing metric.
+  base::UmaHistogramBoolean(
+      "Autofill.YourSavedInfoSettingsPage.AutofillSettingsCategoryClick", true);
 
   _autofillSettingsCoordinator = [[AutofillSettingsCoordinator alloc]
       initWithBaseNavigationController:self.baseNavigationController
@@ -259,6 +368,56 @@
   _travelInfoCoordinator.delegate = nil;
   [_travelInfoCoordinator stop];
   _travelInfoCoordinator = nil;
+}
+
+#pragma mark - ShoppingCoordinatorDelegate
+
+- (void)shoppingCoordinatorDidRemove:(ShoppingCoordinator*)coordinator {
+  CHECK_EQ(_shoppingCoordinator, coordinator);
+  _shoppingCoordinator.delegate = nil;
+  [_shoppingCoordinator stop];
+  _shoppingCoordinator = nil;
+}
+
+#pragma mark - SigninPromoViewMediatorDelegate
+
+- (void)showSignin:(SigninPromoViewMediator*)mediator
+           command:(ShowSigninCommand*)command {
+  if (_signinCoordinator.viewWillPersist) {
+    return;
+  }
+  [self stopSigninCoordinator];
+  __weak __typeof(self) weakSelf = self;
+  [command addSigninCompletion:^(SigninCoordinator* coordinator,
+                                 SigninCoordinatorResult result,
+                                 id<SystemIdentity> identity) {
+    [weakSelf signinDidCompleteWithCoordinator:coordinator result:result];
+  }];
+  _signinCoordinator = [SigninCoordinator
+      signinCoordinatorWithCommand:command
+                           browser:signin::GetRegularBrowser(self.browser)
+                baseViewController:self.baseViewController];
+  [_signinCoordinator start];
+}
+
+#pragma mark - Private
+
+// Callback invoked when the sign-in flow completes.
+- (void)signinDidCompleteWithCoordinator:(SigninCoordinator*)coordinator
+                                  result:(SigninCoordinatorResult)result {
+  if (_signinCoordinator != coordinator) {
+    return;
+  }
+  [_signinPromoMediator signinDidCompleteWithResult:result];
+  [self stopSigninCoordinator];
+}
+
+// Stops `_signinCoordinator` and sets it to nil.
+- (void)stopSigninCoordinator {
+  if (_signinCoordinator) {
+    [_signinCoordinator stop];
+    _signinCoordinator = nil;
+  }
 }
 
 @end

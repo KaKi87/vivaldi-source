@@ -53,7 +53,6 @@
 #include "base/strings/strcat.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
-#include "base/strings/stringprintf.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/to_string.h"
 #include "base/strings/utf_string_conversions.h"
@@ -90,6 +89,7 @@
 #include "chrome/windows_services/service_program/scoped_client_impersonation.h"
 #include "components/crash/core/common/crash_key.h"
 #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
+#include "third_party/abseil-cpp/absl/strings/str_format.h"
 
 // Linked from ntdll.lib.
 extern "C" LONG WINAPI RtlGetVersion(OSVERSIONINFOEX*);
@@ -301,6 +301,17 @@ std::optional<std::vector<std::wstring>> CommandLineToArgv(
          (::GetLastError() != ERROR_SERVICE_MARKED_FOR_DELETE);
 }
 
+// Replaces '\' with '_' in `app_id`. Useful for preventing subkey injection
+// when using AppIds as registry keys. It is not expected that any valid AppId
+// contains '\', and this is enforced during installation and registration.
+// TODO(crbug.com/522930760): It would be preferable to not permit invalid
+// AppIds in such contexts instead.
+std::wstring SanitizeAppId(const std::wstring& app_id) {
+  std::wstring sanitized_app_id;
+  base::ReplaceChars(app_id, L"\\", L"_", &sanitized_app_id);
+  return sanitized_app_id;
+}
+
 }  // namespace
 
 NamedObjectAttributes::NamedObjectAttributes(const std::wstring& name,
@@ -380,8 +391,7 @@ std::optional<std::wstring> AddCurrentUserAllowedAce(
     UINT8 required_ace_flags) {
   auto token = base::win::AccessToken::FromEffective();
   if (!token) {
-    VLOG(2) << "Failed to get effective token: " << std::hex
-            << HRESULTFromLastError();
+    VPLOG(2) << "Failed to get effective token";
     return {};
   }
 
@@ -398,7 +408,7 @@ std::optional<std::wstring> AddCurrentUserAllowedAce(
   // ACE ordering.
   if (!sd->SetDaclEntry(*token, base::win::SecurityAccessMode::kGrant,
                         required_permissions, required_ace_flags)) {
-    VLOG(2) << "Failed to add ACE: " << std::hex << HRESULTFromLastError();
+    VPLOG(2) << "Failed to add ACE";
     return {};
   }
 
@@ -421,7 +431,7 @@ std::wstring GetAppClientsKey(const std::string& app_id) {
 }
 
 std::wstring GetAppClientsKey(const std::wstring& app_id) {
-  return base::StrCat({CLIENTS_KEY, app_id});
+  return base::StrCat({CLIENTS_KEY, SanitizeAppId(app_id)});
 }
 
 std::wstring GetAppClientStateKey(const std::string& app_id) {
@@ -429,7 +439,7 @@ std::wstring GetAppClientStateKey(const std::string& app_id) {
 }
 
 std::wstring GetAppClientStateKey(const std::wstring& app_id) {
-  return base::StrCat({CLIENT_STATE_KEY, app_id});
+  return base::StrCat({CLIENT_STATE_KEY, SanitizeAppId(app_id)});
 }
 
 std::wstring GetAppClientStateMediumKey(const std::string& app_id) {
@@ -437,7 +447,7 @@ std::wstring GetAppClientStateMediumKey(const std::string& app_id) {
 }
 
 std::wstring GetAppClientStateMediumKey(const std::wstring& app_id) {
-  return base::StrCat({CLIENT_STATE_MEDIUM_KEY, app_id});
+  return base::StrCat({CLIENT_STATE_MEDIUM_KEY, SanitizeAppId(app_id)});
 }
 
 std::wstring GetAppCohortKey(const std::string& app_id) {
@@ -518,7 +528,7 @@ HResultOr<bool> IsCOMCallerAdmin() {
           /*open_as_self=*/true, TOKEN_QUERY);
   if (!token) {
     HRESULT hr = HRESULTFromLastError();
-    LOG(ERROR) << "AccessToken::FromCurrentThread failed: " << std::hex << hr;
+    PLOG(ERROR) << "AccessToken::FromCurrentThread failed";
     return base::unexpected(hr);
   }
 
@@ -539,20 +549,21 @@ bool IsElevatedWithUACOn() {
 std::string GetUACState() {
   std::string s;
 
-  base::StringAppendF(&s, "IsUserAdmin: %d, ", ::IsUserAnAdmin());
+  absl::StrAppendFormat(&s, "IsUserAdmin: %d, ", ::IsUserAnAdmin());
 
   std::optional<base::win::AccessToken> token =
       base::win::AccessToken::FromCurrentProcess();
   if (token) {
     bool is_non_elevated_admin = token->IsSplitToken() && !token->IsElevated();
-    base::StringAppendF(&s, "IsUserNonElevatedAdmin: %d, ",
-                        is_non_elevated_admin);
+    absl::StrAppendFormat(&s, "IsUserNonElevatedAdmin: %d, ",
+                          is_non_elevated_admin);
   }
 
-  base::StringAppendF(&s, "IsUACOn: %d, IsElevatedWithUACOn: %d, ", IsUACOn(),
-                      IsElevatedWithUACOn());
+  absl::StrAppendFormat(&s, "IsUACOn: %d, IsElevatedWithUACOn: %d, ", IsUACOn(),
+                        IsElevatedWithUACOn());
 
-  base::StringAppendF(&s, "LUA: %d", base::win::UserAccountControlIsEnabled());
+  absl::StrAppendFormat(&s, "LUA: %d",
+                        base::win::UserAccountControlIsEnabled());
   return s;
 }
 
@@ -560,10 +571,10 @@ std::string MemoryStatus() {
   MEMORYSTATUSEX memory_status = {};
   memory_status.dwLength = sizeof(memory_status);
   return ::GlobalMemoryStatusEx(&memory_status)
-             ? base::StringPrintf("available: %dM, total: %dM, phys: %dG",
-                                  memory_status.ullAvailPageFile / (1 << 20),
-                                  memory_status.ullTotalPageFile / (1 << 20),
-                                  1 + memory_status.ullTotalPhys / (1 << 30))
+             ? absl::StrFormat("available: %dM, total: %dM, phys: %dG",
+                               memory_status.ullAvailPageFile / (1 << 20),
+                               memory_status.ullTotalPageFile / (1 << 20),
+                               1 + memory_status.ullTotalPhys / (1 << 30))
              : std::string("n/a");
 }
 
@@ -573,7 +584,7 @@ void EnsureEnoughMemory() {
   MEMORYSTATUSEX memory_status = {};
   memory_status.dwLength = sizeof(memory_status);
   if (!::GlobalMemoryStatusEx(&memory_status)) {
-    VLOG(1) << "Can't memory stat: " << std::hex << ::GetLastError();
+    VPLOG(1) << "Can't memory stat";
     return;
   }
   constexpr SIZE_T kMinMemoryNeeded = 10'000'000;  // 10MB.
@@ -606,8 +617,7 @@ void EnsureEnoughMemory() {
       alloc) {
     ::VirtualFree(alloc, 0, MEM_RELEASE);
   } else {
-    VLOG(1) << "Allocation failed: " << kMinMemoryNeeded / 1024 << "K, "
-            << std::hex << ::GetLastError();
+    VPLOG(1) << "Allocation failed: " << kMinMemoryNeeded / 1024 << "K";
   }
 
   VLOG(1) << MemoryStatus();
@@ -670,7 +680,7 @@ HResultOr<DWORD> ShellExecuteAndWait(const base::FilePath& file_path,
 
   if (!::ShellExecuteEx(&shell_execute_info)) {
     const HRESULT hr = HRESULTFromLastError();
-    VLOG(1) << __func__ << ": ::ShellExecuteEx failed: " << std::hex << hr;
+    VPLOG(1) << __func__ << ": ::ShellExecuteEx failed";
     return base::unexpected(hr);
   }
 
@@ -685,8 +695,7 @@ HResultOr<DWORD> ShellExecuteAndWait(const base::FilePath& file_path,
 
   // Allow the spawned process to show windows in the foreground.
   if (!::AllowSetForegroundWindow(pid)) {
-    VLOG(1) << __func__
-            << ": ::AllowSetForegroundWindow failed: " << ::GetLastError();
+    VPLOG(1) << __func__ << ": ::AllowSetForegroundWindow failed";
   }
 
   int ret_val = 0;
@@ -805,23 +814,21 @@ std::wstring BuildExeCommandLine(
 bool IsServiceRunning(const std::wstring& service_name) {
   ScopedScHandle scm(::OpenSCManager(nullptr, nullptr, SC_MANAGER_CONNECT));
   if (!scm.is_valid()) {
-    LOG(ERROR) << "::OpenSCManager failed. service_name: " << service_name
-               << ", error: " << std::hex << HRESULTFromLastError();
+    PLOG(ERROR) << "::OpenSCManager failed. service_name: " << service_name;
     return false;
   }
 
   ScopedScHandle service(
       ::OpenService(scm.get(), service_name.c_str(), SERVICE_QUERY_STATUS));
   if (!service.is_valid()) {
-    LOG(ERROR) << "::OpenService failed. service_name: " << service_name
-               << ", error: " << std::hex << HRESULTFromLastError();
+    PLOG(ERROR) << "::OpenService failed. service_name: " << service_name;
     return false;
   }
 
   SERVICE_STATUS status = {0};
   if (!::QueryServiceStatus(service.get(), &status)) {
-    LOG(ERROR) << "::QueryServiceStatus failed. service_name: " << service_name
-               << ", error: " << std::hex << HRESULTFromLastError();
+    PLOG(ERROR) << "::QueryServiceStatus failed. service_name: "
+                << service_name;
     return false;
   }
 
@@ -876,9 +883,7 @@ bool EnableSecureDllLoading() {
 bool EnableProcessHeapMetadataProtection() {
   if (!::HeapSetInformation(NULL, HeapEnableTerminationOnCorruption, nullptr,
                             0)) {
-    LOG(ERROR) << __func__
-               << ": Failed to enable heap metadata protection: " << std::hex
-               << HRESULTFromLastError();
+    PLOG(ERROR) << __func__ << ": Failed to enable heap metadata protection";
     return false;
   }
 
@@ -921,8 +926,7 @@ base::ScopedClosureRunner SignalShutdownEvent(UpdaterScope scope) {
   base::win::ScopedHandle shutdown_event_handle(
       ::CreateEvent(&attr.sa, true, false, attr.name.c_str()));
   if (!shutdown_event_handle.is_valid()) {
-    VLOG(1) << __func__ << "Could not create the shutdown event: " << std::hex
-            << HRESULTFromLastError();
+    VPLOG(1) << __func__ << "Could not create the shutdown event";
     return {};
   }
 
@@ -1065,7 +1069,7 @@ void ForEachRegistryRunValueWithPrefix(
                                            KEY_WOW64_32KEY);
        it.Valid(); ++it) {
     const std::wstring run_name = it.Name();
-    if (base::StartsWith(run_name, prefix)) {
+    if (run_name.starts_with(prefix)) {
       callback(run_name);
     }
   }
@@ -1093,7 +1097,7 @@ void ForEachServiceWithPrefix(
                                          KEY_WOW64_32KEY);
        it.Valid(); ++it) {
     const std::wstring service_name = it.Name();
-    if (base::StartsWith(service_name, service_name_prefix)) {
+    if (service_name.starts_with(service_name_prefix)) {
       if (display_name_prefix.empty()) {
         callback(service_name);
         continue;
@@ -1114,7 +1118,7 @@ void ForEachServiceWithPrefix(
       }
 
       const bool display_name_starts_with_prefix =
-          base::StartsWith(display_name, display_name_prefix);
+          display_name.starts_with(display_name_prefix);
       VLOG(1) << __func__ << ": " << service_name
               << " matches: " << service_name_prefix << ": " << display_name
               << ": " << display_name_starts_with_prefix << ": "
@@ -1235,7 +1239,7 @@ std::wstring GetTextForSystemError(int error) {
   base::win::ScopedLocalAllocTyped<wchar_t> free_buffer(
       system_allocated_buffer);
   return chars_written > 0 ? system_allocated_buffer
-                           : base::UTF8ToWide(base::StringPrintf("%#x", error));
+                           : base::UTF8ToWide(absl::StrFormat("%#x", error));
 }
 
 bool MigrateLegacyUpdaters(
@@ -1340,7 +1344,6 @@ bool MigrateLegacyUpdaters(
 
   return true;
 }
-
 
 struct ScopedWtsConnectStateCloseTraits {
   static WTS_CONNECTSTATE_CLASS* InvalidValue() { return nullptr; }

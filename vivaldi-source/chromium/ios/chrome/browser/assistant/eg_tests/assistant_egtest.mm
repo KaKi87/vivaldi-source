@@ -3,11 +3,13 @@
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/assistant/ui/assistant_container_constants.h"
+#import "ios/chrome/browser/composebox/shared/ui/composebox_ui_constants.h"
 #import "ios/chrome/browser/scene/ui/scene_ui_constants.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
+#import "ios/chrome/test/earl_grey/chrome_multitasking_test_util.h"
 #import "ios/chrome/test/earl_grey/chrome_test_case.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
 #import "ios/third_party/earl_grey2/src/CommonLib/Matcher/GREYLayoutConstraint.h"  // nogncheck
@@ -47,6 +49,8 @@ void OpenAssistantFromOmnibox() {
           IDS_IOS_APP_BAR_ASK_GEMINI);
   [[EarlGrey selectElementWithMatcher:askGeminiMatcher]
       performAction:grey_tap()];
+  [ChromeEarlGrey waitForUIElementToDisappearWithMatcher:
+                      grey_kindOfClassName(@"_UIContextMenuContainerView")];
 }
 
 }  // namespace
@@ -60,10 +64,7 @@ void OpenAssistantFromOmnibox() {
 - (AppLaunchConfiguration)appConfigurationForTestCase {
   AppLaunchConfiguration config = [super appConfigurationForTestCase];
 
-  // When `kAssistantContainerParamDebug` is set, the assistant container should
-  // always be shown. If this test suite fails in the future, avoid adding new
-  // flags or workarounds to make it pass; instead, ensure the debug behavior is
-  // correctly preserved.
+  config.features_enabled.push_back(kAimCobrowse);
   config.features_enabled_and_params.push_back(
       {kAssistantContainer,
        {{kAssistantContainerParam, kAssistantContainerParamDebug}}});
@@ -89,6 +90,48 @@ void OpenAssistantFromOmnibox() {
           grey_accessibilityID(kAssistantContainerAccessibilityIdentifier)];
 }
 
+// Tests that dragging the assistant sheet down dismisses the keyboard.
+- (void)testDismissKeyboardOnSheetDrag {
+  [ChromeEarlGrey loadURL:self.testServer->GetURL("/")];
+
+  OpenAssistantFromOmnibox();
+
+  // Verify assistant container is shown.
+  [ChromeEarlGrey
+      waitForUIElementToAppearWithMatcher:
+          grey_accessibilityID(kAssistantContainerAccessibilityIdentifier)];
+
+  // Tap the composebox to bring up the keyboard (or focus if hardware keyboard
+  // is attached).
+  [[EarlGrey selectElementWithMatcher:grey_accessibilityID(
+                                          kComposeboxAccessibilityIdentifier)]
+      performAction:grey_tap()];
+
+  id<GREYMatcher> firstResponderInComposebox = grey_allOf(
+      grey_firstResponder(),
+      grey_ancestor(grey_accessibilityID(kComposeboxAccessibilityIdentifier)),
+      nil);
+
+  // Wait for the composebox to become the first responder.
+  // This verifies the field is active, regardless of hardware keyboard state.
+  [ChromeEarlGrey
+      waitForUIElementToAppearWithMatcher:firstResponderInComposebox];
+
+  // Drag the sheet down to dismiss the keyboard.
+  [[EarlGrey
+      selectElementWithMatcher:grey_accessibilityID(
+                                   kAssistantContainerAccessibilityIdentifier)]
+      performAction:grey_swipeFastInDirection(kGREYDirectionDown)];
+
+  // Verify the composebox is no longer the first responder (meaning the
+  // keyboard is dismissed).
+  // We assert grey_nil() because the matcher `firstResponderInComposebox`
+  // inherently checks for `grey_firstResponder()`. Once the keyboard is
+  // dismissed, no element will match it anymore.
+  [[EarlGrey selectElementWithMatcher:firstResponderInComposebox]
+      assertWithMatcher:grey_nil()];
+}
+
 @end
 
 // Test suite for the Assistant side panel.
@@ -101,7 +144,12 @@ void OpenAssistantFromOmnibox() {
 
 - (AppLaunchConfiguration)appConfigurationForTestCase {
   AppLaunchConfiguration config = [super appConfigurationForTestCase];
-  config.features_enabled_and_params.push_back({kAssistantSidePanel, {}});
+  config.features_enabled.push_back(kAssistantSidePanel);
+  config.features_enabled.push_back(kChromeNextIa);
+  config.features_enabled.push_back(kFullscreenRefactoring);
+  if (![self isRunningTest:@selector(testOmniboxVisibleInSidePanel)]) {
+    config.features_enabled.push_back(kComposeboxIpad);
+  }
 
   return config;
 }
@@ -149,6 +197,71 @@ void OpenAssistantFromOmnibox() {
   // Verify that the omnibox is still visible.
   [[EarlGrey selectElementWithMatcher:chrome_test_util::DefocusedLocationView()]
       assertWithMatcher:grey_sufficientlyVisible()];
+}
+
+// Tests transitioning between a side panel and a sheet layout during window
+// resizing transitions on iPad multitasking (windowed mode).
+- (void)testMultitaskingTransitionBetweenSheetAndSidePanel {
+  if (![ChromeEarlGrey isIPadIdiom]) {
+    EARL_GREY_TEST_DISABLED(@"Test only supported on iPad.");
+  }
+  if (!@available(iOS 26.0, *)) {
+    EARL_GREY_TEST_DISABLED(@"Test only supported on iOS 26+.");
+  }
+
+  [ChromeEarlGrey loadURL:self.testServer->GetURL("/")];
+
+  OpenAssistantFromOmnibox();
+
+  [ChromeEarlGrey
+      waitForUIElementToAppearWithMatcher:
+          grey_accessibilityID(kAssistantContainerAccessibilityIdentifier)];
+
+  [[EarlGrey selectElementWithMatcher:grey_accessibilityID(
+                                          kAppContentAccessibilityIdentifier)]
+      assertWithMatcher:grey_layout(
+                            @[ RightOf() ],
+                            grey_accessibilityID(
+                                kAssistantContainerAccessibilityIdentifier))];
+
+  // Transition to Windowed Mode (Stage Manager).
+  [ChromeMultitaskingTestUtil moveToWindowedMode];
+
+  // Resize window to compact width to trigger the sheet layout.
+  [ChromeMultitaskingTestUtil resizeWindowToCompact];
+
+  [[EarlGrey
+      selectElementWithMatcher:grey_accessibilityID(
+                                   kAssistantContainerAccessibilityIdentifier)]
+      assertWithMatcher:grey_sufficientlyVisible()];
+
+  // Verify that the app content and assistant container overlap.
+  [[EarlGrey selectElementWithMatcher:grey_accessibilityID(
+                                          kAppContentAccessibilityIdentifier)]
+      assertWithMatcher:grey_not(grey_layout(
+                            @[ RightOf() ],
+                            grey_accessibilityID(
+                                kAssistantContainerAccessibilityIdentifier)))];
+
+  // Resize window back to regular width to restore the side panel layout.
+  [ChromeMultitaskingTestUtil resizeWindowToRegular];
+
+  [[EarlGrey selectElementWithMatcher:grey_accessibilityID(
+                                          kAppContentAccessibilityIdentifier)]
+      assertWithMatcher:grey_layout(
+                            @[ RightOf() ],
+                            grey_accessibilityID(
+                                kAssistantContainerAccessibilityIdentifier))];
+
+  // Restore fullscreen mode.
+  [ChromeMultitaskingTestUtil moveToFullscreenMode];
+
+  [[EarlGrey selectElementWithMatcher:grey_accessibilityID(
+                                          kAppContentAccessibilityIdentifier)]
+      assertWithMatcher:grey_layout(
+                            @[ RightOf() ],
+                            grey_accessibilityID(
+                                kAssistantContainerAccessibilityIdentifier))];
 }
 
 @end

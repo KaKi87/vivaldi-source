@@ -97,14 +97,20 @@
 #include "chrome/browser/devtools/devtools_contents_resizing_strategy.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
+#include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
+#include "chrome/browser/renderer_host/chrome_navigation_ui_data.h"
+#include "chrome/browser/tab_contents/tab_util.h"
+#include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tab_dialogs.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_utils.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/ext_data/tab_ext_data.h"
 #include "components/prefs/pref_service.h"
+#include "components/user_agent/vivaldi_user_agent.h"
 #include "components/web_modal/web_contents_modal_dialog_manager.h"
 #include "content/browser/browser_plugin/browser_plugin_guest.h"
 #include "content/browser/renderer_host/navigation_controller_impl.h"
@@ -113,31 +119,22 @@
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "content/browser/web_contents/web_contents_view.h"
 #include "extensions/api/extension_action_utils/extension_action_utils_api.h"
-#include "extensions/api/guest_view/vivaldi_web_view_constants.h"
+#include "extensions/api/web_view_private/vivaldi_web_view_constants.h"
 #include "extensions/browser/guest_view/mime_handler_view/mime_handler_view_guest.h"
 #include "extensions/common/manifest_handlers/incognito_info.h"
+#include "extensions/vivaldi_browser_component_wrapper.h"
 #include "prefs/vivaldi_pref_names.h"
 #include "services/network/public/cpp/is_potentially_trustworthy.h"
+#include "third_party/blink/public/mojom/mediastream/media_stream.mojom.h"
 #include "ui/content/vivaldi_tab_check.h"
 #include "ui/devtools/devtools_connector.h"
 #include "vivaldi/prefs/vivaldi_gen_prefs.h"
-#include "chrome/browser/renderer_host/chrome_navigation_ui_data.h"
-#include "chrome/browser/tab_contents/tab_util.h"
-#include "chrome/browser/ui/browser_tabstrip.h"
-#include "chrome/browser/ui/navigator/browser_navigator.h"
-#include "chrome/browser/ui/navigator/browser_navigator_params.h"
-
-#include "components/user_agent/vivaldi_user_agent.h"
-#include "extensions/vivaldi_browser_component_wrapper.h"
-#ifdef VIVALDI_BUILD
-#include "third_party/blink/public/mojom/mediastream/media_stream.mojom.h"
-#include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
-#endif  // VIVALDI_BUILD
 
 using vivaldi::IsVivaldiApp;
 using vivaldi::IsVivaldiRunning;
 
 using base::UserMetricsAction;
+using content::GlobalRenderFrameHostId;
 using content::GlobalRequestID;
 using content::RenderFrameHost;
 using content::RenderProcessHost;
@@ -483,7 +480,7 @@ void WebViewGuest::CreateInnerPage(
 
   // Break the path completely for Vivaldi. We break from the start if something
   // changes here. Go look in
-  // ./extensions/api/guest_view/vivaldi_web_view_guest.cpp
+  // ./extensions/api/web_view_private/vivaldi_web_view_guest.cpp
   if (IsVivaldiRunning()) {
     if (VivaldiCreateWebContents(std::move(owned_this), create_params,
                                  std::move(callback))) {
@@ -1498,16 +1495,6 @@ void WebViewGuest::DidStartNavigation(
            IsObservedNavigationWithinGuestMainFrame(navigation_handle));
   DispatchEventToView(std::make_unique<GuestViewEvent>(webview::kEventLoadStart,
                                                        std::move(args)));
-  // Make sure we do not interfere with SetUserAgentOverride.
-  if (!is_overriding_user_agent_) {
-    // This is needed for renderer side to pick up overridden values. For
-    // navigator.userAgentData.getHighEntropyValues.
-    // DidCommitProvisionalLoadParams: is_overriding_user_agent
-    bool will_override = vivaldi_user_agent::SpoofStableChromiumVersion(
-        navigation_handle->GetURL());
-    navigation_handle->SetIsOverridingUserAgent(will_override);
-  }
-
 }
 
 void WebViewGuest::DidRedirectNavigation(
@@ -1874,7 +1861,11 @@ std::optional<content::PermissionResult> WebViewGuest::OverridePermissionResult(
     // is.
     const blink::PermissionType permission_type =
         permissions::PermissionUtil::ContentSettingsTypeToPermissionType(type);
-    if (permission_type == blink::PermissionType::GEOLOCATION) {
+    if (permission_type == blink::PermissionType::GEOLOCATION ||
+        permission_type == blink::PermissionType::AUDIO_CAPTURE ||
+        permission_type == blink::PermissionType::VIDEO_CAPTURE ||
+        permission_type == blink::PermissionType::CLIPBOARD_READ_WRITE ||
+        permission_type == blink::PermissionType::CLIPBOARD_SANITIZED_WRITE) {
       return content::PermissionResult(
           content::PermissionStatus::ASK,
           content::PermissionStatusSource::UNSPECIFIED);
@@ -2308,20 +2299,17 @@ WebContents* WebViewGuest::OpenURLFromTab(
   // We make an exception here for context menu items, since the Language
   // Settings item uses a browser-initiated navigation to a chrome:// URL.
   // These can be passed to the embedder's WebContentsDelegate so that the
-  // browser performs the action for the <webview>. Navigations to a new
-  // tab, etc., are also handled by the WebContentsDelegate.
   if (params.url.scheme() == "devtools" || !IsVivaldiRunning()) {
   if (!params.is_renderer_initiated &&
-      (!content::ChildProcessSecurityPolicy::GetInstance()->IsWebSafeScheme(
-           params.url.GetScheme()) ||
-       params.disposition != WindowOpenDisposition::CURRENT_TAB)) {
+      !content::ChildProcessSecurityPolicy::GetInstance()->IsWebSafeScheme(
+          params.url.GetScheme())) {
     if (!owner_web_contents()->GetDelegate()) {
       return nullptr;
     }
     return owner_web_contents()->GetDelegate()->OpenURLFromTab(
         owner_web_contents(), params, std::move(navigation_handle_callback));
   }
-  }
+  } // End Vivaldi
 
   if (!attached()) {
     WebViewGuest* opener = GetOpener();
@@ -2370,7 +2358,9 @@ WebContents* WebViewGuest::OpenURLFromTab(
   }
 
   // This code path is taken if Ctrl+Click, middle click or any of the
-  // keyboard/mouse combinations are used to open a link in a new tab/window.
+  // keyboard/mouse combinations are used to open a link in a new tab/window,
+  // or for browser-initiated navigations to a new tab/window (e.g. context
+  // menu "Open link in new tab").
   // This code path is also taken on client-side redirects from about:blank.
   // TODO(https://crbug.com/40275094): Consider plumbing
   // `navigation_handle_callback`.
@@ -2379,8 +2369,7 @@ WebContents* WebViewGuest::OpenURLFromTab(
 }
 
 void WebViewGuest::WebContentsCreated(WebContents* source_contents,
-                                      int opener_render_process_id,
-                                      int opener_render_frame_id,
+                                      const GlobalRenderFrameHostId& opener_id,
                                       const std::string& frame_name,
                                       const GURL& target_url,
                                       WebContents* new_contents) {

@@ -49,7 +49,9 @@ STATIC_PREF_MAP: dict = {
   # components/search_engines/enterprise/
   "SiteSearchSettings": "site_search_settings.policy_site_search_settings",
   "EnterpriseSearchAggregatorSettings": "enterprise_search_aggregator.policy_settings",
-  # Put Vivaldi policy -> pref mapping here:
+  # Put Vivaldi policy -> pref mapping here, but ONLY when the pref is defined in
+  # C++. The JS pref (from prefs_definitions.json) already have
+  # generated bindings for JS - in that case put it in KNOWN_NO_PREF_POLICIES.
 }
 
 # Policies known to have no pref mapping.
@@ -105,6 +107,7 @@ KNOWN_NO_PREF_POLICIES: frozenset = frozenset(
     "ReportPolicyData",
     "ReportUserIDData",
     "ReportVersionData",
+    "IsolateOriginsShortlist",
     # This policy affects multiple separate prefs
     # TODO: We need a way to expose multiple prefs for one policy
     "SyncTypesListDisabled",
@@ -114,6 +117,10 @@ KNOWN_NO_PREF_POLICIES: frozenset = frozenset(
     # This is already mapped by Vivaldi as kMemorySaverEnabled
     # (also type mismatch, bool/int - legacy issue).
     "HighEfficiencyModeEnabled",
+    # Put Vivaldi policy -> pref mapping here,
+    # when the pref is defined in prefs_definitions.json.
+    "VivaldiVPNEnabled",
+    "VivaldiDirectMatchEnabled",
   }
 )
 

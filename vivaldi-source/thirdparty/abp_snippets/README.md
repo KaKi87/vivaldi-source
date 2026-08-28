@@ -119,53 +119,25 @@ Other files in the *dist* folder offer, like it is for the *webext* one, full so
 
 We try to follow official guidance from [GitLab](https://docs.gitlab.com/ee/user/project/releases/) through the following steps:
 
-  * be sure the internal source code and repository points at the release code we'd like to ship as module
-  * create a new branch named after the [semver](https://semver.org/) release version, i.e. `git checkout -b vX.X.X`
-  * perform `npm run build.assets ~/gitlab/abp-snippets/source` to import source code files into this repository
-  * when introducing a new snippet, register it manually by adding it in `bundle/main.js` (if it needs to be injected to main context) or `bundle/isolated.js` (if it needs to be injected into the isolated context)
-  * perform `npm run build` to create all artifacts after a cleanup
-  * add all updates that are planned to land as release `vX.X.X`, using **@eyeo/snippets vX.X.X** as commit message
-  * ignore `dist`, `webext`, and the `source` folder while reviewing changes, as these will always be differnt in a way or another
-  * push the changes via `git push --set-upstream origin vX.X.X` and then create a descriptive release MR following this template:
-
-```md
-## Background / User story
-
-A brief description of why we are releasing.
-
-## Dependency changes
-
-  * **Name**: @eyeo/snippets
-  * **Version**: vX.X.X
-  * **Breaking changes**: none, or a meaningful and detailed description about any breaking change
-  * **Other changes**:
-    * a description
-    * of all the *patches* landing
-    * within this release
-
-## New features
-
-A description of any new snippet or feature that is not a patch and it improves the library or filtes ability.
-In case of multiple new features, consider splitting these via `### Heading 3` for easy exact links references.
-
-## Deprecations
-
-A list of all deprecations landing with this version.
-
-## Integration notes
-
-A description of any particular change or extra work any module consumer should be aware of.
-
-```
-
-  * once reviewed and approved, create create the tag and bump the version via `npm version [mayor|minor|patch] -m "@eyeo/snippets v%s"`
-  * push branch via `git push vX.X.X`
-  * push tags via `git push --tags`
-  * merge this branch into main squashing commits **without deleting the branch**
-  * [create a new release](https://gitlab.com/eyeo/snippets/-/releases/new) following these steps:
-    * specify the [semver](https://semver.org/) tag version for the release, i.e. `vX.X.X`
-    * create the release from `main` branch
-    * use **@eyeo/snippets vX.X.X** as release title
-    * optionally pick a *milestone* if needed
-    * use the very same release notes/description previously approved and reviewed by your peers
-  * once everything looks good, checkout `main`, pull and run `npm publish` being sure you have access rights and a *2FA* protected account
+  1. be sure the internal source code and repository points at the release code we'd like to ship as module
+  2. from `main`, run the release preparation script:
+     ```
+     ./prepare-release.sh [major|minor|patch] [path-to-abp-snippets/source]
+     ```
+     The script automates the following steps (and pauses at step 5 for manual intervention):
+     - creates branch `vX.X.X`
+     - bumps the version in `package.json` without creating a tag
+     - imports source code files from the provided `abp-snippets/source` path (optional; can be run manually afterwards with `npm run build.assets <path>`)
+     - **pauses** so you can make any manual changes if needed, such as:
+       * registering new snippets in `bundle/main.js` (main context) or `bundle/isolated.js` (isolated context)
+       * updating files outside of `source`
+     - runs `npm run build` to create the artifacts
+     - commits everything with message **@eyeo/snippets vX.X.X**
+     - pushes the branch with `git push --set-upstream origin vX.X.X`
+  3. when reviewing the MR, ignore `dist`, `webext`, and `source` — these will always differ
+  4. in GitLab create a descriptive release MR using the release template
+  5. once reviewed and approved, merge the release branch into main squashing commits **without deleting the branch**
+  6. after merge, trigger manually the release job in the pipeline: it will take care of publishing the tags and create the gitLab release
+  7. if the publishing command fails in the CI: checkout `main`, pull and if you are sure you have access rights and a *2FA* protected account run:
+      * `npm login`
+      * `npm publish`

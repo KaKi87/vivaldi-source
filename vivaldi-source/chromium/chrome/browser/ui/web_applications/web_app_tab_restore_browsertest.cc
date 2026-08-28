@@ -7,6 +7,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_init_state.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -41,7 +42,7 @@ IN_PROC_BROWSER_TEST_F(WebAppTabRestoreBrowserTest,
   NavigateViaLinkClickToURLAndWait(app_browser, test_web_app_start_url());
 
   const gfx::Rect bounds = gfx::Rect(50, 50, 550, 500);
-  app_browser->window()->SetBounds(bounds);
+  app_browser->GetWindow()->SetBounds(bounds);
   CloseAndWait(app_browser);
 
   content::WebContentsAddedObserver new_contents_observer;
@@ -61,7 +62,7 @@ IN_PROC_BROWSER_TEST_F(WebAppTabRestoreBrowserTest,
   BrowserWindowInterface* const restored_browser =
       GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
           restored_web_contents);
-  EXPECT_EQ(restored_browser->GetBrowserForMigrationOnly()->override_bounds(),
+  EXPECT_EQ(BrowserInitState::From(restored_browser)->override_bounds(),
             bounds);
 }
 

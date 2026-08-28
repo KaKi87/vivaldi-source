@@ -48,11 +48,12 @@ import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.omnibox.OmniboxChipManager;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tabmodel.TabClosingSource;
+import org.chromium.chrome.browser.tabmodel.TabClosureParams;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorSupplier;
 import org.chromium.components.external_intents.ExternalNavigationHelper;
 import org.chromium.content_public.browser.NavigationHandle;
-import org.chromium.content_public.browser.Page;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsObserver;
 import org.chromium.url.GURL;
@@ -108,22 +109,7 @@ public class TabbedOpenInAppEntryPointUnitTest {
         mResolveInfo.activityInfo = mActivityInfo;
 
         mNavigationHandle = NavigationHandle.createForTesting(mUrl, false, 0, true);
-        mNavigationHandle.didFinish(
-                mUrl,
-                /* isErrorPage= */ false,
-                /* hasCommitted= */ true,
-                /* isPrimaryMainFrameFragmentNavigation= */ false,
-                /* isDownload= */ false,
-                /* isValidSearchFormUrl= */ false,
-                /* transition= */ 0,
-                /* errorCode= */ 0,
-                /* errorDescription= */ "",
-                /* httpStatuscode= */ 200,
-                /* isExternalProtocol= */ false,
-                /* isPdf= */ false,
-                /* mimeType= */ "",
-                Page.createForTesting(),
-                /* isSameOrigin= */ true);
+        mNavigationHandle.callDidFinishForTesting(mUrl);
 
         mEntryPoint = new TabbedOpenInAppEntryPoint(mTabSupplier, mOmniboxChipManager, mContext);
         mTabSupplier.set(mTab);
@@ -176,7 +162,10 @@ public class TabbedOpenInAppEntryPointUnitTest {
 
         verify(mExternalNavigationHelper).launchExternalApp(eq(mIntent), eq(mContext));
         ShadowLooper.idleMainLooper();
-        verify(mTabModelSelector).tryCloseTab(any(), eq(false));
+        ArgumentCaptor<TabClosureParams> closureParamsCaptor =
+                ArgumentCaptor.forClass(TabClosureParams.class);
+        verify(mTabModelSelector).tryCloseTab(closureParamsCaptor.capture(), eq(false));
+        assertEquals(TabClosingSource.OPEN_IN_APP, closureParamsCaptor.getValue().tabClosingSource);
 
         when(mOmniboxChipManager.isChipPlaced()).thenReturn(true);
 
@@ -239,6 +228,9 @@ public class TabbedOpenInAppEntryPointUnitTest {
         // Simulate user confirmation in the dialog.
         confirmationCaptor.getValue().run();
         ShadowLooper.idleMainLooper();
-        verify(mTabModelSelector).tryCloseTab(any(), eq(false));
+        ArgumentCaptor<TabClosureParams> closureParamsCaptor =
+                ArgumentCaptor.forClass(TabClosureParams.class);
+        verify(mTabModelSelector).tryCloseTab(closureParamsCaptor.capture(), eq(false));
+        assertEquals(TabClosingSource.OPEN_IN_APP, closureParamsCaptor.getValue().tabClosingSource);
     }
 }

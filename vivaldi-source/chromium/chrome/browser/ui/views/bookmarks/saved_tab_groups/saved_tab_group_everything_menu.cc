@@ -11,14 +11,11 @@
 #include "base/uuid.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/app/vector_icons/vector_icons.h"
-#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
 #include "chrome/browser/ui/browser_command_controller.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
-#include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_metrics.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
-#include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_group_theme.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/bookmarks/saved_tab_groups/saved_tab_group_tabs_menu_model.h"
@@ -27,7 +24,6 @@
 #include "chrome/browser/ui/views/toolbar/app_menu.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/saved_tab_groups/public/tab_group_sync_service.h"
-#include "components/saved_tab_groups/public/types.h"
 #include "ui/base/mojom/menu_source_type.mojom.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/gfx/favicon_size.h"
@@ -112,7 +108,7 @@ STGEverythingMenu::STGEverythingMenu(views::MenuButtonController* controller,
     : menu_button_controller_(controller),
       browser_(browser),
       widget_(views::Widget::GetWidgetForNativeWindow(
-          browser->window()->GetNativeWindow())),
+          browser->GetWindow()->GetNativeWindow())),
       menu_context_(menu_context) {}
 
 int STGEverythingMenu::GenerateTabGroupCommandID(int idx_in_sorted_tab_groups) {
@@ -162,7 +158,8 @@ std::unique_ptr<ui::SimpleMenuModel> STGEverythingMenu::CreateMenuModel(
       TabGroupMenuUtils::GetGroupsForDisplaySortedByCreationTime(
           tab_group_service);
 
-  const auto* const color_provider = browser_->window()->GetColorProvider();
+  const auto* const color_provider =
+      BrowserWindow::FromBrowser(browser_)->GetColorProvider();
   for (size_t i = 0; i < sorted_non_empty_tab_groups_.size(); ++i) {
     const std::optional<SavedTabGroup> tab_group =
         tab_group_service->GetGroup(sorted_non_empty_tab_groups_[i]);
@@ -262,7 +259,7 @@ void STGEverythingMenu::PopulateMenu(views::MenuItemView* parent) {
   if (!groups_model_) {
     TabGroupSyncService* tab_group_service =
         tab_groups::TabGroupSyncServiceFactory::GetForProfile(
-            browser_->profile());
+            browser_->GetProfile());
 
     // Only recreate the model if we have to.
     groups_model_ = CreateMenuModel(tab_group_service);
@@ -373,7 +370,7 @@ void STGEverythingMenu::ExecuteCommand(int command_id, int event_flags) {
             : TabGroupMenuContext::SAVED_TAB_GROUP_EVERYTHING_MENU,
         browser_,
         tab_groups::TabGroupSyncServiceFactory::GetForProfile(
-            browser_->profile()));
+            browser_->GetProfile()));
   }
 }
 

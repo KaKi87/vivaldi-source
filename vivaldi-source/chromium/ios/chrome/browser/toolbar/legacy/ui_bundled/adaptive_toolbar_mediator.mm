@@ -15,6 +15,7 @@
 #import "ios/chrome/browser/collaboration/model/messaging/messaging_backend_service_bridge.h"
 #import "ios/chrome/browser/lens/ui_bundled/lens_availability.h"
 #import "ios/chrome/browser/menu/ui_bundled/browser_action_factory.h"
+#import "ios/chrome/browser/ntp/model/new_tab_page_tab_helper.h"
 #import "ios/chrome/browser/ntp/model/new_tab_page_util.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_presenter.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_presenter_observer_bridge.h"
@@ -508,6 +509,14 @@ std::optional<tab_groups::LocalTabGroupID> LocalTabGroupID(
 
   BOOL isNTP = IsVisibleURLNewTabPage(self.webState);
   [self.consumer setIsNTP:isNTP];
+
+  BOOL isStartSurface = NO;
+  if (isNTP) {
+    NewTabPageTabHelper* NTPHelper =
+        NewTabPageTabHelper::FromWebState(self.webState);
+    isStartSurface = NTPHelper && NTPHelper->ShouldShowStartSurface();
+  }
+  [self.consumer setIsStartSurface:isStartSurface];
   // Never show the loading UI for an NTP.
   BOOL isLoading = self.webState->IsLoading() && !isNTP;
   [self.consumer setLoadingState:isLoading];
@@ -606,7 +615,7 @@ std::optional<tab_groups::LocalTabGroupID> LocalTabGroupID(
       } else {
       title = l10n_util::GetNSStringWithFixup(IDS_IOS_NEW_INCOGNITO_TAB);
       image = SymbolWithPalette(
-          CustomSymbolWithPointSize(kIncognitoSymbol, kInfobarSymbolPointSize),
+          SymbolWithPointSize(SymbolIncognito, kInfobarSymbolPointSize),
           @[ UIColor.whiteColor ]);
       } // End Vivaldi
     } else {
@@ -619,7 +628,7 @@ std::optional<tab_groups::LocalTabGroupID> LocalTabGroupID(
         if (IsVivaldiRunning()) {
           image = [UIImage imageNamed:@"vivaldi_ntp_fallback_favicon"];
         } else {
-        image = DefaultSymbolWithPointSize(kDocSymbol, kInfobarSymbolPointSize);
+        image = SymbolWithPointSize(SymbolDoc, kInfobarSymbolPointSize);
         } // End Vivaldi
 
       }
@@ -673,11 +682,6 @@ std::optional<tab_groups::LocalTabGroupID> LocalTabGroupID(
   if (experimental_flags::EnableAIPrototypingMenu()) {
     UIAction* openAIMenu = [self.actionFactory actionToOpenAIMenu];
     [staticActions addObject:openAIMenu];
-  }
-
-  if (IsAIMCobrowseDebugEntrypointEnabled()) {
-    UIAction* openAIMode = [self.actionFactory actionToOpenAIMode];
-    [staticActions addObject:openAIMode];
   }
 
   if (IsVivaldiRunning()) {

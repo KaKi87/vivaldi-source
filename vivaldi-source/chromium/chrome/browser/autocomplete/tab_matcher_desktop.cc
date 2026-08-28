@@ -15,7 +15,7 @@
 
 #include "extensions/buildflags/buildflags.h"
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-#include "extensions/api/guest_view/parent_tab_user_data.h"
+#include "extensions/api/web_view_private/parent_tab_user_data.h"
 #endif
 
 namespace {

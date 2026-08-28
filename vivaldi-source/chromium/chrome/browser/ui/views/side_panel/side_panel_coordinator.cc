@@ -176,7 +176,9 @@ void SidePanelCoordinator::Show(
     if (side_panel->state() == SidePanel::State::kClosing) {
       side_panel->Open(/*animated=*/!suppress_animations);
       side_panel_toolbar_pinning_controller_->UpdateActiveState(
-          entry->key(), entry->should_show_ephemerally_in_toolbar());
+          entry->key(),
+          side_panel_toolbar_pinning_controller_->ShouldShowActiveInToolbar(
+              entry));
       entry->OnEntryHideCancelled();
     }
     return;
@@ -216,6 +218,17 @@ void SidePanelCoordinator::Close(SidePanelEntryHideReason reason,
   if (!IsSidePanelShowing() ||
       (!suppress_animations && side_panel->IsClosing())) {
     return;
+  }
+
+  // If focus is currently inside the side panel (e.g. close button),
+  // shift focus back to the main web contents before closing.
+  views::FocusManager* focus_manager = side_panel->GetFocusManager();
+  if (focus_manager &&
+      side_panel->Contains(focus_manager->GetStoredFocusView())) {
+    tabs::TabInterface* active_tab = browser_->GetActiveTabInterface();
+    if (active_tab && active_tab->GetContents()) {
+      active_tab->GetContents()->Focus();
+    }
   }
 
   // If we are currently animating the side panel contents so it is parented to
@@ -317,7 +330,9 @@ void SidePanelCoordinator::PopulateSidePanel(
   if (toolbar_button_provider &&
       toolbar_button_provider->GetPinnedToolbarActions()) {
     side_panel_toolbar_pinning_controller_->UpdateActiveState(
-        entry->key(), entry->should_show_ephemerally_in_toolbar());
+        entry->key(),
+        side_panel_toolbar_pinning_controller_->ShouldShowActiveInToolbar(
+            entry));
     // Notify active state change only if the entry ids for the side panel are
     // different. This is to ensure extensions container isn't notified if we
     // switch between different extensions side panels or between global to

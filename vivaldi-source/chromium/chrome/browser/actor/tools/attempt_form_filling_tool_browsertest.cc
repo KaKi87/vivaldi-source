@@ -9,24 +9,29 @@
 
 #include "base/functional/bind.h"
 #include "base/test/gmock_callback_support.h"
+#include "base/test/gmock_move_support.h"
 #include "base/test/scoped_command_line.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
+#include "base/types/expected.h"
 #include "base/types/expected_macros.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/actor/actor_test_util.h"
 #include "chrome/browser/actor/execution_engine.h"
 #include "chrome/browser/actor/tools/attempt_form_filling_tool_metrics.h"
 #include "chrome/browser/actor/tools/attempt_form_filling_tool_request.h"
+#include "chrome/browser/actor/tools/click_tool_request.h"
 #include "chrome/browser/actor/tools/tool_request.h"
 #include "chrome/browser/actor/tools/tools_test_util.h"
-#include "chrome/browser/autofill/actor/mock_actor_form_filling_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/actor.mojom.h"
 #include "chrome/common/chrome_features.h"
 #include "components/actor/core/actor_features.h"
 #include "components/actor/core/actor_switches.h"
 #include "components/actor/public/mojom/actor_types.mojom.h"
+#include "components/autofill/content/browser/content_autofill_client.h"
+#include "components/autofill/core/browser/actor/mock_actor_form_filling_service.h"
+#include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/form_field_data.h"
 #include "components/optimization_guide/content/browser/page_content_proto_provider.h"
 #include "content/public/test/browser_test.h"
@@ -153,6 +158,10 @@ class MockExecutionEngine : public ExecutionEngine {
               GetActorFormFillingService,
               (),
               (override));
+  MOCK_METHOD(void,
+              EnqueueFollowupAction,
+              (std::unique_ptr<ToolRequest>),
+              (override));
 };
 
 class AttemptFormFillingToolTest : public ActorToolsTest {
@@ -236,6 +245,10 @@ class AttemptFormFillingToolTest : public ActorToolsTest {
     return static_cast<MockExecutionEngine&>(execution_engine());
   }
 
+  autofill::AutofillClient& autofill_client() {
+    return *autofill::ContentAutofillClient::FromWebContents(web_contents());
+  }
+
   webui::mojom::SelectAutofillSuggestionsDialogResponsePtr
   MakeAutofillSuggestionsErrorResponse() {
     auto response =
@@ -252,7 +265,7 @@ class AttemptFormFillingToolTest : public ActorToolsTest {
     ASSERT_TRUE(WaitForLoadStop(web_contents()));
     WaitForCopyableViewInWebContents(web_contents());
     ActorKeyedService* actor_keyed_service =
-        ActorKeyedService::Get(browser()->profile());
+        ActorKeyedService::Get(browser()->GetProfile());
     TestFuture<ActorKeyedService::TabObservationResult> tab_observation_future;
     actor_keyed_service->RequestTabObservation(
         *active_tab(), actor_task().id(), std::nullopt,
@@ -269,7 +282,7 @@ class AttemptFormFillingToolTest : public ActorToolsTest {
  private:
   autofill::MockActorFormFillingService mock_form_filling_service_;
   base::test::ScopedFeatureList scoped_feature_list_{
-      features::kGlicActorAutofill};
+      autofill::features::kGlicActorAutofill};
   ScopedExecutionEngineFactory mock_execution_engine_factory_{
       base::BindRepeating(AttemptFormFillingToolTest::CreateExecutionEngine)};
   base::WeakPtrFactory<AttemptFormFillingToolTest> weak_ptr_factory_{this};
@@ -301,14 +314,127 @@ IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolTest, GetSuggestionsAndFill) {
       FillSuggestions(
           _,
           ElementsAre(MakeActorFormFillingSelection(request.suggestions[0].id)),
-          _))
-      .WillOnce(RunOnceCallback<2>(base::ok()));
+          _, _))
+      .WillOnce(RunOnceCallback<3>(""));
 
   std::unique_ptr<ToolRequest> action = MakeAttemptFormFillingRequest(
       *active_tab(), {PageTarget(*address_home_line1)});
   ActResultFuture result;
   actor_task().Act(ToRequestList(action), result.GetCallback());
   ExpectOkResult(result);
+}
+
+// Test that trigger_field_map_ is populated from tool requests and passed to
+// FillSuggestions.
+IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolTest, PopulatesTriggerFieldMap) {
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/autofill/autofill_test_form.html");
+  ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
+  WaitForTabObservation();
+  std::optional<DomNode> address_home_line1 =
+      GetDomNodeOnPage(*main_frame(), "#ADDRESS_HOME_LINE1");
+  ASSERT_TRUE(address_home_line1);
+  std::optional<DomNode> phone_number =
+      GetDomNodeOnPage(*main_frame(), "#PHONE_HOME_WHOLE_NUMBER");
+  ASSERT_TRUE(phone_number);
+
+  autofill::FieldGlobalId field_id1(
+      autofill::LocalFrameToken(main_frame()->GetFrameToken().value()),
+      autofill::FieldRendererId(address_home_line1->node_id));
+  autofill::FieldGlobalId field_id2(
+      autofill::LocalFrameToken(main_frame()->GetFrameToken().value()),
+      autofill::FieldRendererId(phone_number->node_id));
+
+  PageTarget target1(*address_home_line1);
+  PageTarget target2(*phone_number);
+
+  base::flat_map<autofill::FieldGlobalId, PageTarget>
+      expected_trigger_field_map = {{field_id1, target1}, {field_id2, target2}};
+
+  autofill::ActorFormFillingRequest request;
+  autofill::ActorSuggestion suggestion;
+  suggestion.id = autofill::ActorSuggestionId(123);
+  suggestion.title = "My Address";
+  request.suggestions.push_back(suggestion);
+  std::vector<autofill::ActorFormFillingRequest> requests = {request};
+
+  EXPECT_CALL(mock_form_filling_service(), GetSuggestions)
+      .WillOnce(RunOnceCallback<2>(requests));
+
+  EXPECT_CALL(
+      mock_form_filling_service(),
+      FillSuggestions(
+          _,
+          ElementsAre(MakeActorFormFillingSelection(request.suggestions[0].id)),
+          Eq(expected_trigger_field_map), _))
+      .WillOnce(RunOnceCallback<3>(""));
+
+  std::unique_ptr<ToolRequest> action = MakeAttemptFormFillingRequest(
+      *active_tab(),
+      {CreateFormFillingRequest(RequestedData::kHomeAddress, {target1}),
+       CreateFormFillingRequest(RequestedData::kContactInformation,
+                                {target2})});
+  ActResultFuture result;
+  actor_task().Act(ToRequestList(action), result.GetCallback());
+  ExpectOkResult(result);
+}
+
+// Test that the AttemptFormFillingTool returns the chosen suggestion details in
+// `ActionResult::message` of the generated `ActionResult`.
+IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolTest,
+                       GetSuggestionsAndFillReturnsDetails) {
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/autofill/autofill_test_form.html");
+  ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
+  WaitForTabObservation();
+  std::optional<DomNode> address_home_line1 =
+      GetDomNodeOnPage(*main_frame(), "#ADDRESS_HOME_LINE1");
+  ASSERT_TRUE(address_home_line1);
+
+  autofill::ActorSuggestion suggestion;
+  suggestion.id = autofill::ActorSuggestionId(123);
+  suggestion.title = "Homer Simpson";
+  suggestion.details = "1600 Amphitheatre Pkwy";
+
+  autofill::ActorFormFillingRequest request;
+  request.requested_data = RequestedData::kShippingAddress;
+  request.section_label = "Shipping Address";
+  request.suggestions.push_back(suggestion);
+
+  std::vector<autofill::ActorFormFillingRequest> requests = {request};
+
+  EXPECT_CALL(mock_form_filling_service(), GetSuggestions)
+      .WillOnce(RunOnceCallback<2>(requests));
+
+  // This is just a dummy string because the test verifies only that
+  // AttemptFormFillingTool::OnSuggestionsSelected forwards the generated
+  // extra information in the result message. The generation of this information
+  // is tested in unittests.
+  std::string expected_info = "<result>";
+
+  EXPECT_CALL(
+      mock_form_filling_service(),
+      FillSuggestions(
+          _,
+          ElementsAre(MakeActorFormFillingSelection(request.suggestions[0].id)),
+          _, _))
+      .WillOnce(RunOnceCallback<3>(expected_info));
+
+  std::unique_ptr<ToolRequest> action = MakeAttemptFormFillingRequest(
+      *active_tab(),
+      {CreateFormFillingRequest(RequestedData::kShippingAddress,
+                                {PageTarget(*address_home_line1)},
+                                "Shipping Address")});
+  ActResultFuture result;
+  actor_task().Act(ToRequestList(action), result.GetCallback());
+
+  // Wait for the result.
+  const auto& action_results = result.Get();
+  ASSERT_EQ(action_results.size(), 1u);
+  const auto& action_result = action_results[0];
+  ExpectOkResult(*action_result.result);
+
+  EXPECT_EQ(action_result.result->message, expected_info);
 }
 
 // Test that dialog events are forwarded to the form filling service.
@@ -362,7 +488,8 @@ IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolTest, DialogEventsForwarding) {
   ASSERT_TRUE(captured_handler);
 
   // Expect that OnFormPresented calls ScrollToForm for the request.
-  EXPECT_CALL(mock_form_filling_service(), ScrollToForm(Ref(*active_tab()), 0));
+  EXPECT_CALL(mock_form_filling_service(),
+              ScrollToForm(Ref(autofill_client()), 0));
   EXPECT_TRUE(captured_handler->OnFormPresented(
       webui::mojom::AutofillSuggestionDialogOnFormPresentedParams::New(
           /*form_filling_request_index=*/0)));
@@ -378,7 +505,8 @@ IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolTest, DialogEventsForwarding) {
       1);
 
   // Expect that OnFormPresented calls ScrollToForm for the request.
-  EXPECT_CALL(mock_form_filling_service(), ScrollToForm(Ref(*active_tab()), 1));
+  EXPECT_CALL(mock_form_filling_service(),
+              ScrollToForm(Ref(autofill_client()), 1));
   EXPECT_TRUE(captured_handler->OnFormPresented(
       webui::mojom::AutofillSuggestionDialogOnFormPresentedParams::New(
           /*form_filling_request_index=*/1)));
@@ -402,7 +530,7 @@ IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolTest, DialogEventsForwarding) {
 
   // Expect that OnFormPreviewChanged (with response) calls PreviewForm
   EXPECT_CALL(mock_form_filling_service(),
-              PreviewForm(Ref(*active_tab()), 20, suggestion1.id));
+              PreviewForm(Ref(autofill_client()), 20, suggestion1.id));
   captured_handler->OnFormPreviewChanged(
       webui::mojom::AutofillSuggestionDialogOnFormPreviewChangedParams::New(
           /*form_filling_request_index=*/20,
@@ -411,7 +539,7 @@ IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolTest, DialogEventsForwarding) {
 
   // Expect that OnFormPreviewChanged (null response) calls ClearFormPreview
   EXPECT_CALL(mock_form_filling_service(),
-              ClearFormPreview(Ref(*active_tab()), 30));
+              ClearFormPreview(Ref(autofill_client()), 30));
   captured_handler->OnFormPreviewChanged(
       webui::mojom::AutofillSuggestionDialogOnFormPreviewChangedParams::New(
           /*form_filling_request_index=*/30, /*response=*/nullptr));
@@ -419,7 +547,7 @@ IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolTest, DialogEventsForwarding) {
   // Expect that OnFormConfirmed calls FillForm for existing request and
   // suggestion.
   EXPECT_CALL(mock_form_filling_service(),
-              FillForm(Ref(*active_tab()), 0,
+              FillForm(Ref(autofill_client()), 0,
                        MakeActorFormFillingSelection(suggestion1.id)));
   EXPECT_TRUE(captured_handler->OnFormConfirmed(
       webui::mojom::AutofillSuggestionDialogOnFormConfirmedParams::New(
@@ -440,7 +568,7 @@ IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolTest, DialogEventsForwarding) {
   // Expect that OnFormConfirmed calls FillForm for existing request and
   // suggestion.
   EXPECT_CALL(mock_form_filling_service(),
-              FillForm(Ref(*active_tab()), 1,
+              FillForm(Ref(autofill_client()), 1,
                        MakeActorFormFillingSelection(suggestion2.id)));
   EXPECT_TRUE(captured_handler->OnFormConfirmed(
       webui::mojom::AutofillSuggestionDialogOnFormConfirmedParams::New(
@@ -622,7 +750,7 @@ IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolTest, FillFails) {
       .WillOnce(RunOnceCallback<2>(requests));
 
   EXPECT_CALL(mock_form_filling_service(), FillSuggestions)
-      .WillOnce(RunOnceCallback<2>(
+      .WillOnce(RunOnceCallback<3>(
           base::unexpected(autofill::ActorFormFillingError::kOther)));
 
   std::unique_ptr<ToolRequest> action = MakeAttemptFormFillingRequest(
@@ -667,8 +795,8 @@ IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolTest, MultipleSuggestions) {
       FillSuggestions(
           _,
           ElementsAre(MakeActorFormFillingSelection(request.suggestions[1].id)),
-          _))
-      .WillOnce(RunOnceCallback<2>(base::ok()));
+          _, _))
+      .WillOnce(RunOnceCallback<3>(""));
 
   std::unique_ptr<ToolRequest> action = MakeAttemptFormFillingRequest(
       *active_tab(), {PageTarget(*address_home_line1)});
@@ -835,8 +963,8 @@ IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolTest, TestSkippingSelection) {
       FillSuggestions(
           _,
           ElementsAre(MakeActorFormFillingSelection(request.suggestions[0].id)),
-          _))
-      .WillOnce(RunOnceCallback<2>(base::ok()));
+          _, _))
+      .WillOnce(RunOnceCallback<3>(""));
 
   std::unique_ptr<ToolRequest> action = MakeAttemptFormFillingRequest(
       *active_tab(), {PageTarget(*address_home_line1)});
@@ -893,12 +1021,14 @@ IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolTest, ServiceSplitsRequests) {
       handler_future.Take();
   ASSERT_TRUE(captured_handler);
 
-  EXPECT_CALL(mock_form_filling_service(), ScrollToForm(Ref(*active_tab()), 0));
+  EXPECT_CALL(mock_form_filling_service(),
+              ScrollToForm(Ref(autofill_client()), 0));
   EXPECT_TRUE(captured_handler->OnFormPresented(
       webui::mojom::AutofillSuggestionDialogOnFormPresentedParams::New(
           /*form_filling_request_index=*/0)));
 
-  EXPECT_CALL(mock_form_filling_service(), ScrollToForm(Ref(*active_tab()), 1));
+  EXPECT_CALL(mock_form_filling_service(),
+              ScrollToForm(Ref(autofill_client()), 1));
   EXPECT_TRUE(captured_handler->OnFormPresented(
       webui::mojom::AutofillSuggestionDialogOnFormPresentedParams::New(
           /*form_filling_request_index=*/1)));
@@ -915,7 +1045,7 @@ IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolTest, ServiceSplitsRequests) {
       1);
 
   EXPECT_CALL(mock_form_filling_service(),
-              FillForm(Ref(*active_tab()), 0,
+              FillForm(Ref(autofill_client()), 0,
                        MakeActorFormFillingSelection(suggestion1.id)));
   EXPECT_TRUE(captured_handler->OnFormConfirmed(
       webui::mojom::AutofillSuggestionDialogOnFormConfirmedParams::New(
@@ -923,7 +1053,7 @@ IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolTest, ServiceSplitsRequests) {
           webui::mojom::FormFillingResponse::New(
               /*suggestion_id=*/"123"))));
   EXPECT_CALL(mock_form_filling_service(),
-              FillForm(Ref(*active_tab()), 1,
+              FillForm(Ref(autofill_client()), 1,
                        MakeActorFormFillingSelection(suggestion2.id)));
   EXPECT_TRUE(captured_handler->OnFormConfirmed(
       webui::mojom::AutofillSuggestionDialogOnFormConfirmedParams::New(
@@ -971,7 +1101,7 @@ IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolTest, SectionLabelIsPropagated) {
               Eq(section_label))),
           _))
       .WillOnce(
-          [&](const tabs::TabInterface&,
+          [&](autofill::AutofillClient&,
               base::span<const autofill::ActorFormFillingService::FillRequest>
                   requests,
               autofill::ActorFormFillingService::GetSuggestionsCallback
@@ -1002,6 +1132,86 @@ IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolTest, SectionLabelIsPropagated) {
   ActResultFuture result;
   actor_task().Act(ToRequestList(std::move(action)), result.GetCallback());
   ExpectErrorResult(result, mojom::ActionResultCode::kFormFillingDialogError);
+}
+
+class AttemptFormFillingToolPreClickTest : public AttemptFormFillingToolTest {
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_pre_click_{
+      features::kGlicActorAutofillPreClick};
+};
+
+// Test that AttemptFormFillingTool enqueues a ClickToolRequest followed by an
+// AttemptFormFillingToolRequest with enqueued_click=true.
+IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolPreClickTest,
+                       EnqueuesClickBeforeFill) {
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/autofill/autofill_test_form.html");
+  ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
+  WaitForTabObservation();
+  std::optional<DomNode> address_home_line1 =
+      GetDomNodeOnPage(*main_frame(), "#ADDRESS_HOME_LINE1");
+  ASSERT_TRUE(address_home_line1);
+
+  std::unique_ptr<ToolRequest> enqueued_fill;
+  std::unique_ptr<ToolRequest> enqueued_click;
+
+  EXPECT_CALL(mock_execution_engine(), EnqueueFollowupAction(_))
+      .Times(2)
+      .WillOnce(MoveArg<0>(&enqueued_fill))
+      .WillOnce(MoveArg<0>(&enqueued_click));
+
+  std::unique_ptr<ToolRequest> action = MakeAttemptFormFillingRequest(
+      *active_tab(), {PageTarget(*address_home_line1)});
+  ActResultFuture result;
+  actor_task().Act(ToRequestList(std::move(action)), result.GetCallback());
+  ExpectOkResult(result);
+
+  ASSERT_TRUE(enqueued_fill);
+  EXPECT_EQ(enqueued_fill->Name(), AttemptFormFillingToolRequest::kName);
+  EXPECT_TRUE(static_cast<AttemptFormFillingToolRequest*>(enqueued_fill.get())
+                  ->enqueued_click());
+
+  ASSERT_TRUE(enqueued_click);
+  EXPECT_EQ(enqueued_click->Name(), ClickToolRequest::kName);
+}
+
+class AttemptFormFillingToolNoPreClickTest : public AttemptFormFillingToolTest {
+ public:
+  AttemptFormFillingToolNoPreClickTest() {
+    scoped_feature_list_no_pre_click_.InitAndDisableFeature(
+        features::kGlicActorAutofillPreClick);
+  }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_no_pre_click_;
+};
+
+// Test that AttemptFormFillingTool does not enqueue any follow up actions.
+IN_PROC_BROWSER_TEST_F(AttemptFormFillingToolNoPreClickTest,
+                       DoesNotEnqueueFollowUpActions) {
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/autofill/autofill_test_form.html");
+  ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
+  WaitForTabObservation();
+  std::optional<DomNode> address_home_line1 =
+      GetDomNodeOnPage(*main_frame(), "#ADDRESS_HOME_LINE1");
+  ASSERT_TRUE(address_home_line1);
+
+  EXPECT_CALL(mock_execution_engine(),
+              EnqueueFollowupAction(Pointee(
+                  Property(&ToolRequest::Name, Eq(ClickToolRequest::kName)))))
+      .Times(0);
+
+  EXPECT_CALL(mock_form_filling_service(), GetSuggestions(_, _, _))
+      .WillOnce(RunOnceCallback<2>(
+          base::unexpected(autofill::ActorFormFillingError::kNoSuggestions)));
+
+  std::unique_ptr<ToolRequest> action = MakeAttemptFormFillingRequest(
+      *active_tab(), {PageTarget(*address_home_line1)});
+  ActResultFuture result;
+  actor_task().Act(ToRequestList(std::move(action)), result.GetCallback());
+  ExpectErrorResult(
+      result, mojom::ActionResultCode::kFormFillingNoSuggestionsAvailable);
 }
 
 }  // namespace

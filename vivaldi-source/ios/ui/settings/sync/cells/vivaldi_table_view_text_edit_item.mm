@@ -5,7 +5,6 @@
 #import "base/notreached.h"
 #import "ios/chrome/browser/shared/ui/elements/extended_touch_target_button.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
-#import "ios/chrome/browser/shared/ui/table_view/legacy_chrome_table_view_styler.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/table_view/table_view_cells_constants.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
@@ -44,9 +43,8 @@ const CGFloat kSymbolSize = 15;
 
 #pragma mark TableViewItem
 
-- (void)configureCell:(VivaldiTableViewTextEditCell*)cell
-           withStyler:(ChromeTableViewStyler*)styler {
-  [super configureCell:cell withStyler:styler];
+- (void)configureCell:(VivaldiTableViewTextEditCell*)cell {
+  [super configureCell:cell];
 
   if (self.textFieldPlaceholder) {
     cell.textField.attributedPlaceholder = [[NSAttributedString alloc]
@@ -65,10 +63,9 @@ const CGFloat kSymbolSize = 15;
 
   if (self.textFieldBackgroundColor) {
     cell.textField.backgroundColor = self.textFieldBackgroundColor;
-  } else if (styler.cellBackgroundColor) {
-    cell.textField.backgroundColor = styler.cellBackgroundColor;
   } else {
-    cell.textField.backgroundColor = styler.tableViewBackgroundColor;
+    cell.textField.backgroundColor =
+        [UIColor colorNamed:kGroupedSecondaryBackgroundColor];
   }
 
   cell.textField.enabled = self.textFieldEnabled;

@@ -14,6 +14,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "components/contextual_tasks/public/contextual_tasks_service.h"
 #include "components/contextual_tasks/public/features.h"
+#include "components/passage_embeddings/core/passage_embeddings_service_controller.h"
 
 namespace contextual_tasks {
 
@@ -64,15 +65,21 @@ ContextualTasksContextServiceFactory::BuildServiceInstanceForBrowserContext(
     return nullptr;
   }
   auto* passage_embeddings_service_controller =
-      passage_embeddings::ChromePassageEmbeddingsServiceController::Get();
+      passage_embeddings::GetChromePassageEmbeddingsServiceController();
   if (!passage_embeddings_service_controller) {
+    return nullptr;
+  }
+
+  auto* optimization_guide_keyed_service =
+      OptimizationGuideKeyedServiceFactory::GetForProfile(profile);
+  if (!optimization_guide_keyed_service) {
     return nullptr;
   }
 
   return std::make_unique<ContextualTasksContextService>(
       profile, page_embeddings_service, passage_embeddings_service_controller,
       passage_embeddings_service_controller->GetEmbedder(),
-      OptimizationGuideKeyedServiceFactory::GetForProfile(profile),
+      optimization_guide_keyed_service,
       page_content_annotations::PageContentExtractionServiceFactory::
           GetForProfile(profile));
 }

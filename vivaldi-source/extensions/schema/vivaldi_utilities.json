@@ -844,6 +844,22 @@
         }
       },
       {
+        "name": "calculate",
+        "type": "function",
+        "description": "Calculates a math string.",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "The input string to parse and calculate.",
+            "name": "url"
+          }
+        ],
+        "returns": {
+          "description": "Returns the result, undefined if the string is a normal search query, or null if the math syntax is invalid.",
+          "type": "string"
+        }
+      },
+      {
         "name": "urlToThumbnailText",
         "type": "function",
         "description": "Gets the text for a fallback speeddial thumbnail",

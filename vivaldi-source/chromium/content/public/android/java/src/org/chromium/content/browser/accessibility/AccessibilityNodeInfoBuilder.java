@@ -14,6 +14,7 @@ import static androidx.core.view.accessibility.AccessibilityNodeInfoCompat.Acces
 import static androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CUT;
 import static androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_EXPAND;
 import static androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_FOCUS;
+import static androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_HIDE_TOOLTIP;
 import static androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_IME_ENTER;
 import static androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_NEXT_AT_MOVEMENT_GRANULARITY;
 import static androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_NEXT_HTML_ELEMENT;
@@ -34,6 +35,7 @@ import static androidx.core.view.accessibility.AccessibilityNodeInfoCompat.Acces
 import static androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_SET_SELECTION;
 import static androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_SET_TEXT;
 import static androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_SHOW_ON_SCREEN;
+import static androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_SHOW_TOOLTIP;
 import static androidx.core.view.accessibility.AccessibilityNodeInfoCompat.EXTRA_DATA_TEXT_CHARACTER_LOCATION_IN_WINDOW_KEY;
 import static androidx.core.view.accessibility.AccessibilityNodeInfoCompat.EXTRA_DATA_TEXT_CHARACTER_LOCATION_KEY;
 import static androidx.core.view.accessibility.AccessibilityNodeInfoCompat.MOVEMENT_GRANULARITY_CHARACTER;
@@ -49,6 +51,7 @@ import android.os.Bundle;
 import android.os.SystemClock;
 import android.text.ParcelableSpan;
 import android.text.SpannableString;
+import android.text.TextUtils;
 import android.text.style.AbsoluteSizeSpan;
 import android.text.style.BackgroundColorSpan;
 import android.text.style.ForegroundColorSpan;
@@ -124,6 +127,15 @@ public class AccessibilityNodeInfoBuilder {
     // Keys used for Bundle extras of page absolute bounds values, without screen clipping.
     public static final String EXTRAS_KEY_PAGE_ABSOLUTE_LEFT =
             "AccessibilityNodeInfo.pageAbsoluteLeft";
+
+    public static final String EXTRA_SELECTION_START_OFFSET_TYPE =
+            "androidx.view.accessibility.AccessibilityNodeInfoCompat.SELECTION_START_OFFSET_TYPE";
+    public static final String EXTRA_SELECTION_END_OFFSET_TYPE =
+            "androidx.view.accessibility.AccessibilityNodeInfoCompat.SELECTION_END_OFFSET_TYPE";
+
+    public static final int OFFSET_TYPE_TEXT = 0;
+    public static final int OFFSET_TYPE_CHILD = 1;
+
     public static final String EXTRAS_KEY_PAGE_ABSOLUTE_TOP =
             "AccessibilityNodeInfo.pageAbsoluteTop";
     public static final String EXTRAS_KEY_PAGE_ABSOLUTE_WIDTH =
@@ -281,7 +293,9 @@ public class AccessibilityNodeInfoBuilder {
             boolean hasNonEmptyValue,
             boolean hasNonEmptyInnerText,
             boolean isSeekControl,
-            boolean unused_isForm) {
+            boolean unused_isForm,
+            boolean hasTooltip,
+            boolean isTooltipShown) {
         node.addAction(ACTION_NEXT_HTML_ELEMENT);
         node.addAction(ACTION_PREVIOUS_HTML_ELEMENT);
         node.addAction(ACTION_SHOW_ON_SCREEN);
@@ -363,6 +377,14 @@ public class AccessibilityNodeInfoBuilder {
 
         if (isSeekControl) {
             node.addAction(ACTION_SET_PROGRESS);
+        }
+
+        if (hasTooltip) {
+            if (isTooltipShown) {
+                node.addAction(ACTION_HIDE_TOOLTIP);
+            } else {
+                node.addAction(ACTION_SHOW_TOOLTIP);
+            }
         }
     }
 
@@ -507,8 +529,12 @@ public class AccessibilityNodeInfoBuilder {
 
         // We expose the nested structure of links, which results in the roles of all nested nodes
         // being read. Use content description in the case of links to prevent verbose TalkBack.
-        if (annotateAsLink && (contentDescription == null || contentDescription.isEmpty())) {
-            node.setContentDescription(computedText);
+        if (annotateAsLink) {
+            // If our previously assigned contentDescription is null or empty, assign the
+            // computedText as our contentDescription instead.
+            if (contentDescription == null || contentDescription.isEmpty()) {
+                node.setContentDescription(computedText);
+            }
         } else {
             node.setText(computedText);
         }
@@ -715,20 +741,26 @@ public class AccessibilityNodeInfoBuilder {
             AccessibilityNodeInfoCompat node,
             int startVirtualViewId,
             int startOffset,
+            int startOffsetType,
             int endVirtualViewId,
-            int endOffset) {
+            int endOffset,
+            int endOffsetType) {
         node.setSelection(
                 new SelectionCompat(
                         new SelectionPositionCompat(
                                 mDelegate.getView(), startVirtualViewId, startOffset),
                         new SelectionPositionCompat(
                                 mDelegate.getView(), endVirtualViewId, endOffset)));
+        node.getExtras().putInt(EXTRA_SELECTION_START_OFFSET_TYPE, startOffsetType);
+        node.getExtras().putInt(EXTRA_SELECTION_END_OFFSET_TYPE, endOffsetType);
     }
 
     @CalledByNative
     protected void clearAccessibilityNodeInfoExtendedSelectionAttrs(
             AccessibilityNodeInfoCompat node) {
         node.setSelection(null);
+        node.getExtras().remove(EXTRA_SELECTION_START_OFFSET_TYPE);
+        node.getExtras().remove(EXTRA_SELECTION_END_OFFSET_TYPE);
     }
 
     @CalledByNative
@@ -1016,5 +1048,83 @@ public class AccessibilityNodeInfoBuilder {
         } else if (rect.right < clippedLeft) {
             rect.right = clippedLeft;
         }
+    }
+
+    private @Nullable String getAndroidMathTagFromHtmlTag(String htmlTag) {
+        switch (htmlTag) {
+            case "math":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_MATH;
+            case "mfrac":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_FRACTION;
+            case "mi":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_IDENTIFIER;
+            case "mmultiscripts":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_MULTISCRIPTS;
+            case "none":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_NONE_SCRIPT;
+            case "mn":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_NUMBER;
+            case "mo":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_OPERATOR;
+            case "mover":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_OVER;
+            case "mprescripts":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_PRESCRIPT_DELIMITER;
+            case "mroot":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_ROOT;
+            case "mrow":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_ROW;
+            case "msqrt":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_SQUARE_ROOT;
+            case "ms":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_STRING_LITERAL;
+            case "msub":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_SUB;
+            case "msubsup":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_SUB_SUP;
+            case "msup":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_SUP;
+            case "mtable":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_TABLE;
+            case "mtd":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_TABLE_CELL;
+            case "mtr":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_TABLE_ROW;
+            case "mtext":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_TEXT;
+            case "munder":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_UNDER;
+            case "munderover":
+                return AccessibilityNodeInfoCompat.MathInfoCompat.MATH_TAG_UNDER_OVER;
+            default:
+                return null;
+        }
+    }
+
+    @CalledByNative
+    private void setAccessibilityNodeInfoMathAttributes(
+            AccessibilityNodeInfoCompat node,
+            String mathHtmlTag,
+            @Nullable String mathIntent,
+            @Nullable String mathArg) {
+        String androidMathTag = getAndroidMathTagFromHtmlTag(mathHtmlTag);
+
+        // If the role is not a supported math tag, do nothing.
+        if (androidMathTag == null) return;
+
+        AccessibilityNodeInfoCompat.MathInfoCompat mathInfo =
+                new AccessibilityNodeInfoCompat.MathInfoCompat(androidMathTag);
+
+        if (!TextUtils.isEmpty(mathIntent)) {
+            mathInfo.putAttribute(
+                    AccessibilityNodeInfoCompat.MathInfoCompat.MATH_ATTRIBUTE_INTENT, mathIntent);
+        }
+
+        if (!TextUtils.isEmpty(mathArg)) {
+            mathInfo.putAttribute(
+                    AccessibilityNodeInfoCompat.MathInfoCompat.MATH_ATTRIBUTE_ARG, mathArg);
+        }
+
+        node.setStructuredDataInfo(mathInfo);
     }
 }

@@ -9,11 +9,11 @@ import static org.chromium.build.NullUtil.assumeNonNull;
 import android.graphics.Bitmap;
 
 import androidx.annotation.ColorInt;
-import androidx.annotation.Nullable;
 import androidx.annotation.Px;
 
 import org.chromium.base.Callback;
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.components.data_sharing.DataSharingUIDelegate;
 import org.chromium.components.data_sharing.configs.DataSharingAvatarBitmapConfig;
 import org.chromium.components.data_sharing.configs.DataSharingCreateUiConfig;
@@ -136,5 +136,16 @@ public class FakeDataSharingUIDelegateImpl implements DataSharingUIDelegate {
     /** Avatar bitmap will the given color for the given user. */
     public void overrideAvatarColor(GaiaId gaiaId, @ColorInt int color) {
         mGaiaIdToAvatarColor.put(gaiaId, color);
+    }
+
+    /** Resets all configs and callbacks to prevent memory leaks. */
+    public void resetForTesting() {
+        mCreateUiConfig = null;
+        mJoinUiConfig = null;
+        mManageUiConfig = null;
+        mShowCreateFlowCallback = null;
+        mShowJoinFlowCallback = null;
+        mShowManageFlowCallback = null;
+        mGaiaIdToAvatarColor.clear();
     }
 }

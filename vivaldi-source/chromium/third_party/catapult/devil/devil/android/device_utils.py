@@ -23,6 +23,7 @@ import tempfile
 import time
 import threading
 import uuid
+import zipfile
 
 import six
 
@@ -117,6 +118,7 @@ _PERMISSIONS_DENYLIST_RE = re.compile('|'.join(
         'android.permission.BLUETOOTH',
         'android.permission.BLUETOOTH_ADMIN',
         'android.permission.BROADCAST_STICKY',
+        'android.permission.CAPTURE_KEYBOARD',
         'android.permission.CHANGE_NETWORK_STATE',
         'android.permission.CHANGE_WIFI_MULTICAST_STATE',
         'android.permission.CHANGE_WIFI_STATE',
@@ -127,8 +129,11 @@ _PERMISSIONS_DENYLIST_RE = re.compile('|'.join(
         'android.permission.DOWNLOAD_WITHOUT_NOTIFICATION',
         'android.permission.EXPAND_STATUS_BAR',
         'android.permission.FOREGROUND_SERVICE',
+        'android.permission.FOREGROUND_SERVICE_CAMERA',
         'android.permission.FOREGROUND_SERVICE_DATA_SYNC',
         'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
+        'android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION',
+        'android.permission.FOREGROUND_SERVICE_MICROPHONE',
         'android.permission.FOREGROUND_SERVICE_SPECIAL_USE',
         'android.permission.GET_PACKAGE_SIZE',
         'android.permission.INSTALL_SHORTCUT',
@@ -139,12 +144,14 @@ _PERMISSIONS_DENYLIST_RE = re.compile('|'.join(
         'android.permission.MANAGE_EXTERNAL_STORAGE',
         'android.permission.MODIFY_AUDIO_SETTINGS',
         'android.permission.NFC',
+        'android.permission.QUERY_ADVANCED_PROTECTION_MODE',
         'android.permission.QUERY_ALL_PACKAGES',
         'android.permission.READ_SYNC_SETTINGS',
         'android.permission.READ_SYNC_STATS',
         'android.permission.RECEIVE_BOOT_COMPLETED',
         'android.permission.RECORD_VIDEO',
         'android.permission.REORDER_TASKS',
+        'android.permission.REPOSITION_SELF_WINDOWS',
         'android.permission.REQUEST_INSTALL_PACKAGES',
         'android.permission.RESTRICTED_VR_ACCESS',
         'android.permission.RUN_INSTRUMENTATION',
@@ -157,6 +164,8 @@ _PERMISSIONS_DENYLIST_RE = re.compile('|'.join(
         'android.permission.USE_BIOMETRIC',
         'android.permission.USE_CREDENTIALS',
         'android.permission.USE_FINGERPRINT',
+        'android.permission.USE_LOOPBACK_INTERFACE',
+        'android.permission.USE_PINNED_WINDOWING_LAYER',
         'android.permission.VIBRATE',
         'android.permission.WAKE_LOCK',
         'android.permission.WRITE_SYNC_SETTINGS',
@@ -1394,7 +1403,8 @@ class DeviceUtils(object):
               fake_modules=None,
               additional_locales=None,
               instant_app=False,
-              force_queryable=False):
+              force_queryable=False,
+              streaming=None):
     """Install an .apk, .apks, or .aab.
 
     Noop if an identical APK is already installed. If installing a bundle, the
@@ -1425,6 +1435,8 @@ class DeviceUtils(object):
       force_queryable: A boolean that allows the installed application to be
         queryable by all other applications regardless of if they have declared
         the package as queryable in their manifests - Supported from SDK 30
+      streaming: A boolean that allows forcing or disabling streaming installs
+        (IncFS). If None, defaults to the OS behavior.
 
     Raises:
       CommandFailedError if the installation fails.
@@ -1434,6 +1446,15 @@ class DeviceUtils(object):
         apps or forcing queryable
     """
     apk = apk_helper.ToHelper(apk)
+    if streaming is None:
+      if zipfile.is_zipfile(apk.path):
+        with zipfile.ZipFile(apk.path) as z:
+          if any(name.endswith('/wrap.sh') for name in z.namelist()):
+            logger.info(
+                'Detected wrap.sh in APK. '
+                'Disabling streaming installation.')
+            streaming = False
+
     modules_set = set(modules or [])
     fake_modules_set = set(fake_modules or [])
     assert modules_set.isdisjoint(fake_modules_set), (
@@ -1456,7 +1477,8 @@ class DeviceUtils(object):
                             reinstall=reinstall,
                             permissions=permissions,
                             instant_app=instant_app,
-                            force_queryable=force_queryable)
+                            force_queryable=force_queryable,
+                            streaming=streaming)
 
   @decorators.WithTimeoutAndRetriesFromInstance(
       min_default_timeout=INSTALL_DEFAULT_TIMEOUT)
@@ -1600,7 +1622,8 @@ class DeviceUtils(object):
                       retries=None,
                       instant_app=False,
                       force_queryable=False,
-                      install_all_splits=False):
+                      install_all_splits=False,
+                      streaming=None):
     """Install an apk and .apk splits.
 
     Noop if all of the APK splits are already installed.
@@ -1623,6 +1646,8 @@ class DeviceUtils(object):
         queryable by all other applications regardless of if they have declared
         the package as queryable in their manifests - Supported from SDK 30
       install_all_splits: If False, filter the list of splits using split-select.
+      streaming: A boolean that allows forcing or disabling streaming installs
+        (IncFS). If None, defaults to the OS behavior.
 
     Raises:
       CommandFailedError if the installation fails.
@@ -1650,7 +1675,8 @@ class DeviceUtils(object):
                             permissions=permissions,
                             allow_downgrade=allow_downgrade,
                             instant_app=instant_app,
-                            force_queryable=force_queryable)
+                            force_queryable=force_queryable,
+                            streaming=streaming)
 
   def _InstallInternal(self,
                        apk,
@@ -1659,7 +1685,8 @@ class DeviceUtils(object):
                        reinstall=False,
                        permissions=None,
                        instant_app=False,
-                       force_queryable=False):
+                       force_queryable=False,
+                       streaming=None):
     if not apk_paths:
       raise device_errors.CommandFailedError('Did not get any APKs to install')
 
@@ -1713,12 +1740,12 @@ class DeviceUtils(object):
       if apks_to_install:
         partial = package_name if len(apks_to_install) < len(
             apk_paths) else None
-        streaming = None
-        if self.product_name in _NO_STREAMING_DEVICE_LIST:
-          streaming = False
-        if (self.is_emulator
-            and self.build_version_sdk in _NO_STREAMING_EMULATOR_API_LEVELS):
-          streaming = False
+        if streaming is None:
+          if self.product_name in _NO_STREAMING_DEVICE_LIST:
+            streaming = False
+          if (self.is_emulator
+              and self.build_version_sdk in _NO_STREAMING_EMULATOR_API_LEVELS):
+            streaming = False
         logger.info('Installing package %s using APKs %s', package_name,
                     apks_to_install)
         if len(apks_to_install) > 1 or partial:
@@ -4591,8 +4618,10 @@ class DeviceUtils(object):
     ]
 
     if failures:
+      filename = 'third_party/catapult/devil/devil/android/device_utils.py'
       logger.warning(
-          'Failed to grant some permissions. Denylist may need to be updated?')
+          'Failed to grant some permissions. Please update '
+          '_PERMISSIONS_DENYLIST_RE in %s', filename)
       for permission, output in failures:
         # Try to grab the relevant error message from the output.
         m = _PERMISSIONS_EXCEPTION_RE.search(output)

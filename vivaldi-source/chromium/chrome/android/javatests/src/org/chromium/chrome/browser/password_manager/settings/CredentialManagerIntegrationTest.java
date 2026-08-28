@@ -25,6 +25,7 @@ import androidx.test.espresso.contrib.RecyclerViewActions;
 import androidx.test.filters.LargeTest;
 
 import org.hamcrest.Matcher;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -33,10 +34,11 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.DeviceInfo;
+import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisableIf;
-import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Features.DisableFeatures;
+import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.PayloadCallbackHelper;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.R;
@@ -44,6 +46,10 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.password_manager.CredentialManagerLauncherFactory;
 import org.chromium.chrome.browser.password_manager.FakeCredentialManagerLauncherFactoryImpl;
+import org.chromium.chrome.browser.password_manager.FakePasswordCheckupClientHelperFactoryImpl;
+import org.chromium.chrome.browser.password_manager.FakePasswordManagerBackendSupportHelper;
+import org.chromium.chrome.browser.password_manager.PasswordCheckupClientHelperFactory;
+import org.chromium.chrome.browser.password_manager.PasswordManagerBackendSupportHelper;
 import org.chromium.chrome.browser.safety_check.SafetyCheckSettingsFragment;
 import org.chromium.chrome.browser.settings.MainSettings;
 import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
@@ -54,17 +60,12 @@ import org.chromium.components.signin.test.util.TestAccounts;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.test.util.DeviceRestriction;
 
-/**
- * Integration test for accessing credential manager.
- */
+/** Integration test for accessing credential manager. */
 @RunWith(ChromeJUnit4ClassRunner.class)
-@DoNotBatch(reason = "TODO(crbug.com/344665935): Failing when batched, batch this again.")
+@Batch(Batch.PER_CLASS)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE, "show-autofill-signatures"})
 @DisableFeatures({
-    ChromeFeatureList.SETTINGS_MULTI_COLUMN,
-    ChromeFeatureList
-            .YOUR_SAVED_INFO_SETTINGS_PAGE_ANDROID // TODO (crbug.com/513493349): Remove this
-                                                   // feature flag and update tests.
+    ChromeFeatureList.SETTINGS_MULTI_COLUMN
 })
 public class CredentialManagerIntegrationTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
@@ -91,6 +92,12 @@ public class CredentialManagerIntegrationTest {
     public void setup() throws Exception {
         DeviceInfo.setGmsVersionCodeForTest("250000000");
         CredentialManagerLauncherFactory.setFactoryForTesting(mFakeLauncherFactory);
+        PasswordCheckupClientHelperFactory.setFactoryForTesting(
+                new FakePasswordCheckupClientHelperFactoryImpl());
+        FakePasswordManagerBackendSupportHelper fakeBackendHelper =
+                new FakePasswordManagerBackendSupportHelper();
+        fakeBackendHelper.setBackendPresent(true);
+        PasswordManagerBackendSupportHelper.setInstanceForTesting(fakeBackendHelper);
         mFakeLauncherFactory.setSuccessCallback(mSuccessCallbackHelper::notifyCalled);
         mFakeLauncherFactory.setFailureCallback(mFailureCallbackHelper::notifyCalled);
 
@@ -107,13 +114,38 @@ public class CredentialManagerIntegrationTest {
         mSyncTestRule.getSigninTestRule().addAccountThenSignin(mAccount);
     }
 
+    @After
+    public void tearDown() {
+        mSyncTestRule.signOut();
+    }
+
     // Tests that accessing password settings in Chrome successfully launches the Credential Manager
     // intent on a modern UPM-enabled system.
     @Test
     @LargeTest
     @Restriction({DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
+    @DisableFeatures(ChromeFeatureList.YOUR_SAVED_INFO_SETTINGS_PAGE_ANDROID)
     public void testUseCredentialManagerFromChromeSettings() {
         mSettingsActivityTestRule.startSettingsActivity();
+        scrollToSetting(withText(R.string.password_manager_settings_title));
+        onView(withText(R.string.password_manager_settings_title)).perform(click());
+
+        // Verify that success callback was called.
+        assertNotNull(mSuccessCallbackHelper.getOnlyPayloadBlocking());
+        // Verify that failure callback was not called.
+        assertEquals(0, mFailureCallbackHelper.getCallCount());
+    }
+
+    // Tests that accessing password settings in Chrome successfully launches the Credential Manager
+    // intent on a modern UPM-enabled system when the Autofill and Passwords screen is enabled.
+    @Test
+    @LargeTest
+    @Restriction({DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
+    @EnableFeatures(ChromeFeatureList.YOUR_SAVED_INFO_SETTINGS_PAGE_ANDROID)
+    public void testUseCredentialManagerFromChromeSettings_savedInfoEnabled() {
+        mSettingsActivityTestRule.startSettingsActivity();
+        scrollToSetting(withText(R.string.autofill_and_passwords_settings_title));
+        onView(withText(R.string.autofill_and_passwords_settings_title)).perform(click());
         scrollToSetting(withText(R.string.password_manager_settings_title));
         onView(withText(R.string.password_manager_settings_title)).perform(click());
 
@@ -128,9 +160,30 @@ public class CredentialManagerIntegrationTest {
     @Test
     @LargeTest
     @Restriction({DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
+    @DisableFeatures(ChromeFeatureList.YOUR_SAVED_INFO_SETTINGS_PAGE_ANDROID)
     public void testUseCredentialManagerFromChromeSettingsPreUpm() {
         DeviceInfo.setGmsVersionCodeForTest("230000000");
         mSettingsActivityTestRule.startSettingsActivity();
+        scrollToSetting(withText(R.string.password_manager_settings_title));
+        onView(withText(R.string.password_manager_settings_title)).perform(click());
+
+        // CredentialManager is not used (and thus success callback is not triggered).
+        assertEquals(0, mSuccessCallbackHelper.getCallCount());
+        assertEquals(0, mFailureCallbackHelper.getCallCount());
+    }
+
+    // Tests that accessing password settings on a pre-UPM system (faked old GMS version)
+    // successfully skips attempting to launch the Credential Manager intent when the Autofill and
+    // Passwords screen is enabled.
+    @Test
+    @LargeTest
+    @Restriction({DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
+    @EnableFeatures(ChromeFeatureList.YOUR_SAVED_INFO_SETTINGS_PAGE_ANDROID)
+    public void testUseCredentialManagerFromChromeSettingsPreUpm_savedInfoEnabled() {
+        DeviceInfo.setGmsVersionCodeForTest("230000000");
+        mSettingsActivityTestRule.startSettingsActivity();
+        scrollToSetting(withText(R.string.autofill_and_passwords_settings_title));
+        onView(withText(R.string.autofill_and_passwords_settings_title)).perform(click());
         scrollToSetting(withText(R.string.password_manager_settings_title));
         onView(withText(R.string.password_manager_settings_title)).perform(click());
 
@@ -180,6 +233,7 @@ public class CredentialManagerIntegrationTest {
     @Test
     @LargeTest
     @Restriction({DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
+    @DisableFeatures(ChromeFeatureList.YOUR_SAVED_INFO_SETTINGS_PAGE_ANDROID)
     public void testUseCredentialManagerFromChromeSettingsFailure() {
         org.chromium.chrome.browser.password_manager.FakeCredentialManagerLauncher launcher =
                 (org.chromium.chrome.browser.password_manager.FakeCredentialManagerLauncher)
@@ -187,6 +241,31 @@ public class CredentialManagerIntegrationTest {
         launcher.setCredentialManagerError(new Exception("Simulated GMS Failure"));
 
         mSettingsActivityTestRule.startSettingsActivity();
+        scrollToSetting(withText(R.string.password_manager_settings_title));
+        onView(withText(R.string.password_manager_settings_title)).perform(click());
+
+        // Verify that failure callback was called.
+        assertNotNull(mFailureCallbackHelper.getOnlyPayloadBlocking());
+        // Verify that success callback was not called.
+        assertEquals(0, mSuccessCallbackHelper.getCallCount());
+    }
+
+    // Tests that accessing password settings appropriately reports errors when the Credential
+    // Manager intent acquisition fails in GMS Core when the Autofill and Passwords screen is
+    // enabled.
+    @Test
+    @LargeTest
+    @Restriction({DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
+    @EnableFeatures(ChromeFeatureList.YOUR_SAVED_INFO_SETTINGS_PAGE_ANDROID)
+    public void testUseCredentialManagerFromChromeSettingsFailure_savedInfoEnabled() {
+        org.chromium.chrome.browser.password_manager.FakeCredentialManagerLauncher launcher =
+                (org.chromium.chrome.browser.password_manager.FakeCredentialManagerLauncher)
+                        mFakeLauncherFactory.createLauncher();
+        launcher.setCredentialManagerError(new Exception("Simulated GMS Failure"));
+
+        mSettingsActivityTestRule.startSettingsActivity();
+        scrollToSetting(withText(R.string.autofill_and_passwords_settings_title));
+        onView(withText(R.string.autofill_and_passwords_settings_title)).perform(click());
         scrollToSetting(withText(R.string.password_manager_settings_title));
         onView(withText(R.string.password_manager_settings_title)).perform(click());
 

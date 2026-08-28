@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "ash/constants/ash_features.h"
+#include "ash/constants/ash_pref_names.h"
 #include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
@@ -20,7 +21,6 @@
 #include "chrome/browser/ash/policy/handlers/configuration_policy_handler_ash.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/common/pref_names.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chromeos/ash/components/dbus/shill/shill_ipconfig_client.h"
 #include "chromeos/ash/components/dbus/shill/shill_profile_client.h"
@@ -351,7 +351,7 @@ IN_PROC_BROWSER_TEST_F(ArcSettingsServiceTest, BackupRestorePolicyTest) {
              nullptr);
   UpdatePolicy(policy);
 
-  PrefService* const prefs = browser()->profile()->GetPrefs();
+  PrefService* const prefs = browser()->GetProfile()->GetPrefs();
 
   // Set the user pref as initially enabled.
   prefs->SetBoolean(prefs::kArcBackupRestoreEnabled, true);
@@ -426,7 +426,7 @@ IN_PROC_BROWSER_TEST_F(ArcSettingsServiceTest, LocationServicePolicyTest) {
              nullptr);
   UpdatePolicy(policy);
 
-  PrefService* const prefs = browser()->profile()->GetPrefs();
+  PrefService* const prefs = browser()->GetProfile()->GetPrefs();
 
   // Set the user pref as initially enabled.
   prefs->SetBoolean(prefs::kArcLocationServiceEnabled, true);
@@ -537,8 +537,8 @@ IN_PROC_BROWSER_TEST_F(ArcSettingsServiceTest,
 
   // Set the user preference to indicate that ARC should connect to
   // System-proxy.
-  browser()->profile()->GetPrefs()->Set(
-      ::prefs::kSystemProxyUserTrafficHostAndPort,
+  browser()->GetProfile()->GetPrefs()->Set(
+      ash::prefs::kSystemProxyUserTrafficHostAndPort,
       base::Value("local_proxy:3128"));
   RunUntilIdle();
 
@@ -550,8 +550,8 @@ IN_PROC_BROWSER_TEST_F(ArcSettingsServiceTest,
 
   // Unset the System-proxy preference to verify that ARC syncs proxy configs
   // correctly when System-proxy is disabled.
-  browser()->profile()->GetPrefs()->Set(
-      ::prefs::kSystemProxyUserTrafficHostAndPort, base::Value(""));
+  browser()->GetProfile()->GetPrefs()->Set(
+      ash::prefs::kSystemProxyUserTrafficHostAndPort, base::Value(""));
   RunUntilIdle();
 
   EXPECT_EQ(CountProxyBroadcasts(
@@ -577,8 +577,8 @@ IN_PROC_BROWSER_TEST_F(ArcSettingsServiceTest,
 
   // Set the user preference to indicate that ARC should connect to
   // System-proxy.
-  browser()->profile()->GetPrefs()->Set(
-      ::prefs::kSystemProxyUserTrafficHostAndPort,
+  browser()->GetProfile()->GetPrefs()->Set(
+      ash::prefs::kSystemProxyUserTrafficHostAndPort,
       base::Value("local_proxy:3128"));
   RunUntilIdle();
 
@@ -631,7 +631,7 @@ IN_PROC_BROWSER_TEST_F(ArcSettingsServiceTest, ProxyPrefTest) {
   base::DictValue proxy_config;
   proxy_config.Set("mode", base::Value(ProxyPrefs::kPacScriptProxyModeName));
   proxy_config.Set("pac_url", base::Value("http://proxy"));
-  browser()->profile()->GetPrefs()->SetDict(proxy_config::prefs::kProxy,
+  browser()->GetProfile()->GetPrefs()->SetDict(proxy_config::prefs::kProxy,
                                             std::move(proxy_config));
   RunUntilIdle();
 
@@ -858,7 +858,7 @@ IN_PROC_BROWSER_TEST_F(ArcSettingsServiceTest, WebProxyAutoDiscovery) {
   base::DictValue proxy_config_wpad;
   proxy_config_wpad.Set("mode",
                         base::Value(ProxyPrefs::kAutoDetectProxyModeName));
-  browser()->profile()->GetPrefs()->SetDict(proxy_config::prefs::kProxy,
+  browser()->GetProfile()->GetPrefs()->SetDict(proxy_config::prefs::kProxy,
                                             std::move(proxy_config_wpad));
 
   RunUntilIdle();
@@ -887,7 +887,7 @@ IN_PROC_BROWSER_TEST_F(ArcSettingsServiceTest, WebProxyAutoDiscovery) {
   base::DictValue proxy_config_direct;
   proxy_config_direct.Set("mode",
                           base::Value(ProxyPrefs::kDirectProxyModeName));
-  browser()->profile()->GetPrefs()->SetDict(proxy_config::prefs::kProxy,
+  browser()->GetProfile()->GetPrefs()->SetDict(proxy_config::prefs::kProxy,
                                             std::move(proxy_config_direct));
 
   RunUntilIdle();

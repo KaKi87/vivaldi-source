@@ -12,13 +12,13 @@
 #import "ios/chrome/browser/scene/ui/scene_consumer.h"
 #import "ios/chrome/browser/shared/ui/util/ui_view_controller_with_display_tracing.h"
 
+@protocol AppBarCommands;
 @class AssistantContainerViewController;
-@protocol BWGCommands;
-@protocol SceneViewControllerDelegate;
+@protocol GeminiCommands;
 @class LayoutGuideCenter;
 @class LayoutState;
 @protocol SceneMutator;
-@protocol AppBarCommands;
+@protocol SceneViewControllerDelegate;
 
 // A view controller that can act as the `rootViewController` for a scene's
 // window.
@@ -41,6 +41,9 @@
 
 // Handler for App Bar commands.
 @property(nonatomic, weak) id<AppBarCommands> appBarHandler;
+
+// Handler for Gemini commands.
+@property(nonatomic, weak) id<GeminiCommands> geminiHandler;
 
 // Sets the app bar.
 - (void)setAppBar:(UIViewController*)appBar;

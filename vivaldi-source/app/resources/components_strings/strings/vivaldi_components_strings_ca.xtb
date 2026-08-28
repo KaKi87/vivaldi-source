@@ -21,6 +21,7 @@
 <translation id="1728677426644403582">Estàs consultant el codi font d'una pàgina web</translation>
 <translation id="1734878702283171397">Prova de contactar amb l'administrador del sistema.</translation>
 <translation id="1768211456781949159"><ph name="BEGIN_LINK" /> Prova d'executar els diagnòstics de xarxa de Windows<ph name="END_LINK" /> .</translation>
+<translation id="1932098463447129402">No abans</translation>
 <translation id="1974060860693918893">Avançat</translation>
 <translation id="2032962459168915086"><ph name="BEGIN_LINK" />Comprova el servidor intermediari i el tallafoc<ph name="END_LINK" /></translation>
 <translation id="2048261947532620704">S'està traduint la pàgina</translation>
@@ -39,11 +40,12 @@
 <translation id="2467694685043708798"><ph name="BEGIN_LINK" /> Executa els diagnòstics de xarxa<ph name="END_LINK" /></translation>
 <translation id="2491414235131909199">Un complement ha bloquejat aquesta pàgina</translation>
 <translation id="255002559098805027"><ph name="HOST_NAME" /> ha enviat una resposta invàlida.</translation>
+<translation id="2607101320794533334">Informació de clau pública del subjecte</translation>
 <translation id="2634124572758952069">No s'ha trobat l'adreça IP del servidor <ph name="HOST_NAME" />.</translation>
-<translation id="2649204054376361687"><ph name="CITY" />, <ph name="COUNTRY" /></translation>
 <translation id="2650446666397867134">S'ha denegat l'accés al fitxer</translation>
 <translation id="2705137772291741111">La còpia desada (a la memòria cau) d'aquest lloc no s'ha pogut llegir.</translation>
 <translation id="2730326759066348565"><ph name="BEGIN_LINK" />Executa els diagnòstics de connectivitat<ph name="END_LINK" /></translation>
+<translation id="2738771556149464852">No després</translation>
 <translation id="2784949926578158345">S'ha restablert la connexió.</translation>
 <translation id="2826760142808435982">La connexió s'ha xifrat i autenticat mitjançant <ph name="CIPHER" /> i fa servir <ph name="KX" /> com a mecanisme d'intercanvi clau.</translation>
 <translation id="290376772003165898">La pàgina no és en <ph name="LANGUAGE" />?</translation>
@@ -69,8 +71,8 @@
 <translation id="3447884698081792621">Mostra el certificat (emès per <ph name="ISSUER" />)</translation>
 <translation id="3462200631372590220">Amaga els detalls avançats</translation>
 <translation id="3484560055331845446">Podries perdre l'accés al compte de Google. Vivaldi et recomana que canviïs la contrasenya ara. Hauràs d'iniciar la sessió.</translation>
+<translation id="3493881266323043047">Validesa</translation>
 <translation id="3566021033012934673">La teva connexió no és privada</translation>
-<translation id="3574305903863751447"><ph name="CITY" />, <ph name="STATE" /> <ph name="COUNTRY" /></translation>
 <translation id="3586931643579894722">Amaga els detalls</translation>
 <translation id="3614001939154393113">És possible que hi hagi atacants que estiguin provant de robar-vos informació de <ph name="BEGIN_BOLD" /><ph name="SITE" /><ph name="END_BOLD" /> (per exemple, contrasenyes, missatges o targetes de crèdit). <ph name="BEGIN_LEARN_MORE_LINK" />Més informació sobre aquest advertiment<ph name="END_LEARN_MORE_LINK" /></translation>
 <translation id="3630155396527302611">Si ja està inclòs a la llista de programes autoritzats per accedir a la xarxa, prova
@@ -78,18 +80,17 @@
 <translation id="3658742229777143148">Revisió</translation>
 <translation id="3681007416295224113">Informació del certificat</translation>
 <translation id="3717027428350673159"><ph name="BEGIN_LINK" />Comprova el servidor intermediari, el tallafoc i la configuració de DNS<ph name="END_LINK" /></translation>
+<translation id="3798449238516105146">Versió</translation>
 <translation id="382518646247711829">Si fas servir un servidor intermediari...</translation>
 <translation id="3950820424414687140">Inicia la sessió</translation>
 <translation id="3973234410852337861"><ph name="HOST_NAME" /> està bloquejat</translation>
 <translation id="3987940399970879459">Menys d'1 MB</translation>
 <translation id="4075123085690634698">Obre una pàgina a una finestra privada nova (⇧⌘N)</translation>
 <translation id="4075732493274867456">El client i el servidor no admeten cap versió de protocol SSL ni cap sistema de xifrat comú.</translation>
-<translation id="4116663294526079822">Permet sempre en aquest lloc</translation>
 <translation id="4130226655945681476">Comprova els cables de xarxa, el mòdem i l'encaminador</translation>
 <translation id="4165986682804962316">Ajustos del lloc</translation>
 <translation id="4203896806696719780"><ph name="BEGIN_LINK" />Revisa la configuració del tallafoc i de l'antivirus<ph name="END_LINK" /></translation>
 <translation id="4226937834893929579"><ph name="BEGIN_LINK" /> Prova d'executar els diagnòstics de xarxa<ph name="END_LINK" /> .</translation>
-<translation id="4235360514405112390">Vàlid</translation>
 <translation id="4241830393007970744">Els atacants del lloc web que has provat de visitar poden enganyar-te perquè instal·lis programari o perquè els donis dades com ara les contrasenyes, el telèfon o números de targeta de crèdit.</translation>
 <translation id="4250431568374086873">La teva connexió amb aquest lloc no és del tot segura</translation>
 <translation id="4265872034478892965">Permès per l'administrador</translation>
@@ -112,11 +113,11 @@
 <translation id="5023310440958281426">Consulta les polítiques de l'administrador</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Comprova l'adreça del servidor intermediari<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64 bits)</translation>
+<translation id="5154702632169343078">Assumpte</translation>
 <translation id="5216942107514965959">Última visita avui</translation>
 <translation id="5355557959165512791">En aquest moment no pots visitar <ph name="SITE" /> perquè se li ha revocat el certificat. Els atacs i els errors de xarxa acostumen a ser temporals, o sigui que probablement la pàgina funcionarà més endavant.</translation>
 <translation id="5386426401304769735">La cadena de certificats d'aquest lloc conté un certificat que s'ha signat amb SHA-1.</translation>
 <translation id="5452270690849572955">No s'ha trobat aquesta pàgina de <ph name="HOST_NAME" /></translation>
-<translation id="5457113250005438886">Invàlid</translation>
 <translation id="5492298309214877701">Aquest lloc de la intranet de l'empresa, organització o centre educatiu té el mateix URL que un lloc web extern.
     <ph name="LINE_BREAK" />
     Prova de contactar amb l'administrador del sistema.</translation>
@@ -129,6 +130,7 @@
 <translation id="5799902971440853357">En aquest moment no pots visitar la pàgina <ph name="SITE" /> perquè el lloc web ha enviat credencials aleatòries que Vivaldi no pot processar. Els atacs i els errors de xarxa acostumen a ser temporals, o sigui que probablement la pàgina funcionarà més endavant.</translation>
 <translation id="5810442152076338065">La teva connexió a <ph name="DOMAIN" /> s'ha xifrat amb un sistema de xifratge obsolet.</translation>
 <translation id="5838278095973806738">No introdueixis informació confidencial en aquest lloc (com ara contrasenyes o targetes de crèdit), ja que alguns atacants podrien robar-la.</translation>
+<translation id="5851868085455377790">Emissor</translation>
 <translation id="5863515189965725638">Edita l'IBAN</translation>
 <translation id="5869405914158311789">No es pot accedir a aquest lloc</translation>
 <translation id="5932224571077948991">El lloc web mostra anuncis intrusius o enganyosos</translation>
@@ -160,20 +162,16 @@
 <translation id="6957624206566198865">Obre la pàgina a una pestanya privada nova</translation>
 <translation id="7096937462164235847">La identitat d'aquest lloc web no s'ha verificat.</translation>
 <translation id="7108819624672055576">Permès per un complement</translation>
-<translation id="7111012039238467737">(Vàlid)</translation>
 <translation id="7126644664682723998">Enganxa i cerca</translation>
 <translation id="7210863904660874423"><ph name="HOST_NAME" /> no compleix la normativa de seguretat.</translation>
 <translation id="7219179957768738017">La connexió usa <ph name="SSL_VERSION" />.</translation>
 <translation id="7221855153210829124">Mostra les notificacions</translation>
 <translation id="7353601530677266744">Línia de comandes</translation>
 <translation id="7419106976560586862">Ruta del perfil</translation>
-<translation id="7455133967321480974">Utilitza l'opció predeterminada global (bloqueja)</translation>
 <translation id="7518003948725431193">No s'ha trobat cap pàgina web per a l'adreça: <ph name="URL" /></translation>
 <translation id="7549584377607005141">Aquesta pàgina web necessita dades que has introduït anteiorment per poder mostrar-la correctament. Pot tornar a enviar les dades, però es tornarà a repetir qualsevol acció que la pàgina hagi dut a terme prèviament.</translation>
 <translation id="759889825892636187"><ph name="HOST_NAME" /> no pot gestionar la sol·licitud en aquest moment.</translation>
 <translation id="7662298039739062396">Ajust controlat per un complement</translation>
-<translation id="7663736086183791259">Certificat <ph name="CERTIFICATE_VALIDITY" /></translation>
-<translation id="7714464543167945231">Certificat</translation>
 <translation id="7716147886133743102">Bloquejat per l'administrador</translation>
 <translation id="7716424297397655342">Aquest lloc no es pot carregar des de la memòria cau</translation>
 <translation id="773466115871691567">Tradueix sempre les pàgines en <ph name="SOURCE_LANGUAGE" /></translation>
@@ -183,15 +181,12 @@
 <translation id="7878562273885520351">La teva contrasenya pot estar compromesa</translation>
 <translation id="7951415247503192394">(32 bits)</translation>
 <translation id="7953236668995583915">Torna a carregar aquesta pàgina per aplicar la configuració actualitzada en aquest lloc web</translation>
-<translation id="8041940743680923270">Utilitza l'opció predeterminada global (pregunta)</translation>
 <translation id="8076492880354921740">Pestanyes</translation>
 <translation id="808894953321890993">Canvia la contrasenya</translation>
 <translation id="8149426793427495338">El dispositiu ha entrat en mode de repòs.</translation>
 <translation id="8150722005171944719">El fitxer de <ph name="URL" /> no es pot llegir. Pot ser que s'hagi suprimit, que s'hagi traslladat o que els permisos del fitxer n'impedeixin l'accés.</translation>
-<translation id="8184538546369750125">Utilitza l'opció predeterminada global (permet)</translation>
 <translation id="8211406090763984747">La connexió és segura</translation>
 <translation id="8241707690549784388">La pàgina que busques ha utilitzat informació que has introduït. Tornar a aquesta pàgina podria provocar que es repetís qualsevol acció realitzada. Vols continuar?</translation>
-<translation id="8241712895048303527">Bloqueja en aquest lloc web</translation>
 <translation id="8286036467436129157">Inicia la sessió</translation>
 <translation id="8288807391153049143">Mostra el certificat</translation>
 <translation id="8289355894181816810">Si no estàs segur de què significa això, contacta amb l'administrador de la xarxa.</translation>
@@ -200,19 +195,18 @@
 <translation id="8498891568109133222"><ph name="HOST_NAME" /> ha trigat massa a respondre.</translation>
 <translation id="8503813439785031346">Nom d'usuari</translation>
 <translation id="8703575177326907206">La teva connexió a <ph name="DOMAIN" /> no està xifrada.</translation>
+<translation id="8705331520020532516">Número de sèrie</translation>
 <translation id="8740359287975076522">&lt;abbr id="dnsDefinition"&gt;L'adreça DNS&lt;/abbr&gt; de <ph name="HOST_NAME" /> no s'ha pogut trobar, diagnosticant el problema.</translation>
 <translation id="8820817407110198400">Marcadors</translation>
 <translation id="8963117664422609631">Ves als ajustos del lloc web</translation>
 <translation id="8975012916872825179">Inclou informació com ara números de telèfon, adreces electròniques i adreces d'enviament</translation>
 <translation id="9001074447101275817">El servidor intermediari <ph name="DOMAIN" /> requereix un nom d'usuari i una contrasenya.</translation>
 <translation id="9008201768610948239">Ignora</translation>
-<translation id="9025348182339809926">(Invàlid)</translation>
 <translation id="9039213469156557790">A més, aquesta pàgina conté altres recursos que no són segurs. La resta d'usuaris poden visualitzar-los mentre estan en trànsit, i algun atacant podria modificar-los per canviar el comportament de la pàgina.</translation>
 <translation id="9062620674789239642">És possible que s'hagi mogut, editat o suprimit.</translation>
 <translation id="9069693763241529744">Bloquejat per un complement</translation>
 <translation id="9073799351042754113">Has decidit desactivar els advertiments de seguretat per a aquest lloc web.</translation>
 <translation id="9168814207360376865">Permet que els llocs web comprovin si tens formes de pagament desades</translation>
-<translation id="9169664750068251925">Bloqueja sempre en aquest lloc</translation>
 <translation id="9183425211371246419"><ph name="HOST_NAME" /> fa servir un protocol no admès.</translation>
 <translation id="936602727769022409">Podries perdre l'accés al compte de Google. Vivaldi et recomana que canviïs la contrasenya ara. Hauràs d'iniciar la sessió.</translation>
 <translation id="969892804517981540">Compilació oficial</translation>

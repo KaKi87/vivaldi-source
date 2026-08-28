@@ -302,47 +302,15 @@ class SupportLibWebSettingsAdapter implements WebSettingsBoundaryInterface {
     }
 
     @Override
+    @Deprecated
     public void setAttributionBehavior(@AttributionBehavior int behavior) {
-        try (TraceEvent event =
-                TraceEvent.scoped("WebView.APICall.AndroidX.SET_ATTRIBUTION_BEHAVIOR")) {
-            recordApiCall(ApiCall.SET_ATTRIBUTION_BEHAVIOR);
-            switch (behavior) {
-                case AttributionBehavior.DISABLED:
-                    mAwSettings.setAttributionBehavior(AwSettings.ATTRIBUTION_DISABLED);
-                    break;
-                case AttributionBehavior.APP_SOURCE_AND_WEB_TRIGGER:
-                    mAwSettings.setAttributionBehavior(
-                            AwSettings.ATTRIBUTION_APP_SOURCE_AND_WEB_TRIGGER);
-                    break;
-                case AttributionBehavior.WEB_SOURCE_AND_WEB_TRIGGER:
-                    mAwSettings.setAttributionBehavior(
-                            AwSettings.ATTRIBUTION_WEB_SOURCE_AND_WEB_TRIGGER);
-                    break;
-                case AttributionBehavior.APP_SOURCE_AND_APP_TRIGGER:
-                    mAwSettings.setAttributionBehavior(
-                            AwSettings.ATTRIBUTION_APP_SOURCE_AND_APP_TRIGGER);
-                    break;
-            }
-        }
+        throw new UnsupportedOperationException("AttributionBehavior is not supported.");
     }
 
     @Override
+    @Deprecated
     public int getAttributionBehavior() {
-        try (TraceEvent event =
-                TraceEvent.scoped("WebView.APICall.AndroidX.GET_ATTRIBUTION_BEHAVIOR")) {
-            recordApiCall(ApiCall.GET_ATTRIBUTION_BEHAVIOR);
-            switch (mAwSettings.getAttributionBehavior()) {
-                case AwSettings.ATTRIBUTION_DISABLED:
-                    return AttributionBehavior.DISABLED;
-                case AwSettings.ATTRIBUTION_APP_SOURCE_AND_WEB_TRIGGER:
-                    return AttributionBehavior.APP_SOURCE_AND_WEB_TRIGGER;
-                case AwSettings.ATTRIBUTION_WEB_SOURCE_AND_WEB_TRIGGER:
-                    return AttributionBehavior.WEB_SOURCE_AND_WEB_TRIGGER;
-                case AwSettings.ATTRIBUTION_APP_SOURCE_AND_APP_TRIGGER:
-                    return AttributionBehavior.APP_SOURCE_AND_APP_TRIGGER;
-            }
-            return AttributionBehavior.APP_SOURCE_AND_WEB_TRIGGER;
-        }
+        throw new UnsupportedOperationException("AttributionBehavior is not supported.");
     }
 
     @Override
@@ -636,40 +604,20 @@ class SupportLibWebSettingsAdapter implements WebSettingsBoundaryInterface {
     }
 
     @Override
-    public void setIgnoreDuplicateNavEnabled(boolean ignoreDuplicateNavEnabled) {
+    public void setDownloadFaviconsEnabled(boolean enabled) {
         try (TraceEvent ignored =
-                TraceEvent.scoped("WebView.APICall.AndroidX.SET_IGNORE_DUPLICATE_NAV_ENABLED")) {
-            recordApiCall(ApiCall.SET_IGNORE_DUPLICATE_NAV_ENABLED);
-            mAwSettings.setIgnoreDuplicateNavEnabled(ignoreDuplicateNavEnabled);
+                TraceEvent.scoped("WebView.APICall.AndroidX.SET_DOWNLOAD_FAVICONS_ENABLED")) {
+            recordApiCall(ApiCall.SET_DOWNLOAD_FAVICONS_ENABLED);
+            mAwSettings.setDownloadFaviconsEnabled(enabled);
         }
     }
 
     @Override
-    public boolean getIgnoreDuplicateNavEnabled() {
+    public boolean getDownloadFaviconsEnabled() {
         try (TraceEvent ignored =
-                TraceEvent.scoped("WebView.APICall.AndroidX.GET_IGNORE_DUPLICATE_NAV_ENABLED")) {
-            recordApiCall(ApiCall.GET_IGNORE_DUPLICATE_NAV_ENABLED);
-            return mAwSettings.getIgnoreDuplicateNavEnabled();
-        }
-    }
-
-    @Override
-    public void setIgnoreDuplicateNavThreshold(long thresholdMs) {
-        try (TraceEvent ignored =
-                TraceEvent.scoped(
-                        "WebView.APICall.AndroidX.SET_IGNORE_DUPLICATE_NAV_THRESHOLD")) {
-            recordApiCall(ApiCall.SET_IGNORE_DUPLICATE_NAV_THRESHOLD_MS);
-            mAwSettings.setIgnoreDuplicateNavThreshold(thresholdMs);
-        }
-    }
-
-    @Override
-    public long getIgnoreDuplicateNavThreshold() {
-        try (TraceEvent ignored =
-                TraceEvent.scoped(
-                        "WebView.APICall.AndroidX.GET_IGNORE_DUPLICATE_NAV_THRESHOLD")) {
-            recordApiCall(ApiCall.GET_IGNORE_DUPLICATE_NAV_THRESHOLD_MS);
-            return mAwSettings.getIgnoreDuplicateNavThreshold();
+                TraceEvent.scoped("WebView.APICall.AndroidX.GET_DOWNLOAD_FAVICONS_ENABLED")) {
+            recordApiCall(ApiCall.GET_DOWNLOAD_FAVICONS_ENABLED);
+            return mAwSettings.getDownloadFaviconsEnabled();
         }
     }
 }

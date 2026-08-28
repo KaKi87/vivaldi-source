@@ -19,7 +19,7 @@ export function ensureLazyLoaded(): Promise<void> {
             .all([
               'settings-appearance-page', 'settings-autofill-section',
               'settings-payments-section',
-              'settings-clear-browsing-data-dialog-v2',
+              'settings-clear-browsing-data-dialog',
               //NOTE(ondrej@vivaldi.com): VB-117777
               //'settings-search-engines-page',
               'settings-a11y-page', 'settings-downloads-page',

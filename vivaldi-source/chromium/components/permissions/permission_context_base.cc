@@ -326,7 +326,7 @@ const PermissionRequest* PermissionContextBase::FindPermissionRequest(
     return nullptr;
   }
 
-  return request->second.first.get();
+  return &*(request->second.first);
 }
 
 GURL PermissionContextBase::GetEffectiveEmbedderOrigin(
@@ -520,6 +520,9 @@ content::PermissionResult PermissionContextBase::GetPermissionStatus(
                              embedding_origin);
 }
 
+void PermissionContextBase::MaybeOverridePermissionResultToReturn(
+    content::PermissionResult& result) const {}
+
 bool PermissionContextBase::IsPermissionAvailableToOrigins(
     const GURL& requesting_origin,
     const GURL& embedding_origin) const {
@@ -552,28 +555,11 @@ PermissionContextBase::UpdatePermissionStatusWithDeviceStatus(
   // cached device permission state because a change (e.g. user toggling the
   // OS-level permission) must invalidate cached state for *all* origins via
   // the wildcard observer notification in MaybeUpdateCachedHasDevicePermission.
-  //
-  // Since this code is reached from navigation hot paths (e.g. on macOS, where
-  // the OS permission query can be expensive), post the refresh asynchronously
-  // in the non-GRANTED case so the hot path is not blocked, while still
-  // preserving the cross-origin observer-notification correctness.
+  MaybeUpdateCachedHasDevicePermission(web_contents);
+
   if (result.status != blink::mojom::PermissionStatus::GRANTED) {
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(
-                       [](base::WeakPtr<PermissionContextBase> self,
-                          base::WeakPtr<content::WebContents> wc) {
-                         if (!self) {
-                           return;
-                         }
-                         self->MaybeUpdateCachedHasDevicePermission(wc.get());
-                       },
-                       weak_factory_.GetWeakPtr(),
-                       web_contents ? web_contents->GetWeakPtr()
-                                    : base::WeakPtr<content::WebContents>()));
     return result;
   }
-
-  MaybeUpdateCachedHasDevicePermission(web_contents);
 
   // If the device-level permission is granted, it has no effect on the result.
   if (last_has_device_permission_result_.has_value() &&
@@ -684,7 +670,7 @@ void PermissionContextBase::DecidePermission(
       pending_requests_
           .insert(std::make_pair(
               permission_request_id.ToString(),
-              std::make_pair(request->GetWeakPtr(), std::move(callback))))
+              std::make_pair(request->GetSafeRef(), std::move(callback))))
           .second;
 
   DCHECK(inserted) << "Duplicate id " << permission_request_id.ToString();
@@ -705,7 +691,6 @@ void PermissionContextBase::PermissionDecided(
       decision.overall_decision == PermissionDecision::kNone) {
     content::RenderFrameHost* rfh = content::RenderFrameHost::FromID(
         request_data.id.global_render_frame_host_id());
-    DCHECK(rfh);
     MaybeUpdateCachedHasDevicePermission(
         content::WebContents::FromRenderFrameHost(rfh));
   }
@@ -713,7 +698,6 @@ void PermissionContextBase::PermissionDecided(
   bool persist = decision.overall_decision != PermissionDecision::kNone;
 
   auto request = pending_requests_.find(request_data.id.ToString());
-  CHECK(request->second.first);
   CHECK(request != pending_requests_.end());
   // Check if `request` has `BrowserPermissionCallback`. The call back might be
   // missing if a permission prompt was preignored and we already notified an
@@ -862,7 +846,6 @@ void PermissionContextBase::NotifyPermissionSet(
   auto request = pending_requests_.find(request_data.id.ToString());
   if (request != pending_requests_.end() &&
       request_data.IsEmbeddedPermissionElementInitiated()) {
-    CHECK(request->second.first);
     content::WebContents* web_contents =
         content::WebContents::FromRenderFrameHost(rfh);
     request->second.first->set_request_finished_callback(base::BindOnce(
@@ -918,8 +901,7 @@ void PermissionContextBase::UpdateSetting(
   // The unused permissions module in Safety check will revoke unused site
   // permissions after a finite amount of time if the permission can be revoked.
   if (content_settings::CanBeAutoRevokedAsUnusedPermission(
-          content_settings_type(), info->delegate().ToValue(setting),
-          is_one_time)) {
+          content_settings_type(), setting, is_one_time)) {
     constraints.set_track_last_visit_for_autoexpiration(true);
   }
 

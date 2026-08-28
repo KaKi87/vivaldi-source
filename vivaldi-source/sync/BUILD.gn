@@ -87,7 +87,6 @@ source_set("browser") {
     "//vivaldi/prefs:prefs_files_generator",
   ]
   public_deps = [ "//components/sync/protocol" ]
-  allow_circular_includes_from = [ "//vivaldi/components/notes:browser" ]
 
   if (is_android) {
     deps += [ "//chrome/android:jni_headers" ]
@@ -103,7 +102,6 @@ source_set("browser") {
       "//vivaldi/extensions",
       "//vivaldi/extensions/api:apis",
     ]
-    allow_circular_includes_from += [ "//vivaldi/extensions/api:apis" ]
   }
 
   if (!is_ios) {

@@ -7,19 +7,24 @@
 
 #include <vector>
 
+#include "base/containers/flat_map.h"
 #include "base/memory/weak_ptr.h"
 #include "base/types/expected.h"
 #include "chrome/browser/actor/autofill_selection_dialog_event_handler.h"
 #include "chrome/browser/actor/tools/attempt_form_filling_tool_request.h"
 #include "chrome/browser/actor/tools/tool.h"
 #include "chrome/browser/actor/tools/tool_callbacks.h"
-#include "chrome/browser/autofill/actor/actor_form_filling_service.h"
 #include "chrome/common/actor.mojom-forward.h"
 #include "chrome/common/actor_webui.mojom-forward.h"
+#include "components/autofill/core/browser/actor/actor_form_filling_service.h"
 #include "components/autofill/core/browser/integrators/actor/actor_form_filling_types.h"
 #include "components/autofill/core/common/signatures.h"
 #include "components/autofill/core/common/unique_ids.h"
 #include "components/tabs/public/tab_interface.h"
+
+namespace autofill {
+class AutofillClient;
+}
 
 namespace actor {
 
@@ -30,7 +35,8 @@ class AttemptFormFillingTool : public Tool,
       TaskId task_id,
       ToolDelegate& tool_delegate,
       tabs::TabInterface& tab,
-      std::vector<AttemptFormFillingToolRequest::FormFillingRequest> requests);
+      std::vector<AttemptFormFillingToolRequest::FormFillingRequest> requests,
+      bool enqueued_click);
   ~AttemptFormFillingTool() override;
 
   void Invoke(ToolCallback callback) override;
@@ -74,15 +80,23 @@ class AttemptFormFillingTool : public Tool,
   void SimulateRequestToShowAutofillSuggestions(
       ToolCallback invoke_callback,
       std::vector<autofill::ActorFormFillingRequest> requests);
+  autofill::AutofillClient* GetAutofillClient();
   tabs::TabHandle tab_handle_;
   std::vector<AttemptFormFillingToolRequest::FormFillingRequest>
       tool_fill_requests_;
+  // Set to true if a click has already been enqueued for the target field of
+  // this request. This is propagated from the request to prevent infinite loops
+  // of click delegation.
+  bool enqueued_click_ = false;
   // Fill requests as determined by the ActorFormFillingService. Initially
   // populated in TimeOfUseValidation and then updated in OnSuggestionsRetrieved
   // to reflect the actual requests returned by the service, which may have
   // been split.
   std::vector<autofill::ActorFormFillingService::FillRequest>
       service_fill_requests_;
+  // Maps the FieldGlobalId for each trigger field to the originating
+  // PageTarget.
+  base::flat_map<autofill::FieldGlobalId, PageTarget> trigger_field_map_;
   base::WeakPtrFactory<AttemptFormFillingTool> weak_factory_{this};
 };
 

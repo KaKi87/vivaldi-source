@@ -35,6 +35,8 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #endif
 
+#include "app/vivaldi_apptools.h"
+
 namespace safe_browsing {
 
 SafeBrowsingPrefChangeHandler::SafeBrowsingPrefChangeHandler(Profile* profile)
@@ -75,7 +77,7 @@ void SafeBrowsingPrefChangeHandler::
         content::WebContents* web_contents) {
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN) || \
     BUILDFLAG(IS_MAC)
-  if (!profile_ ||
+  if (!profile_ || vivaldi::IsVivaldiRunning() ||
       !base::FeatureList::IsEnabled(safe_browsing::kEsbAsASyncedSetting)) {
     return;
   }

@@ -23,7 +23,6 @@
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
 #include "remoting/base/logging.h"
-#include "remoting/host/client_session_details.h"
 #include "remoting/host/mojom/remote_security_key.mojom.h"
 #include "remoting/host/security_key/security_key_ipc_constants.h"
 
@@ -42,10 +41,7 @@ constexpr base::TimeDelta kSecurityKeyRequestTimeout = base::Seconds(60);
 
 }  // namespace
 
-SecurityKeyAuthHandlerMojo::SecurityKeyAuthHandlerMojo(
-    ClientSessionDetails* client_session_details)
-    : client_session_details_(client_session_details) {
-  DCHECK(client_session_details_);
+SecurityKeyAuthHandlerMojo::SecurityKeyAuthHandlerMojo() {
   receiver_set_.set_disconnect_handler(
       base::BindRepeating(&SecurityKeyAuthHandlerMojo::OnIpcPeerDisconnected,
                           weak_factory_.GetWeakPtr()));
@@ -111,9 +107,31 @@ void SecurityKeyAuthHandlerMojo::SendErrorAndCloseConnection(
 }
 
 void SecurityKeyAuthHandlerMojo::SetSendMessageCallback(
-    const SendMessageCallback& callback) {
+    const SendMessageCallback& callback,
+    const void* client_id) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  if (active_client_id_ && active_client_id_ != client_id) {
+    VLOG(1) << "Overwriting active client: " << active_client_id_
+            << " with: " << client_id;
+  }
   send_message_callback_ = callback;
+  active_client_id_ = client_id;
+}
+
+void SecurityKeyAuthHandlerMojo::ClearSendMessageCallback(
+    const void* client_id) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  if (active_client_id_ == client_id) {
+    send_message_callback_.Reset();
+    active_client_id_ = nullptr;
+  } else if (active_client_id_) {
+    VLOG(1) << "Ignoring request to clear callback for client: " << client_id
+            << " (active client is: " << active_client_id_ << ")";
+  }
+}
+
+base::WeakPtr<SecurityKeyAuthHandler> SecurityKeyAuthHandlerMojo::GetWeakPtr() {
+  return weak_factory_.GetWeakPtr();
 }
 
 size_t SecurityKeyAuthHandlerMojo::GetActiveConnectionCountForTest() const {
@@ -130,7 +148,6 @@ void SecurityKeyAuthHandlerMojo::OnSecurityKeyRequest(
     const std::string& request_data,
     OnSecurityKeyRequestCallback callback) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
-  DCHECK(send_message_callback_);
 
   int connection_id = receiver_set_.current_context();
   auto iter = active_connections_.find(connection_id);
@@ -141,6 +158,12 @@ void SecurityKeyAuthHandlerMojo::OnSecurityKeyRequest(
     CloseSecurityKeyRequestConnection(connection_id);
     return;
   }
+  if (send_message_callback_.is_null()) {
+    LOG(ERROR) << "No callback registered, dropping request.";
+    CloseSecurityKeyRequestConnection(connection_id);
+    return;
+  }
+
   // Reset the timer to give the client a chance to send the response.
   connection.disconnect_timer.Start(FROM_HERE, kSecurityKeyRequestTimeout,
                                     GetCloseConnectionClosure(connection_id));

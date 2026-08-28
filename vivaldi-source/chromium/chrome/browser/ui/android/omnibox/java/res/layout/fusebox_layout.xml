@@ -26,12 +26,14 @@ found in the LICENSE file.
         app:layout_constraintTop_toTopOf="parent"/>
 
     <org.chromium.ui.widget.ChromeImageView
-        android:id="@+id/location_bar_attachments_add"
+        android:id="@+id/fusebox_plus_button"
+        android:foreground="@drawable/plus_button_focus_ring"
         android:layout_width="@dimen/fusebox_button_size"
         android:layout_height="@dimen/fusebox_button_size"
         android:visibility="gone"
         android:padding="@dimen/fusebox_button_padding"
         android:contentDescription="@string/accessibility_omnibox_open_context_popup"
+        android:tooltipText="@string/ntp_compose_add_context_title"
         android:src="@drawable/ic_add_round_20dp"
         android:scaleType="centerInside"
         android:clickable="true"
@@ -55,7 +57,7 @@ found in the LICENSE file.
         android:singleLine="true"
         android:text="@string/ai_mode_entrypoint_label"
         android:textAlignment="viewStart"
-        app:layout_constraintStart_toEndOf="@id/location_bar_attachments_add"
+        app:layout_constraintStart_toEndOf="@id/fusebox_plus_button"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintTop_toBottomOf="@id/url_bar"
         app:buttonColor="@color/interactable_chip_bg_color"
@@ -69,32 +71,24 @@ found in the LICENSE file.
         android:layout_marginEnd="4dp"
         android:visibility="gone"
         android:src="@drawable/ic_arrow_forward_blue_24dp"
+        android:tooltipText="@string/ntp_compose_submit_button_a11y_label"
         android:clickable="true"
         android:focusable="true"
         android:scaleType="centerInside"
         android:background="@drawable/oval_baseline_primary_50"
+        android:foreground="@drawable/circle_button_focus_ring"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@id/margin_spacer"
         app:layout_constraintTop_toBottomOf="@id/url_bar"/>
 
     <org.chromium.ui.widget.ButtonCompat
-        style="@style/OutlinedButton"
+        style="@style/AiModeChip"
         android:id="@+id/fusebox_activation_chip"
-        android:layout_width="wrap_content"
-        android:layout_height="@dimen/min_touch_target_size"
         android:visibility="gone"
-        android:contentDescription="@string/starter_pack_ai_mode_action_hint"
-        android:drawableStart="@drawable/search_spark_black_24dp"
-        android:paddingStart="8dp"
-        android:paddingEnd="12dp"
-        android:drawablePadding="8dp"
-        android:singleLine="true"
-        android:text="@string/ai_mode_entrypoint_label"
-        android:textAlignment="viewStart"
+        android:foreground="@drawable/activation_chip_focus_ring"
+        app:verticalInset="8dp"
+        app:horizontalInset="5dp"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:buttonBorderStyle="solid"
-        app:verticalInset="6dp"
-        app:rippleCornerRadius="36dp"/>
+        app:layout_constraintTop_toTopOf="parent" />
 
 </merge>

@@ -21,6 +21,7 @@
 <translation id="1728677426644403582">Pregledate izvor veb stranice</translation>
 <translation id="1734878702283171397">Obratite se administratoru sistema.</translation>
 <translation id="1768211456781949159"><ph name="BEGIN_LINK" />Pokušajte da pokrenete Windows dijagnostiku mreže<ph name="END_LINK" />.</translation>
+<translation id="1932098463447129402">Ne pre</translation>
 <translation id="1974060860693918893">Napredno</translation>
 <translation id="2032962459168915086"><ph name="BEGIN_LINK" />da proverite proksi i zaštitni zid<ph name="END_LINK" /></translation>
 <translation id="2048261947532620704">Prevođenje stranice</translation>
@@ -39,11 +40,12 @@
 <translation id="2467694685043708798"><ph name="BEGIN_LINK" />da pokrenete dijagnostiku mreže<ph name="END_LINK" /></translation>
 <translation id="2491414235131909199">Ovu stranicu je blokiralo proširenje</translation>
 <translation id="255002559098805027">Host <ph name="HOST_NAME" /> je poslao nevažeći odgovor.</translation>
+<translation id="2607101320794533334">Informacije o javnom ključu subjekta</translation>
 <translation id="2634124572758952069">Nije pronađena IP adresa servera hosta <ph name="HOST_NAME" />.</translation>
-<translation id="2649204054376361687"><ph name="CITY" />, <ph name="COUNTRY" /></translation>
 <translation id="2650446666397867134">Pristup datoteci je odbijen</translation>
 <translation id="2705137772291741111">Sačuvana (keširana) kopija ovog sajta nije mogla da se čita.</translation>
 <translation id="2730326759066348565"><ph name="BEGIN_LINK" />da pokrenete dijagnostiku veze<ph name="END_LINK" /></translation>
+<translation id="2738771556149464852">Ne posle</translation>
 <translation id="2784949926578158345">Veza je vraćena na početne vrednosti.</translation>
 <translation id="2826760142808435982">Veza je šifrovana i njena autentičnost je potvrđena pomoću <ph name="CIPHER" /> i koristi <ph name="KX" /> kao mehanizam za razmenu šifara.</translation>
 <translation id="290376772003165898">Jezik ove stranice nije <ph name="LANGUAGE" />?</translation>
@@ -69,8 +71,8 @@ Ako mislite da ne treba da koristite proksi server:
 <translation id="3447884698081792621">Prikaži sertifikat (izdavač <ph name="ISSUER" />)</translation>
 <translation id="3462200631372590220">Sakrij napredno</translation>
 <translation id="3484560055331845446">Mogli biste izgubiti pristup svom Google nalogu. Preporučujemo da odmah promenite lozinku. Od vas će se zatražiti da se prijavite.</translation>
+<translation id="3493881266323043047">Rok važenja</translation>
 <translation id="3566021033012934673">Veza nije privatna</translation>
-<translation id="3574305903863751447"><ph name="CITY" />, <ph name="STATE" /> <ph name="COUNTRY" /></translation>
 <translation id="3586931643579894722">Sakrij detalje</translation>
 <translation id="3614001939154393113">Napadači možda pokušavaju da ukradu vaše informacije sa <ph name="BEGIN_BOLD" /><ph name="SITE" /><ph name="END_BOLD" /> (npr. lozinke, poruke ili kreditne kartice). <ph name="BEGIN_LEARN_MORE_LINK" />Saznajte više o ovom upozorenju<ph name="END_LEARN_MORE_LINK" /></translation>
 <translation id="3630155396527302611">Ako je već naveden kao program kome je dozvoljen pristup mreži,
@@ -78,18 +80,17 @@ pokušajte da ga uklonite sa liste i ponovo ga dodate.</translation>
 <translation id="3658742229777143148">Revizija</translation>
 <translation id="3681007416295224113">Informacije o sertifikatu</translation>
 <translation id="3717027428350673159"><ph name="BEGIN_LINK" />da proverite konfiguraciju proksija, zaštitnog zida i DNS-a<ph name="END_LINK" /></translation>
+<translation id="3798449238516105146">Verzija</translation>
 <translation id="382518646247711829">Ako koristite proksi server...</translation>
 <translation id="3950820424414687140">Prijavi se</translation>
 <translation id="3973234410852337861">Host <ph name="HOST_NAME" /> je blokiran</translation>
 <translation id="3987940399970879459">Manje od 1 MB</translation>
 <translation id="4075123085690634698">Otvori stranicu u novom privatnom prozoru (⇧⌘N)</translation>
 <translation id="4075732493274867456">Klijent i server ne podržavaju istu verziju SSL protokola ili paket za šifrovanje.</translation>
-<translation id="4116663294526079822">Uvek dozvoli na ovom sajtu</translation>
 <translation id="4130226655945681476">da proverite mrežne kablove, modem i ruter</translation>
 <translation id="4165986682804962316">Podešavanja sajta</translation>
 <translation id="4203896806696719780"><ph name="BEGIN_LINK" />da proverite konfiguraciju zaštitnog zida i antivirusa<ph name="END_LINK" /></translation>
 <translation id="4226937834893929579"><ph name="BEGIN_LINK" />Pokušajte da pokrenete dijagnostiku mreže<ph name="END_LINK" />.</translation>
-<translation id="4235360514405112390">Važeći</translation>
 <translation id="4241830393007970744">Napadači na sajt koji ste pokušali da posetite mogu da vas prevare da instalirate softver ili otkrijete stvari poput lozinki, telefona ili brojeva kreditnih kartica.</translation>
 <translation id="4250431568374086873">Veza sa ovim sajtom nije potpuno bezbedna</translation>
 <translation id="4265872034478892965">Dozvolio administrator</translation>
@@ -112,11 +113,11 @@ pokušajte da ga uklonite sa liste i ponovo ga dodate.</translation>
 <translation id="5023310440958281426">Proverite smernice administratora</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />da proverite adresu proksija<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64 bita)</translation>
+<translation id="5154702632169343078">Tema</translation>
 <translation id="5216942107514965959">Poslednja poseta danas</translation>
 <translation id="5355557959165512791">Ne možete posetiti sada <ph name="SITE" /> jer je njegov sertifikat opozvan. Greške i napadi na mreži su obično privremeni, pa će ova stranica verovatno funkcionisati kasnije.</translation>
 <translation id="5386426401304769735">Lanac sertifikata za ovaj sajt sadrži sertifikat potpisan pomoću algoritma SHA-1.</translation>
 <translation id="5452270690849572955">Nije moguće pronaći ovu stranicu na <ph name="HOST_NAME" /></translation>
-<translation id="5457113250005438886">Nevažeći</translation>
 <translation id="5492298309214877701">Ovaj sajt na intranetu kompanije, organizacije ili škole ima isti URL kao i jedan spoljni veb-sajt.
     <ph name="LINE_BREAK" />
     Pokušajte da se obratite administratoru sistema.</translation>
@@ -129,6 +130,7 @@ pokušajte da ga uklonite sa liste i ponovo ga dodate.</translation>
 <translation id="5799902971440853357">Ne možete posetiti sada <ph name="SITE" /> jer je veb sajt poslao kodirane podatke za prijavljivanje koje Vivaldi ne može da obradi. Greške i napadi na mreži su obično privremeni, pa će ova stranica verovatno funkcionisati kasnije.</translation>
 <translation id="5810442152076338065">Veza sa domenom <ph name="DOMAIN" /> je šifrovana pomoću zastarelog paketa za šifrovanje.</translation>
 <translation id="5838278095973806738">Ne bi trebalo da unosite osetljive informacije na ovom sajtu (na primer, lozinke ili kreditne kartice), jer bi ih napadači mogli ukrasti.</translation>
+<translation id="5851868085455377790">Izdavalac</translation>
 <translation id="5863515189965725638">Uredi IBAN</translation>
 <translation id="5869405914158311789">Ovaj sajt nije dostupan</translation>
 <translation id="5932224571077948991">Sajt prikazuje nametljive ili obmanjujuće reklame</translation>
@@ -160,20 +162,16 @@ ili druge mrežne uređaje koje možda koristite.</translation>
 <translation id="6957624206566198865">Otvori stranicu u novoj privatnoj kartici</translation>
 <translation id="7096937462164235847">Identitet ovog veb sajta nije verifikovan.</translation>
 <translation id="7108819624672055576">Dozvoljeno proširenjem</translation>
-<translation id="7111012039238467737">(važeći)</translation>
 <translation id="7126644664682723998">Nalepi i pretraži</translation>
 <translation id="7210863904660874423">Host <ph name="HOST_NAME" /> ne poštuje bezbednosne standarde.</translation>
 <translation id="7219179957768738017">Veza koristi <ph name="SSL_VERSION" />.</translation>
 <translation id="7221855153210829124">prikazuje obaveštenja</translation>
 <translation id="7353601530677266744">Komandna linija</translation>
 <translation id="7419106976560586862">Putanja profila</translation>
-<translation id="7455133967321480974">Koristi globalnu podrazumevanu vrednost (Blokiraj)</translation>
 <translation id="7518003948725431193">Nijedna veb stranica nije pronađena za veb adresu: <ph name="URL" /></translation>
 <translation id="7549584377607005141">Ova veb stranica zahteva podatke koje ste uneli ranije da bi se pravilno prikazala. Možete ponovo da pošaljete te podatke, ali ako to uradite, ponovićete bilo koju radnju koju je ova stranica prethodno obavila.</translation>
 <translation id="759889825892636187">Host <ph name="HOST_NAME" /> trenutno ne može da obradi ovaj zahtev.</translation>
 <translation id="7662298039739062396">Podešavanjem upravlja proširenje</translation>
-<translation id="7663736086183791259">Sertifikat <ph name="CERTIFICATE_VALIDITY" /></translation>
-<translation id="7714464543167945231">Sertifikat</translation>
 <translation id="7716147886133743102">Blokirao administrator</translation>
 <translation id="7716424297397655342">Nije moguće učitati ovaj sajt iz keša</translation>
 <translation id="773466115871691567">Uvek prevodi <ph name="SOURCE_LANGUAGE" /></translation>
@@ -183,15 +181,12 @@ ili druge mrežne uređaje koje možda koristite.</translation>
 <translation id="7878562273885520351">Vaša lozinka je možda ugrožena</translation>
 <translation id="7951415247503192394">(32 bita)</translation>
 <translation id="7953236668995583915">Ponovo učitajte ovu stranicu da bi se primenila vaša ažurirana podešavanja na ovaj sajt</translation>
-<translation id="8041940743680923270">Koristi globalnu podrazumevanu vrednost (Pitaj)</translation>
 <translation id="8076492880354921740">Kartice</translation>
 <translation id="808894953321890993">Promeni lozinku</translation>
 <translation id="8149426793427495338">Računar je prešao u stanje mirovanja.</translation>
 <translation id="8150722005171944719">Datoteka na adresi <ph name="URL" /> ne može da se čita. Možda je uklonjena ili premeštena ili dozvole za datoteke sprečavaju pristup.</translation>
-<translation id="8184538546369750125">Koristi globalnu podrazumevanu vrednost (Dozvoli)</translation>
 <translation id="8211406090763984747">Veza je bezbedna</translation>
 <translation id="8241707690549784388">Stranica koju tražite je koristila informacije koje ste uneli. Povratak na tu stranicu može prouzrokovati potrebu ponavljanja radnji koje ste izvršili. Želite li da nastavite?</translation>
-<translation id="8241712895048303527">Blokiraj na ovom sajtu</translation>
 <translation id="8286036467436129157">Prijavi se</translation>
 <translation id="8288807391153049143">Prikaži sertifikat</translation>
 <translation id="8289355894181816810">Obratite se administratoru mreže ako niste sigurni šta to znači.</translation>
@@ -200,19 +195,18 @@ ili druge mrežne uređaje koje možda koristite.</translation>
 <translation id="8498891568109133222">Odgovor hosta <ph name="HOST_NAME" /> je trajao predugo.</translation>
 <translation id="8503813439785031346">Korisničko ime</translation>
 <translation id="8703575177326907206">Vaša veza sa domenom <ph name="DOMAIN" /> nije šifrovana.</translation>
+<translation id="8705331520020532516">Serijski broj</translation>
 <translation id="8740359287975076522">Nije pronađena &lt;abbr id="dnsDefinition"&gt;DNS adresa&lt;/abbr&gt; hosta <ph name="HOST_NAME" />. U toku je dijagnostika problema.</translation>
 <translation id="8820817407110198400">Obeleživači</translation>
 <translation id="8963117664422609631">Idi na podešavanja sajta</translation>
 <translation id="8975012916872825179">Uključuje informacije kao što su brojevi telefona, adrese e-pošte i adrese za isporuku</translation>
 <translation id="9001074447101275817">Proksi <ph name="DOMAIN" /> zahteva korisničko ime i lozinku.</translation>
 <translation id="9008201768610948239">Zanemari</translation>
-<translation id="9025348182339809926">(nevažeći)</translation>
 <translation id="9039213469156557790">Pored toga, ova stranica sadrži i druge resurse koji nisu bezbedni. Ove resurse mogu da vide i drugi dok su u prolazu i napadač može da ih izmeni kako bi promenio ponašanje stranice.</translation>
 <translation id="9062620674789239642">Možda je premeštena, izmenjena ili izbrisana.</translation>
 <translation id="9069693763241529744">Blokirano proširenjem</translation>
 <translation id="9073799351042754113">Odabrali ste da isključite bezbednosna upozorenja za ovaj sajt.</translation>
 <translation id="9168814207360376865">Dozvoli sajtovima da proveravaju da li imam sačuvane načine plaćanja</translation>
-<translation id="9169664750068251925">Uvek blokiraj na ovom sajtu</translation>
 <translation id="9183425211371246419">Host <ph name="HOST_NAME" /> koristi nepodržani protokol.</translation>
 <translation id="936602727769022409">Mogli biste izgubiti pristup svom Google nalogu. Preporučujemo da odmah promenite lozinku. Od vas će se zatražiti da se prijavite.</translation>
 <translation id="969892804517981540">Zvanična verzija</translation>

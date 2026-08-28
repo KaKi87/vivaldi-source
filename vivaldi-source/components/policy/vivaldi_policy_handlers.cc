@@ -4,6 +4,8 @@
 
 #include <memory>
 #include <optional>
+#include <string_view>
+#include <vector>
 
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
@@ -15,6 +17,9 @@
 #include "components/prefs/pref_value_map.h"
 #include "vivaldi/prefs/vivaldi_gen_prefs.h"
 
+#if !BUILDFLAG(IS_ANDROID)
+#include "components/policy/vivaldi_vpn_policy_handler.h"
+#endif
 namespace {
 
 class VivaldiCallbackPolicyHandler : public policy::TypeCheckingPolicyHandler {
@@ -76,15 +81,12 @@ void AddVivaldiPolicyHandlers(
   handlers->AddHandler(std::make_unique<VivaldiCallbackPolicyHandler>(
       policy::key::kSyncDisabled, base::Value::Type::BOOLEAN,
       set_bool_prefs(true, false,
-                     {vivaldiprefs::kAddressBarOmniboxShowSyncTabs,
-                      vivaldiprefs::kPanelsWindowListShowSyncedTabs,
-                      vivaldiprefs::kQuickCommandsShowSyncedTabs,
-                      vivaldiprefs::kTabsShowSyncedTabsButton})));
+                     {vivaldiprefs::kPanelsWindowListShowSyncedTabs,
+                      vivaldiprefs::kQuickCommandsShowSyncedTabs})));
 
   // SearchSuggestEnabled -> mirror to vivaldi search suggest prefs.
   for (const char* pref : {
            vivaldiprefs::kAddressBarSearchSuggestEnabled,
-           vivaldiprefs::kAddressBarInlineSearchSuggestEnabled,
            vivaldiprefs::kAddressBarInlineSearchSuggestOnNickname,
        }) {
     handlers->AddHandler(std::make_unique<policy::SimplePolicyHandler>(
@@ -128,8 +130,19 @@ void AddVivaldiPolicyHandlers(
                       vivaldiprefs::kAddressBarOmniboxShowTypedHistory,
                       vivaldiprefs::kAddressBarOmniboxShowTypedHistoryButton,
                       vivaldiprefs::kAddressBarOmniboxSearchHistoryEnable,
-                      vivaldiprefs::kAddressBarSearchTypedHistory,
                       vivaldiprefs::kQuickCommandsShowHistory})));
+
+#if !BUILDFLAG(IS_ANDROID)
+  // Handler for vivaldiprefs::kPolicyVpnEnabled
+  handlers->AddHandler(std::make_unique<VivaldiVpnPolicyHandler>());
+
+  // VivaldiDirectMatchEnabled (false) -> disable Direct Match.
+  handlers->AddHandler(std::make_unique<VivaldiCallbackPolicyHandler>(
+      policy::key::kVivaldiDirectMatchEnabled, base::Value::Type::BOOLEAN,
+      set_bool_prefs(false, false,
+                     {vivaldiprefs::kAddressBarSearchDirectMatchEnabled,
+                      vivaldiprefs::kAddressBarSearchDirectMatchBoosted})));
+#endif
 }
 
 }  // namespace vivaldi

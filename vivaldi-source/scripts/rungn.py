@@ -215,7 +215,7 @@ gn_defines += ' google_default_client_id="" google_default_client_secret=""'
 if args.official:
   gn_defines += " is_official_build=true"
 
-if args.static or is_ios: # IOS requires static linking
+if args.static or is_ios or is_android: # IOS requires static linking
   gn_defines += " is_component_build=false"
 
 if args.no_hermetic:

@@ -29,8 +29,8 @@
 #import "url/gurl.h"
 
 @interface BookmarksEditorCoordinator () <
-    BookmarksEditorViewControllerDelegate,
     BookmarksEditorMediatorDelegate,
+    BookmarksEditorViewControllerDelegate,
     BookmarksFolderChooserCoordinatorDelegate> {
   // BookmarkNode to edit.
   raw_ptr<const bookmarks::BookmarkNode> _node;
@@ -154,12 +154,12 @@
     return;
   }
 
-  std::set<raw_ptr<const bookmarks::BookmarkNode>> hiddenNodes{
+  std::set<raw_ptr<const bookmarks::BookmarkNode>> movedNodes{
       [_mediator bookmark]};
   _folderChooserCoordinator = [[BookmarksFolderChooserCoordinator alloc]
       initWithBaseNavigationController:_navigationController
                                browser:self.browser
-                           hiddenNodes:hiddenNodes];
+                            movedNodes:movedNodes];
   [_folderChooserCoordinator setSelectedFolder:_mediator.folder];
   _folderChooserCoordinator.delegate = self;
   _mediator.UIDisabled = YES;

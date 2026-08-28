@@ -125,8 +125,4 @@ bool VivaldiImportKeychainKeyProvider::UseForEncryption() {
   return false;
 }
 
-bool VivaldiImportKeychainKeyProvider::IsCompatibleWithOsCryptSync() {
-  return true;
-}
-
 }  // namespace os_crypt_async

@@ -19,6 +19,7 @@
 #include "chrome/browser/tab_contents/tab_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_activation_tracker.h"
 #include "chrome/browser/ui/tab_ui_helper.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
@@ -81,10 +82,10 @@ std::unique_ptr<WebContents> CreateRestoredTab(
   // into the map.
   content::SessionStorageNamespaceMap session_storage_namespace_map =
       content::CreateMapWithDefaultSessionStorageNamespace(
-          browser->profile(), session_storage_namespace);
+          browser->GetProfile(), session_storage_namespace);
   WebContents::CreateParams create_params(
-      browser->profile(),
-      tab_util::GetSiteInstanceForNewTab(browser->profile(), restore_url));
+      browser->GetProfile(),
+      tab_util::GetSiteInstanceForNewTab(browser->GetProfile(), restore_url));
   create_params.initially_hidden = initially_hidden;
   create_params.desired_renderer_state =
       WebContents::CreateParams::kNoRendererProcess;
@@ -99,16 +100,19 @@ std::unique_ptr<WebContents> CreateRestoredTab(
   if (from_session_restore && vivaldi::IsVivaldiRunning()) {
     vivaldi::LazyLoadService::OnWillRestoreTab(web_contents.get());
   }
-  apps::SetAppIdForWebContents(browser->profile(), web_contents.get(),
+
+  apps::SetAppIdForWebContents(browser->GetProfile(), web_contents.get(),
                                extension_app_id);
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   glic::RestoreGlicStateFromExtraData(web_contents.get(), extra_data);
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  send_tab_to_self::SendTabToSelfActivationTracker::RestoreFromExtraData(
+      web_contents.get(), extra_data);
 
   std::vector<std::unique_ptr<NavigationEntry>> entries =
       ContentSerializedNavigationBuilder::ToNavigationEntries(
-          navigations, browser->profile());
+          navigations, browser->GetProfile());
 
   blink::UserAgentOverride ua_override;
   ua_override.ua_string_override = user_agent_override.ua_string_override;
@@ -127,7 +131,7 @@ std::unique_ptr<WebContents> CreateRestoredTab(
   }
 
   for (const auto& viv_page_action_override : viv_page_action_overrides) {
-    page_actions::ServiceFactory::GetForBrowserContext(browser->profile())
+    page_actions::ServiceFactory::GetForBrowserContext(browser->GetProfile())
         ->SetScriptOverrideForTab(
             web_contents.get(),
             base::FilePath::FromUTF8Unsafe(viv_page_action_override.first),
@@ -164,13 +168,13 @@ void LoadRestoredTabIfVisible(Browser* browser,
   // WebUI browser's content size is not available until the WebUI page is
   // loaded.
   if (!webui_browser::IsWebUIBrowserEnabled()) {
-    DCHECK(!browser->window()->GetContentsSize().IsEmpty() ||
-           (browser->window()->GetBounds().IsEmpty() &&
-            browser->window()->GetRestoredBounds().IsEmpty()));
+    DCHECK(!BrowserWindow::FromBrowser(browser)->GetContentsSize().IsEmpty() ||
+           (browser->GetWindow()->GetBounds().IsEmpty() &&
+            browser->GetWindow()->GetRestoredBounds().IsEmpty()));
+    if (!vivaldi::IsVivaldiRunning())
+    DCHECK_EQ(web_contents->GetSize(),
+              BrowserWindow::FromBrowser(browser)->GetContentsSize());
   }
-
-  if (!vivaldi::IsVivaldiRunning())
-  DCHECK_EQ(web_contents->GetSize(), browser->window()->GetContentsSize());
 
   web_contents->GetController().LoadIfNecessary();
 }
@@ -250,11 +254,11 @@ WebContents* AddRestoredTabImpl(std::unique_ptr<WebContents> web_contents,
   //
   // TODO(crbug.com/40113932): There should be a way to ask the browser
   // to perform a layout so that size of the WebContents is right.
-  gfx::Size size = browser->window()->GetContentsSize();
+  gfx::Size size = BrowserWindow::FromBrowser(browser)->GetContentsSize();
   // Fallback to the restore bounds if it's empty as the window is not shown
   // yet and the bounds may not be available on all platforms.
   if (size.IsEmpty()) {
-    size = browser->window()->GetRestoredBounds().size();
+    size = browser->GetWindow()->GetRestoredBounds().size();
   }
   // NOTE(tomas@vivaldi.com): Adding create_params.always_create_guest causes
   // ResizeWebContents(...) to crash when calling
@@ -263,7 +267,7 @@ WebContents* AddRestoredTabImpl(std::unique_ptr<WebContents> web_contents,
   raw_web_contents->Resize(gfx::Rect(size));
   }
 
-  const bool initially_hidden = !select || browser->window()->IsMinimized();
+  const bool initially_hidden = !select || browser->GetWindow()->IsMinimized();
   if (initially_hidden) {
     raw_web_contents->WasHidden();
   } else {
@@ -279,7 +283,7 @@ WebContents* AddRestoredTabImpl(std::unique_ptr<WebContents> web_contents,
         true;
 #endif
     if (should_activate) {
-      browser->window()->Activate();
+      browser->GetWindow()->Activate();
     }
   }
 
@@ -331,7 +335,7 @@ WebContents* AddRestoredTab(
     // Vivaldi
     const std::map<std::string, bool> viv_page_action_overrides,
     const VivExtDataWrap *viv_ext_data) {
-  const bool initially_hidden = !select || browser->window()->IsMinimized();
+  const bool initially_hidden = !select || browser->GetWindow()->IsMinimized();
   std::unique_ptr<WebContents> web_contents = CreateRestoredTab(
       browser, navigations, selected_navigation, extension_app_id,
       last_active_time_ticks, last_active_time, session_storage_namespace,

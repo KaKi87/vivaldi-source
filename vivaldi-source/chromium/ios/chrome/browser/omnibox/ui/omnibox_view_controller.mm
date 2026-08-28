@@ -38,8 +38,8 @@ using vivaldi::IsVivaldiRunning;
 
 using base::UserMetricsAction;
 
-@interface OmniboxViewController () <OmniboxTextInputDelegate,
-                                     OmniboxKeyboardDelegate,
+@interface OmniboxViewController () <OmniboxKeyboardDelegate,
+                                     OmniboxTextInputDelegate,
                                      UIScribbleInteractionDelegate>
 {
   // Vivaldi

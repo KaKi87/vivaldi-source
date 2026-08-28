@@ -270,8 +270,8 @@ const CGFloat kActionViewBackgroundColorBrightnessIncognito = 80.0 / 256.0;
       _addTabActionImageView.image =
           CustomSymbolWithPointSize(vMenuNewTab, kOverScrollSymbolPointSize);
     } else {
-    _addTabActionImageView.image = DefaultSymbolTemplateWithPointSize(
-        kPlusSymbol, kOverScrollSymbolPointSize);
+    _addTabActionImageView.image =
+        SymbolTemplateWithPointSize(SymbolPlus, kOverScrollSymbolPointSize);
     } // End Vivaldi
 
     [_addTabActionImageView sizeToFit];
@@ -281,16 +281,16 @@ const CGFloat kActionViewBackgroundColorBrightnessIncognito = 80.0 / 256.0;
     if (IsVivaldiRunning()) {
       _reloadActionImageView.image = [UIImage imageNamed:@"toolbar_reload"];
     } else {
-    _reloadActionImageView.image = CustomSymbolTemplateWithPointSize(
-        kArrowClockWiseSymbol, kOverScrollSymbolPointSize);
+    _reloadActionImageView.image = SymbolTemplateWithPointSize(
+        SymbolArrowClockWise, kOverScrollSymbolPointSize);
     } // End Vivaldi
 
     [_reloadActionImageView sizeToFit];
     [self addSubview:_reloadActionImageView];
 
     _closeTabActionImageView = [[UIImageView alloc] init];
-    _closeTabActionImageView.image = DefaultSymbolTemplateWithPointSize(
-        kXMarkSymbol, kOverScrollSymbolPointSize);
+    _closeTabActionImageView.image =
+        SymbolTemplateWithPointSize(SymbolXMark, kOverScrollSymbolPointSize);
     [_closeTabActionImageView sizeToFit];
     [self addSubview:_closeTabActionImageView];
 

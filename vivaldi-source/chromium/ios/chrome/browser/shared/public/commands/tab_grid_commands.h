@@ -8,6 +8,7 @@
 #import <Foundation/Foundation.h>
 
 #import "base/ios/block_types.h"
+#import "ios/chrome/browser/shared/public/commands/tab_grid_commands.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/tab_grid_paging.h"
 
 class TabGroup;
@@ -43,8 +44,21 @@ class TabGroup;
 // Hides the Guided Tour on the tab grid.
 - (void)hideTabGridGuidedTour;
 
+// Presents an IPH bubble to highlight pinning the active tab in the Tab Grid.
+- (void)presentPinTabBubble;
+
 // Presents the page action menu from the tab grid, registering the source.
 - (void)showPageActionMenuFromTabGrid;
+
+// Activates the grid container's NSLayoutConstraints. To prevent a misalignment
+// of the tab grid in iOS 27+, invoke this function after any tab grid
+// animations are complete.
+- (void)activateGridContainerConstraints;
+
+// Deactivates the grid container's NSLayoutConstraints. To prevent a
+// misalignment of the tab grid in iOS 27+, invoke this function during all tab
+// grid animations.
+- (void)deactivateGridContainerConstraints;
 
 @end
 

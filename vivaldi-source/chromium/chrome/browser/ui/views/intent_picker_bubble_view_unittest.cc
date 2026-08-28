@@ -94,8 +94,8 @@ class IntentPickerBubbleViewTest : public TestWithBrowserView {
     CommitPendingLoad(&web_contents->GetController());
 
     auto* widget = IntentPickerBubbleView::ShowBubble(
-        anchor_view_, /*highlighted_element=*/std::nullopt, bubble_type,
-        web_contents, app_info_, show_stay_in_chrome,
+        views::BubbleAnchor(anchor_view_), /*highlighted_element=*/std::nullopt,
+        bubble_type, web_contents, app_info_, show_stay_in_chrome,
         /*show_remember_selection=*/true, initiating_origin,
         base::BindOnce(&IntentPickerBubbleViewTest::OnBubbleClosed,
                        base::Unretained(this)));
@@ -332,13 +332,6 @@ TEST_F(IntentPickerBubbleViewListTest, WindowTitle) {
   EXPECT_EQ(l10n_util::GetStringUTF16(IDS_INTENT_PICKER_BUBBLE_VIEW_OPEN_WITH),
             bubble()->GetWindowTitle());
 
-  bubble_widget =
-      CreateBubbleView(/*use_icons=*/false, /*show_stay_in_chrome=*/false,
-                       BubbleType::kClickToCall,
-                       /*initiating_origin=*/std::nullopt);
-  EXPECT_EQ(l10n_util::GetStringUTF16(
-                IDS_BROWSER_SHARING_CLICK_TO_CALL_DIALOG_TITLE_LABEL),
-            bubble()->GetWindowTitle());
 }
 
 // Check that that the correct button labels are used.
@@ -354,16 +347,6 @@ TEST_F(IntentPickerBubbleViewListTest, ButtonLabels) {
       l10n_util::GetStringUTF16(IDS_INTENT_PICKER_BUBBLE_VIEW_STAY_IN_CHROME),
       bubble()->GetDialogButtonLabel(ui::mojom::DialogButton::kCancel));
 
-  bubble_widget =
-      CreateBubbleView(/*use_icons=*/false, /*show_stay_in_chrome=*/false,
-                       BubbleType::kClickToCall,
-                       /*initiating_origin=*/std::nullopt);
-  EXPECT_EQ(l10n_util::GetStringUTF16(
-                IDS_BROWSER_SHARING_CLICK_TO_CALL_DIALOG_CALL_BUTTON_LABEL),
-            bubble()->GetDialogButtonLabel(ui::mojom::DialogButton::kOk));
-  EXPECT_EQ(
-      l10n_util::GetStringUTF16(IDS_INTENT_PICKER_BUBBLE_VIEW_STAY_IN_CHROME),
-      bubble()->GetDialogButtonLabel(ui::mojom::DialogButton::kCancel));
 }
 
 TEST_F(IntentPickerBubbleViewListTest, InitiatingOriginView) {
@@ -551,13 +534,8 @@ TEST_P(IntentPickerBubbleViewLayoutTest, DoubleClickToAccept) {
 INSTANTIATE_TEST_SUITE_P(
     All,
     IntentPickerBubbleViewLayoutTest,
-#if BUILDFLAG(IS_CHROMEOS)
-    testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff)
-#else
     testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff,
-                    apps::test::LinkCapturingFeatureVersion::kV2DefaultOn)
-#endif  // BUILDFLAG(IS_CHROMEOS)
-        ,
+                    apps::test::LinkCapturingFeatureVersion::kV2DefaultOn),
     apps::test::LinkCapturingVersionToString);
 
 class IntentPickerBubbleViewGridLayoutTest
@@ -645,13 +623,6 @@ TEST_P(IntentPickerBubbleViewGridLayoutTest, MAYBE_OpenWithReturnKey) {
 INSTANTIATE_TEST_SUITE_P(
     ,
     IntentPickerBubbleViewGridLayoutTest,
-#if BUILDFLAG(IS_CHROMEOS)
-    // TODO(crbug.com/370548596): Verify if this still fails on ChromeOS with
-    // V2.
-    testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff)
-#else
     testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff,
-                    apps::test::LinkCapturingFeatureVersion::kV2DefaultOn)
-#endif  // BUILDFLAG(IS_CHROMEOS)
-        ,
+                    apps::test::LinkCapturingFeatureVersion::kV2DefaultOn),
     apps::test::LinkCapturingVersionToString);

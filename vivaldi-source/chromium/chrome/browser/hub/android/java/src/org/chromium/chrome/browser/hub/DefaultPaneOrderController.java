@@ -14,8 +14,8 @@ public class DefaultPaneOrderController implements PaneOrderController {
     @Override
     public ImmutableSet<Integer> getPaneOrder() {
         return ImmutableSet.of(
-                PaneId.TAB_SWITCHER,
-                PaneId.INCOGNITO_TAB_SWITCHER,
+                PaneId.INCOGNITO_TAB_SWITCHER, // Vivaldi
+                PaneId.TAB_SWITCHER, // Vivaldi
                 PaneId.TAB_GROUPS,
                 PaneId.CROSS_DEVICE,
                 PaneId.HISTORY,

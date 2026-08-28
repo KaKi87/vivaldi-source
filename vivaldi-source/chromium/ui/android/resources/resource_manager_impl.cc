@@ -165,6 +165,8 @@ Resource* ResourceManagerImpl::GetStaticResourceWithTint(
 
   Resource* base_image = GetResource(ANDROID_RESOURCE_TYPE_STATIC, res_id);
   DCHECK(base_image);
+  // Vivaldi VAB-13228: the static resource may not be loaded yet.
+  if (!base_image) return nullptr;
 
   std::unique_ptr<Resource> tinted_resource = base_image->CreateForCopy();
 

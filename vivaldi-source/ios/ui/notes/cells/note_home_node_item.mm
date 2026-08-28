@@ -31,9 +31,8 @@ using l10n_util::GetNSString;
   return self;
 }
 
-- (void)configureCell:(LegacyTableViewCell*)cell
-           withStyler:(ChromeTableViewStyler*)styler {
-  [super configureCell:cell withStyler:styler];
+- (void)configureCell:(LegacyTableViewCell*)cell {
+  [super configureCell:cell];
   if (_noteNode->is_folder()) {
     TableViewNoteFolderCell* noteCell =
         base::apple::ObjCCastStrict<TableViewNoteFolderCell>(cell);

@@ -2,15 +2,16 @@
 // Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
 [
   {
     "namespace": "omniboxPrivate",
     "description": "Use the <code>vivaldi.omniboxPrivate</code> API to start queries with the address field omnibox.</a>.",
     "compiler_options": {
-      "implemented_in": "extensions/api/omnibox/omnibox_private_api.h"
+      "implemented_in": "extensions/api/omnibox_private/omnibox_private_api.h"
     },
-    "dependencies": ["historyPrivate"],
+    "dependencies": [
+      "historyPrivate"
+    ],
     "types": [
       {
         "id": "OmniboxItemCategory",
@@ -27,6 +28,7 @@
           "top-sites",
           "clipboard",
           "calculator",
+          "calculator-local",
           "internal-message",
           "other",
           "recent-typed-history"
@@ -235,7 +237,9 @@
             "properties": {
               "combinedResults": {
                 "type": "array",
-                "items": { "$ref": "OmniboxItem" }
+                "items": {
+                  "$ref": "OmniboxItem"
+                }
               },
               "inputText": {
                 "description": "User-provided text to be completed.",

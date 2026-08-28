@@ -8,7 +8,7 @@ import 'chrome://contextual-tasks/app.js';
 import type {ContextualTasksAppElement} from 'chrome://contextual-tasks/app.js';
 import {BrowserProxyImpl} from 'chrome://contextual-tasks/contextual_tasks_browser_proxy.js';
 import type {ComposeboxFile} from 'chrome://resources/cr_components/composebox/common.js';
-import {PageCallbackRouter as ComposeboxPageCallbackRouter, PageHandlerRemote as ComposeboxPageHandlerRemote} from 'chrome://resources/cr_components/composebox/composebox.mojom-webui.js';
+import {PageHandlerRemote as ComposeboxPageHandlerRemote} from 'chrome://resources/cr_components/composebox/composebox.mojom-webui.js';
 import {ComposeboxProxyImpl} from 'chrome://resources/cr_components/composebox/composebox_proxy.js';
 import {ContextUploadStatus, ToolMode} from 'chrome://resources/cr_components/composebox/composebox_query.mojom-webui.js';
 import {WindowProxy} from 'chrome://resources/cr_components/composebox/window_proxy.js';
@@ -16,6 +16,7 @@ import {GlowAnimationState} from 'chrome://resources/cr_components/search/consta
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {PageCallbackRouter as SearchboxPageCallbackRouter, PageHandlerRemote as SearchboxPageHandlerRemote} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
 import type {PageRemote as SearchboxPageRemote} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
+import type {UnguessableToken} from 'chrome://resources/mojo/mojo/public/mojom/base/unguessable_token.mojom-webui.js';
 import {WindowOpenDisposition} from 'chrome://resources/mojo/ui/base/mojom/window_open_disposition.mojom-webui.js';
 import {assertEquals, assertFalse, assertNotEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {MockInputState} from 'chrome://webui-test/cr_components/searchbox/searchbox_test_utils.js';
@@ -23,8 +24,9 @@ import {MockTimer} from 'chrome://webui-test/mock_timer.js';
 import {TestMock} from 'chrome://webui-test/test_mock.js';
 import {microtasksFinished} from 'chrome://webui-test/test_util.js';
 
+import {assertStyle, FAKE_TOKEN_STRING, fixtureUrl, getSubmitButton, getSubmitContainer, installMock, simulateUserInput} from './contextual_tasks_test_utils.js';
 import {TestContextualTasksBrowserProxy} from './test_contextual_tasks_browser_proxy.js';
-import {ADD_FILE_CONTEXT_FN, assertStyle, FAKE_TOKEN_STRING, fixtureUrl, getSubmitButton, getSubmitContainer, installMock, setupAutocompleteResults, simulateUserInput, uploadFileAndVerify} from './test_utils.js';
+import {ADD_FILE_CONTEXT_FN, setupAutocompleteResults, uploadFileAndVerify} from './test_searchbox_utils.js';
 
 function disableAnimationsRecursively(element: Element) {
   const noAnimation = document.createElement('style');
@@ -63,8 +65,10 @@ suite('ContextualTasksComposeboxZeroStateTest', () => {
   let contextualTasksApp: ContextualTasksAppElement;
   let composebox: any;
   let testProxy: TestContextualTasksBrowserProxy;
-  let mockComposeboxPageHandler: TestMock<ComposeboxPageHandlerRemote>;
-  let mockSearchboxPageHandler: TestMock<SearchboxPageHandlerRemote>;
+  let mockComposeboxPageHandler: TestMock<ComposeboxPageHandlerRemote>&
+      ComposeboxPageHandlerRemote;
+  let mockSearchboxPageHandler: TestMock<SearchboxPageHandlerRemote>&
+      SearchboxPageHandlerRemote;
   let searchboxCallbackRouterRemote: SearchboxPageRemote;
   let windowProxy: TestMock<WindowProxy>;
   let mockTimer: MockTimer;
@@ -78,7 +82,13 @@ suite('ContextualTasksComposeboxZeroStateTest', () => {
   }
 
   setup(async () => {
-    const win = window as any;
+    const win = window as unknown as {
+      chrome: {
+        histograms?: Pick<
+            typeof chrome.histograms,
+            'recordEnumerationValue' | 'recordUserAction' | 'recordBoolean'>,
+      },
+    };
 
     if (!win.chrome) {
       win.chrome = {};
@@ -97,8 +107,10 @@ suite('ContextualTasksComposeboxZeroStateTest', () => {
     mockTimer = new MockTimer();
 
     loadTimeData.overrideValues({
+      useContextualTasksComposeboxFork: false,
       contextualMenuUsePecApi: false,
       composeboxSmartTabSharingVisible: false,
+      contextManagementInComposeboxEnabled: false,
       composeboxShowTypedSuggest: true,
       composeboxShowZps: true,
       enableBasicModeZOrder: true,
@@ -123,8 +135,8 @@ suite('ContextualTasksComposeboxZeroStateTest', () => {
     searchboxCallbackRouterRemote =
         searchboxCallbackRouter.$.bindNewPipeAndPassRemote();
     ComposeboxProxyImpl.setInstance(new ComposeboxProxyImpl(
-        mockComposeboxPageHandler as any, new ComposeboxPageCallbackRouter(),
-        mockSearchboxPageHandler as any, searchboxCallbackRouter));
+        mockComposeboxPageHandler, mockSearchboxPageHandler,
+        searchboxCallbackRouter));
 
     contextualTasksApp = document.createElement('contextual-tasks-app');
     await customElements.whenDefined('contextual-tasks-app');
@@ -356,9 +368,9 @@ suite('ContextualTasksComposeboxZeroStateTest', () => {
 
         // Force the internal component state to represent a fully loaded,
         // non-zero state AI page.
-        contextualTasksApp['isInitialFrameLoad_'] = false;
-        contextualTasksApp['isAiPage_'] = true;
-        contextualTasksApp['pendingUrl_'] = '';
+        contextualTasksApp.setIsInitialFrameLoadForTesting(false);
+        contextualTasksApp.setIsAiPageForTesting(true);
+        contextualTasksApp.setPendingUrlForTesting('');
 
         // Verify starting baseline (no zero state).
         testProxy.callbackRouterRemote.onZeroStateChange(false);
@@ -404,6 +416,71 @@ suite('ContextualTasksComposeboxZeroStateTest', () => {
         assertTrue(
             expandAnimationCalled,
             'Companion expand animation track should be triggered');
+      });
+
+  test(
+      'zero state animation on subsequent navigation only plays once',
+      async () => {
+        document.body.innerHTML = window.trustedTypes!.emptyHTML;
+        contextualTasksApp = document.createElement('contextual-tasks-app');
+        await customElements.whenDefined('contextual-tasks-app');
+        document.body.appendChild(contextualTasksApp);
+        await contextualTasksApp.updateComplete;
+        await microtasksFinished();
+
+        // 1. Finish initial load.
+        window.dispatchEvent(new MessageEvent('message', {
+          data: 'domContentLoaded',
+        }));
+        await contextualTasksApp.updateComplete;
+        await microtasksFinished();
+
+        // Now, isInitialFrameLoad_ is false, so it's a subsequent navigation.
+        contextualTasksApp.setIsInitialFrameLoadForTesting(false);
+
+        // Spy on playZeroStateAnimations_
+        let playCount = 0;
+        contextualTasksApp.setPlayZeroStateAnimationsForTesting(() => {
+          playCount++;
+        });
+
+        // 2. Simulate subsequent top level navigation to zero-state AI page.
+        const mockEvent = {
+          url: 'https://google.com/?gsc=2',
+          isTopLevel: true,
+        } as unknown as chrome.webviewTag.LoadStartEvent;
+
+        // Set up the browser proxy handler to return zero state and AI page.
+        testProxy.handler.setIsAiPage(true);
+        testProxy.handler.setIsZeroState(true);
+
+        // Trigger top-level navigation (which is async and
+        // awaits isAiPage/isZeroState).
+        const navPromise =
+            contextualTasksApp.onThreadFrameTopLevelNavigationForTesting(
+                mockEvent);
+
+        // Before the navigation async IPCs resolve, check:
+        // isDomContentLoaded_ should be reset to false.
+        assertFalse(contextualTasksApp.getIsDomContentLoadedForTesting());
+
+        // Wait for the navigation handler to complete.
+        await navPromise;
+        await microtasksFinished();
+
+        // Since isDomContentLoaded_ was reset to false, playZeroStateAnimations_
+        // should NOT have been called yet.
+        assertEquals(0, playCount);
+
+        // 3. Now send the domContentLoaded event when the frame finishes loading.
+        window.dispatchEvent(new MessageEvent('message', {
+          data: 'domContentLoaded',
+        }));
+        await contextualTasksApp.updateComplete;
+        await microtasksFinished();
+
+        // The animation should have been triggered exactly once.
+        assertEquals(1, playCount);
       });
 
   test('SuggestionsHiddenWhenDropdownNotShown', async () => {
@@ -459,7 +536,7 @@ suite('ContextualTasksComposeboxZeroStateTest', () => {
 
     // Provide ZPS matches (empty query).
     await setupAutocompleteResults(
-        searchboxCallbackRouterRemote, '', mockTimer);
+        searchboxCallbackRouterRemote, composebox.activeQueryId, '', mockTimer);
     await contextualComposebox.updateComplete;
     await composebox.updateComplete;
 
@@ -480,7 +557,8 @@ suite('ContextualTasksComposeboxZeroStateTest', () => {
 
     // Provide typed matches.
     await setupAutocompleteResults(
-        searchboxCallbackRouterRemote, 'test', mockTimer);
+        searchboxCallbackRouterRemote, composebox.activeQueryId, 'test',
+        mockTimer);
     await contextualComposebox.updateComplete;
     await composebox.updateComplete;
 
@@ -497,6 +575,7 @@ suite('ContextualTasksComposeboxZeroStateTest', () => {
         'Suggestions should be hidden via CSS when dropdown is hidden');
   });
 
+  // <if expr="not is_android">
   test('TooltipImpressionTimerResetsOnHide', async () => {
     loadTimeData.overrideValues({
       showOnboardingTooltip: true,
@@ -550,6 +629,7 @@ suite('ContextualTasksComposeboxZeroStateTest', () => {
     // Should NOT have incremented because timer was cleared.
     assertEquals(0, contextualTasksApp.numberOfTimesTooltipShownForTesting);
   });
+  // </if>
 
   test(
       'on focus out does not set animation state as none \
@@ -820,8 +900,8 @@ suite('ContextualTasksComposeboxZeroStateTest', () => {
     const contextualComposebox = contextualTasksApp.$.composebox;
     const innerComposebox = contextualComposebox.$.composebox;
 
-    const token1 = {high: 0n, low: 1n} as any;
-    const token2 = {high: 0n, low: 2n} as any;
+    const token1 = {high: 0n, low: 1n} as unknown as UnguessableToken;
+    const token2 = {high: 0n, low: 2n} as unknown as UnguessableToken;
     innerComposebox.addFileContextForTesting(
         {type: 'image/png', uuid: token1} as ComposeboxFile);
     innerComposebox.addFileContextForTesting(
@@ -838,7 +918,7 @@ suite('ContextualTasksComposeboxZeroStateTest', () => {
     const contextualComposebox = contextualTasksApp.$.composebox;
     const innerComposebox = contextualComposebox.$.composebox;
 
-    const token = {high: 0n, low: 1n} as any;
+    const token = {high: 0n, low: 1n} as unknown as UnguessableToken;
     innerComposebox.addFileContextForTesting(
         {type: 'tab', uuid: token} as ComposeboxFile);
     await contextualComposebox.updateComplete;
@@ -853,7 +933,7 @@ suite('ContextualTasksComposeboxZeroStateTest', () => {
     const contextualComposebox = contextualTasksApp.$.composebox;
     const innerComposebox = contextualComposebox.$.composebox;
 
-    const token = {high: 0n, low: 1n} as any;
+    const token = {high: 0n, low: 1n} as unknown as UnguessableToken;
     innerComposebox.addFileContextForTesting(
         {type: 'image/png', uuid: token} as ComposeboxFile);
     await contextualComposebox.updateComplete;
@@ -868,7 +948,7 @@ suite('ContextualTasksComposeboxZeroStateTest', () => {
     const contextualComposebox = contextualTasksApp.$.composebox;
     const innerComposebox = contextualComposebox.$.composebox;
 
-    const token = {high: 0n, low: 1n} as any;
+    const token = {high: 0n, low: 1n} as unknown as UnguessableToken;
     innerComposebox.addFileContextForTesting(
         {type: 'application/pdf', uuid: token} as ComposeboxFile);
     await contextualComposebox.updateComplete;
@@ -883,7 +963,7 @@ suite('ContextualTasksComposeboxZeroStateTest', () => {
     const contextualComposebox = contextualTasksApp.$.composebox;
     const innerComposebox = contextualComposebox.$.composebox;
 
-    const token = {high: 0n, low: 1n} as any;
+    const token = {high: 0n, low: 1n} as unknown as UnguessableToken;
     innerComposebox.addFileContextForTesting(
         {type: 'unknown/type', uuid: token} as ComposeboxFile);
     await contextualComposebox.updateComplete;
@@ -901,7 +981,7 @@ suite('ContextualTasksComposeboxZeroStateTest', () => {
     contextualComposebox.isOverlayOpenForAimVisualSearch = true;
 
     // Add an image file.
-    const token = {high: 0n, low: 1n} as any;
+    const token = {high: 0n, low: 1n} as unknown as UnguessableToken;
     innerComposebox.addFileContextForTesting(
         {type: 'image/png', uuid: token} as ComposeboxFile);
 

@@ -25,7 +25,6 @@
 #include "chrome/browser/profiles/profile_observer.h"
 #include "chrome/browser/web_applications/commands/command_result.h"
 #include "chrome/browser/web_applications/commands/computed_app_size.h"
-#include "chrome/browser/web_applications/isolated_web_apps/commands/isolated_web_app_install_command_helper.h"
 #include "chrome/browser/web_applications/locks/all_apps_lock.h"
 #include "chrome/browser/web_applications/locks/with_app_resources.h"
 #include "chrome/browser/web_applications/web_app.h"
@@ -116,23 +115,19 @@ class StoragePartitionSizeEstimator : private ProfileObserver {
 
 }  // namespace
 
-GetIsolatedWebAppSizeJob::GetIsolatedWebAppSizeJob(
-    Profile* profile,
-    const webapps::AppId& app_id,
-    base::DictValue& debug_value,
-    ResultCallback result_callback)
-    : app_id_(app_id),
-      profile_(profile),
-      debug_value_(debug_value),
-      result_callback_(std::move(result_callback)) {
+GetIsolatedWebAppSizeJob::GetIsolatedWebAppSizeJob(Profile* profile,
+                                                   const webapps::AppId& app_id,
+                                                   base::DictValue& debug_value)
+    : app_id_(app_id), profile_(profile), debug_value_(debug_value) {
   CHECK(profile_);
   debug_value_->Set("profile", profile->GetDebugName());
 }
 
 GetIsolatedWebAppSizeJob::~GetIsolatedWebAppSizeJob() = default;
 
-void GetIsolatedWebAppSizeJob::Start(
-    WithAppResources* lock_with_app_resources) {
+void GetIsolatedWebAppSizeJob::Start(WithAppResources* lock_with_app_resources,
+                                     ResultCallback callback) {
+  result_callback_ = std::move(callback);
   CHECK(lock_with_app_resources);
   lock_with_app_resources_ = lock_with_app_resources;
 

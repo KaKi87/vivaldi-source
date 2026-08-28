@@ -29,6 +29,11 @@ bool BrowserMatchesHelper(BrowserWindowInterface& browser,
                           bool include_incognito_or_parent,
                           bool restrict_to_normal_browsers,
                           bool restrict_to_current_workspace) {
+  // The browser's going away, don't use it for anything else.
+  if (browser.IsDeleteScheduled()) {
+    return false;
+  }
+
   if (browser.GetProfile() != &profile) {
     if (!include_incognito_or_parent ||
         !profile.IsSameOrParent(browser.GetProfile())) {
@@ -43,9 +48,8 @@ bool BrowserMatchesHelper(BrowserWindowInterface& browser,
 
 #if BUILDFLAG(IS_CHROMEOS)
   if (restrict_to_current_workspace) {
-    Browser* browser_for_migration = browser.GetBrowserForMigrationOnly();
-    if (!browser_for_migration->window() ||
-        !browser_for_migration->window()->IsOnCurrentWorkspace()) {
+    BrowserWindow* browser_window = BrowserWindow::FromBrowser(&browser);
+    if (!browser_window || !browser_window->IsOnCurrentWorkspace()) {
       return false;
     }
   }

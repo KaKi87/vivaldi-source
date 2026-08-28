@@ -1,14 +1,11 @@
 ### [DevTools for agents](devtools-for-agents)
 
-DevTools for agents is now stable at version 1.0, bringing support for third-party developer tools
-provided by the inspected page, WebMCP debugging, and an improved CLI experience.
+DevTools for agents 1.7 improves memory profiling with the `get_heapsnapshot_object_details` tool and native V8 context filtering.
 
-### [AI assistance](ai-assistance)
+### [Soft navigation metrics in Live Metrics](performance)
 
-The AI assistance panel now integrates with Lighthouse data and offers interactive, widget-based agent walkthroughs.
-Supported by an upgrade to Gemini 3 and other optimizations, responses are now more concise and actionable.
+The Live Metrics view in the Performance panel now captures and reports metrics like LCP and INP for client-side soft navigations in single-page applications by default.
 
-### [CSS code completion](css-code-completion)
+### [Nested CSS parent selector interactions](nested-selectors)
 
-The Styles tab in the Elements panel now features enhanced, Gemini-powered code completion.
-Experience smarter, real-time CSS suggestions that adapt dynamically as you type.
+Hovering over parent selectors highlights matching elements on the page, nested rules respond to Styles tab filtering, and `@nested-declarations` include specificity tooltips.

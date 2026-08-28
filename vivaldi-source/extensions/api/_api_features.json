@@ -131,6 +131,11 @@
     "dependencies": [ "permission:pageActions" ],
     "contexts": [ "privileged_extension" ]
   },
+  "pwa": {
+    "vivaldi": true,
+    "dependencies": [ "permission:pwa" ],
+    "contexts": [ "privileged_extension" ]
+  },
   "pipPrivate": {
     "vivaldi": true,
     "dependencies": [ "permission:pipPrivate" ],

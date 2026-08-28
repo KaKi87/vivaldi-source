@@ -7,16 +7,21 @@
 
 #import <UIKit/UIKit.h>
 
-#import "ios/chrome/browser/intelligence/bwg/ui/gemini_fre_view_controller_protocol.h"
+#import "ios/chrome/browser/intelligence/bwg/ui/gemini_first_run_step.h"
+#import "ios/chrome/browser/intelligence/bwg/ui/gemini_first_run_view_controller_protocol.h"
 
-@protocol GeminiConsentMutator;
+@protocol GeminiPromoMutator;
 
 // Gemini promo View Controller.
 @interface GeminiPromoViewController
-    : UIViewController <GeminiFREViewControllerProtocol>
+    : UIViewController <GeminiFirstRunViewControllerProtocol,
+                        GeminiFirstRunStep>
 
 // The mutator for this view controller to communicate to the mediator.
-@property(nonatomic, weak) id<GeminiConsentMutator> mutator;
+@property(nonatomic, weak) id<GeminiPromoMutator> mutator;
+
+// The step delegate for the parent PageViewController.
+@property(nonatomic, weak) id<GeminiFirstRunStepDelegate> stepDelegate;
 
 @end
 

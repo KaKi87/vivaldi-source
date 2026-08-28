@@ -4,7 +4,6 @@ import("//vivaldi/testing/testing.gni")
 
 update_target("//chrome/browser:browser") {
   public_deps += [ "//vivaldi/ui" ]
-  allow_circular_includes_from += [ "//vivaldi/ui" ]
 }
 
 update_target("//chrome/browser/ui:ui") {
@@ -14,7 +13,6 @@ update_target("//chrome/browser/ui:ui") {
     "//vivaldi/ui",
     "//vivaldi/vivaldi_account:vivaldi_account_manager_factory",
   ]
-  allow_circular_includes_from += [ "//vivaldi/ui" ]
 
   if (!is_android) {
     deps -= [
@@ -27,6 +25,12 @@ update_target("//chrome/browser/ui:ui") {
   }
   if (is_win || is_mac) {
     deps -= [ "//chrome/browser/ui/startup/default_browser_prompt/pin_infobar" ]
+  }
+}
+
+if (is_win || is_mac || is_linux) {
+  update_target("//chrome/browser/ui:browser_actions_impl") {
+    deps -= [ "//chrome/browser/ui/startup/default_browser_prompt" ]
   }
 }
 

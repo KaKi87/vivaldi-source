@@ -161,6 +161,7 @@ android_library {
 java_defaults {
     name: "${GN2BP_MODULE_PREFIX}java_framework_defaults",
     sdk_version: "module_current",
+    java_version: "25",
     libs: [
         "framework-annotations-lib",
         "framework-connectivity-pre-jarjar-without-cronet",
@@ -171,10 +172,8 @@ java_defaults {
         "framework-statsd.stubs.module_lib",
         "framework-wifi.stubs.module_lib",
         "framework-sdkextensions.stubs.module_lib",
-    ] + select(release_flag("RELEASE_CONSCRYPT_NSC"), {
-        true: ["framework-conscrypt-nsc.stubs"],
-        default: ["framework-network-security-config.stubs.module_lib"],
-    }),
+        "framework-conscrypt-nsc.stubs",
+    ],
     visibility: [
         "//external/cronet:__subpackages__",
     ],
@@ -197,34 +196,6 @@ cc_library_headers {
     visibility: [
         "//external/cronet:__subpackages__",
     ],
-}
-
-android_test {
-    name: "${GN2BP_MODULE_PREFIX}NetHttpCoverageTests",
-    enforce_default_target_sdk_version: true,
-    min_sdk_version: "30",
-    test_suites: [
-        "general-tests",
-        "mts-tethering",
-    ],
-    static_libs: [
-        "modules-utils-native-coverage-listener",
-        "CtsNetHttpTestsLib",
-        "${GN2BP_MODULE_PREFIX}api_java",
-        "${GN2BP_MODULE_PREFIX}java__testing",
-        "${GN2BP_MODULE_PREFIX}java_tests",
-    ],
-    compile_multilib: "both", // Include both the 32 and 64 bit versions
-    jni_libs: [
-        "libnativecoverage",
-        "${GN2BP_MODULE_PREFIX}components_cronet_android_cronet_tests__testing",
-        "${GN2BP_MODULE_PREFIX}components_cronet_android_cronet__testing",
-        "${GN2BP_MODULE_PREFIX}third_party_netty_tcnative_netty_tcnative_so__testing",
-    ],
-    test_config: "AndroidTest.xml",
-    data: [":${GN2BP_MODULE_PREFIX}javatests_resources"],
-    manifest: "components/cronet/android/test/javatests/AndroidManifest.xml",
-    resource_dirs: ["components/cronet/android/test/res"],
 }
 
 // Generates a linker version script ("intersection.ld") containing the list of

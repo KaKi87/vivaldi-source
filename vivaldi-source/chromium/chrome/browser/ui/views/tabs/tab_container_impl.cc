@@ -7,12 +7,8 @@
 #include <algorithm>
 #include <memory>
 
-#include "base/bits.h"
-#include "base/containers/adapters.h"
 #include "base/i18n/rtl.h"
-#include "base/types/to_address.h"
 #include "chrome/browser/ui/layout_constants.h"
-#include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_root_view.h"
 #include "chrome/browser/ui/views/tabs/dragging/tab_drag_context.h"
@@ -31,17 +27,13 @@
 #include "chrome/browser/ui/views/tabs/tab_strip_layout_types.h"
 #include "chrome/browser/ui/views/tabs/tab_style_views.h"
 #include "chrome/browser/ui/views/tabs/z_orderable_tab_container_element.h"
-#include "chrome/grit/theme_resources.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/mojom/menu_source_type.mojom.h"
-#include "ui/base/resource/resource_bundle.h"
 #include "ui/display/screen.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/image/image_skia_operations.h"
 #include "ui/views/accessibility/view_accessibility.h"
-#include "ui/views/controls/image_view.h"
-#include "ui/views/layout/layout_provider.h"
 #include "ui/views/mouse_watcher_view_host.h"
 #include "ui/views/rect_based_targeting_utils.h"
 #include "ui/views/view_utils.h"
@@ -740,6 +732,8 @@ void TabContainerImpl::ExitTabClosingMode() {
 }
 
 void TabContainerImpl::SetTabSlotVisibility() {
+  UpdateIdealBounds();
+
   std::set<tab_groups::TabGroupId> visibility_changed_groups;
   bool last_tab_visible = false;
   std::optional<tab_groups::TabGroupId> last_tab_group;
@@ -854,7 +848,10 @@ void TabContainerImpl::PaintChildren(const views::PaintInfo& paint_info) {
 
   UpdateZOrderCacheIfDirty();
   for (const auto& child : z_ordered_children_cache_) {
-    child.view()->Paint(paint_info);
+    // The compositor handles painting children with layers separately.
+    if (!child.view()->layer()) {
+      child.view()->Paint(paint_info);
+    }
   }
 }
 
@@ -1185,8 +1182,12 @@ void TabContainerImpl::SnapToIdealBounds() {
 }
 
 int TabContainerImpl::CalculateAvailableWidthForTabs() const {
-  return override_available_width_for_tabs_.value_or(
-      GetAvailableWidthForTabContainer());
+  int available_width = GetAvailableWidthForTabContainer();
+  if (override_available_width_for_tabs_.has_value()) {
+    int capped = std::min(*override_available_width_for_tabs_, available_width);
+    return capped;
+  }
+  return available_width;
 }
 
 void TabContainerImpl::StartInsertTabAnimation(int model_index) {
@@ -1301,6 +1302,14 @@ std::optional<int> TabContainerImpl::GetMidAnimationTrailingX() const {
   if (!controller_->IsAnimatingInTabStrip() || IsDragSessionActive() ||
       IsDragSessionEnding()) {
     return std::nullopt;
+  }
+
+  if (base::FeatureList::IsEnabled(features::kTabStripNewTabButtonFlickerFix)) {
+    // During animations not related to a drag session, we want to tightly hug
+    // our tabs. The `overall_bounds_view_` is animated smoothly to the ideal
+    // trailing X and is free from the rounding jitter of individual child
+    // views.
+    return overall_bounds_view_->bounds().right();
   }
 
   // During animations not related to a drag session, we want to tightly hug
@@ -1557,6 +1566,7 @@ bool TabContainerImpl::ShouldTabBeVisible(const Tab* tab) const {
   // tabstrip were resized to its greatest possible width, it shouldn't be
   // visible.
   int right_edge = tab->bounds().right();
+
   const int tabstrip_right =
       tab->parent() != this ? drag_position_delegate_->GetTabDragAreaWidth()
                             : GetAvailableWidthForTabContainer();

@@ -10,7 +10,6 @@
 // Only tier-up the test functions to get a cleaner and stable trace.
 // Flags: --trace-turbo-inlining --turbo-filter='js_*'
 // Concurrent inlining leads to additional traces.
-// Flags: --no-concurrent-inlining
 // Flags: --no-stress-concurrent-inlining
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
@@ -840,7 +839,7 @@ addTestcase('brNoInline', kSig_i_v, [], [
 
 // This tests that (1) we do not inline into try-catch blocks generally and
 // (2) specifically for Turbolev, that we do not inline calls that are marked
-// with `LazyDeoptOnThrow::kYes`.
+// with `LazyDeoptOnThrow{true}`.
 // See https://crbug.com/447206453 and https://crrev.com/c/6991994 for more
 // details.
 // In short, Turbolev marks operations that can throw, but have never thrown
@@ -848,11 +847,11 @@ addTestcase('brNoInline', kSig_i_v, [], [
 // catch block do not have to generate code for the catch. That code is only
 // generated on a lazy deopt, when the throwing operation actually throws.
 // Since the Wasm function in this test does NOT throw, this test case
-// covers the `LazyDeoptOnThrow::kYes` case.
+// covers the `LazyDeoptOnThrow{true}` case.
 // CHECK: Considering JS-to-Wasm wrapper for Wasm function [{{[0-9]+}}] insideTryCatch of module {{.*}} for inlining
 // CHECK-NEXT: - inlining wrapper
 // CHECK-NEXT: Considering Wasm function [{{[0-9]+}}] insideTryCatch of module {{.*}} for inlining
-// CHECK-NEXT: - not inlining: call marked with LazyDeoptOnThrow::kYes
+// CHECK-NEXT: - not inlining: call marked with LazyDeoptOnThrow{true}
 addTestcase('insideTryCatch', kSig_i_v, [], [
   ...wasmI32Const(0),
 ], (wasmExports) => {
@@ -865,7 +864,7 @@ addTestcase('insideTryCatch', kSig_i_v, [], [
   };
 });
 
-// See above. In contrast, this test case covers the `LazyDeoptOnThrow::kNo`
+// See above. In contrast, this test case covers the `LazyDeoptOnThrow{false}`
 // case, since the Wasm body does trap (i.e., throws).
 // CHECK: Considering JS-to-Wasm wrapper for Wasm function [{{[0-9]+}}] trapNoInline of module {{.*}} for inlining
 // CHECK-NEXT: - inlining wrapper
@@ -890,7 +889,7 @@ const wasmExports2 = builder2.instantiate({}).exports;
 // CHECK: Considering JS-to-Wasm wrapper for Wasm function [{{[0-9]+}}] noop2 of module {{.*}} for inlining
 // CHECK-NEXT: - inlining wrapper
 // CHECK-NEXT: Considering JS-to-Wasm wrapper for Wasm function [{{[0-9]+}}] multiModule of module {{.*}} for inlining
-// CHECK-NEXT: - not inlining: already inlining from another Wasm module
+// CHECK-NEXT: - not inlining: already inlining from another Wasm instance
 // CHECK: Considering Wasm function [{{[0-9]+}}] noop2 of module {{.*}} for inlining
 // CHECK-NEXT: - inlining Wasm function
 // CHECK-NOT: Considering Wasm function [{{[0-9]+}}] multiModule of module {{.*}} for inlining

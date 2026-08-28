@@ -2,14 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #include <stdint.h>
 
 #include "base/clang_profiling_buildflags.h"
+#include "base/compiler_specific.h"
 #include "build/build_config.h"
 #include "installer/mini_installer/mini_installer/mini_installer.h"
 
@@ -54,7 +50,7 @@ extern "C" {
 __attribute__((used)) void* memset(void* dest, int c, size_t count) {
   uint8_t* scan = reinterpret_cast<uint8_t*>(dest);
   while (count--)
-    *scan++ = static_cast<uint8_t>(c);
+    *UNSAFE_TODO(scan++) = static_cast<uint8_t>(c);
   return dest;
 }
 
@@ -68,7 +64,7 @@ __attribute__((used)) void* memcpy(void* destination,
   auto* dst = reinterpret_cast<uint8_t*>(destination);
   auto* src = reinterpret_cast<const uint8_t*>(source);
   while (count--)
-    *dst++ = *src++;
+    *UNSAFE_TODO(dst++) = *UNSAFE_TODO(src++);
   return destination;
 }
 #endif

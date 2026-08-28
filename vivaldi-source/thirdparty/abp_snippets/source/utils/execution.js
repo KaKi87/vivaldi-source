@@ -14,14 +14,16 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 import {accessor} from "proxy-pants/accessor";
 import {apply, call} from "proxy-pants/function";
 import {hasOwnProperty} from "proxy-pants/object";
 
 import {getDebugger} from "../introspection/log.js";
-import {formatArguments, randomId, toRegExp} from "./general.js";
+import {
+  formatArguments, randomId, sendSnippetHitEvent, toRegExp
+} from "./general.js";
+import {proxyToStringCalls} from "./toString.js";
 
 let {
   parseFloat,
@@ -116,8 +118,8 @@ export function wrapPropertyAccess(object, property, descriptor,
 }
 
 /**
- * Overrides the `onerror` handler to discard tagged error messages from our
- * property wrapping.
+ * @description Overrides the `onerror` handler to discard tagged
+ * error messages from our property wrapping.
  *
  * @param {string} magic The magic string that tags the error message.
  * @private
@@ -134,8 +136,8 @@ export function overrideOnError(magic) {
 }
 
 /**
- * Patches a property on the `context` object to abort execution when the
- * property is read.
+ * @description Patches a property on the `context` object to
+ * abort execution when the property is read.
  *
  * @param {string} loggingPrefix A string with which we prefix the logs.
  * @param {Window} context The window object whose property we patch.
@@ -155,9 +157,14 @@ export function abortOnRead(loggingPrefix, context,
   }
 
   let rid = randomId();
+  let hitEventSent = false;
 
   function abort() {
     debugLog("success", `${property} access aborted`, `\nFILTER: ${loggingPrefix} ${formattedProperties}`);
+    if (!hitEventSent) {
+      hitEventSent = true;
+      sendSnippetHitEvent(`${loggingPrefix} ${formattedProperties}`);
+    }
     throw new ReferenceError(rid);
   }
 
@@ -171,8 +178,8 @@ export function abortOnRead(loggingPrefix, context,
 }
 
 /**
- * Patches a property on the `context` object to abort execution when the
- * property is written.
+ * @description Patches a property on the `context`
+ * object to abort execution when the property is written.
  *
  * @param {string} loggingPrefix A string with which we prefix the logs.
  * @param {Window} context The window object whose property we patch.
@@ -193,9 +200,14 @@ export function abortOnWrite(loggingPrefix,
   }
 
   let rid = randomId();
+  let hitEventSent = false;
 
   function abort() {
     debugLog("success", `setting ${property} aborted`, `\nFILTER: ${loggingPrefix} ${formattedProperties}`);
+    if (!hitEventSent) {
+      hitEventSent = true;
+      sendSnippetHitEvent(`${loggingPrefix} ${formattedProperties}`);
+    }
     throw new ReferenceError(rid);
   }
 
@@ -206,8 +218,9 @@ export function abortOnWrite(loggingPrefix,
 }
 
 /**
- * Patches a list of properties on the iframes' window object to abort execution
- * when the property is read/written.
+ * @description Patches a list of properties on the iframes'
+ * window object to abort execution when the
+ * property is read/written.
  *
  * @param {...string} properties The list with the properties.
  * @param {boolean?} [abortRead=false] Should abort on read option.
@@ -292,7 +305,8 @@ export function abortOnIframe(
 }
 
 /**
- * Patches the native functions which are responsible with adding Nodes to DOM.
+ * @description Patches the native functions which are
+ * responsible with adding Nodes to DOM.
  * Adds a hook at right after the addition.
  *
  * @param {function} endCallback The list with the properties.
@@ -321,14 +335,16 @@ function addHooksOnDomAdditions(endCallback) {
 
   function getAppendChildDescriptor(target, property) {
     let currentValue = target[property];
+    let wrappedValue = function(...args) {
+      let result;
+      result = apply(currentValue, this, args);
+      endCallback && endCallback();
+      return result;
+    };
+    proxyToStringCalls(wrappedValue, currentValue);
     return {
       get() {
-        return function(...args) {
-          let result;
-          result = apply(currentValue, this, args);
-          endCallback && endCallback();
-          return result;
-        };
+        return wrappedValue;
       }
     };
   }
@@ -360,7 +376,7 @@ export function findOwner(root, path) {
 
   for (let i = 0; i < chain.length - 1; i++) {
     let prop = chain[i];
-    // eslint-disable-next-line no-prototype-builtins
+
     if (!hasOwnProperty(object, prop))
       return;
 
@@ -371,7 +387,7 @@ export function findOwner(root, path) {
   }
 
   let prop = chain[chain.length - 1];
-  // eslint-disable-next-line no-prototype-builtins
+
   if (hasOwnProperty(object, prop))
     return [object, prop];
 }
@@ -385,6 +401,10 @@ export function overrideValue(value) {
       return false;
     case "true":
       return true;
+    case "falseStr":
+      return "false";
+    case "trueStr":
+      return "true";
     case "null":
       return null;
     case "noopFunc":
@@ -404,9 +424,7 @@ export function overrideValue(value) {
     default:
       if (decimals.test(value))
         return parseFloat(value);
-
-      throw new Error("[override-property-read snippet]: " +
-                      `Value "${value}" is not valid.`);
+      return value;
   }
 }
 
@@ -423,7 +441,7 @@ function getPromiseFromEvent(item, event) {
 }
 
 /**
- * Waits until the website is at the given state before running the
+ * @description Waits until the website is at the given state before running the
  * snippet main logic function.
  *
  * @param {function} debugLog debugLog function of the calling snippet
@@ -485,7 +503,8 @@ export function waitUntilEvent(
 }
 
 /**
- * Checks if the current stack trace matches a given array of strings.
+ * @description Checks if the current stack trace matches a
+ * given array of strings.
  * It captures the current stack trace by creating a new Error
  * and normalizes it by:
  * - Removing the "at" prefix from each line.
@@ -582,8 +601,9 @@ let fetchContentMap = new Map();
 
 
 /**
- * Returns a potentially already resolved fetch auto cleaning, if not requested
- * again, after a certain amount of milliseconds.
+ * @description Returns a potentially already resolved fetch
+ * auto cleaning, if not requested again, after a
+ * certain amount of milliseconds.
  *
  * The resolved fetch is by default `arrayBuffer` but it can be any other kind
  * through the configuration object.

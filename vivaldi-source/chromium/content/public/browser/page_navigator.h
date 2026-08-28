@@ -19,15 +19,18 @@
 #include "content/public/browser/child_process_host.h"
 #include "content/public/browser/frame_tree_node_id.h"
 #include "content/public/browser/global_request_id.h"
+#include "content/public/browser/initiator_navigation_state.h"
 #include "content/public/browser/reload_type.h"
 #include "content/public/common/referrer.h"
 #include "ipc/constants.mojom-forward.h"
-#include "third_party/blink/public/common/navigation/impression.h"
 #include "third_party/blink/public/common/tokens/tokens.h"
 #include "third_party/blink/public/mojom/frame/triggering_event_info.mojom-shared.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
 #include "url/gurl.h"
+
+// vivaldi VB-129611
+#include "components/ext_data/tab_positioning_params.h"
 
 namespace network {
 class ResourceRequestBody;
@@ -95,6 +98,13 @@ struct CONTENT_EXPORT OpenURLParams {
   // The base url of the initiator of the navigation. This will be non-null only
   // if the navigation is about:blank or about:srcdoc.
   std::optional<GURL> initiator_base_url;
+
+  // A record of the state of the navigation initiator.
+  scoped_refptr<InitiatorNavigationState> initiator_navigation_state;
+
+  // Whether the web security policies of the initiator should be inherited when
+  // navigating to a local scheme.
+  bool should_ignore_initiator_policies_for_inheritance = false;
 
   // SiteInstance of the frame that initiated the navigation or null if we
   // don't know it.
@@ -164,11 +174,6 @@ struct CONTENT_EXPORT OpenURLParams {
   // Indicates if this navigation is a reload.
   ReloadType reload_type = ReloadType::NONE;
 
-  // Optional impression associated with this navigation. Only set on
-  // navigations that originate from links with impression attributes. Used for
-  // conversion measurement.
-  std::optional<blink::Impression> impression;
-
   // Indicates that this navigation is for PDF content in a renderer.
   bool is_pdf = false;
 
@@ -206,6 +211,9 @@ struct CONTENT_EXPORT OpenURLParams {
   // as an opaque string. It should never be parsed or evaluated in the
   // browser process, and must only be parsed by the sandboxed renderer.
   std::optional<std::string> internal_scroll_to_text_fragment;
+
+  // Vivaldi tab positioning parameters. VB-129611
+  std::optional<::vivaldi::TabPositioningParams> positioning_params;
 };
 
 class PageNavigator {

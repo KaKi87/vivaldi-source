@@ -4,8 +4,13 @@
 
 package org.chromium.chrome.browser.ui.lens;
 
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.net.Uri;
+import android.text.TextUtils;
+import android.view.ViewGroup;
+import android.view.ViewParent;
+import android.webkit.JavascriptInterface;
 
 import androidx.annotation.VisibleForTesting;
 
@@ -19,14 +24,28 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.UserData;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
+import org.chromium.base.version_info.VersionInfo;
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.content.WebContentsFactory;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.lens.LensController;
 import org.chromium.chrome.browser.lens.LensEntryPoint;
 import org.chromium.chrome.browser.lens.LensIdentityUtils;
 import org.chromium.chrome.browser.lens.LensIntentParams;
+import org.chromium.chrome.browser.lens.LensSupportStatusHelper;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.components.browser_ui.share.ShareImageFileUtils;
+import org.chromium.components.embedder_support.view.ContentView;
+import org.chromium.components.thinwebview.ThinWebView;
+import org.chromium.components.thinwebview.ThinWebViewAttachParams;
+import org.chromium.components.thinwebview.ThinWebViewConstraints;
+import org.chromium.components.thinwebview.ThinWebViewFactory;
+import org.chromium.content_public.browser.JavascriptInjector;
+import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.WebContents;
+import org.chromium.ui.base.IntentRequestTracker;
+import org.chromium.ui.base.ViewAndroidDelegate;
 import org.chromium.ui.base.WindowAndroid;
 
 import java.util.UUID;
@@ -39,9 +58,50 @@ import java.util.UUID;
 @NullMarked
 public class LensOverlayCoordinator implements UserData {
     private static final String TAG = "LensOverlay";
+    static final String LENS_OVERLAY_IMPL_DEFAULT =
+            LensSupportStatusHelper.LENS_OVERLAY_IMPL_INTENT;
+
+    private static final String LENS_OVERLAY_JS_BRIDGE_NAME = "lensOverlay";
+
+    /**
+     * Returns whether the WebUI implementation of the Lens Overlay is enabled via feature params.
+     */
+    public static boolean isWebUiImplementationEnabled() {
+        String implType =
+                ChromeFeatureList.getFieldTrialParamByFeature(
+                        ChromeFeatureList.LENS_OVERLAY_ANDROID,
+                        LensSupportStatusHelper.LENS_OVERLAY_IMPL_TYPE);
+        return LensSupportStatusHelper.LENS_OVERLAY_IMPL_WEBUI.equals(implType);
+    }
+
+    private static final String LENS_OVERLAY_DEFAULT_HTML =
+            """
+            <!DOCTYPE html>
+            <html>
+            <head>
+            <style>
+              html, body {
+                align-items: center;
+                display: flex;
+                font-family: sans-serif;
+                height: 100vh;
+                justify-content: center;
+                margin: 0;
+                padding: 0;
+                width: 100vw;
+              }
+            </style>
+            </head>
+            <body onclick="lensOverlay.close()" role="dialog" aria-label="Lens Overlay Placeholder">
+              <h1>Lens Overlay Placeholder: Click to dismiss.</h1>
+            </body>
+            </html>
+            """;
 
     private final Tab mTab;
     private long mNativeLensOverlayControllerAndroid;
+    private @Nullable ThinWebView mThinWebView;
+    private @Nullable WebContents mOverlayWebContents;
 
     /**
      * Returns the {@link LensOverlayCoordinator} for the {@link Tab}, creating it if needed.
@@ -99,6 +159,7 @@ public class LensOverlayCoordinator implements UserData {
             setShowing(false);
             return false;
         }
+
         return true;
     }
 
@@ -110,17 +171,41 @@ public class LensOverlayCoordinator implements UserData {
      */
     @CalledByNative
     void onScreenshotCaptured(@JniType("SkBitmap") Bitmap bitmap) {
-        Log.i(TAG, "onScreenshotCaptured called in Java");
+        ThreadUtils.assertOnUiThread();
+        String implType =
+                ChromeFeatureList.getFieldTrialParamByFeature(
+                        ChromeFeatureList.LENS_OVERLAY_ANDROID,
+                        LensSupportStatusHelper.LENS_OVERLAY_IMPL_TYPE);
 
+        if (TextUtils.isEmpty(implType)) {
+            implType = LENS_OVERLAY_IMPL_DEFAULT;
+        }
+
+        boolean isRunning = false;
+        Log.d(TAG, "Lens Overlay %s implementation started", implType);
+        if (LensSupportStatusHelper.LENS_OVERLAY_IMPL_INTENT.equals(implType)) {
+            isRunning = startIntentFlow(bitmap);
+        } else if (LensSupportStatusHelper.LENS_OVERLAY_IMPL_WEBUI.equals(implType)) {
+            isRunning = startWebUIFlow(bitmap);
+        } else {
+            Log.e(TAG, "Unrecognized implementation type: " + implType);
+        }
+
+        if (!isRunning) {
+            setShowing(false);
+        }
+    }
+
+    @VisibleForTesting
+    boolean startIntentFlow(Bitmap bitmap) {
         WebContents webContents = mTab.getWebContents();
         if (webContents == null) {
-            setShowing(false);
-            return;
+            return false;
         }
+
         WindowAndroid window = webContents.getTopLevelNativeWindow();
         if (window == null) {
-            setShowing(false);
-            return;
+            return false;
         }
 
         // Collect physical screen metrics on the UI thread before hopping to background.
@@ -130,12 +215,97 @@ public class LensOverlayCoordinator implements UserData {
             // Fallback: If metrics can't be determined, use the windowshot as-is.
             PostTask.postTask(
                     TaskTraits.UI_DEFAULT, () -> saveCompositedImageAndLaunch(window, bitmap));
-            return;
+        } else {
+            // Hop to background thread for heavy image processing.
+            PostTask.postTask(
+                    TaskTraits.USER_VISIBLE,
+                    () -> compositeImageInBackground(window, bitmap, metrics));
         }
 
-        // Hop to background thread for heavy image processing.
-        PostTask.postTask(
-                TaskTraits.USER_VISIBLE, () -> compositeImageInBackground(window, bitmap, metrics));
+        return true;
+    }
+
+    @VisibleForTesting
+    boolean startWebUIFlow(Bitmap bitmap) {
+        clearOverlay();
+
+        if (bitmap != null) {
+            bitmap.recycle();
+        }
+
+        ViewGroup tabContentView = mTab.getContentView();
+        if (tabContentView == null) {
+            return false;
+        }
+
+        WebContents webContents = mTab.getWebContents();
+        if (webContents == null) {
+            return false;
+        }
+
+        WindowAndroid window = webContents.getTopLevelNativeWindow();
+        if (window == null) {
+            return false;
+        }
+
+        Context context = window.getContext().get();
+        if (context == null) {
+            return false;
+        }
+
+        IntentRequestTracker intentRequestTracker = getIntentRequestTracker(window);
+        if (intentRequestTracker == null) {
+            Log.e(TAG, "ThinWebView requires an IntentRequestTracker.");
+            return false;
+        }
+
+        mThinWebView =
+                ThinWebViewFactory.create(
+                        context,
+                        new ThinWebViewConstraints(),
+                        intentRequestTracker,
+                        /* enablePermissionRequests= */ false);
+
+        mOverlayWebContents = WebContentsFactory.createWebContents(mTab.getProfile(), false, false);
+
+        ContentView contentView = ContentView.createContentView(context, mOverlayWebContents);
+
+        final ViewAndroidDelegate delegate = ViewAndroidDelegate.createBasicDelegate(contentView);
+        mOverlayWebContents.setDelegates(
+                VersionInfo.getProductVersion(),
+                delegate,
+                contentView,
+                window,
+                WebContents.createDefaultInternalsHolder());
+
+        mThinWebView.attachWebContents(
+                mOverlayWebContents, contentView, new ThinWebViewAttachParams.Builder().build());
+
+        JavascriptInjector injector = JavascriptInjector.fromWebContents(mOverlayWebContents);
+        if (injector != null) {
+            injector.addPossiblyUnsafeInterface(
+                    new Object() {
+                        @JavascriptInterface
+                        public void close() {
+                            ThreadUtils.postOnUiThread(() -> LensOverlayCoordinator.this.close());
+                        }
+                    },
+                    LENS_OVERLAY_JS_BRIDGE_NAME,
+                    JavascriptInterface.class);
+        }
+
+        tabContentView.addView(
+                mThinWebView.getView(),
+                new ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        mOverlayWebContents
+                .getNavigationController()
+                .loadUrl(
+                        new LoadUrlParams(
+                                "data:text/html;charset=utf-8,"
+                                        + Uri.encode(LENS_OVERLAY_DEFAULT_HTML)));
+        return true;
     }
 
     @VisibleForTesting
@@ -171,12 +341,16 @@ public class LensOverlayCoordinator implements UserData {
     private void launchLensIntent(WindowAndroid window, Uri imageUri) {
         String pageUrl = mTab.getUrl() != null ? mTab.getUrl().getSpec() : "";
         LensIntentParams params =
-                new LensIntentParams.Builder(LensEntryPoint.CHROME_LENS_OVERLAY, mTab.isIncognito())
+                new LensIntentParams.Builder(
+                                LensEntryPoint.CONTEXT_MENU_SEARCH_MENU_ITEM, mTab.isIncognito())
                         .withImageUri(imageUri)
                         .withPageUrl(pageUrl)
                         .withSrcUrl("")
                         .withImageTitleOrAltText("")
                         .withAccountName(LensIdentityUtils.getAccountName(mTab.getProfile()))
+                        // Unlocking orientation is mainly to help landscape mode (seen in Desktop
+                        // Android), but made unconditional here for simplicity and consistency.
+                        .withForceUnlockOrientation(true)
                         .build();
 
         LensController.getInstance().startLens(window, params);
@@ -189,6 +363,7 @@ public class LensOverlayCoordinator implements UserData {
     /** Called by the C++ controller when an asynchronous error occurs during capture. */
     @CalledByNative
     void onCaptureError() {
+        ThreadUtils.assertOnUiThread();
         Log.e(TAG, "onCaptureError called in Java");
         setShowing(false);
     }
@@ -197,13 +372,38 @@ public class LensOverlayCoordinator implements UserData {
         LensOverlayTabHelper.setOverlayShowing(mTab, showing);
     }
 
+    private void clearOverlay() {
+        if (mThinWebView != null) {
+            ViewParent parent = mThinWebView.getView().getParent();
+            if (parent instanceof ViewGroup viewGroup) {
+                viewGroup.removeView(mThinWebView.getView());
+            }
+            mThinWebView.destroy();
+            mThinWebView = null;
+        }
+        if (mOverlayWebContents != null) {
+            mOverlayWebContents.destroy();
+            mOverlayWebContents = null;
+        }
+    }
+
+    public void close() {
+        clearOverlay();
+        setShowing(false);
+    }
+
     @Override
     public void destroy() {
         if (mNativeLensOverlayControllerAndroid != 0) {
             LensOverlayCoordinatorJni.get().destroy(mNativeLensOverlayControllerAndroid);
             mNativeLensOverlayControllerAndroid = 0;
         }
-        setShowing(false);
+        close();
+    }
+
+    @VisibleForTesting
+    @Nullable IntentRequestTracker getIntentRequestTracker(WindowAndroid window) {
+        return window.getIntentRequestTracker();
     }
 
     @NativeMethods

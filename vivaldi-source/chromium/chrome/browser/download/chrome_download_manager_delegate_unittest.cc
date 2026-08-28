@@ -176,7 +176,9 @@ class TestChromeDownloadManagerDelegate : public ChromeDownloadManagerDelegate {
       const base::FilePath& virtual_path,
       bool create_directory,
       DownloadPathReservationTracker::FilenameConflictAction conflict_action,
-      DownloadPathReservationTracker::ReservedPathCallback callback) override {
+      const base::FilePath& containment_directory,
+      DownloadTargetDeterminerDelegate::ReservedPathCallback callback)
+      override {
     PathValidationResult result = PathValidationResult::SUCCESS;
     base::FilePath path_to_return = MockReserveVirtualPath(
         download, virtual_path, create_directory, conflict_action, &result);
@@ -257,37 +259,6 @@ class TestChromeDownloadManagerDelegate : public ChromeDownloadManagerDelegate {
   friend class ChromeDownloadManagerDelegateTest;
 };
 
-// A DownloadCoreService that returns the TestChromeDownloadManagerDelegate.
-class TestDownloadCoreService : public DownloadCoreServiceImpl {
- public:
-  explicit TestDownloadCoreService(Profile* profile);
-  ~TestDownloadCoreService() override;
-
-  void set_download_manager_delegate(ChromeDownloadManagerDelegate* delegate) {
-    delegate_ = delegate;
-  }
-
-  ChromeDownloadManagerDelegate* GetDownloadManagerDelegate() override;
-
-  raw_ptr<ChromeDownloadManagerDelegate> delegate_ = nullptr;
-};
-
-TestDownloadCoreService::TestDownloadCoreService(Profile* profile)
-    : DownloadCoreServiceImpl(profile) {}
-
-TestDownloadCoreService::~TestDownloadCoreService() = default;
-
-ChromeDownloadManagerDelegate*
-TestDownloadCoreService::GetDownloadManagerDelegate() {
-  return delegate_;
-}
-
-static std::unique_ptr<KeyedService> CreateTestDownloadCoreService(
-    content::BrowserContext* browser_context) {
-  return std::make_unique<TestDownloadCoreService>(
-      Profile::FromBrowserContext(browser_context));
-}
-
 class ChromeDownloadManagerDelegateTest
     : public ChromeRenderViewHostTestHarness {
  public:
@@ -347,7 +318,7 @@ class ChromeDownloadManagerDelegateTest
   base::FilePath test_download_dir_;
   raw_ptr<sync_preferences::TestingPrefServiceSyncable> pref_service_ = nullptr;
   std::unique_ptr<content::MockDownloadManager> download_manager_;
-  std::unique_ptr<TestChromeDownloadManagerDelegate> delegate_;
+  raw_ptr<TestChromeDownloadManagerDelegate> delegate_ = nullptr;
   MockWebContentsDelegate web_contents_delegate_;
   std::vector<uint32_t> download_ids_;
   TestingProfileManager testing_profile_manager_;
@@ -367,14 +338,12 @@ void ChromeDownloadManagerDelegateTest::SetUp() {
   test_download_dir_ = profile()->GetPath().AppendASCII("TestDownloadDir");
   ASSERT_TRUE(base::CreateDirectory(test_download_dir_));
 
-  delegate_ =
+  auto delegate =
       std::make_unique<::testing::NiceMock<TestChromeDownloadManagerDelegate>>(
           profile());
-  DownloadCoreServiceFactory::GetInstance()->SetTestingFactory(
-      profile(), base::BindRepeating(&CreateTestDownloadCoreService));
-  static_cast<TestDownloadCoreService*>(
-      DownloadCoreServiceFactory::GetForBrowserContext(profile()))
-      ->set_download_manager_delegate(delegate_.get());
+  delegate_ = delegate.get();
+  DownloadCoreServiceFactory::GetForBrowserContext(profile())
+      ->SetDownloadManagerDelegateForTesting(std::move(delegate));
   download_prefs()->SkipSanitizeDownloadTargetPathForTesting();
   download_prefs()->SetDownloadPath(test_download_dir_);
   delegate_->SetDownloadManager(download_manager_.get());
@@ -391,11 +360,12 @@ void ChromeDownloadManagerDelegateTest::TearDown() {
   base::RunLoop().RunUntilIdle();
   pref_service_ = nullptr;
   delegate_->Shutdown();
+  delegate_ = nullptr;
   ChromeRenderViewHostTestHarness::TearDown();
 }
 
 void ChromeDownloadManagerDelegateTest::VerifyAndClearExpectations() {
-  ::testing::Mock::VerifyAndClearExpectations(delegate_.get());
+  ::testing::Mock::VerifyAndClearExpectations(delegate_);
 }
 
 std::unique_ptr<download::MockDownloadItem>
@@ -471,7 +441,7 @@ void ChromeDownloadManagerDelegateTest::OnConfirmationCallbackComplete(
 
 TestChromeDownloadManagerDelegate*
     ChromeDownloadManagerDelegateTest::delegate() {
-  return delegate_.get();
+  return delegate_;
 }
 
 content::MockDownloadManager*
@@ -1811,7 +1781,7 @@ TEST_F(ChromeDownloadManagerDelegateTest, ScheduleCancelForEphemeralWarning) {
   std::unique_ptr<download::MockDownloadItem> download_item =
       CreateActiveDownloadItem(0);
   EXPECT_CALL(*download_item, GetDangerType())
-      .WillRepeatedly(Return(download::DOWNLOAD_DANGER_TYPE_DANGEROUS_FILE));
+      .WillRepeatedly(Return(download::DOWNLOAD_DANGER_TYPE_DANGEROUS_CONTENT));
 
   delegate()->ScheduleCancelForEphemeralWarning(download_item->GetGuid());
 
@@ -1858,7 +1828,7 @@ TEST_F(ChromeDownloadManagerDelegateTest, CancelAllEphemeralWarnings) {
       .WillRepeatedly(Return(download::DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS));
   auto dangerous_item = CreateActiveDownloadItem(0);
   EXPECT_CALL(*dangerous_item, GetDangerType())
-      .WillRepeatedly(Return(download::DOWNLOAD_DANGER_TYPE_DANGEROUS_FILE));
+      .WillRepeatedly(Return(download::DOWNLOAD_DANGER_TYPE_DANGEROUS_CONTENT));
   auto canceled_item = CreateActiveDownloadItem(0);
   EXPECT_CALL(*canceled_item, GetDangerType())
       .WillRepeatedly(Return(download::DOWNLOAD_DANGER_TYPE_DANGEROUS_FILE));
@@ -2699,6 +2669,48 @@ TEST_F(ChromeDownloadManagerDelegateTest, DeobfuscationBeforeCompletion) {
   EXPECT_EQ(original_contents,
             std::vector<uint8_t>(deobfuscated_content.begin(),
                                  deobfuscated_content.end()));
+}
+
+TEST_F(ChromeDownloadManagerDelegateTest,
+       DeobfuscationBeforeCompletion_Failure) {
+  base::ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
+
+  // Setup file with invalid dummy data so deobfuscation fails.
+  std::vector<uint8_t> original_contents(5000, 'a');
+  base::FilePath file_path = temp_dir.GetPath().AppendASCII("obfuscated");
+  ASSERT_TRUE(base::WriteFile(file_path, original_contents));
+
+  // Create a validated dangerous download item.
+  std::unique_ptr<download::MockDownloadItem> download_item =
+      CreateActiveDownloadItem(0);
+  EXPECT_CALL(*download_item, GetDangerType())
+      .WillRepeatedly(Return(download::DOWNLOAD_DANGER_TYPE_USER_VALIDATED));
+  EXPECT_CALL(*download_item, GetFullPath())
+      .WillRepeatedly(ReturnRef(file_path));
+  // Set up obfuscation data as user validation should happen after this is set.
+  auto obfuscation_data =
+      std::make_unique<enterprise_obfuscation::DownloadObfuscationData>(true);
+  download_item->SetUserData(
+      enterprise_obfuscation::DownloadObfuscationData::kUserDataKey,
+      std::move(obfuscation_data));
+
+  base::RunLoop run_loop;
+  EXPECT_CALL(*download_item, Cancel(false)).WillOnce([&run_loop]() {
+    run_loop.Quit();
+  });
+
+  EXPECT_FALSE(delegate()->ShouldCompleteDownload(download_item.get(),
+                                                  run_loop.QuitClosure()));
+  run_loop.Run();
+
+  // Verify obfuscation flag was cleared.
+  auto* final_data =
+      static_cast<enterprise_obfuscation::DownloadObfuscationData*>(
+          download_item->GetUserData(
+              enterprise_obfuscation::DownloadObfuscationData::kUserDataKey));
+  ASSERT_TRUE(final_data);
+  EXPECT_FALSE(final_data->is_obfuscated);
 }
 #endif  // BUILDFLAG(ENTERPRISE_CONTENT_ANALYSIS)
 

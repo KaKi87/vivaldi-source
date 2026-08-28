@@ -101,7 +101,7 @@ struct AutocompleteMatchType {
                         // contains the input.
     DIRECT_MATCH,       // A direct match
     RECENT_TYPED_HISTORY, // Recent searches and typed urls.
-
+    VIVALDI_CALCULATOR,    // Local Vivaldi Calculator
     NUM_TYPES,
   };
   // clang-format on

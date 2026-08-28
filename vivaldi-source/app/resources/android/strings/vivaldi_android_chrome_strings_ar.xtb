@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="ar">
+<translation id="1204037785786432551">رابط التحميل</translation>
+<translation id="1328749518742029305"><ph name="TAB_GROUP_TITLE" /> تم إغلاق كومة علامات التبويب وحفظها</translation>
 <translation id="1397811292916898096">المسح باستخدام <ph name="PRODUCT_NAME" /></translation>
 <translation id="1456207338570705181">Touch to Search هي ميزة لا تتوفر إلا عندما يتم تعيين Google كمحرك بحث افتراضي في Vivaldi. يرسل الكلمة المحددة والصفحة الحالية كسياق إلى بحث Google. يمكنك إيقاف تشغيله في <ph name="BEGIN_LINK" />الإعدادات<ph name="END_LINK" />.</translation>
 <translation id="1598449788754183301">تبديل علامات التبويب العادية / الخاصة</translation>
@@ -11,6 +13,7 @@
 <translation id="2149973817440762519">تعديل الإشارة المرجعية</translation>
 <translation id="2306442503286132111">تم حفظ الإشارة المرجعية في مجلد <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">المظهر</translation>
+<translation id="2546283357679194313">ملفات تعريف الارتباط وبيانات الموقع</translation>
 <translation id="2633278372998075009">علامات التبويب الخاصة</translation>
 <translation id="2951071800649516099">إضافة الصفحات إلى قائمة القراءة للاطلاع عليها لاحقًا</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
@@ -24,19 +27,24 @@
 <translation id="3602290021589620013">معاينة</translation>
 <translation id="3700829948786686853">‏مرحبًا بك في Vivaldi‏</translation>
 <translation id="3719826155360621982">الصفحة الرئيسية</translation>
+<translation id="395421286877117532">تخصيص مجموعة علامات التبويب والنقر فوق تم</translation>
 <translation id="399014816462153200">اقرأ المقالات:</translation>
 <translation id="4121750346708795461">باستخدام هذا التطبيق ، فإنك توافق على<ph name="BEGIN_LINK1" />اتفاقية ترخيص المستخدم النهائي<ph name="END_LINK1" /> و <ph name="BEGIN_LINK2" />سياسة الخصوصية<ph name="END_LINK2" />.</translation>
 <translation id="4137746084635924146">لغة الجهاز الحالية</translation>
 <translation id="4167670741834902166">علامة تبويب خاصة جديدة</translation>
 <translation id="4195643157523330669">افتح في علامة تبويب جديدة</translation>
 <translation id="4243710787042215766">افتح في علامة التبويب الخاصة</translation>
+<translation id="4291407919474070700">‏<ph name="BEGIN_LINK" />تفعيل قفل الشاشة في إعدادات <ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">مدير كلمات المرور</translation>
+<translation id="4445802392779002787">إضافة علامة تبويب إلى المكدس</translation>
 <translation id="451872707440238414">البحث في الإشارات المرجعية</translation>
 <translation id="4526803704855831732">علامات التبويب الخاصة</translation>
+<translation id="454284936014822050"><ph name="GROUP_TITLE" /> مجموعة علامات التبويب</translation>
 <translation id="4719086422742491124">تعرف على مواضيع على مواقع الويب دون مغادرة الصفحة. حدد كلمة واحدة أو أكثر في الصفحة للبحث عنها.
 
 Touch to Search هي ميزة لا تتوفر إلا عند تعيين Google كمحرك البحث الافتراضي في Vivaldi.</translation>
 <translation id="4759238208242260848">التنزيلات</translation>
+<translation id="4771820744342013314">حذف مجموعة علامات التبويب؟</translation>
 <translation id="4850886885716139402">عرض</translation>
 <translation id="4883379392681899581">اترك الوضع الخاص</translation>
 <translation id="4943872375798546930">لا نتائج</translation>
@@ -44,6 +52,7 @@ Touch to Search هي ميزة لا تتوفر إلا عند تعيين Google ك
 <translation id="5079259810715830221">عندما يطلب موقع Google تحميل روابط على صفحته بشكل خاص مسبقًا، يقوم Vivaldi بتشفير الصفحات وتحميلها مسبقًا من خلال خوادم Google بدون ملفات تعريف الارتباط. هذا يخفي هويتك من الموقع المحمّل مسبقًا.</translation>
 <translation id="5118676864324397542"><ph name="APP_NAME" /> التخزين</translation>
 <translation id="5186185447130319458">خاص</translation>
+<translation id="5210689723585747462"><ph name="TAB_GROUP_TITLE" /> تم إغلاق كومة علامات التبويب</translation>
 <translation id="5233638681132016545">علامة تبويب جديدة</translation>
 <translation id="5375131951310889874">تعرف على مواضيع على مواقع الويب دون مغادرة الصفحة. Touch to Search هي ميزة لا تتوفر إلا عند تعيين Google كمحرك بحث افتراضي في Vivaldi. يرسل كلمة وسياقها المحيط إلى بحث Google ، ويعيد التعريفات والصور ونتائج البحث والتفاصيل الأخرى.
 
@@ -57,10 +66,16 @@ Touch to Search هي ميزة لا تتوفر إلا عند تعيين Google ك
 <translation id="6610147964972079463">إغلاق علامات التبويب الخاصة</translation>
 <translation id="7029995644714925509">عندما يطلب موقع ما تحميل روابط على صفحته بشكل خاص مسبقًا، يقوم Vivaldi بتشفير الصفحات وتحميلها مسبقًا من خلال خوادم Google بدون ملفات تعريف الارتباط. هذا يخفي هويتك من الموقع المحمّل مسبقًا.</translation>
 <translation id="706339621163631076">سياسة خصوصية المتصفح</translation>
+<translation id="7100573672995171864">تخصيص Vivaldiوالتحكم فيه</translation>
+<translation id="7133879160432070247">حظر وترك المكدس؟</translation>
 <translation id="732145680195464316">تم حفظ الإشارة المرجعية في <ph name="PRODUCT_NAME" /></translation>
+<translation id="7359002509206457351">الوصول إلى طرق الدفعالوصول إلى طرق الدفع</translation>
+<translation id="7419565702166471774">استخدام الاتصالات الآمنة دائمًا</translation>
 <translation id="7427132068601343474">‏لمحة عن Vivaldi</translation>
 <translation id="7465104139234185284">إغلاق جميع علامات التبويب الخاصة</translation>
 <translation id="7481312909269577407">إلى الأمام</translation>
+<translation id="759273611317559136"><ph name="TAB_GROUP_TITLE" /> تم حذف مجموعة علامات التبويب</translation>
+<translation id="7640137753339219124">حذف المجموعة</translation>
 <translation id="7968014550143838305">تمت الإضافة إلى قائمة القراءة</translation>
 <translation id="804786196054284061">اتفاقية ترخيص المستخدم النهائية</translation>
 <translation id="8127542551745560481">تعديل الصفحة الرئيسية</translation>

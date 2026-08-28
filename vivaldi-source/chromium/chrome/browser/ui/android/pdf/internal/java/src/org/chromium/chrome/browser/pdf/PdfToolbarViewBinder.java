@@ -50,7 +50,9 @@ class PdfToolbarViewBinder {
             view.findViewById(R.id.fit_to_page_button).setOnClickListener(listener);
             view.findViewById(R.id.more_menu_button).setOnClickListener(listener);
             view.findViewById(R.id.download_button).setOnClickListener(listener);
-            view.findViewById(R.id.rotate_button).setOnClickListener(listener);
+            view.findViewById(R.id.print_button).setOnClickListener(listener);
+            view.findViewById(R.id.done_button).setOnClickListener(listener);
+            view.findViewById(R.id.edit_button).setOnClickListener(listener);
         } else if (PdfToolbarProperties.TITLE == key) {
             TextView title = view.findViewById(R.id.pdf_title);
             title.setText(model.get(PdfToolbarProperties.TITLE));
@@ -73,12 +75,17 @@ class PdfToolbarViewBinder {
                         boolean isSuccess = false;
                         String text = currentPage.getText().toString();
                         if (!text.isEmpty()) {
-                            int pageNumber = Integer.parseInt(text);
-                            int totalPageCount = model.get(PdfToolbarProperties.TOTAL_PAGE_COUNT);
+                            try {
+                                int pageNumber = Integer.parseInt(text);
+                                int totalPageCount =
+                                        model.get(PdfToolbarProperties.TOTAL_PAGE_COUNT);
 
-                            if (pageNumber >= 1 && pageNumber <= totalPageCount) {
-                                listener.onResult(pageNumber);
-                                isSuccess = true;
+                                if (pageNumber >= 1 && pageNumber <= totalPageCount) {
+                                    listener.onResult(pageNumber);
+                                    isSuccess = true;
+                                }
+                            } catch (NumberFormatException e) {
+                                isSuccess = false;
                             }
                         }
                         // If the input was invalid, reset the text to the current page
@@ -98,6 +105,21 @@ class PdfToolbarViewBinder {
             } else {
                 fitToPageButton.setImageResource(R.drawable.ic_fit_page_width_24dp);
             }
+        } else if (PdfToolbarProperties.DOWNLOAD_BUTTON_VISIBLE == key) {
+            view.setDownloadButtonVisible(model.get(PdfToolbarProperties.DOWNLOAD_BUTTON_VISIBLE));
+        } else if (PdfToolbarProperties.DONE_BUTTON_VISIBLE == key) {
+            view.setDoneButtonVisible(model.get(PdfToolbarProperties.DONE_BUTTON_VISIBLE));
+
+        } else if (PdfToolbarProperties.FIT_TO_PAGE_BUTTON_VISIBLE == key) {
+            view.setFitToPageButtonVisible(
+                    model.get(PdfToolbarProperties.FIT_TO_PAGE_BUTTON_VISIBLE));
+        } else if (PdfToolbarProperties.ZOOM_CONTROLS_VISIBLE == key) {
+            view.setZoomControlsVisible(model.get(PdfToolbarProperties.ZOOM_CONTROLS_VISIBLE));
+        } else if (PdfToolbarProperties.PAGE_NAV_AND_EDIT_VISIBLE == key) {
+            view.setPageNavAndEditVisible(model.get(PdfToolbarProperties.PAGE_NAV_AND_EDIT_VISIBLE));
+        } else if (PdfToolbarProperties.EDIT_MODE_ACTIVE == key) {
+            View editButton = view.findViewById(R.id.edit_button);
+            editButton.setSelected(model.get(PdfToolbarProperties.EDIT_MODE_ACTIVE));
         }
     }
 }

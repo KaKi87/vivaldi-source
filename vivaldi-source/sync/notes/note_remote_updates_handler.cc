@@ -133,26 +133,22 @@ base::Uuid GetParentUuidInUpdate(const syncer::EntityData& update_entity) {
 }
 
 void ApplyRemoteUpdate(const syncer::UpdateResponseData& update,
-                       const SyncedNoteTrackerEntity* tracked_entity,
-                       const SyncedNoteTrackerEntity* new_parent_tracked_entity,
+                       const vivaldi::NoteNode* node,
+                       const vivaldi::NoteNode* new_parent,
                        NoteModelView* model,
                        SyncedNoteTracker* tracker) {
   const syncer::EntityData& update_entity = update.entity;
   DCHECK(!update_entity.is_deleted());
-  DCHECK(tracked_entity);
-  DCHECK(tracked_entity->note_node());
-  DCHECK(new_parent_tracked_entity);
+  DCHECK(node);
+  DCHECK(new_parent);
   DCHECK(model);
   DCHECK(tracker);
-  DCHECK_EQ(tracked_entity->note_node()->uuid(),
-            base::Uuid::ParseLowercase(update_entity.specifics.notes().guid()));
+  DCHECK_EQ(node->uuid(), base::Uuid::ParseLowercase(
+                              update_entity.specifics.bookmark().guid()));
 
-  const vivaldi::NoteNode* node = tracked_entity->note_node();
   const vivaldi::NoteNode* old_parent = node->parent();
-  const vivaldi::NoteNode* new_parent = new_parent_tracked_entity->note_node();
 
   DCHECK(old_parent);
-  DCHECK(new_parent);
   DCHECK((old_parent->is_folder() && !node->is_attachment()) ||
          (old_parent->is_note() && node->is_attachment()));
   DCHECK((new_parent->is_folder() && !node->is_attachment()) ||
@@ -169,8 +165,6 @@ void ApplyRemoteUpdate(const syncer::UpdateResponseData& update,
   const size_t old_index = old_parent->GetIndexOf(node).value();
   const size_t new_index = ComputeChildNodeIndex(
       new_parent, update_entity.specifics.notes().unique_position(), tracker);
-  tracker->Update(tracked_entity, update.response_version,
-                  update_entity.modification_time, update_entity.specifics);
 
   if (new_parent == old_parent &&
       (new_index == old_index || new_index == old_index + 1)) {
@@ -211,14 +205,8 @@ void NoteRemoteUpdatesHandler::Process(
     DCHECK(!IsPermanentNodeUpdate(update_entity));
     DCHECK(update_entity.is_deleted() || IsValidUpdate(update_entity));
 
-    bool should_ignore_update = false;
-    const SyncedNoteTrackerEntity* tracked_entity =
-        DetermineLocalTrackedEntityToUpdate(note_tracker_, update_entity,
-                                            &should_ignore_update);
-
-    if (should_ignore_update) {
-      continue;
-    }
+    SyncedNoteTrackerEntity* tracked_entity =
+        DetermineLocalTrackedEntityToUpdate(note_tracker_, update_entity);
 
     // Filter out permanent nodes once again (in case the server tag wasn't
     // populated and yet the entity ID points to a permanent node). This case
@@ -232,8 +220,8 @@ void NoteRemoteUpdatesHandler::Process(
     }
 
     // Ignore updates that have already been seen according to the version.
-    if (tracked_entity && tracked_entity->metadata().server_version() >=
-                              update->response_version) {
+    if (tracked_entity &&
+        tracked_entity->IsVersionAlreadyKnown(update->response_version)) {
       if (update_entity.id == tracked_entity->metadata().server_id()) {
         // Seen this update before. This update may be a reflection and may have
         // missing the UUID in specifics. Next reupload will populate UUID in
@@ -243,18 +231,6 @@ void NoteRemoteUpdatesHandler::Process(
         ReuploadEntityIfNeeded(update_entity, tracked_entity);
       }
       continue;
-    }
-
-    // The server ID has changed for a tracked entity (matched via client tag).
-    // This can happen if a commit succeeds, but the response does not come back
-    // fast enough(e.g. before shutdown or crash), then the |note_tracker_|
-    // might assume that it was never committed. The server will track the
-    // client that sent up the original commit and return this in a get updates
-    // response. This also may happen due to duplicate UUIDs. In this case it's
-    // better to update to the latest server ID.
-    if (tracked_entity) {
-      note_tracker_->UpdateSyncIdIfNeeded(tracked_entity,
-                                          /*sync_id=*/update_entity.id);
     }
 
     if (tracked_entity && tracked_entity->IsUnsynced()) {
@@ -277,12 +253,8 @@ void NoteRemoteUpdatesHandler::Process(
         // the encryption.
         continue;
       }
-      DCHECK_EQ(tracked_entity,
-                note_tracker_->GetEntityForSyncId(update_entity.id));
     } else {
       ProcessUpdate(*update, tracked_entity);
-      DCHECK_EQ(tracked_entity,
-                note_tracker_->GetEntityForSyncId(update_entity.id));
     }
 
     // If the received entity has out of date encryption, we schedule another
@@ -292,7 +264,7 @@ void NoteRemoteUpdatesHandler::Process(
       DVLOG(2) << "Notes: Requesting re-encrypt commit "
                << update->encryption_key_name << " -> "
                << note_tracker_->data_type_state().encryption_key_name();
-      note_tracker_->IncrementSequenceNumber(tracked_entity);
+      tracked_entity->IncrementSequenceNumber();
     }
 
     if (got_new_encryption_requirements) {
@@ -302,9 +274,9 @@ void NoteRemoteUpdatesHandler::Process(
 
   // Recommit entities with out of date encryption.
   if (got_new_encryption_requirements) {
-    std::vector<const SyncedNoteTrackerEntity*> all_entities =
-        note_tracker_->GetAllEntities();
-    for (const SyncedNoteTrackerEntity* entity : all_entities) {
+    std::vector<SyncedNoteTrackerEntity*> all_entities =
+        note_tracker_->GetAllMutableEntities();
+    for (SyncedNoteTrackerEntity* entity : all_entities) {
       // No need to recommit tombstones and permanent nodes.
       if (entity->metadata().is_deleted()) {
         continue;
@@ -317,7 +289,7 @@ void NoteRemoteUpdatesHandler::Process(
               entity->metadata().server_id())) {
         continue;
       }
-      note_tracker_->IncrementSequenceNumber(entity);
+      entity->IncrementSequenceNumber();
     }
   }
   note_tracker_->CheckAllNodesTracked(notes_model_);
@@ -429,68 +401,26 @@ NoteRemoteUpdatesHandler::ReorderValidUpdates(
 }
 
 // static
-const SyncedNoteTrackerEntity*
+SyncedNoteTrackerEntity*
 NoteRemoteUpdatesHandler::DetermineLocalTrackedEntityToUpdate(
-    const SyncedNoteTracker* note_tracker,
-    const syncer::EntityData& update_entity,
-    bool* should_ignore_update) {
-  *should_ignore_update = false;
-
-  // If there's nothing other than a server ID to issue a lookup, just do that
-  // and return immediately. This is the case for permanent nodes and possibly
-  // tombstones (at least the LoopbackServer only sets the server ID).
-  if (update_entity.originator_client_item_id.empty() &&
-      update_entity.client_tag_hash.value().empty()) {
-    return note_tracker->GetEntityForSyncId(update_entity.id);
-  }
-
-  // Parse the client tag hash in the update or infer it from the originator
-  // information (all of which are immutable properties of a sync entity).
+    SyncedNoteTracker* note_tracker,
+    const syncer::EntityData& update_entity) {
   const syncer::ClientTagHash client_tag_hash_in_update =
-      !update_entity.client_tag_hash.value().empty()
-          ? update_entity.client_tag_hash
-          : SyncedNoteTracker::GetClientTagHashFromUuid(
-                InferGuidFromLegacyOriginatorId(
-                    update_entity.originator_cache_guid,
-                    update_entity.originator_client_item_id));
+      GetOrInferClientTagHashInUpdate(update_entity);
 
-  const SyncedNoteTrackerEntity* const tracked_entity_by_client_tag =
-      note_tracker->GetEntityForClientTagHash(client_tag_hash_in_update);
-  const SyncedNoteTrackerEntity* const tracked_entity_by_sync_id =
-      note_tracker->GetEntityForSyncId(update_entity.id);
-
-  // The most common scenario is that both lookups, client-tag-based and
-  // server-ID-based, refer to the same tracked entity or both lookups fail. In
-  // that case there's nothing to reconcile and the function can return
-  // trivially.
-  if (tracked_entity_by_client_tag == tracked_entity_by_sync_id) {
-    return tracked_entity_by_client_tag;
+  if (!client_tag_hash_in_update.value().empty()) {
+    return note_tracker->GetEntityForClientTagHash(client_tag_hash_in_update);
   }
 
-  // Client-tags (UUIDs) are known at all times and immutable (as opposed to
-  // server IDs which get a temp value for local creations), so they cannot have
-  // changed.
-  if (tracked_entity_by_sync_id &&
-      tracked_entity_by_sync_id->GetClientTagHash() !=
-          client_tag_hash_in_update) {
-    // The client tag has changed for an already-tracked entity, which is a
-    // protocol violation. This should be practically unreachable, but guard
-    // against misbehaving servers.
-    DLOG(ERROR) << "Ignoring remote note update with protocol violation: "
-                   "Uuid must be immutable";
-    *should_ignore_update = true;
-    return nullptr;
+  // Fallback only for legacy tombstones/deletions lacking a client tag hash.
+  if (update_entity.is_deleted()) {
+    return note_tracker->GetEntityForSyncIdExhaustively(update_entity.id);
   }
 
-  // At this point |tracked_entity_by_client_tag| must be non-null because
-  // otherwise one of the two codepaths above would have returned early.
-  DCHECK(tracked_entity_by_client_tag);
-  DCHECK(!tracked_entity_by_sync_id);
-
-  return tracked_entity_by_client_tag;
+  return nullptr;
 }
 
-const SyncedNoteTrackerEntity* NoteRemoteUpdatesHandler::ProcessCreate(
+SyncedNoteTrackerEntity* NoteRemoteUpdatesHandler::ProcessCreate(
     const syncer::UpdateResponseData& update) {
   const syncer::EntityData& update_entity = update.entity;
   DCHECK(!update_entity.is_deleted());
@@ -519,23 +449,21 @@ const SyncedNoteTrackerEntity* NoteRemoteUpdatesHandler::ProcessCreate(
                             note_tracker_),
       notes_model_);
   DCHECK(note_node);
-  const SyncedNoteTrackerEntity* entity =
-      note_tracker_->Add(note_node, update_entity.id, update.response_version,
-                         update_entity.creation_time, update_entity.specifics);
+  SyncedNoteTrackerEntity* entity = note_tracker_->AddRemote(
+      note_node, update_entity.id, update.response_version,
+      update_entity.creation_time, update_entity.specifics);
   ReuploadEntityIfNeeded(update_entity, entity);
   return entity;
 }
 
 void NoteRemoteUpdatesHandler::ProcessUpdate(
     const syncer::UpdateResponseData& update,
-    const SyncedNoteTrackerEntity* tracked_entity) {
+    SyncedNoteTrackerEntity* tracked_entity) {
   const syncer::EntityData& update_entity = update.entity;
   // Can only update existing nodes.
   DCHECK(tracked_entity);
   DCHECK(tracked_entity->note_node());
   DCHECK(!tracked_entity->note_node()->is_permanent_node());
-  DCHECK_EQ(tracked_entity,
-            note_tracker_->GetEntityForSyncId(update_entity.id));
   // Must not be a deletion.
   DCHECK(!update_entity.is_deleted());
   DCHECK(!IsPermanentNodeUpdate(update_entity));
@@ -566,24 +494,22 @@ void NoteRemoteUpdatesHandler::ProcessUpdate(
   // parent without any data change.
   if (tracked_entity->MatchesData(update_entity)) {
     DCHECK_EQ(new_parent, old_parent);
-    note_tracker_->Update(tracked_entity, update.response_version,
-                          update_entity.modification_time,
-                          update_entity.specifics);
+    tracked_entity->RecordAcceptedRemoteUpdate(update);
     ReuploadEntityIfNeeded(update_entity, tracked_entity);
     return;
   }
-  ApplyRemoteUpdate(update, tracked_entity, new_parent_entity, notes_model_,
-                    note_tracker_);
+  ApplyRemoteUpdate(update, node, new_parent, notes_model_, note_tracker_);
+  // The tracker must be updated after ApplyRemoteUpdate() so that
+  // ApplyRemoteUpdate() can compute the child node index using the pre-update
+  // unique positions in the tracker.
+  tracked_entity->RecordAcceptedRemoteUpdate(update);
   ReuploadEntityIfNeeded(update_entity, tracked_entity);
 }
 
 void NoteRemoteUpdatesHandler::ProcessDelete(
     const syncer::EntityData& update_entity,
-    const SyncedNoteTrackerEntity* tracked_entity) {
+    SyncedNoteTrackerEntity* tracked_entity) {
   DCHECK(update_entity.is_deleted());
-
-  DCHECK_EQ(tracked_entity,
-            note_tracker_->GetEntityForSyncId(update_entity.id));
 
   // Handle corner cases first.
   if (tracked_entity == nullptr) {
@@ -609,15 +535,13 @@ void NoteRemoteUpdatesHandler::ProcessDelete(
 // this scenario is very unlikely and hence the implementation is less
 // sophisticated than in ClientTagBasedDataTypeProcessor (it would require
 // introducing base hash specifics to track remote changes).
-const SyncedNoteTrackerEntity* NoteRemoteUpdatesHandler::ProcessConflict(
+SyncedNoteTrackerEntity* NoteRemoteUpdatesHandler::ProcessConflict(
     const syncer::UpdateResponseData& update,
-    const SyncedNoteTrackerEntity* tracked_entity) {
+    SyncedNoteTrackerEntity* tracked_entity) {
   const syncer::EntityData& update_entity = update.entity;
 
   // Can only conflict with existing nodes.
   DCHECK(tracked_entity);
-  DCHECK_EQ(tracked_entity,
-            note_tracker_->GetEntityForSyncId(update_entity.id));
   DCHECK(!tracked_entity->note_node() ||
          !tracked_entity->note_node()->is_permanent_node());
   DCHECK(!IsPermanentNodeUpdate(update_entity));
@@ -631,13 +555,20 @@ const SyncedNoteTrackerEntity* NoteRemoteUpdatesHandler::ProcessConflict(
   if (update_entity.is_deleted()) {
     // Only remote has been deleted. Local wins. Record that we received the
     // update from the server but leave the pending commit intact.
-    note_tracker_->UpdateServerVersion(tracked_entity, update.response_version);
+    tracked_entity->RecordIgnoredRemoteUpdate(update);
     return tracked_entity;
   }
 
   DCHECK(IsValidNotesSpecifics(update_entity.specifics.notes()));
 
   if (tracked_entity->metadata().is_deleted()) {
+    if (tracked_entity->MatchesBaseData(update_entity)) {
+      // Local deletion vs remote update which matches base data.
+      // This means the remote update is a no-op (e.g. migration).
+      // Local deletion wins.
+      tracked_entity->RecordIgnoredRemoteUpdate(update);
+      return tracked_entity;
+    }
     // Only local node has been deleted. It should be restored from the server
     // data as a remote creation.
     note_tracker_->Remove(tracked_entity);
@@ -659,6 +590,7 @@ const SyncedNoteTrackerEntity* NoteRemoteUpdatesHandler::ProcessConflict(
   // updates before receiving the move updates. The client B update will arrive
   // at client A after the parent entity has been deleted already.
   if (!new_parent_entity) {
+    tracked_entity->RecordIgnoredRemoteUpdate(update);
     return tracked_entity;
   }
   const vivaldi::NoteNode* new_parent = new_parent_entity->note_node();
@@ -667,27 +599,29 @@ const SyncedNoteTrackerEntity* NoteRemoteUpdatesHandler::ProcessConflict(
   // entails child deletion, and if this child has been updated on another
   // client, this would cause conflict.
   if (!new_parent) {
+    tracked_entity->RecordIgnoredRemoteUpdate(update);
     return tracked_entity;
   }
-  // Either local and remote data match or server wins, and in both cases we
-  // should squash any pending commits.
-  note_tracker_->AckSequenceNumber(tracked_entity);
-
   // Node update could be either in the node data (e.g. title or
   // unique_position), or it could be that the node has moved under another
   // parent without any data change.
   if (tracked_entity->MatchesData(update_entity)) {
     DCHECK_EQ(new_parent, old_parent);
-    note_tracker_->Update(tracked_entity, update.response_version,
-                          update_entity.modification_time,
-                          update_entity.specifics);
+    tracked_entity->RecordForcedRemoteUpdate(update);
 
     // The changes are identical so there isn't a real conflict.
+  } else if (tracked_entity->MatchesBaseData(update_entity)) {
+    // Local update vs remote update which matches base data.
+    // Local wins, ignore remote.
+    tracked_entity->RecordIgnoredRemoteUpdate(update);
   } else {
     // Conflict where data don't match and no remote deletion, and hence server
     // wins. Update the model from server data.
-    ApplyRemoteUpdate(update, tracked_entity, new_parent_entity, notes_model_,
-                      note_tracker_);
+    ApplyRemoteUpdate(update, node, new_parent, notes_model_, note_tracker_);
+    // The tracker must be updated after ApplyRemoteUpdate() so that
+    // ApplyRemoteUpdate() can compute the child node index using the pre-update
+    // unique positions in the tracker.
+    tracked_entity->RecordForcedRemoteUpdate(update);
   }
   ReuploadEntityIfNeeded(update_entity, tracked_entity);
   return tracked_entity;
@@ -698,8 +632,7 @@ void NoteRemoteUpdatesHandler::RemoveEntityAndChildrenFromTracker(
   DCHECK(node);
   DCHECK(!node->is_permanent_node());
 
-  const SyncedNoteTrackerEntity* entity =
-      note_tracker_->GetEntityForNoteNode(node);
+  SyncedNoteTrackerEntity* entity = note_tracker_->GetEntityForNoteNode(node);
   DCHECK(entity);
   note_tracker_->Remove(entity);
 
@@ -722,7 +655,7 @@ const vivaldi::NoteNode* NoteRemoteUpdatesHandler::GetParentNode(
 
 void NoteRemoteUpdatesHandler::ReuploadEntityIfNeeded(
     const syncer::EntityData& entity_data,
-    const SyncedNoteTrackerEntity* tracked_entity) {
+    SyncedNoteTrackerEntity* tracked_entity) {
   DCHECK(tracked_entity);
   DCHECK_EQ(tracked_entity->metadata().server_id(), entity_data.id);
   DCHECK(!tracked_entity->note_node() ||
@@ -732,7 +665,7 @@ void NoteRemoteUpdatesHandler::ReuploadEntityIfNeeded(
   const bool is_reupload_needed =
       tracked_entity->note_node() && IsNoteEntityReuploadNeeded(entity_data);
   if (is_reupload_needed) {
-    note_tracker_->IncrementSequenceNumber(tracked_entity);
+    tracked_entity->IncrementSequenceNumber();
   }
 }
 

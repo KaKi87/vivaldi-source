@@ -31,12 +31,12 @@
 #include <utility>
 #include <vector>
 
-#include "src/dawn/common/Assert.h"
 #include "src/dawn/common/Math.h"
 #include "src/dawn/tests/DawnTest.h"
 #include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
 #include "src/dawn/utils/TextureUtils.h"
 #include "src/dawn/utils/WGPUHelpers.h"
+#include "src/utils/assert.h"
 #include "src/utils/compiler.h"
 
 namespace dawn {
@@ -123,7 +123,7 @@ class ExpectFloat16 : public detail::Expectation {
     }
 
   private:
-    bool Floats16Match(float expected, float actual) {
+    bool Floats16Match(uint16_t expected, uint16_t actual) {
         if (IsFloat16NaN(expected)) {
             return IsFloat16NaN(actual);
         }
@@ -213,6 +213,11 @@ class ExpectRG11B10Ufloat : public detail::Expectation {
 
 class TextureFormatTest : public DawnTest {
   protected:
+    void SetUp() override {
+        DawnTest::SetUp();
+        // TODO(crbug.com/523211967): Produces incorrect result on Pixel 10.
+        DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
+    }
     // Structure containing all the information that tests need to know about the format.
     struct FormatTestInfo {
         wgpu::TextureFormat format;
@@ -307,7 +312,8 @@ class TextureFormatTest : public DawnTest {
                                                                 wgpu::BufferUsage::CopySrc);
 
         // Create the texture that we will render results to
-        DAWN_ASSERT(expectedRenderDataSize == width * renderFormatInfo.texelByteSize);
+        DAWN_ASSERT(expectedRenderDataSize ==
+                    static_cast<size_t>(width) * renderFormatInfo.texelByteSize);
 
         wgpu::TextureDescriptor renderTargetDesc;
         renderTargetDesc.usage = wgpu::TextureUsage::CopySrc | wgpu::TextureUsage::RenderAttachment;

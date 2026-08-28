@@ -93,9 +93,8 @@ using base::SysNSStringToUTF8;
   return self;
 }
 
-- (void)configureCell:(ManualFillCardCell*)cell
-           withStyler:(ChromeTableViewStyler*)styler {
-  [super configureCell:cell withStyler:styler];
+- (void)configureCell:(ManualFillCardCell*)cell {
+  [super configureCell:cell];
   [cell setUpWithCreditCard:self.card
                   contentInjector:self.contentInjector
                navigationDelegate:self.navigationDelegate
@@ -127,7 +126,6 @@ NSString* CardNumberLastFourDigits(NSString* obfuscated_number) {
       [digits addObject:[lastFourDigits substringWithRange:NSMakeRange(i, 1)]];
     }
     return [digits componentsJoinedByString:@" "];
-    ;
   }
 
   return @"";
@@ -820,12 +818,11 @@ CGFloat GPayIconTopAnchorOffset() {
   UIImage* icon;
   // `kGooglePaySymbol` only exists in official builds.
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-  NSString* symbol = base::FeatureList::IsEnabled(
-                         autofill::features::kAutofillEnableGradientGoogleLogos)
-                         ? kGooglePayV2Symbol
-                         : kGooglePaySymbol;
-  icon =
-      MakeSymbolMulticolor(CustomSymbolWithPointSize(symbol, kGPayIconWidth));
+  Symbol symbol = base::FeatureList::IsEnabled(
+                      autofill::features::kAutofillEnableGradientGoogleLogos)
+                      ? SymbolGooglePayV2
+                      : SymbolGooglePay;
+  icon = MakeSymbolMulticolor(SymbolWithPointSize(symbol, kGPayIconWidth));
 #else
   icon = NativeImage(IDR_AUTOFILL_GOOGLE_PAY);
 #endif

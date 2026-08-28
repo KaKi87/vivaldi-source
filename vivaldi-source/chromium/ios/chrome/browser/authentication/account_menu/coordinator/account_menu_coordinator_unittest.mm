@@ -22,9 +22,11 @@
 #import "ios/chrome/browser/settings/manage_sync/public/sync_error_settings_command_handler.h"
 #import "ios/chrome/browser/settings/ui_bundled/sync/sync_encryption_passphrase_table_view_controller.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
-#import "ios/chrome/browser/shared/coordinator/scene/test/stub_browser_provider_interface.h"
+#import "ios/chrome/browser/shared/coordinator/scene/test/fake_scene_state.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
-#import "ios/chrome/browser/shared/model/browser/test/test_browser.h"
+#import "ios/chrome/browser/shared/model/browser/browser.h"
+#import "ios/chrome/browser/shared/model/browser/browser_provider.h"
+#import "ios/chrome/browser/shared/model/browser/browser_provider_interface.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_manager_ios.h"
 #import "ios/chrome/browser/shared/public/commands/browser_commands.h"
@@ -79,7 +81,6 @@ class AccountMenuCoordinatorTest : public PlatformTest {
 
   void SetUp() override {
     PlatformTest::SetUp();
-    scene_state_ = [[SceneState alloc] initWithAppState:nil];
 
     TestProfileIOS::Builder builder;
     builder.AddTestingFactory(
@@ -93,7 +94,9 @@ class AccountMenuCoordinatorTest : public PlatformTest {
               return std::make_unique<syncer::MockSyncService>();
             }));
     profile_ = profile_manager_.AddProfileWithBuilder(std::move(builder));
-    browser_ = std::make_unique<TestBrowser>(profile_.get(), scene_state_);
+    scene_state_ = [[FakeSceneState alloc] initWithProfile:profile_.get()];
+    Browser* browser =
+        scene_state_.browserProviderInterface.currentBrowserProvider.browser;
 
     ON_CALL(*GetMockSyncService(), GetTypesWithUnsyncedData)
         .WillByDefault(
@@ -102,14 +105,6 @@ class AccountMenuCoordinatorTest : public PlatformTest {
                    absl::flat_hash_map<syncer::DataType, size_t>)> callback) {
               std::move(callback).Run({});
             });
-
-    stub_browser_interface_provider_ =
-        [[StubBrowserProviderInterface alloc] init];
-    stub_browser_interface_provider_.currentBrowserProvider.browser =
-        browser_.get();
-    scene_state_mock_ = OCMPartialMock(scene_state_);
-    OCMStub([scene_state_mock_ browserProviderInterface])
-        .andReturn(stub_browser_interface_provider_);
 
     presentation_delegate_ = OCMStrictProtocolMock(@protocol(
         SyncEncryptionPassphraseTableViewControllerPresentationDelegate));
@@ -124,7 +119,7 @@ class AccountMenuCoordinatorTest : public PlatformTest {
         OCMStrictProtocolMock(@protocol(BrowserCommands));
     mock_browser_coordinator_commands_handler_ =
         OCMStrictProtocolMock(@protocol(BrowserCoordinatorCommands));
-    CommandDispatcher* dispatcher = browser_->GetCommandDispatcher();
+    CommandDispatcher* dispatcher = browser->GetCommandDispatcher();
     [dispatcher startDispatchingToTarget:mock_scene_handler_
                              forProtocol:@protocol(SceneCommands)];
     [dispatcher startDispatchingToTarget:mock_snackbar_commands_handler_
@@ -142,15 +137,13 @@ class AccountMenuCoordinatorTest : public PlatformTest {
     fake_system_identity_manager_ =
         FakeSystemIdentityManager::FromSystemIdentityManager(
             GetApplicationContext()->GetSystemIdentityManager());
-    authentication_service_ =
-        AuthenticationServiceFactory::GetForProfile(profile_.get());
 
     SigninWithPrimaryIdentity();
     AddSecondaryIdentity();
 
     coordinator_ = [[AccountMenuCoordinator alloc]
         initWithBaseViewController:nil
-                           browser:browser_.get()
+                           browser:browser
                         anchorView:nil
                        accessPoint:AccountMenuAccessPoint::kNewTabPage
                                URL:GURL()];
@@ -169,14 +162,23 @@ class AccountMenuCoordinatorTest : public PlatformTest {
 
   void TearDown() override {
     VerifyMock();
+    @autoreleasepool {
+      [coordinator_ stop];
+      [scene_state_ shutdown];
+      coordinator_ = nil;
+      scene_state_ = nil;
+    }
     PlatformTest::TearDown();
+  }
+
+  AuthenticationService* authentication_service() {
+    return AuthenticationServiceFactory::GetForProfile(profile_.get());
   }
 
  protected:
   void VerifyMock() {
     EXPECT_OCMOCK_VERIFY((id)presentation_delegate_);
     EXPECT_OCMOCK_VERIFY((id)mediator_);
-    EXPECT_OCMOCK_VERIFY((id)scene_state_mock_);
     EXPECT_OCMOCK_VERIFY((id)view_controller_);
     EXPECT_OCMOCK_VERIFY((id)mock_scene_handler_);
     EXPECT_OCMOCK_VERIFY((id)mock_browser_commands_handler_);
@@ -201,16 +203,12 @@ class AccountMenuCoordinatorTest : public PlatformTest {
   id<HelpCommands> mock_help_commands_handler_;
   id<SettingsCommands> mock_settings_commands_handler_;
   id<BrowserCommands> mock_browser_commands_handler_;
-  SceneState* scene_state_;
-  // Partial mock for stubbing scene_state_'s methods
-  id scene_state_mock_;
-  StubBrowserProviderInterface* stub_browser_interface_provider_;
+  FakeSceneState* scene_state_;
   id<BrowserCoordinatorCommands> mock_browser_coordinator_commands_handler_;
   AccountMenuViewController* view_controller_;
   AccountMenuMediator* mediator_;
   id<SyncEncryptionPassphraseTableViewControllerPresentationDelegate>
       presentation_delegate_;
-  raw_ptr<AuthenticationService, DanglingUntriaged> authentication_service_;
   raw_ptr<FakeSystemIdentityManager> fake_system_identity_manager_;
   // The view owned by the view controller.
   UIView* view_;
@@ -232,8 +230,8 @@ class AccountMenuCoordinatorTest : public PlatformTest {
   // Signs in kPrimaryIdentity as primary identity.
   void SigninWithPrimaryIdentity() {
     fake_system_identity_manager_->AddIdentity(kPrimaryIdentity);
-    authentication_service_->SignIn(kPrimaryIdentity,
-                                    signin_metrics::AccessPoint::kStartPage);
+    authentication_service()->SignIn(kPrimaryIdentity,
+                                     signin_metrics::AccessPoint::kStartPage);
   }
 
   // Add kSecondaryIdentity as a secondary identity.
@@ -245,7 +243,6 @@ class AccountMenuCoordinatorTest : public PlatformTest {
   IOSChromeScopedTestingLocalState scoped_testing_local_state_;
   TestProfileManagerIOS profile_manager_;
   raw_ptr<ProfileIOS> profile_;
-  std::unique_ptr<TestBrowser> browser_;
 };
 
 #pragma mark - AccountMenuMediatorDelegate
@@ -307,7 +304,7 @@ TEST_F(AccountMenuCoordinatorTest, testSignOut) {
                              closure.Run();
                            }];
   run_loop.Run();
-  EXPECT_EQ(authentication_service_->GetPrimaryIdentity(), nil);
+  EXPECT_EQ(authentication_service()->GetPrimaryIdentity(), nil);
 }
 
 // Tests that `mediatorWantsToBeDismissed` requests to the delegate to stop the

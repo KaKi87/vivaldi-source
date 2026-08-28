@@ -11,6 +11,7 @@
 #include "base/scoped_observation.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "chrome/browser/ui/views/bubble/webui_bubble_reopen_suppressor.h"
 #include "chrome/browser/ui/views/location_bar/content_setting_image_view.h"
 #include "chrome/browser/ui/views/permissions/chip/permission_chip_interface.h"
 #include "content/public/browser/global_routing_id.h"
@@ -67,7 +68,11 @@ class PermissionDashboardController : public PermissionChipInterface::Observer {
   }
 
   views::View* page_info_for_testing() {
-    return page_info_bubble_tracker_.view();
+    return page_info_bubble_suppressor_.GetWidget()
+               ? page_info_bubble_suppressor_.GetWidget()
+                     ->widget_delegate()
+                     ->GetContentsView()
+               : nullptr;
   }
   void ShowPageInfoDialogForTesting() { ShowPageInfoDialog(); }
 
@@ -75,7 +80,10 @@ class PermissionDashboardController : public PermissionChipInterface::Observer {
 
   void HideIndicatorsForTesting() { HideIndicators(); }
 
-  void SetSuppressionThresholdForTesting(base::TimeDelta threshold);
+  void SetSuppressionThresholdForTesting(base::TimeDelta threshold) {
+    page_info_bubble_suppressor_.SetSuppressionThresholdForTesting(  // IN-TEST
+        threshold);
+  }
 
  private:
   void StartCollapseTimer();
@@ -84,10 +92,10 @@ class PermissionDashboardController : public PermissionChipInterface::Observer {
   void ShowBubble();
   void ShowPageInfoDialog();
   // Actions executed when the user closes the page info dialog.
-  void OnPageInfoBubbleClosed(views::Widget::ClosedReason closed_reason,
-                              bool reload_prompt);
   void OnIndicatorsChipButtonPressed();
   std::u16string GetIndicatorTitle(ContentSettingImageModel* model);
+  std::u16string GetSensorsIndicatorTitle(ContentSettingImageModel* model);
+  std::u16string GetMediaStreamIndicatorTitle(ContentSettingImageModel* model);
 
   // The implementation of `LocationBar` owns this.
   raw_ptr<LocationBar> location_bar_ = nullptr;
@@ -97,7 +105,7 @@ class PermissionDashboardController : public PermissionChipInterface::Observer {
   raw_ptr<ContentSettingImageViewDelegate> content_setting_image_delegate_ =
       nullptr;
   raw_ptr<PermissionDashboardInterface> permission_dashboard_ = nullptr;
-  // Currently only Camera and Mic are supported.
+  // Currently Camera, Mic and Sensors are supported.
   raw_ptr<ContentSettingImageModel> content_setting_image_model_ = nullptr;
   std::unique_ptr<ChipController> request_chip_controller_;
   // A timer used to collapse indicators after a delay.
@@ -111,18 +119,8 @@ class PermissionDashboardController : public PermissionChipInterface::Observer {
   bool is_verbose_ = false;
   bool blocked_on_system_level_ = false;
   content::GlobalRenderFrameHostId main_frame_id_;
-  views::ViewTracker page_info_bubble_tracker_;
-
-  // This is used to check if the PageInfo bubble was showing in the last mouse
-  // press event. If this is true then PageInfo bubble should not be shown
-  // again. This flag is necessary because the bubble gets dismissed before the
-  // button handles the mouse release event.
   bool should_suppress_reopening_page_info_ = false;
-
-  base::TimeTicks last_page_info_bubble_close_time_;
-
-  base::TimeDelta suppression_threshold_ =
-      views::kMinimumTimeBetweenButtonClicks;
+  WebUIBubbleReopenSuppressor page_info_bubble_suppressor_;
 
   base::ScopedObservation<PermissionChipInterface,
                           PermissionChipInterface::Observer>

@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "app/vivaldi_resources.h"
 #include "base/command_line.h"
 #include "base/containers/span.h"
 #include "base/files/file_util.h"
@@ -17,7 +18,6 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
-#include "app/vivaldi_resources.h"
 #include "build/build_config.h"
 #include "chrome/browser/importer/in_process_importer_bridge.h"
 #include "components/os_crypt/async/browser/os_crypt_async.h"
@@ -25,6 +25,7 @@
 #include "components/password_manager/core/browser/password_manager_switches.h"
 #include "components/user_data_importer/common/importer_data_types.h"
 #include "content/public/browser/browser_thread.h"
+#include "importer/import_limits.h"
 #include "importer/imported_raw_password_form.h"
 #include "importer/vivaldi_profile_import_process_messages.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -36,6 +37,7 @@
 
 #if BUILDFLAG(IS_WIN)
 #include <windows.h>
+// This must be included after windows.h
 #include <wincrypt.h>
 
 #include "base/base64.h"
@@ -46,6 +48,10 @@
 #endif  // IS_MAC
 
 namespace {
+
+// Count comes from an already-validated site, but per Chromium a cross-process
+// value is untrusted, so clamp the reserve to a generous limit.
+using vivaldi_importer::kMaxImportItemsReserve;
 
 std::string GetLogSafeOrigin(const GURL& url) {
   if (!url.is_valid()) {
@@ -80,7 +86,9 @@ std::string GetSourceKeyFromLocalState(const base::FilePath& profile_dir) {
       profile_dir.DirName().AppendASCII("Local State");
 
   std::string file_contents;
-  if (!base::ReadFileToString(local_state_file, &file_contents)) {
+  if (!base::ReadFileToStringWithMaxSize(
+          local_state_file, &file_contents,
+          vivaldi_importer::kMaxImportFileSize)) {
     return std::string();
   }
 
@@ -175,8 +183,7 @@ bool StoreDecryptedPasswordForms(
     const size_t prefix_length =
         std::min<size_t>(raw.password_value_cipher.size(), 3);
     LOG(WARNING) << "Password import decryption failed for "
-                 << GetLogSafeOrigin(raw.url)
-                 << " cipher_prefix="
+                 << GetLogSafeOrigin(raw.url) << " cipher_prefix="
                  << raw.password_value_cipher.substr(0, prefix_length);
     failed_decrypt = true;
   }
@@ -205,7 +212,7 @@ void ExternalProcessImporterClient::OnNotesImportStart(
 
   notes_first_folder_name_ = first_folder_name;
   total_notes_count_ = total_notes_count;
-  notes_.reserve(total_notes_count);
+  notes_.reserve(std::min<size_t>(total_notes_count, kMaxImportItemsReserve));
 }
 
 void ExternalProcessImporterClient::OnNotesImportGroup(
@@ -226,7 +233,7 @@ void ExternalProcessImporterClient::OnSpeedDialImportStart(
     return;
 
   total_speeddial_count_ = total_count;
-  speeddial_.reserve(total_count);
+  speeddial_.reserve(std::min<size_t>(total_count, kMaxImportItemsReserve));
 }
 
 void ExternalProcessImporterClient::OnSpeedDialImportGroup(
@@ -245,7 +252,7 @@ void ExternalProcessImporterClient::OnExtensionsImportStart(
     return;
 
   total_extensions_count_ = total_count;
-  extensions_.reserve(total_count);
+  extensions_.reserve(std::min<size_t>(total_count, kMaxImportItemsReserve));
 }
 
 void ExternalProcessImporterClient::OnExtensionsImportGroup(
@@ -263,7 +270,7 @@ void ExternalProcessImporterClient::OnTabImportStart(uint32_t total_count) {
     return;
 
   total_tab_count_ = total_count;
-  tabs_.reserve(total_count);
+  tabs_.reserve(std::min<size_t>(total_count, kMaxImportItemsReserve));
 }
 
 void ExternalProcessImporterClient::OnTabImportGroup(
@@ -282,7 +289,7 @@ void ExternalProcessImporterClient::OnRawPasswordsImportStart(
     return;
 
   total_raw_passwords_count_ = total_count;
-  raw_passwords_.reserve(total_count);
+  raw_passwords_.reserve(std::min<size_t>(total_count, kMaxImportItemsReserve));
 }
 
 void ExternalProcessImporterClient::OnRawPasswordsImportGroup(
@@ -311,9 +318,8 @@ void ExternalProcessImporterClient::OnRawPasswordsImportGroup(
                        weak_ptr_factory_.GetWeakPtr(),
                        std::move(raw_passwords_copy)));
 #else
-    std::string raw_key =
-        GetSourceRawKey(source_profile_.source_path,
-                        source_profile_.importer_type);
+    std::string raw_key = GetSourceRawKey(source_profile_.source_path,
+                                          source_profile_.importer_type);
     if (raw_key.empty()) {
       LOG(WARNING) << "Password import decryption key unavailable.";
     }
@@ -370,7 +376,7 @@ void ExternalProcessImporterClient::GetDecryptorOnUIThread(
   auto macos_provider =
       std::make_unique<os_crypt_async::VivaldiImportKeychainKeyProvider>(
           source_profile_.importer_type);
-  providers.emplace_back(/*precedence*/10u, std::move(macos_provider));
+  providers.emplace_back(/*precedence*/ 10u, std::move(macos_provider));
 #endif
 
   pending_password_os_crypt_ =
@@ -385,8 +391,7 @@ void ExternalProcessImporterClient::OnDecryptorReady(
 
   if (!can_decrypt && !raw_passwords.empty()) {
     LOG(WARNING) << "Password import decryption unavailable. decryptor="
-                 << static_cast<bool>(decryptor)
-                 << " decryption_available="
+                 << static_cast<bool>(decryptor) << " decryption_available="
                  << (decryptor ? decryptor->IsDecryptionAvailable() : false)
                  << " raw_password_count=" << raw_passwords.size();
   }
@@ -395,9 +400,8 @@ void ExternalProcessImporterClient::OnDecryptorReady(
       raw_passwords,
       [&decryptor, can_decrypt](const ImportedRawPasswordForm& raw,
                                 std::u16string* password_value) {
-        return can_decrypt &&
-               decryptor->DecryptString16(raw.password_value_cipher,
-                                          password_value);
+        return can_decrypt && decryptor->DecryptString16(
+                                  raw.password_value_cipher, password_value);
       },
       bridge_.get());
   CompletePendingPasswordImport(failed_decrypt);

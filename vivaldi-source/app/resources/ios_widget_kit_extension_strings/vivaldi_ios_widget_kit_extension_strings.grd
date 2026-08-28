@@ -7,19 +7,7 @@ locale.  The strings in this file are specific to iOS.
 
 <grit base_dir="." latest_public_release="0" current_release="1" source_lang_id="en" enc_check="möl">
   <outputs>
-    <output filename="ios_widget_kit_extension_strings_ca-valencia.pak" type="data_package" lang="ca@valencia" />
-    <output filename="ios_widget_kit_extension_strings_de-CH.pak" type="data_package" lang="de-CH" />
-    <output filename="ios_widget_kit_extension_strings_eo.pak" type="data_package" lang="eo" />
-    <output filename="ios_widget_kit_extension_strings_es-PE.pak" type="data_package" lang="es-PE" />
-    <output filename="ios_widget_kit_extension_strings_fy.pak" type="data_package" lang="fy" />
-    <output filename="ios_widget_kit_extension_strings_gd.pak" type="data_package" lang="gd" />
-    <output filename="ios_widget_kit_extension_strings_io.pak" type="data_package" lang="io" />
-    <output filename="ios_widget_kit_extension_strings_ja-KS.pak" type="data_package" lang="ja-KS" />
-    <output filename="ios_widget_kit_extension_strings_jbo.pak" type="data_package" lang="jbo" />
-    <output filename="ios_widget_kit_extension_strings_kab.pak" type="data_package" lang="kab" />
-    <output filename="ios_widget_kit_extension_strings_kmr.pak" type="data_package" lang="kmr" />
-    <output filename="ios_widget_kit_extension_strings_nn.pak" type="data_package" lang="nn" />
-    <output filename="ios_widget_kit_extension_strings_sc.pak" type="data_package" lang="sc" />
+
   </outputs>
   <translations>
     <file path="strings/vivaldi_ios_widget_kit_extension_strings_af.xtb" lang="af" />

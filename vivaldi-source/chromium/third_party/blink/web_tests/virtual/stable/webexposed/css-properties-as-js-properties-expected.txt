@@ -432,6 +432,7 @@ rowRuleStyle
 rowRuleVisibilityItems
 rowRuleWidth
 rubyAlign
+rubyOverhang
 rubyPosition
 rule
 ruleBreak
@@ -737,6 +738,7 @@ whiteSpaceCollapse
 widows
 width
 willChange
+windowDrag
 wordBreak
 wordSpacing
 wordWrap

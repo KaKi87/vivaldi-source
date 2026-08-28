@@ -115,7 +115,9 @@ suite('ComposeboxSmartComposeSubmitTest', () => {
       composeboxSmartComposeEnabled: true,
       composeboxShowZps: true,
     });
-    createComposeboxElement(testProxy);
+    createComposeboxElement(testProxy, {
+      searchboxNextEnabled: true,
+    });
     await microtasksFinished();
 
     const inputElement = testProxy.element.getInputElement().$.input;
@@ -138,6 +140,7 @@ suite('ComposeboxSmartComposeSubmitTest', () => {
     testProxy.element.haveReceivedSynchronousAutocompleteResponse = true;
     testProxy.searchboxCallbackRouterRemote.autocompleteResultChanged(
         createAutocompleteResultForTesting({
+          queryId: testProxy.element.activeQueryId,
           input: 'test',
           matches,
           smartComposeInlineHint: hint,
@@ -177,6 +180,7 @@ suite('ComposeboxSmartComposeSubmitTest', () => {
     testProxy.element.haveReceivedSynchronousAutocompleteResponse = true;
     testProxy.searchboxCallbackRouterRemote.autocompleteResultChanged(
         createAutocompleteResultForTesting({
+          queryId: testProxy.element.activeQueryId,
           input: 'test hint',
           matches,
           smartComposeInlineHint: hint2,
@@ -213,6 +217,7 @@ suite('ComposeboxSmartComposeSubmitTest', () => {
     testProxy.element.haveReceivedSynchronousAutocompleteResponse = true;
     testProxy.searchboxCallbackRouterRemote.autocompleteResultChanged(
         createAutocompleteResultForTesting({
+          queryId: testProxy.element.activeQueryId,
           input: 'test hint and more',
           matches,
         }));

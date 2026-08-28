@@ -10,7 +10,7 @@
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_source.h"
 #include "chrome/browser/resource_coordinator/utils.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents.h"
@@ -57,7 +57,8 @@ void LazyLoadService::OnLifecycleUnitCreated(
   if (!web_contents->GetUserData(&kLazyLoadIsSafe))
     return;
 
-  Browser* browser = chrome::FindBrowserWithTab(web_contents);
+  BrowserWindowInterface* const browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(web_contents);
   if (!browser)
     return;
 

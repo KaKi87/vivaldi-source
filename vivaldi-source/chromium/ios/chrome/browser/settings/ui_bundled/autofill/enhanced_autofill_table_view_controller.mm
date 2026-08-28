@@ -9,9 +9,14 @@
 #import "base/metrics/user_metrics.h"
 #import "base/metrics/user_metrics_action.h"
 #import "components/autofill/core/browser/permissions/autofill_ai/autofill_ai_permission_utils.h"
+#import "components/autofill/core/common/autofill_features.h"
+#import "components/autofill/core/common/autofill_prefs.h"
+#import "components/prefs/ios/pref_observer_bridge.h"
+#import "components/prefs/pref_change_registrar.h"
 #import "components/prefs/pref_service.h"
 #import "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/autofill/model/autofill_ai_util.h"
+#import "ios/chrome/browser/settings/autofill/autofill_and_passwords/utils/autofill_and_passwords_item_utils.h"
 #import "ios/chrome/browser/settings/ui_bundled/autofill/autofill_settings_constants.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
@@ -39,22 +44,18 @@ typedef NS_ENUM(NSInteger, ItemType) {
   ItemTypeLabel
 };
 
-// Returns the branded version of the Google Services symbol.
-UIImage* GetBrandedGoogleServicesSymbol() {
-#if BUILDFLAG(IOS_USE_BRANDED_ASSETS)
-  return CustomSettingsRootMulticolorSymbol(kGoogleIconSymbol);
-#else
-  return DefaultSettingsRootSymbol(kGearshape2Symbol);
-#endif
-}
-
 }  // namespace
 
-@interface EnhancedAutofillTableViewController () {
+@interface EnhancedAutofillTableViewController () <PrefObserverDelegate> {
   raw_ptr<Browser> _browser;
 
   // Whether Settings have been dismissed.
   BOOL _settingsAreDismissed;
+
+  // Registrar for pref changes notifications.
+  PrefChangeRegistrar _prefChangeRegistrar;
+  // Pref observer to track changes to prefs.
+  std::optional<PrefObserverBridge> _prefObserverBridge;
 }
 
 @end
@@ -66,7 +67,14 @@ UIImage* GetBrandedGoogleServicesSymbol() {
 
   self = [super initWithStyle:ChromeTableViewStyle()];
   if (self) {
+    self.title = l10n_util::GetNSString(IDS_SETTINGS_AUTOFILL_AI_PAGE_TITLE);
     _browser = browser;
+    _prefChangeRegistrar.Init(_browser->GetProfile()->GetPrefs());
+    _prefObserverBridge.emplace(self);
+    // Register to observe any changes on Pref-backed values displayed by the
+    // screen.
+    _prefObserverBridge->ObserveChangesForPreference(
+        autofill::prefs::kAutofillAiOptInStatus, &_prefChangeRegistrar);
   }
   return self;
 }
@@ -122,75 +130,33 @@ UIImage* GetBrandedGoogleServicesSymbol() {
 #pragma mark - LoadModel Helpers
 
 - (TableViewItem*)enhancedAutofillSwitchItem {
-  TableViewSwitchItem* switchItem =
-      [[TableViewSwitchItem alloc] initWithType:ItemTypeEnhancedAutofillSwitch];
-  switchItem.text = l10n_util::GetNSString(IDS_SETTINGS_AUTOFILL_AI_PAGE_TITLE);
-  switchItem.target = self;
-  switchItem.selector = @selector(enhancedAutofillSwitchChanged:);
-  switchItem.on = [self isEnhancedAutofillEnabled];
-  switchItem.accessibilityIdentifier = kEnhancedAutofillSwitchViewId;
-  return switchItem;
+  return EnhancedAutofillSwitchItem(ItemTypeEnhancedAutofillSwitch,
+                                    [self isEnhancedAutofillEnabled], self,
+                                    @selector(enhancedAutofillSwitchChanged:));
 }
 
 - (TableViewHeaderFooterItem*)enhancedAutofillSwitchFooter {
-  TableViewLinkHeaderFooterItem* footer =
-      [[TableViewLinkHeaderFooterItem alloc] initWithType:ItemTypeFooter];
-  footer.text =
-      l10n_util::GetNSString(IDS_SETTINGS_AUTOFILL_AI_TOGGLE_SUB_LABEL);
-  return footer;
+  return EnhancedAutofillSwitchFooter(ItemTypeFooter);
 }
 
 - (TableViewHeaderFooterItem*)whenOnSectionHeader {
-  TableViewTextHeaderFooterItem* header =
-      [[TableViewTextHeaderFooterItem alloc] initWithType:ItemTypeHeader];
-  header.text = l10n_util::GetNSString(IDS_SETTINGS_AUTOFILL_AI_WHEN_ON);
-  return header;
+  return EnhancedAutofillWhenOnSectionHeader(ItemTypeHeader);
 }
 
 - (TableViewDetailIconItem*)canFillDifficultFieldsItem {
-  return [self detailItemWithTitleId:
-                   IDS_SETTINGS_AUTOFILL_AI_WHEN_ON_CAN_FILL_DIFFICULT_FIELDS
-                           iconImage:CustomSymbolWithPointSize(
-                                         kTextAnalysisSymbol,
-                                         kSettingsRootSymbolImagePointSize)];
+  return EnhancedAutofillCanFillDifficultFieldsItem(ItemTypeLabel);
 }
 
 - (TableViewDetailIconItem*)enterpriseManagedLoggingDisabledItem {
-  return [self detailItemWithTitleId:
-                   IDS_SETTINGS_AUTOFILL_AI_ENTERPRISE_LOGGING_MANAGED_DISABLED
-                           iconImage:CustomSymbolWithPointSize(
-                                         kEnterpriseSymbol,
-                                         kSettingsRootSymbolImagePointSize)];
+  return EnhancedAutofillEnterpriseManagedLoggingDisabledItem(ItemTypeLabel);
 }
 
 - (TableViewHeaderFooterItem*)thingsToConsiderSectionHeader {
-  TableViewTextHeaderFooterItem* header =
-      [[TableViewTextHeaderFooterItem alloc] initWithType:ItemTypeHeader];
-  header.text =
-      l10n_util::GetNSString(IDS_SETTINGS_AUTOFILL_AI_THINGS_TO_CONSIDER);
-  return header;
+  return EnhancedAutofillThingsToConsiderSectionHeader(ItemTypeHeader);
 }
 
 - (TableViewDetailIconItem*)dataUsageItem {
-  return [self
-      detailItemWithTitleId:IDS_SETTINGS_AUTOFILL_AI_TO_CONSIDER_DATA_USAGE
-                  iconImage:MakeSymbolMonochrome(
-                                GetBrandedGoogleServicesSymbol())];
-}
-
-- (TableViewDetailIconItem*)detailItemWithTitleId:(NSInteger)titleId
-                                        iconImage:(UIImage*)iconImage {
-  TableViewDetailIconItem* detailItem =
-      [[TableViewDetailIconItem alloc] initWithType:ItemTypeLabel];
-  detailItem.text = l10n_util::GetNSString(titleId);
-  detailItem.textNumberOfLines = 0;
-  detailItem.textFont =
-      [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
-  detailItem.textColor = [UIColor colorNamed:kTextSecondaryColor];
-  detailItem.selectionStyle = UITableViewCellSelectionStyleNone;
-  detailItem.iconImage = iconImage;
-  detailItem.iconTintColor = [UIColor colorNamed:kTextPrimaryColor];
-  return detailItem;
+  return EnhancedAutofillDataUsageItem(ItemTypeLabel);
 }
 
 #pragma mark - Getters and Setter
@@ -249,7 +215,27 @@ UIImage* GetBrandedGoogleServicesSymbol() {
 #pragma mark - SettingsControllerProtocol
 
 - (void)settingsWillBeDismissed {
+  // Remove pref changes registrations.
+  _prefChangeRegistrar.RemoveAll();
+  // Remove observer bridges.
+  _prefObserverBridge.reset();
+
+  _browser = nullptr;
   _settingsAreDismissed = YES;
+}
+
+#pragma mark - PrefObserverDelegate
+
+- (void)onPreferenceChanged:(const std::string&)preferenceName {
+  // If the model hasn't been created yet, no need to update anything.
+  if (!self.tableViewModel) {
+    return;
+  }
+
+  if (preferenceName == autofill::prefs::kAutofillAiOptInStatus) {
+    [self setSwitchItemOn:[self isEnhancedAutofillEnabled]
+                 itemType:ItemTypeEnhancedAutofillSwitch];
+  }
 }
 
 @end

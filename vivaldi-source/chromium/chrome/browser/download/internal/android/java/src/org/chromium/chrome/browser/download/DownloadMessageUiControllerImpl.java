@@ -37,6 +37,7 @@ import org.chromium.components.download.DownloadDangerType;
 import org.chromium.components.messages.DismissReason;
 import org.chromium.components.messages.MessageBannerProperties;
 import org.chromium.components.messages.MessageDispatcher;
+import org.chromium.components.messages.MessageDispatcherProvider;
 import org.chromium.components.messages.MessageIdentifier;
 import org.chromium.components.messages.PrimaryActionClickBehavior;
 import org.chromium.components.offline_items_collection.ContentId;
@@ -46,6 +47,7 @@ import org.chromium.components.offline_items_collection.OfflineContentProvider;
 import org.chromium.components.offline_items_collection.OfflineItem;
 import org.chromium.components.offline_items_collection.OfflineItemState;
 import org.chromium.components.offline_items_collection.UpdateDelta;
+import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.url.GURL;
 
@@ -189,7 +191,7 @@ public class DownloadMessageUiControllerImpl implements DownloadMessageUiControl
     }
 
     /** Represents the data required to show UI elements of the message. */
-    public static class DownloadProgressMessageUiData {
+    static class DownloadProgressMessageUiData {
         public @Nullable ContentId id;
 
         public String message;
@@ -255,7 +257,7 @@ public class DownloadMessageUiControllerImpl implements DownloadMessageUiControl
     }
 
     /** An utility class to count the number of downloads at different states at any given time. */
-    private static class DownloadCount {
+    static class DownloadCount {
         public int inProgress;
         public int pending;
         public int failed;
@@ -380,10 +382,20 @@ public class DownloadMessageUiControllerImpl implements DownloadMessageUiControl
 
     @Override
     public void showIncognitoDownloadMessage(Callback<Boolean> callback) {
+        showIncognitoDownloadMessage(/* window= */ null, callback);
+    }
+
+    @Override
+    public void showIncognitoDownloadMessage(
+            @Nullable WindowAndroid window, Callback<Boolean> callback) {
         Context context = ContextUtils.getApplicationContext();
 
-        mDelegate.maybeSwitchToFocusedActivity();
-        MessageDispatcher dispatcher = getMessageDispatcher();
+        if (window == null) {
+            mDelegate.maybeSwitchToFocusedActivity();
+        }
+
+        MessageDispatcher dispatcher =
+                window != null ? MessageDispatcherProvider.from(window) : getMessageDispatcher();
         // TODO(crbug.com/40234025): Fix the issue with dispatcher
         //                                  being Null and remove the following if clause
         if (dispatcher == null) {
@@ -1032,7 +1044,10 @@ public class DownloadMessageUiControllerImpl implements DownloadMessageUiControl
 
     @VisibleForTesting
     protected void closePreviousMessage() {
-        if (mDismissRunnable != null) mDismissRunnable.run();
+        if (mDismissRunnable != null) {
+            mDismissRunnable.run();
+            mDismissRunnable = null;
+        }
         mPropertyModel = null;
     }
 
@@ -1191,6 +1206,7 @@ public class DownloadMessageUiControllerImpl implements DownloadMessageUiControl
 
     private void onMessageDismissed(Integer dismissReason) {
         mPropertyModel = null;
+        mDismissRunnable = null;
         if (dismissReason == DismissReason.GESTURE) {
             computeNextStepForUpdate(null, false, true, false);
         }

@@ -5,7 +5,7 @@
     "namespace": "runtimePrivate",
     "description": "Use the <code>vivaldi.runtimePrivate</code> API to access.",
     "compiler_options": {
-      "implemented_in": "extensions/api/runtime/runtime_api.h"
+      "implemented_in": "extensions/api/runtime_private/runtime_private_api.h"
     },
     "types": [
       {

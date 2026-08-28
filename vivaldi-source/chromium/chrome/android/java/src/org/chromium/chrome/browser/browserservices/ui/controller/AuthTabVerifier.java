@@ -16,6 +16,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.SystemClock;
 import android.text.TextUtils;
+import android.text.format.DateUtils;
 
 import androidx.annotation.RequiresApi;
 import androidx.annotation.VisibleForTesting;
@@ -36,7 +37,6 @@ import org.chromium.chrome.browser.browserservices.ui.controller.CurrentPageVeri
 import org.chromium.chrome.browser.browserservices.verification.ChromeOriginVerifier;
 import org.chromium.chrome.browser.browserservices.verification.ChromeOriginVerifierFactory;
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityTabProvider;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.DestroyObserver;
 import org.chromium.chrome.browser.lifecycle.NativeInitObserver;
@@ -48,12 +48,17 @@ import org.chromium.url.GURL;
 
 import java.util.Map;
 
+// Vivaldi
+import org.chromium.build.BuildConfig;
+
 /**
  * Runs Digital Asset Link verification for AuthTab, returns as Activity result for the matching
  * redirect URL when navigated to it.
  */
 @NullMarked
 public class AuthTabVerifier implements NativeInitObserver, DestroyObserver {
+    public static final int VERIFICATION_TIMEOUT_MS = 10000;
+
     private static boolean sDelayVerificationForTesting;
 
     private final Activity mActivity;
@@ -129,6 +134,10 @@ public class AuthTabVerifier implements NativeInitObserver, DestroyObserver {
 
     @VisibleForTesting
     boolean shouldRunOriginVerifier() {
+        // Vivaldi VAB-13011: Skip verification without a client package; OriginVerifier asserts it.
+        if (BuildConfig.IS_VIVALDI && mIntentDataProvider.getClientPackageName() == null) {
+            return false;
+        }
         return !(mVerifiedByAndroid || mRedirectHost == null || mRedirectPath == null);
     }
 
@@ -147,7 +156,7 @@ public class AuthTabVerifier implements NativeInitObserver, DestroyObserver {
                         .build();
         mVerificationStartTime = SystemClock.elapsedRealtime();
         mOriginVerifier.start(
-                (packageName, unused, verified, online) -> {
+                (packageName, _, verified, online) -> {
                     if (mDestroyed) return;
                     if (verified) {
                         mStatus = VerificationStatus.SUCCESS;
@@ -195,6 +204,8 @@ public class AuthTabVerifier implements NativeInitObserver, DestroyObserver {
         DomainVerificationUserState userState = null;
         try {
             String packageName = mIntentDataProvider.getClientPackageName();
+            // Vivaldi VAB-13011: Fail closed instead of asserting when the package is unknown.
+            if (BuildConfig.IS_VIVALDI && packageName == null) return false;
             assert packageName != null;
             userState = manager.getDomainVerificationUserState(packageName);
         } catch (PackageManager.NameNotFoundException e) {
@@ -239,8 +250,7 @@ public class AuthTabVerifier implements NativeInitObserver, DestroyObserver {
             PostTask.postDelayedTask(
                     TaskTraits.UI_DEFAULT,
                     mCallbackController.makeCancelable(this::returnTimeoutAsActivityResult),
-                    ChromeFeatureList.sCctAuthTabEnableHttpsRedirectsVerificationTimeoutMs
-                            .getValue());
+                    VERIFICATION_TIMEOUT_MS);
         }
     }
 
@@ -256,18 +266,24 @@ public class AuthTabVerifier implements NativeInitObserver, DestroyObserver {
         if (mVerificationStartTime != null) {
             long elapsedSinceVerificationStart =
                     SystemClock.elapsedRealtime() - mVerificationStartTime;
-            RecordHistogram.recordTimesHistogram(
-                    "CustomTabs.AuthTab.TimeToDalVerification.SinceStart",
-                    elapsedSinceVerificationStart);
+            RecordHistogram.recordCustomTimesHistogram(
+                    "CustomTabs.AuthTab.TimeToDalVerification.SinceStart2",
+                    elapsedSinceVerificationStart,
+                    1,
+                    100 * DateUtils.SECOND_IN_MILLIS,
+                    50);
             mVerificationStartTime = null;
         }
 
         if (mHttpsReturnAttemptTime != null) {
             long elapsedSinceReturnAttempt =
                     SystemClock.elapsedRealtime() - mHttpsReturnAttemptTime;
-            RecordHistogram.recordTimesHistogram(
-                    "CustomTabs.AuthTab.TimeToDalVerification.SinceFlowCompletion",
-                    elapsedSinceReturnAttempt);
+            RecordHistogram.recordCustomTimesHistogram(
+                    "CustomTabs.AuthTab.TimeToDalVerification.SinceFlowCompletion2",
+                    elapsedSinceReturnAttempt,
+                    1,
+                    100 * DateUtils.SECOND_IN_MILLIS,
+                    50);
             mHttpsReturnAttemptTime = null;
         }
 

@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Предлагать открытие ссылок из других приложений приватно</translation>
 <translation id="1624481300475123200">Автоввод паролей</translation>
 <translation id="1743244221910283364">Отменить изменения</translation>
+<translation id="1972589975368876259">Изменить группу</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Добавить вкладку в группу}
         other {Добавить вкладки в группу}}</translation>
@@ -48,7 +49,6 @@
 <translation id="4772190485302020393">Закрыть все вкладки и группы</translation>
 <translation id="4802185666270672526">Скрыть пункт "Версия для ПК"</translation>
 <translation id="4828571836982833289">Разгруппировать группу?</translation>
-<translation id="4838250035189612538">Переименовать группу</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 группа закрыта и сохранена}
             other {{count} группы закрыты и сохранены}}</translation>

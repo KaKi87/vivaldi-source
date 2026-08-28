@@ -17,8 +17,9 @@
 #include "chrome/browser/password_manager/chrome_webauthn_credentials_delegate.h"
 #include "chrome/browser/password_manager/chrome_webauthn_credentials_delegate_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/touch_to_fill/password_manager/touch_to_fill_controller.h"
-#include "chrome/browser/touch_to_fill/password_manager/touch_to_fill_controller_webauthn_delegate.h"
+#include "chrome/browser/touch_to_fill/password_manager/touch_to_fill_password_manager_controller.h"
+#include "chrome/browser/touch_to_fill/password_manager/touch_to_fill_password_manager_view.h"
+#include "chrome/browser/touch_to_fill/password_manager/touch_to_fill_password_manager_webauthn_delegate.h"
 #include "chrome/browser/webauthn/android/credential_sorter_android.h"
 #include "chrome/browser/webauthn/password_credential_fetcher.h"
 #include "chrome/browser/webauthn/webauthn_metrics_util.h"
@@ -37,30 +38,23 @@ using password_manager::PasskeyCredential;
 using webauthn::WebAuthnCredManDelegate;
 using webauthn::WebAuthnCredManDelegateFactory;
 
+DOCUMENT_USER_DATA_KEY_IMPL(WebAuthnRequestDelegateAndroid);
+
 // static
 WebAuthnRequestDelegateAndroid*
 WebAuthnRequestDelegateAndroid::GetRequestDelegate(
-    content::WebContents* web_contents) {
-  static constexpr char kWebAuthnRequestDelegateKey[] =
-      "ConditionalUiDelegateKey";
-  auto* delegate = static_cast<WebAuthnRequestDelegateAndroid*>(
-      web_contents->GetUserData(kWebAuthnRequestDelegateKey));
-  if (!delegate) {
-    auto new_user_data =
-        std::make_unique<WebAuthnRequestDelegateAndroid>(web_contents);
-    delegate = new_user_data.get();
-    web_contents->SetUserData(kWebAuthnRequestDelegateKey,
-                              std::move(new_user_data));
-  }
-
-  return delegate;
+    content::RenderFrameHost* frame_host) {
+  return GetOrCreateForCurrentDocument(frame_host);
 }
 
 WebAuthnRequestDelegateAndroid::WebAuthnRequestDelegateAndroid(
-    content::WebContents* web_contents)
-    : web_contents_(web_contents) {}
+    content::RenderFrameHost* render_frame_host)
+    : content::DocumentUserData<WebAuthnRequestDelegateAndroid>(
+          render_frame_host) {}
 
-WebAuthnRequestDelegateAndroid::~WebAuthnRequestDelegateAndroid() = default;
+WebAuthnRequestDelegateAndroid::~WebAuthnRequestDelegateAndroid() {
+  CleanupWebAuthnRequest();
+}
 
 // TODO(https://crbug.com/434882145): The logic here has gotten pretty complex
 // and we should add unit tests to cover it.
@@ -128,7 +122,7 @@ void WebAuthnRequestDelegateAndroid::OnWebAuthnRequestPending(
           frame_host->GetLastCommittedURL(),
           base::BindOnce(
               &WebAuthnRequestDelegateAndroid::MaybeShowTouchToFillSheet,
-              weak_ptr_factory_.GetWeakPtr(), frame_host->GetGlobalId(),
+              weak_ptr_factory_.GetWeakPtr(),
               /*is_immediate=*/true, std::move(passkey_credentials)));
       return;
     }
@@ -140,20 +134,15 @@ void WebAuthnRequestDelegateAndroid::OnWebAuthnRequestPending(
       break;
   }
 
-  MaybeShowTouchToFillSheet(frame_host->GetGlobalId(), is_immediate,
-                            std::move(passkey_credentials), {});
+  MaybeShowTouchToFillSheet(is_immediate, std::move(passkey_credentials), {});
 }
 
 void WebAuthnRequestDelegateAndroid::MaybeShowTouchToFillSheet(
-    content::GlobalRenderFrameHostId render_frame_host_id,
     bool is_immediate,
     std::vector<PasskeyCredential> passkey_credentials,
     std::vector<std::unique_ptr<password_manager::PasswordForm>>
         password_credentials) {
-  auto* frame_host = content::RenderFrameHost::FromID(render_frame_host_id);
-  if (!frame_host) {
-    return;
-  }
+  content::RenderFrameHost* frame_host = &render_frame_host();
 
   if (is_immediate && passkey_credentials.empty() &&
       password_credentials.empty()) {
@@ -162,7 +151,7 @@ void WebAuthnRequestDelegateAndroid::MaybeShowTouchToFillSheet(
     return;
   }
 
-  std::vector<TouchToFillView::Credential> credentials;
+  std::vector<TouchToFillPasswordManagerView::Credential> credentials;
   credentials.reserve(passkey_credentials.size() + password_credentials.size());
   credentials.insert(credentials.end(), passkey_credentials.begin(),
                      passkey_credentials.end());
@@ -179,10 +168,11 @@ void WebAuthnRequestDelegateAndroid::MaybeShowTouchToFillSheet(
         password_manager::KeyboardReplacingSurfaceVisibilityControllerImpl>();
   }
   if (!touch_to_fill_controller_) {
-    touch_to_fill_controller_ = std::make_unique<TouchToFillController>(
-        Profile::FromBrowserContext(frame_host->GetBrowserContext()),
-        visibility_controller_->AsWeakPtr(),
-        /*grouped_credential_sheet_controller=*/nullptr);
+    touch_to_fill_controller_ =
+        std::make_unique<TouchToFillPasswordManagerController>(
+            Profile::FromBrowserContext(frame_host->GetBrowserContext()),
+            visibility_controller_->AsWeakPtr(),
+            /*grouped_credential_sheet_controller=*/nullptr);
   }
   touch_to_fill_controller_->InitData(
       std::move(credentials),
@@ -190,29 +180,32 @@ void WebAuthnRequestDelegateAndroid::MaybeShowTouchToFillSheet(
           ->AsWeakPtrImpl());
   bool should_show_hybrid_option = !hybrid_closure_.is_null() && !is_immediate;
   touch_to_fill_controller_->Show(
-      std::make_unique<TouchToFillControllerWebAuthnDelegate>(
+      std::make_unique<TouchToFillPasswordManagerWebAuthnDelegate>(
           this,
-          base::BindRepeating<std::vector<TouchToFillView::Credential>(
-              std::vector<TouchToFillView::Credential>, bool)>(
-              webauthn::sorting::SortTouchToFillCredentials),
+          base::BindRepeating<
+              std::vector<TouchToFillPasswordManagerView::Credential>(
+                  std::vector<TouchToFillPasswordManagerView::Credential>,
+                  bool)>(webauthn::sorting::SortTouchToFillCredentials),
           should_show_hybrid_option, is_immediate),
       WebAuthnCredManDelegateFactory::GetFactory(web_contents())
           ->GetRequestDelegate(frame_host));
 }
 
-void WebAuthnRequestDelegateAndroid::CleanupWebAuthnRequest(
-    content::RenderFrameHost* frame_host) {
+void WebAuthnRequestDelegateAndroid::CleanupWebAuthnRequest() {
   if (conditional_request_in_progress_) {
-    // Prevent autofill from offering WebAuthn credentials in the popup.
-    ChromeWebAuthnCredentialsDelegate* credentials_delegate =
-        ChromeWebAuthnCredentialsDelegateFactory::GetFactory(
-            content::WebContents::FromRenderFrameHost(frame_host))
-            ->GetDelegateForFrame(frame_host);
+    content::WebContents* wc =
+        content::WebContents::FromRenderFrameHost(&render_frame_host());
+    if (wc && !wc->IsBeingDestroyed()) {
+      // Prevent autofill from offering WebAuthn credentials in the popup.
+      ChromeWebAuthnCredentialsDelegate* credentials_delegate =
+          ChromeWebAuthnCredentialsDelegateFactory::GetFactory(wc)
+              ->GetDelegateForFrame(&render_frame_host());
 
-    if (credentials_delegate) {
-      credentials_delegate->NotifyWebAuthnRequestAborted();
+      if (credentials_delegate) {
+        credentials_delegate->NotifyWebAuthnRequestAborted();
+      }
     }
-  } else {
+  } else if (touch_to_fill_controller_) {
     touch_to_fill_controller_->Close();
   }
 
@@ -256,5 +249,5 @@ void WebAuthnRequestDelegateAndroid::OnHybridSignInSelected() {
 }
 
 content::WebContents* WebAuthnRequestDelegateAndroid::web_contents() {
-  return web_contents_;
+  return content::WebContents::FromRenderFrameHost(&render_frame_host());
 }

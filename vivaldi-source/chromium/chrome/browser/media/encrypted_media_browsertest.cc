@@ -330,8 +330,6 @@ class EncryptedMediaTestBase : public MediaBrowserTest {
 #if BUILDFLAG(IS_WIN)
     if (IsMediaFoundationClearKey(key_system)) {
       RegisterMediaFoundationClearKeyCdm(enabled_features);
-      enabled_features.push_back(
-          {media::kHardwareSecureDecryptionExperiment, {}});
 
       base::FieldTrialParams fallback_params;
       fallback_params["per_site"] = "true";
@@ -729,7 +727,7 @@ class ParameterizedEncryptedMediaTestBase : public EncryptedMediaTestBase {
   }
 
   void DisableEncryptedMedia() {
-    PrefService* pref_service = browser()->profile()->GetPrefs();
+    PrefService* pref_service = browser()->GetProfile()->GetPrefs();
     pref_service->SetBoolean(prefs::kEnableEncryptedMedia, false);
   }
 
@@ -1630,9 +1628,8 @@ IN_PROC_BROWSER_TEST_F(MediaFoundationEncryptedMediaTest,
     GTEST_SKIP() << "MediaFoundationEncryptedPlayback not supported on device.";
   }
 
-  // MediaFoundationServiceMonitor gets lazily initialized in
-  // media_foundation_widevine_cdm_component_installer which is not call by the
-  // browser tests. Lazily initialize it here.
+  // MediaFoundationServiceMonitor gets lazily initialized which is not call by
+  // the browser tests. Lazily initialize it here.
   MediaFoundationServiceMonitor::GetInstance();
 
   const char* fallback_expected_title = media::kEndedTitle;
@@ -1648,7 +1645,7 @@ IN_PROC_BROWSER_TEST_F(MediaFoundationEncryptedMediaTest,
     GTEST_SKIP() << "MediaFoundationEncryptedPlayback not supported on device.";
   }
 
-  PrefService* prefs = browser()->profile()->GetPrefs();
+  PrefService* prefs = browser()->GetProfile()->GetPrefs();
   ASSERT_TRUE(prefs);
 
   prefs->SetInteger(kProtectedContentIdPrefPath, kAllowProtectedContentId);
@@ -1665,7 +1662,7 @@ IN_PROC_BROWSER_TEST_F(MediaFoundationEncryptedMediaTest,
     GTEST_SKIP() << "MediaFoundationEncryptedPlayback not supported on device.";
   }
 
-  PrefService* prefs = browser()->profile()->GetPrefs();
+  PrefService* prefs = browser()->GetProfile()->GetPrefs();
   ASSERT_TRUE(prefs);
 
 
@@ -1683,7 +1680,7 @@ IN_PROC_BROWSER_TEST_F(MediaFoundationEncryptedMediaTest,
     GTEST_SKIP() << "MediaFoundationEncryptedPlayback not supported on device.";
   }
 
-  PrefService* prefs = browser()->profile()->GetPrefs();
+  PrefService* prefs = browser()->GetProfile()->GetPrefs();
   ASSERT_TRUE(prefs);
 
   // Disable protected media identifier by default.
@@ -1708,7 +1705,7 @@ IN_PROC_BROWSER_TEST_F(MediaFoundationEncryptedMediaTest,
     GTEST_SKIP() << "MediaFoundationEncryptedPlayback not supported on device.";
   }
 
-  PrefService* prefs = browser()->profile()->GetPrefs();
+  PrefService* prefs = browser()->GetProfile()->GetPrefs();
   ASSERT_TRUE(prefs);
 
   // Enable protected media identifier by default.

@@ -134,7 +134,7 @@ void MenubarController::SetActiveMenu(int id) {
 
 bool MenubarController::IsDarkTextColor(views::MenuItemView* menu) {
   views::Widget* parent = views::Widget::GetWidgetForNativeWindow(
-      browser_->window()->GetNativeWindow());
+      browser_->GetWindow()->GetNativeWindow());
   return color_utils::IsDark(TextColorForMenu(menu, parent));
 }
 
@@ -415,7 +415,7 @@ void MenubarController::PopulateBookmarks() {
   }
 
   views::Widget* parent = views::Widget::GetWidgetForNativeWindow(
-      browser_->window()->GetNativeWindow());
+      browser_->GetWindow()->GetNativeWindow());
   bookmark_menu_delegate_.reset(new BookmarkMenuDelegate(
       browser_, parent, this, BookmarkLaunchLocation::kNone));
   bookmark_menu_delegate_->BuildFullMenu(bookmark_menu_);
@@ -463,7 +463,7 @@ views::MenuItemView* MenubarController::AddMenuItem(
 
 void MenubarController::Show() {
   views::Widget* parent = views::Widget::GetWidgetForNativeWindow(
-      browser_->window()->GetNativeWindow());
+      browser_->GetWindow()->GetNativeWindow());
   if (!parent) {
     extensions::MenubarMenuAPI::SendError(GetProfile(), "No parent");
     extensions::MenubarMenuAPI::SendClose(GetProfile());

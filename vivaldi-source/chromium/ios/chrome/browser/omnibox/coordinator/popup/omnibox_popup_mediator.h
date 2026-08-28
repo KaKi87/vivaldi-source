@@ -68,11 +68,11 @@ class Tracker;
 // End Vivaldi
 
 @interface OmniboxPopupMediator
-    : NSObject <OmniboxPopupMutator,
-                OmniboxAutocompleteControllerDelegate,
-                CarouselItemMenuProvider,
+    : NSObject <CarouselItemMenuProvider,
+                FaviconRetriever,
                 ImageRetriever,
-                FaviconRetriever>
+                OmniboxAutocompleteControllerDelegate,
+                OmniboxPopupMutator>
 
 /// Controller of the omnibox autocomplete.
 @property(nonatomic, weak)

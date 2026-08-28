@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">要求在私密模式下開啟其它應用程式的連結</translation>
 <translation id="1624481300475123200">自動填入密碼</translation>
 <translation id="1743244221910283364">捨棄變更</translation>
+<translation id="1972589975368876259">編輯堆疊</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {將分頁加入至堆疊}
         other {將分頁加入至堆疊}}</translation>
@@ -48,7 +49,6 @@
 <translation id="4772190485302020393">關閉全部分頁和堆疊</translation>
 <translation id="4802185666270672526">隱藏切換為電腦版網站</translation>
 <translation id="4828571836982833289">要取消分頁堆疊嗎？</translation>
-<translation id="4838250035189612538">重新命名堆疊</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {已關閉並儲存 1 個分頁堆疊}
             other {已關閉並儲存 {count} 個分頁堆疊}}</translation>

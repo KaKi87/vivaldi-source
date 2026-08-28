@@ -16,12 +16,14 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.VectorDrawable;
+import android.view.ContextThemeWrapper;
 
 import androidx.test.filters.SmallTest;
 
@@ -42,6 +44,7 @@ import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;
+import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.chrome.browser.omnibox.UrlBarEditingTextStateProvider;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxDrawableState;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxImageSupplier;
@@ -87,6 +90,7 @@ public class EntitySuggestionProcessorUnitTest {
     private @Mock Supplier<ShareDelegate> mShareDelegateSupplier;
     private @Mock OmniboxActionDelegate mActionDelegate;
 
+    private Context mContext;
     private EntitySuggestionProcessor mProcessor;
 
     /**
@@ -132,9 +136,12 @@ public class EntitySuggestionProcessorUnitTest {
 
     @Before
     public void setUp() {
+        mContext =
+                new ContextThemeWrapper(
+                        ContextUtils.getApplicationContext(), R.style.Theme_BrowserUI_DayNight);
         AutocompleteUIContext uiContext =
                 new AutocompleteUIContext(
-                        ContextUtils.getApplicationContext(),
+                        mContext,
                         mSuggestionHost,
                         mTextProvider,
                         mImageSupplier,
@@ -182,6 +189,16 @@ public class EntitySuggestionProcessorUnitTest {
 
     @Test
     @SmallTest
+    public void decorationTest_desktopDevice() {
+        OmniboxCapabilities.setIsDesktopPlatformForTesting(true);
+        SuggestionTestHelper suggHelper = createSuggestion("", "", "#fedcba", SEARCH_URL);
+        processSuggestion(suggHelper);
+
+        assertThat(suggHelper.getIcon(), instanceOf(VectorDrawable.class));
+    }
+
+    @Test
+    @SmallTest
     public void decorationTest_validNamedColor() {
         SuggestionTestHelper suggHelper = createSuggestion("", "", "red", SEARCH_URL);
         processSuggestion(suggHelper);
@@ -214,11 +231,14 @@ public class EntitySuggestionProcessorUnitTest {
         SuggestionTestHelper suggHelper = createSuggestion("", "", "red", WEB_URL);
         processSuggestion(suggHelper);
 
-        final ArgumentCaptor<Callback<Bitmap>> callback = MockitoHelper.callbackCaptor();
+        final ArgumentCaptor<Callback<Drawable>> callback = MockitoHelper.callbackCaptor();
         verify(mImageSupplier).fetchImage(eq(WEB_URL), callback.capture());
 
         assertThat(suggHelper.getIcon(), instanceOf(ColorDrawable.class));
-        callback.getValue().onResult(mBitmap);
+        callback.getValue()
+                .onResult(
+                        new BitmapDrawable(
+                                ContextUtils.getApplicationContext().getResources(), mBitmap));
         assertThat(suggHelper.getIcon(), instanceOf(BitmapDrawable.class));
         assertEquals(mBitmap, ((BitmapDrawable) suggHelper.getIcon()).getBitmap());
     }
@@ -228,7 +248,7 @@ public class EntitySuggestionProcessorUnitTest {
     public void fetchImage_withoutSupplier() {
         AutocompleteUIContext uiContext =
                 new AutocompleteUIContext(
-                        ContextUtils.getApplicationContext(),
+                        mContext,
                         mSuggestionHost,
                         mTextProvider,
                         /* imageSupplier= */ null,

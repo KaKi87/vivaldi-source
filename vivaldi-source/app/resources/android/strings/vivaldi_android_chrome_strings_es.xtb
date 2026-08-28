@@ -13,13 +13,23 @@
 <translation id="1626105448931436644">Más información sobre pilas de pestañas compartidas</translation>
 <translation id="1644574205037202324">Historial</translation>
 <translation id="1829244130665387512">Buscar en la página</translation>
+<translation id="1839634099873376237">{NUMBER_OF_TABS, plural,
+          =1 {Ver <ph name="TABS_COUNT_ONE" /> pestaña con actividad nueva en pilas de pestañas compartidas}
+          other {Ver <ph name="TABS_COUNT_MANY" /> pestañas con actividad nueva en pilas de pestañas compartidas}
+        }</translation>
 <translation id="1925021887439448749">Introduce una dirección personalizada</translation>
+<translation id="197242951608864241">{NUM_OTHER_MEMBERS, plural,
+          =1 {Añadir a la pila de pestañas con <ph name="OWNER_FIRST_NAME" /> y otros <ph name="NUMBER_OF_OTHER_MEMBERS" />}
+          other {Añadir a la pila de pestañas con <ph name="OWNER_FIRST_NAME" /> y otros <ph name="NUMBER_OF_OTHER_MEMBERS" /> }
+        }</translation>
 <translation id="2038563949887743358">Activar la petición para el modo escritorio</translation>
+<translation id="2067565353468675023">Añadir a la pila de pestañas con <ph name="OWNER_FIRST_NAME" /></translation>
 <translation id="208033313373016095">Modo lectura de páginas web</translation>
 <translation id="2149973817440762519">Editar marcador</translation>
 <translation id="2306442503286132111">Marcador guardado en la carpeta <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">Apariencia</translation>
 <translation id="2495373685671077949">Buscar en pestañas y pilas</translation>
+<translation id="2500281581698062897">Dejarás de tener acceso de inmediato a la pila de pestañas «<ph name="GROUP_NAME" />» y <ph name="BLOCKED_MEMBER_FULL_NAME" /> (<ph name="BLOCKED_MEMBER_EMAIL" />) ya no podrá interactuar contigo en los servicios de Google.</translation>
 <translation id="2546283357679194313">Cookies y datos del sitio</translation>
 <translation id="2633278372998075009">Pestañas privadas</translation>
 <translation id="2650751991977523696">¿Quieres descargar el archivo de nuevo?</translation>
@@ -40,7 +50,12 @@
 <translation id="3234355010754616171">Nueva pestaña privada</translation>
 <translation id="3237087289225714896">Precarga estándar:</translation>
 <translation id="3298614730029636660">Abandonar pila</translation>
+<translation id="3359462099791810823">Mantén esta pila para añadir pestañas más adelante o elimínala si ya no la necesitas.</translation>
 <translation id="3478414204555961127">Modo lectura</translation>
+<translation id="3492241834031916806">{TAB_COUNT, plural,
+          =1 {Restaurar pila de pestañas con <ph name="TAB_COUNT_ONE" /> pestaña, de color <ph name="COLOR_NAME" />, como una pila de pestañas nueva en segundo plano.}
+          other {Restaurar pila de pestañas con <ph name="TAB_COUNT_MANY" /> pestañas, de color <ph name="COLOR_NAME" />, como una pila de pestañas nueva en segundo plano}
+        }</translation>
 <translation id="3504699618187058974">Apilar pestañas</translation>
 <translation id="3518985090088779359">Aceptar y continuar</translation>
 <translation id="3571177741182643350">Páginas no leídas - disponibles sin conexión:</translation>
@@ -48,9 +63,11 @@
 <translation id="3700829948786686853">Bienvenido a Vivaldi</translation>
 <translation id="3719826155360621982">Página principal</translation>
 <translation id="3738139272394829648">Tocar para buscar</translation>
+<translation id="3900825170941000696">Restaurar pila de pestañas <ph name="TITLE_OF_GROUP" />, color <ph name="COLOR_NAME" />, como una nueva pila de pestañas en segundo plano.</translation>
 <translation id="395421286877117532">Personaliza la pila de pestañas y toca en hecho</translation>
 <translation id="3987993985790029246">Copiar enlace</translation>
 <translation id="399014816462153200">Páginas leídas:</translation>
+<translation id="4048089913902125176">Abrir pila de pestañas <ph name="TITLE_OF_GROUP" />, color <ph name="COLOR_NAME" />, con sitios <ph name="URL_LIST" />.</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> pestaña}
           other {<ph name="TAB_COUNT_MANY" /> pestañas, <ph name="TAB_COUNT_INCOGNITO" /> privada}}</translation>
@@ -65,11 +82,18 @@
 <translation id="4269820728363426813">Copiar dirección del enlace</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Activa el bloqueo de pantalla en los ajustes de Android<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Gestor de contraseñas</translation>
+<translation id="4393275721087307686">{NUMBER_OF_TABS, plural,
+          =1 {<ph name="TABS_COUNT_ONE" /> pestaña estándar con actividad nueva en las pilas de pestañas compartidas}
+          other {<ph name="TABS_COUNT_MANY" /> pestañas estándar con actividad nueva en las pilas de pestañas compartidas}
+        }</translation>
 <translation id="4445802392779002787">Añadir pestaña a la pila</translation>
 <translation id="451872707440238414">Buscar en los marcadores</translation>
 <translation id="4526803704855831732">Pestañas privadas</translation>
 <translation id="4532845899244822526">Seleccionar carpeta</translation>
 <translation id="454284936014822050">Pila de pestañas <ph name="GROUP_TITLE" /></translation>
+<translation id="4614713783237504866">Pestañas y pilas sin usar o duplicadas</translation>
+<translation id="463284870544181537">Mantén esta pila para añadir pestañas más adelante o elimínala si ya no quieres acceder a ella</translation>
+<translation id="4638726726741656531">Ahora puedes añadir fácilmente pestañas a las pilas desde aquí</translation>
 <translation id="4699172675775169585">Archivos e imágenes en caché</translation>
 <translation id="4719086422742491124">Obtén información sobre los temas tratados en los sitios web sin salir de la página. Selecciona una o más palabras para buscarlas.
 
@@ -78,10 +102,15 @@ La función tocar para buscar solo está disponible si Google es el buscador pre
 <translation id="4771820744342013314">¿Eliminar pila de pestañas?</translation>
 <translation id="4850886885716139402">Ver</translation>
 <translation id="4883379392681899581">Salir del modo privado</translation>
+<translation id="4883812026489706387">La pila de pestañas «<ph name="TAB_GROUP_TITLE" />» tiene actividad nueva</translation>
 <translation id="4887248255051238988">¿Abandonar pila de pestañas?</translation>
 <translation id="4943872375798546930">Sin resultados</translation>
 <translation id="49576331685473090">Bloqueador de contenidos</translation>
 <translation id="4964059453543967592">Reabrir la pila cerrada</translation>
+<translation id="4972397775068600917">{TAB_GROUP_COUNT, plural,
+          =1 {<ph name="TAB_GROUPS_ONE" /> pila de pestaña}
+          other {<ph name="TAB_GROUPS_MANY" /> pilas de pestañas}
+        }</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> pestaña privada}
           other {<ph name="TAB_COUNT_NORMAL" /> pestañas privadas}}</translation>
@@ -97,6 +126,7 @@ La función tocar para buscar solo está disponible si Google es el buscador pre
 <translation id="5375131951310889874">La función «Tocar para buscar» sólo está disponible si Google es el buscador predeterminado en Vivaldi. Envía una palabra y su contexto al buscador Google para mostrarte definiciones, imágenes, resultados de búsqueda y otra información.
 
 Para cambiar el término de la búsqueda, mantén pulsado cualquier texto para seleccionarlo. Para afinar la búsqueda, desliza el panel hacia arriba y después toca el cuadro de búsqueda.</translation>
+<translation id="5570837353202786816">Todos perderán inmediatamente el acceso a la pila de pestañas «<ph name="GROUP_NAME" />» y se desactivarán todos los enlaces de invitación</translation>
 <translation id="5614794348925178470">Pila de pestañas <ph name="GROUP_TITLE" /> compartida</translation>
 <translation id="572328651809341494">Pestañas recientes</translation>
 <translation id="5833984609253377421">Compartir enlace</translation>
@@ -110,6 +140,7 @@ Para cambiar el término de la búsqueda, mantén pulsado cualquier texto para s
 <translation id="6341580099087024258">Preguntar dónde guardar los archivos</translation>
 <translation id="6364438453358674297">¿Eliminar sugerencia del historial?</translation>
 <translation id="6404511346730675251">Editar marcador</translation>
+<translation id="6453011654157908292">Detalles de la pila de pestañas</translation>
 <translation id="650224091954855786">{FILE_COUNT, plural,
           =1 {Archivo descargado}
           other {# descargas completadas}}</translation>
@@ -153,11 +184,14 @@ Para cambiar el término de la búsqueda, mantén pulsado cualquier texto para s
 <translation id="8543049482641423692">Añadir pestaña a la nueva pila</translation>
 <translation id="8560602726703398413">Encuentra tu lista de lectura en marcadores</translation>
 <translation id="85991616550051997">Ir a la página principal</translation>
+<translation id="8680308397617585416">Perderás acceso a la pila de pestaña <ph name="GROUP_NAME" /> de forma inmediata, y se borrará de todos tus dispositivos</translation>
 <translation id="8738163682604285902">¿Ver en modo lectura?</translation>
 <translation id="8820817407110198400">Marcadores</translation>
 <translation id="9042893549633094279">Privacidad y seguridad</translation>
 <translation id="9063523880881406963">Desactivar la petición para el modo escritorio</translation>
 <translation id="9080642952018487277">Entrar al modo privado</translation>
+<translation id="9099398755190923267">Todos perderán inmediatamente el acceso a la pila de pestañas «<ph name="GROUP_NAME" />» y se eliminará de todos los dispositivos</translation>
 <translation id="930124987204876019">Eliminar el historial, cookies, datos del sitio, caché…</translation>
 <translation id="961856697154696964">Eliminar datos de navegación</translation>
+<translation id="992223576089545146">Buscar en pestañas privadas</translation>
 </translationbundle>

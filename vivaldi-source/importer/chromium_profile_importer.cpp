@@ -15,6 +15,7 @@
 #include "app/vivaldi_resources.h"
 #include "importer/chrome_importer_utils.h"
 #include "importer/chromium_extension_importer.h"
+#include "importer/import_limits.h"
 
 using user_data_importer::ChromeProfileInfo;
 using user_data_importer::ImporterType;
@@ -168,7 +169,10 @@ void ChromiumProfileImporter::ReadProfiles(std::vector<ChromeProfileInfo>* cp,
     return;
 
   std::string input;
-  ReadFileToString(profileFileName, &input);
+  if (!base::ReadFileToStringWithMaxSize(
+          profileFileName, &input, vivaldi_importer::kMaxImportFileSize)) {
+    return;
+  }
 
   std::optional<base::Value> root_value(
       base::JSONReader::Read(input, base::JSON_PARSE_CHROMIUM_EXTENSIONS));

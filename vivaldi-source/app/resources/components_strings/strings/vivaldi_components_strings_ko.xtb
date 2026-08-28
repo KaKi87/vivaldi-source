@@ -20,6 +20,7 @@
 <translation id="1728677426644403582">웹페이지 소스를 보는 중</translation>
 <translation id="1734878702283171397">시스템 관리자에게 문의하세요.</translation>
 <translation id="1768211456781949159"><ph name="BEGIN_LINK" />Windows 네트워크 진단 실행해보기<ph name="END_LINK" />.</translation>
+<translation id="1932098463447129402">시작 기간:</translation>
 <translation id="1974060860693918893">세부정보</translation>
 <translation id="2032962459168915086"><ph name="BEGIN_LINK" />프록시 및 방화벽 확인<ph name="END_LINK" /></translation>
 <translation id="2048261947532620704">페이지 번역 중</translation>
@@ -38,11 +39,12 @@
 <translation id="2467694685043708798"><ph name="BEGIN_LINK" />네트워크 진단 실행<ph name="END_LINK" /></translation>
 <translation id="2491414235131909199">확장 프로그램에서 차단한 페이지</translation>
 <translation id="255002559098805027"><ph name="HOST_NAME" />에서 잘못된 응답을 전송했습니다.</translation>
+<translation id="2607101320794533334">대상 공개 키 정보</translation>
 <translation id="2634124572758952069"><ph name="HOST_NAME" />의 서버 IP 주소를 찾을 수 없습니다.</translation>
-<translation id="2649204054376361687"><ph name="COUNTRY" />, <ph name="CITY" /></translation>
 <translation id="2650446666397867134">파일 액세스 거부됨</translation>
 <translation id="2705137772291741111">사이트의 저장된(캐시된) 사본을 읽을 수 없습니다.</translation>
 <translation id="2730326759066348565"><ph name="BEGIN_LINK" />연결 진단 프로그램 실행<ph name="END_LINK" /></translation>
+<translation id="2738771556149464852">만료 기간:</translation>
 <translation id="2784949926578158345">연결이 재설정되었습니다.</translation>
 <translation id="2826760142808435982">이 연결은 <ph name="CIPHER" />을(를) 사용하여 암호화되고 인증되며 <ph name="KX" />을(를) 키 교환 매커니즘으로 사용합니다.</translation>
 <translation id="290376772003165898">페이지가 <ph name="LANGUAGE" />가 아닌가요?</translation>
@@ -68,8 +70,8 @@
 <translation id="3447884698081792621">인증서 표시(발급 기관: <ph name="ISSUER" />)</translation>
 <translation id="3462200631372590220">세부정보 숨기기</translation>
 <translation id="3484560055331845446">Google 계정에 액세스하지 못할 수도 있습니다. 따라서 지금 비밀번호를 변경하는 것이 좋습니다. 로그인하라는 메시지가 표시됩니다.</translation>
+<translation id="3493881266323043047">유효성</translation>
 <translation id="3566021033012934673">연결이 비공개로 설정되어 있지 않습니다</translation>
-<translation id="3574305903863751447"><ph name="COUNTRY" /> <ph name="STATE" />, <ph name="CITY" /></translation>
 <translation id="3586931643579894722">세부정보 숨기기</translation>
 <translation id="3614001939154393113">공격자가 <ph name="BEGIN_BOLD" /><ph name="SITE" /><ph name="END_BOLD" />에서 사용자의 정보를 도용하려고 시도할 수 있습니다(예: 비밀번호, 메시지, 신용카드 정보). <ph name="BEGIN_LEARN_MORE_LINK" />이 경고에 대해 자세히 알아보기<ph name="END_LEARN_MORE_LINK" /></translation>
 <translation id="3630155396527302611">이미 네트워크 액세스가 허용된 프로그램으로 되어 있는 경우
@@ -77,18 +79,17 @@
 <translation id="3658742229777143148">개정</translation>
 <translation id="3681007416295224113">인증서 정보</translation>
 <translation id="3717027428350673159"><ph name="BEGIN_LINK" />프록시, 방화벽, DNS 설정 확인<ph name="END_LINK" /></translation>
+<translation id="3798449238516105146">버전</translation>
 <translation id="382518646247711829">프록시 서버를 사용하는 경우...</translation>
 <translation id="3950820424414687140">로그인</translation>
 <translation id="3973234410852337861"><ph name="HOST_NAME" />이(가) 차단됨</translation>
 <translation id="3987940399970879459">1MB 미만</translation>
 <translation id="4075123085690634698">새 시크릿 창에서 페이지 열기 (⇧⌘N)</translation>
 <translation id="4075732493274867456">클라이언트와 서버가 일반적인 SSL 프로토콜 버전 또는 암호화 제품군을 지원하지 않습니다.</translation>
-<translation id="4116663294526079822">이 사이트에서 항상 허용</translation>
 <translation id="4130226655945681476">네트워크 케이블, 모뎀, 라우터 확인</translation>
 <translation id="4165986682804962316">사이트 설정</translation>
 <translation id="4203896806696719780"><ph name="BEGIN_LINK" />방화벽 및 바이러스 백신 소프트웨어 설정 확인<ph name="END_LINK" /></translation>
 <translation id="4226937834893929579"><ph name="BEGIN_LINK" />네트워크 진단 실행해보기<ph name="END_LINK" />.</translation>
-<translation id="4235360514405112390">유효</translation>
 <translation id="4241830393007970744">방문하려고 한 사이트의 공격자가 속임수를 써서 소프트웨어를 설치하거나 비밀번호, 전화번호, 신용카드 번호 등을 공개하도록 유도할 수 있습니다.</translation>
 <translation id="4250431568374086873">이 사이트에 대한 연결은 완벽하게 안전하지 않습니다</translation>
 <translation id="4265872034478892965">관리자에 의해 허용됨</translation>
@@ -111,11 +112,11 @@
 <translation id="5023310440958281426">관리자 정책을 확인하세요</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />프록시 주소 확인<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64비트)</translation>
+<translation id="5154702632169343078">대상</translation>
 <translation id="5216942107514965959">오늘 마지막으로 방문함</translation>
 <translation id="5355557959165512791">인증서가 취소되었기 때문에 현재 <ph name="SITE" />에 방문할 수 없습니다. 네트워크 오류와 공격은 대부분 일시적이므로 나중에 이 페이지가 정상적으로 작동할 수 있습니다.</translation>
 <translation id="5386426401304769735">이 사이트의 인증서 체인은 SHA-1을 사용하여 서명된 인증서를 포함합니다.</translation>
 <translation id="5452270690849572955"><ph name="HOST_NAME" /> 페이지를 찾을 수 없음</translation>
-<translation id="5457113250005438886">유효하지 않음</translation>
 <translation id="5492298309214877701">회사, 조직, 학교 인트라넷의 해당 사이트가 외부 웹사이트와 동일한 URL을 갖고 있습니다.
     <ph name="LINE_BREAK" />
     시스템 관리자에게 문의하세요.</translation>
@@ -128,6 +129,7 @@
 <translation id="5799902971440853357">웹사이트가 Vivaldi에서 처리할 수 없는 암호화된 사용자 인증 정보를 전송하였으므로 지금은 <ph name="SITE" />에 방문할 수 없습니다. 네트워크 오류와 공격은 대체로 일시적인 문제이기 때문에 이후에는 이 페이지가 제대로 작동할 가능성이 높습니다.</translation>
 <translation id="5810442152076338065"><ph name="DOMAIN" />에 대한 연결이 더 이상 사용되지 않는 암호화 기술을 사용하여 암호화됩니다.</translation>
 <translation id="5838278095973806738">공격자에 의해 도난당할 수 있으므로 이 사이트에 비밀번호나 신용카드 등 민감한 정보를 입력해서는 안 됩니다.</translation>
+<translation id="5851868085455377790">발행기관</translation>
 <translation id="5863515189965725638">IBAN 수정</translation>
 <translation id="5869405914158311789">사이트에 연결할 수 없음</translation>
 <translation id="5932224571077948991">사이트에서 방해가 되거나 사용자를 현혹하는 광고를 표시함</translation>
@@ -159,20 +161,16 @@
 <translation id="6957624206566198865">새 시크릿 탭에서 페이지 열기</translation>
 <translation id="7096937462164235847">인증된 웹사이트가 아닙니다.</translation>
 <translation id="7108819624672055576">확장 프로그램에 의해 허용됨</translation>
-<translation id="7111012039238467737">(유효)</translation>
 <translation id="7126644664682723998">붙여넣기 및 검색</translation>
 <translation id="7210863904660874423"><ph name="HOST_NAME" />에서 보안 기준을 준수하지 않습니다.</translation>
 <translation id="7219179957768738017"><ph name="SSL_VERSION" /> 연결입니다.</translation>
 <translation id="7221855153210829124">알림 표시</translation>
 <translation id="7353601530677266744">명령줄</translation>
 <translation id="7419106976560586862">프로필 경로</translation>
-<translation id="7455133967321480974">전체 기본값 사용(차단)</translation>
 <translation id="7518003948725431193">다음 웹 주소(<ph name="URL" />)에 대해 발견된 웹페이지가 없습니다</translation>
 <translation id="7549584377607005141">이 웹페이지를 제대로 표시하려면 이전에 입력한 데이터가 필요합니다. 이 데이터를 다시 보낼 수 있지만 이 경우 해당 페이지에서 이전에 수행한 작업이 반복됩니다.</translation>
 <translation id="759889825892636187">현재 <ph name="HOST_NAME" />에서 요청을 처리할 수 없습니다.</translation>
 <translation id="7662298039739062396">확장 프로그램에 의해 관리되는 설정</translation>
-<translation id="7663736086183791259">인증서: <ph name="CERTIFICATE_VALIDITY" /></translation>
-<translation id="7714464543167945231">인증서</translation>
 <translation id="7716147886133743102">관리자에 의해 차단됨</translation>
 <translation id="7716424297397655342">이 사이트를 캐시에서 로드할 수 없음</translation>
 <translation id="773466115871691567"><ph name="SOURCE_LANGUAGE" />로 된 페이지를 항상 번역</translation>
@@ -182,14 +180,11 @@
 <translation id="7878562273885520351">비밀번호가 유출될 수도 있음</translation>
 <translation id="7951415247503192394">(32비트)</translation>
 <translation id="7953236668995583915">이 페이지를 새로고침하여 이 사이트에 업데이트된 설정 적용</translation>
-<translation id="8041940743680923270">전체 기본값 사용(요청)</translation>
 <translation id="808894953321890993">비밀번호 변경</translation>
 <translation id="8149426793427495338">컴퓨터가 절전 모드 상태입니다.</translation>
 <translation id="8150722005171944719"><ph name="URL" />의 파일을 읽을 수 없습니다. 삭제 또는 이동되었거나 파일 사용 권한이 액세스를 차단할 수도 있습니다.</translation>
-<translation id="8184538546369750125">전체 기본값 사용(허용)</translation>
 <translation id="8211406090763984747">안전하게 연결되었습니다</translation>
 <translation id="8241707690549784388">찾고 있는 페이지에서 사용자가 입력한 정보를 사용했습니다. 해당 페이지로 돌아가면 기존 작업을 반복할 수 있습니다. 계속하시겠습니까?</translation>
-<translation id="8241712895048303527">이 사이트에서 차단</translation>
 <translation id="8286036467436129157">로그인</translation>
 <translation id="8288807391153049143">인증서 표시</translation>
 <translation id="8289355894181816810">잘 모르는 경우 네트워크 관리자에게 문의하시기 바랍니다.</translation>
@@ -198,19 +193,18 @@
 <translation id="8498891568109133222"><ph name="HOST_NAME" />에서 응답하는 데 시간이 너무 오래 걸립니다.</translation>
 <translation id="8503813439785031346">사용자 이름</translation>
 <translation id="8703575177326907206"><ph name="DOMAIN" />로의 연결은 암호화되지 않습니다.</translation>
+<translation id="8705331520020532516">일련번호</translation>
 <translation id="8740359287975076522"><ph name="HOST_NAME" />의 &lt;abbr id="dnsDefinition"&gt;DNS 주소&lt;/abbr&gt;를 찾을 수 없습니다. 문제를 진단하는 중입니다.</translation>
 <translation id="8820817407110198400">북마크</translation>
 <translation id="8963117664422609631">사이트 설정으로 이동</translation>
 <translation id="8975012916872825179">전화번호, 이메일 주소, 배송지 주소 등의 정보를 포함합니다</translation>
 <translation id="9001074447101275817">프록시 <ph name="DOMAIN" />에 사용자 이름 및 비밀번호를 입력해야 합니다.</translation>
 <translation id="9008201768610948239">무시</translation>
-<translation id="9025348182339809926">(유효하지 않음)</translation>
 <translation id="9039213469156557790">또한 이 페이지에는 안전하지 않은 다른 리소스가 포함되어 있습니다. 이러한 리소스는 전송 중에 다른 사람이 볼 수 있으며 페이지의 작동을 변경하기 위해 공격자가 수정할 수 있습니다.</translation>
 <translation id="9062620674789239642">이동, 수정 또는 삭제되었을 수 있습니다.</translation>
 <translation id="9069693763241529744">확장 프로그램에서 차단함</translation>
 <translation id="9073799351042754113">이 사이트의 보안 경고를 끄기로 설정했습니다.</translation>
 <translation id="9168814207360376865">사이트에서 저장된 결제 수단이 있는지 확인하도록 허용</translation>
-<translation id="9169664750068251925">이 사이트에서 항상 차단</translation>
 <translation id="9183425211371246419"><ph name="HOST_NAME" />에서 지원되지 않는 프로토콜을 사용합니다.</translation>
 <translation id="936602727769022409">Google 계정에 액세스하지 못할 수도 있습니다. 따라서 지금 비밀번호를 변경하는 것이 좋습니다. 로그인하라는 메시지가 표시됩니다.</translation>
 <translation id="969892804517981540">공식 빌드</translation>

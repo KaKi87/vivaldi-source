@@ -20,7 +20,6 @@ source_set("cells") {
     "//ios/chrome/app/strings",
     "//ios/chrome/browser/authentication/ui_bundled",
     "//ios/chrome/browser/authentication/ui_bundled/cells",
-    "//ios/chrome/browser/shared/ui/table_view:styler",
     "//ios/chrome/browser/shared/ui/table_view/cells",
     "//ios/chrome/common/ui/util",
     "//ui/base",

@@ -1,4 +1,4 @@
-// Copyright 2022 The Dawn & Tint Authors
+// Copyright 2026 The Dawn & Tint Authors
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
@@ -25,12 +25,32 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "dawn/native/PassResourceUsage.h"
+#include "src/dawn/native/PassResourceUsage.h"
+
+#include "src/dawn/native/Texture.h"
 
 namespace dawn::native {
 
-bool operator==(const TextureSyncInfo& a, const TextureSyncInfo& b) {
-    return (a.usage == b.usage) && (a.shaderStages == b.shaderStages);
+absl::flat_hash_set<TextureBase*> GatherWritableTextures(const SyncScopeResourceUsage& scope) {
+    absl::flat_hash_set<TextureBase*> writables;
+    for (size_t i = 0; i < scope.textures.size(); ++i) {
+        TextureBase* texture = scope.textures[i];
+        const TextureSubresourceSyncInfo& syncInfo = scope.textureSyncInfos[i];
+
+        bool isWritable = false;
+        syncInfo.Iterate([&](const SubresourceRange&, const TextureSyncInfo& info) {
+            if (isWritable) {
+                return;
+            }
+            if (!IsSubset(info.usage, kReadOnlyTextureUsages)) {
+                isWritable = true;
+            }
+        });
+        if (isWritable) {
+            writables.insert(texture);
+        }
+    }
+    return writables;
 }
 
 }  // namespace dawn::native

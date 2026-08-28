@@ -35,15 +35,10 @@ class BackgroundAudioTabHelper
 
   // WebStateObserver methods:
   void WebStateDestroyed(web::WebState* web_state) override;
-  void DidFinishNavigation(web::WebState* web_state,
-                           web::NavigationContext* navigation_context) override;
 
   BackgroundAudioPrefObserver* allowBackgroundAudioObserver_;
   raw_ptr<PrefService> prefs_;
   raw_ptr<web::WebState> web_state_;
-
-  bool hasInjectedCode = false;
-  bool isYoutube = false;
 };
 
 #endif  // IOS_BACKGROUND_AUDIO_BACKGROUND_AUDIO_TAB_HELPER_H_

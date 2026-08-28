@@ -215,15 +215,12 @@ bool HasLockedKeystore(Profile* profile) {
 
   // Fetch an Encryptor instance asynchronously. This may fire synchronously if
   // the Encryptor is already cached (typical case after startup).
-  g_browser_process->os_crypt_async()->GetInstance(
-      base::BindOnce(
-          [](Profile* profile, bool* result, base::OnceClosure quit_closure,
-             scoped_refptr<os_crypt_async::Encryptor> encryptor) {
-            RunKeystoreCheck(profile, result, std::move(quit_closure),
-                             *encryptor);
-          },
-          profile, &result, run_loop.QuitClosure()),
-      os_crypt_async::Encryptor::Option::kEncryptSyncCompat);
+  g_browser_process->os_crypt_async()->GetInstance(base::BindOnce(
+      [](Profile* profile, bool* result, base::OnceClosure quit_closure,
+         scoped_refptr<os_crypt_async::Encryptor> encryptor) {
+        RunKeystoreCheck(profile, result, std::move(quit_closure), *encryptor);
+      },
+      profile, &result, run_loop.QuitClosure()));
 
   // Block until the callback fires. In practice this is nearly always
   // synchronous because the Encryptor is cached from PreMainMessageLoopRun.

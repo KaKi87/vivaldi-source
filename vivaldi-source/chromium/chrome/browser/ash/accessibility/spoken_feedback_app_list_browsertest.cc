@@ -26,11 +26,11 @@
 #include "chrome/browser/ash/app_list/search/search_controller.h"
 #include "chrome/browser/ash/app_list/search/search_provider.h"
 #include "chrome/browser/ash/app_list/test/chrome_app_list_test_support.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/common/chrome_switches.h"
-#include "chrome/test/base/interactive_test_utils.h"
 #include "components/user_manager/user_names.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/test/browser_test.h"
@@ -375,8 +375,9 @@ class SpokenFeedbackAppListSearchTest : public SpokenFeedbackAppListBaseTest {
     // set of results shown in the search result UI.
     std::unique_ptr<app_list::SearchController> search_controller =
         std::make_unique<app_list::SearchController>(
+            g_browser_process->local_state(),
             app_list_client->GetModelUpdaterForTest(), app_list_client, nullptr,
-            browser()->profile());
+            browser()->GetProfile());
     search_controller->Initialize();
     // Disable ranking, which may override the explicitly set relevance scores
     // and best match status of results.
@@ -402,7 +403,7 @@ class SpokenFeedbackAppListSearchTest : public SpokenFeedbackAppListBaseTest {
   void ShowAppList() {
     if (tablet_mode_) {
       // Minimize the test window to transition to tablet mode home screen.
-      sm()->Call([this]() { browser()->window()->Minimize(); });
+      sm()->Call([this]() { browser()->GetWindow()->Minimize(); });
     } else {
       // Focus the home button and press it to open the bubble launcher.
       sm()->Call([this]() {
@@ -626,7 +627,7 @@ IN_PROC_BROWSER_TEST_P(
 
   sm()->Call([]() { ShellTestApi().SetTabletModeEnabledForTest(true); });
 
-  sm()->Call([this]() { browser()->window()->Minimize(); });
+  sm()->Call([this]() { browser()->GetWindow()->Minimize(); });
   // Set screen rotation to 90 degrees. No ChromeVox event should be created.
   sm()->Call([&, display_manager, display_id]() {
     display_manager->SetDisplayRotation(display_id, display::Display::ROTATE_90,

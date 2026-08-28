@@ -18,8 +18,10 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
+#include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "base/types/pass_key.h"
+#include "chrome/browser/ui/page_action/page_action_enums.h"
 #include "chrome/browser/ui/page_action/page_action_metrics_recorder_interface.h"
 #include "chrome/browser/ui/page_action/page_action_pass_key.h"
 #include "chrome/browser/ui/page_action/page_action_triggers.h"
@@ -27,10 +29,14 @@
 #include "components/tabs/public/tab_interface.h"
 #include "ui/actions/action_id.h"
 #include "ui/base/models/image_model.h"
+#include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
+#include "ui/gfx/animation/tween.h"
 
 namespace actions {
 class ActionItem;
 }
+
+class BrowserWindowInterface;
 
 namespace base {
 class CallbackListSubscription;
@@ -59,6 +65,16 @@ enum class PageActionColorSource {
   kCascadingAccent,
 };
 
+// Dictates the animation style of the slide animation for the page action view.
+enum class PageActionAnimationStyle {
+  // Animation where the page action view label slides out when the button
+  // enlarges.
+  kStandard = 0,
+  // Animation where the head icon disappears and trailing icon appears as the
+  // label slides.
+  kSlideAndCrossfade = 1,
+};
+
 // These values are used for deciding priority when deciding which Anchored
 // Message and/or Suggestion Chip should be shown when multiple request to be
 // shown.
@@ -70,6 +86,16 @@ enum class PageActionPriorityCategory {
   kPrivacySecurity,
   kUserInteraction,  // This priority is only used for Anchored Messages.
   kMaxValue = kUserInteraction,
+};
+
+struct PageActionAnimationParams {
+  int resource_id;
+  float start_offset = 0.0f;
+  float end_offset = 1.0f;
+  gfx::Tween::Type tween = gfx::Tween::LINEAR;
+  base::TimeDelta duration = base::Milliseconds(300);
+
+  bool operator==(const PageActionAnimationParams&) const = default;
 };
 
 // Indicates possible anchored message action icons (right side of anchored
@@ -91,6 +117,13 @@ struct AnchoredMessageExpandableItem {
   bool operator==(const AnchoredMessageExpandableItem&) const = default;
 };
 
+enum class ExpandButtonStyle {
+  // Uses the icons of the items within the expandable content.
+  kItemIcons,
+  // Uses a generic chevron icon.
+  kChevron,
+};
+
 // The content specific to the expanded section of an anchored message.
 struct AnchoredMessageExpandableContent {
   std::optional<std::u16string> heading;
@@ -100,6 +133,10 @@ struct AnchoredMessageExpandableContent {
   // If set, overrides the default tooltip on the expand button when the drawer
   // is expanded.
   std::optional<std::u16string> collapse_button_tooltip;
+  // If set, overrides the default accessible name on the expand button.
+  std::optional<std::u16string> expand_button_accessible_name;
+  // The style of the expand button.
+  ExpandButtonStyle expand_button_style = ExpandButtonStyle::kItemIcons;
 
   bool operator==(const AnchoredMessageExpandableContent&) const = default;
 };
@@ -163,6 +200,10 @@ std::ostream& operator<<(std::ostream& os, const SuggestionChipConfig& config);
 // receive updates from this controller.
 class PageActionController {
  public:
+  DECLARE_USER_DATA(PageActionController);
+
+  static PageActionController* From(tabs::TabInterface* tab);
+
   // Interface implemented by the View to allow the Controller to push
   // internal callbacks without a direct dependency on the View class.
   class Delegate {
@@ -237,19 +278,31 @@ class PageActionController {
   // provide a custom image to use for the page action for a specific context
   // (tab). The source of the icon's color can be controlled with
   // `color_source`, which defaults to using foreground color. Optionally, also
-  // plays an lottie animation specified by `animation_resource_id`
+  // plays an lottie animation specified by `animation_parameters`
   // when setting the new override image.
   virtual void OverrideImage(actions::ActionId action_id,
                              const ui::ImageModel& override_image) = 0;
   virtual void OverrideImage(actions::ActionId action_id,
                              const ui::ImageModel& override_image,
                              PageActionColorSource color_source) = 0;
-  virtual void OverrideImage(actions::ActionId action_id,
-                             const ui::ImageModel& override_image,
-                             PageActionColorSource color_source,
-                             std::optional<int> animation_resource_id) = 0;
+  virtual void OverrideImage(
+      actions::ActionId action_id,
+      const ui::ImageModel& override_image,
+      PageActionColorSource color_source,
+      std::optional<PageActionAnimationParams> animation_parameters) = 0;
 
   virtual void ClearOverrideImage(actions::ActionId action_id) = 0;
+
+  // Configures the animation transition style.
+  virtual void SetAnimationStyle(actions::ActionId action_id,
+                                 PageActionAnimationStyle style) = 0;
+  // Sets the trailing icon image shown at the end side of the capsule.
+  virtual void SetTrailingImage(actions::ActionId action_id,
+                                const ui::ImageModel& trailing_image) = 0;
+  // Clears the trailing icon image.
+  virtual void ClearTrailingImage(actions::ActionId action_id) = 0;
+  // Toggles visibility of the trailing icon for animations.
+  virtual void SetShowTrailingIcon(actions::ActionId action_id, bool show) = 0;
 
   // By default, the page action will have an tooltip which can be shared in the
   // other places that rely on the same action item. However, features can
@@ -258,6 +311,10 @@ class PageActionController {
   virtual void OverrideTooltip(actions::ActionId action_id,
                                const std::u16string& override_tooltip) = 0;
   virtual void ClearOverrideTooltip(actions::ActionId action_id) = 0;
+
+  virtual void OverrideBackgroundColor(
+      actions::ActionId action_id,
+      std::optional<ui::ColorId> override_background_color_id) = 0;
 
   // Functions to set configs for anchored messages.
   virtual void SetAnchoredMessageText(
@@ -289,6 +346,9 @@ class PageActionController {
   // that manages the activity counter. The action is considered active as
   // long as at least one ScopedPageActionActivity object exists for it.
   virtual ScopedPageActionActivity AddActivity(actions::ActionId action_id) = 0;
+
+  // Checks if the action with the given ID exists.
+  virtual bool ActionExists(actions::ActionId action_id) const = 0;
 
   // Adds an observer for the page action's underlying `PageActionModel`.
   virtual void AddObserver(
@@ -331,18 +391,17 @@ class PageActionController {
 class PageActionControllerImpl : public PageActionController,
                                  public PinnedToolbarActionsModel::Observer {
  public:
-  explicit PageActionControllerImpl(
+  PageActionControllerImpl(
+      tabs::TabInterface& tab_interface,
+      const std::vector<actions::ActionId>& action_ids,
+      const PageActionPropertiesProviderInterface& properties_provider,
       PinnedToolbarActionsModel* pinned_actions_model,
       PageActionModelFactory* page_action_model_factory = nullptr,
-      PageActionMetricsRecorderFactory* page_action_metrics_factory = nullptr);
+      PageActionMetricsRecorderFactory* page_action_metrics_recorder_factory =
+          nullptr);
   PageActionControllerImpl(const PageActionControllerImpl&) = delete;
   PageActionControllerImpl& operator=(const PageActionControllerImpl&) = delete;
   ~PageActionControllerImpl() override;
-
-  void Initialize(
-      tabs::TabInterface& tab_interface,
-      const std::vector<actions::ActionId>& action_ids,
-      const PageActionPropertiesProviderInterface& properties_provider);
 
   // PageActionController:
   void Show(actions::ActionId action_id) override;
@@ -367,14 +426,24 @@ class PageActionControllerImpl : public PageActionController,
   void OverrideImage(actions::ActionId action_id,
                      const ui::ImageModel& override_image,
                      PageActionColorSource color_source) override;
-  void OverrideImage(actions::ActionId action_id,
-                     const ui::ImageModel& override_image,
-                     PageActionColorSource color_source,
-                     std::optional<int> animation_resource_id) override;
+  void OverrideImage(
+      actions::ActionId action_id,
+      const ui::ImageModel& override_image,
+      PageActionColorSource color_source,
+      std::optional<PageActionAnimationParams> animation_parameters) override;
   void ClearOverrideImage(actions::ActionId action_id) override;
+  void SetAnimationStyle(actions::ActionId action_id,
+                         PageActionAnimationStyle style) override;
+  void SetTrailingImage(actions::ActionId action_id,
+                        const ui::ImageModel& trailing_image) override;
+  void ClearTrailingImage(actions::ActionId action_id) override;
+  void SetShowTrailingIcon(actions::ActionId action_id, bool show) override;
   void OverrideTooltip(actions::ActionId action_id,
                        const std::u16string& override_tooltip) override;
   void ClearOverrideTooltip(actions::ActionId action_id) override;
+  void OverrideBackgroundColor(
+      actions::ActionId action_id,
+      std::optional<ui::ColorId> override_background_color_id) override;
   void SetAnchoredMessageText(
       actions::ActionId action_id,
       const std::u16string& anchored_message_text) override;
@@ -390,6 +459,7 @@ class PageActionControllerImpl : public PageActionController,
       std::optional<AnchoredMessageExpandableContent> expandable_content)
       override;
   ScopedPageActionActivity AddActivity(actions::ActionId action_id) override;
+  bool ActionExists(actions::ActionId action_id) const override;
   void AddObserver(
       actions::ActionId action_id,
       base::ScopedObservation<PageActionModelInterface,
@@ -495,8 +565,20 @@ class PageActionControllerImpl : public PageActionController,
   std::optional<actions::ActionId> active_anchored_message_;
   std::map<actions::ActionId, PageActionPriorityCategory> default_priorities_;
 
+  ui::ScopedUnownedUserData<PageActionController> scoped_unowned_user_data_;
+
   base::WeakPtrFactory<PageActionControllerImpl> weak_factory_{this};
 };
+
+// Returns page action IDs that are present in the browser window's root action
+// item.
+std::vector<actions::ActionId> GetActivePageActionIds(
+    BrowserWindowInterface& bwi);
+
+// Returns page actions that are present in the browser window's root action
+// item.
+std::vector<actions::ActionItem*> GetActivePageActionItems(
+    BrowserWindowInterface& bwi);
 
 }  // namespace page_actions
 

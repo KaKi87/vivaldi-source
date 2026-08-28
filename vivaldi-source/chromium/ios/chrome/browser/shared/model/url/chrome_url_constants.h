@@ -66,10 +66,10 @@ inline constexpr char kChromeUIInspectHost[] = "inspect";
 inline constexpr char kChromeUIInterstitialsHost[] = "interstitials";
 inline constexpr char kChromeUILocalStateHost[] = "local-state";
 inline constexpr char kChromeUIManagementHost[] = "management";
+inline constexpr char kChromeUIMetricsInternalsHost[] = "metrics-internals";
 inline constexpr char kChromeUINetExportHost[] = "net-export";
 inline constexpr char kChromeUINewTabHost[] = "newtab";
 inline constexpr char kChromeUINTPTilesInternalsHost[] = "ntp-tiles-internals";
-inline constexpr char kChromeUIOfflineHost[] = "offline";
 inline constexpr char kChromeUIOmahaHost[] = "omaha";
 inline constexpr char kChromeUIOnDeviceLlmInternalsHost[] =
     "on-device-llm-internals";
@@ -77,6 +77,8 @@ inline constexpr char kChromeUIPasswordManagerInternalsHost[] =
     "password-manager-internals";
 inline constexpr char kChromeUIPolicyHost[] = "policy";
 inline constexpr char kChromeUIPrefsInternalsHost[] = "prefs-internals";
+inline constexpr char kChromeUIPrivateAiInternalsHost[] =
+    "private-ai-internals";
 inline constexpr char kChromeUIProfileInternalsHost[] = "profile-internals";
 inline constexpr char kChromeUISafeBrowsingHost[] = "safe-browsing";
 inline constexpr char kChromeUISignInInternalsHost[] = "signin-internals";
@@ -228,7 +230,7 @@ inline constexpr char kGeminiAppStorePromoURL[] =
     "https://www.google.com/chrome/mobile/#scrollable-gemini-in-chrome-slide-1";
 
 // Gets the hosts/domains that are shown in chrome://chrome-urls.
-inline constexpr std::array<std::string_view, 22> kChromeHostURLs = {
+inline constexpr auto kChromeHostURLs = std::to_array<std::string_view>({
     commerce::kChromeUICommerceInternalsHost,
     kChromeUIChromeURLsHost,
     kChromeUICreditsHost,
@@ -239,11 +241,13 @@ inline constexpr std::array<std::string_view, 22> kChromeHostURLs = {
     kChromeUIInterstitialsHost,
     kChromeUILocalStateHost,
     kChromeUIManagementHost,
+    kChromeUIMetricsInternalsHost,
     kChromeUINetExportHost,
     kChromeUINewTabHost,
     kChromeUINTPTilesInternalsHost,
     kChromeUIPasswordManagerInternalsHost,
     kChromeUIPrefsInternalsHost,
+    kChromeUIPrivateAiInternalsHost,
     kChromeUISignInInternalsHost,
     kChromeUISyncInternalsHost,
     kChromeUITermsHost,
@@ -251,6 +255,6 @@ inline constexpr std::array<std::string_view, 22> kChromeHostURLs = {
     kChromeUIVersionHost,
     optimization_guide_internals::kChromeUIOptimizationGuideInternalsHost,
     regional_capabilities::kChromeUIRegionalCapabilitiesInternalsHost,
-};
+});
 
 #endif  // IOS_CHROME_BROWSER_SHARED_MODEL_URL_CHROME_URL_CONSTANTS_H_

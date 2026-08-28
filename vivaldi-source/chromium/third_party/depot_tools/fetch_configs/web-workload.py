@@ -1,4 +1,4 @@
-# Copyright 2024 The Chromium Authors. All rights reserved.
+# Copyright 2024 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -14,31 +14,30 @@ class WebWorkload(config_util.Config):
 
     @staticmethod
     def fetch_spec(props):
-        url = 'https://chromium.googlesource.com/web-workload.git'
+        url = "https://chromium.googlesource.com/web-workload.git"
         solution = {
-            'name': 'web-workload',
-            'url': url,
-            'deps_file': 'DEPS',
-            'managed': False,
-            'custom_deps': {},
+            "name": "web-workload",
+            "url": url,
+            "deps_file": "DEPS",
+            "custom_deps": {},
         }
         spec = {
-            'solutions': [solution],
-            'with_branch_heads': True,
+            "solutions": [solution],
+            "with_branch_heads": True,
         }
         return {
-            'type': 'gclient_git',
-            'gclient_git_spec': spec,
+            "type": "gclient_git",
+            "gclient_git_spec": spec,
         }
 
     @staticmethod
     def expected_root(_props):
-        return 'web-workload'
+        return "web-workload"
 
 
 def main(argv=None):
     return WebWorkload().handle_args(argv)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main(sys.argv))

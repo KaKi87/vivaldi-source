@@ -22,6 +22,7 @@
 #include "content/public/test/test_navigation_observer.h"
 #include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/extension_util.h"
+#include "extensions/browser/host_access_request_helper.h"
 #include "extensions/browser/permissions/permissions_updater.h"
 #include "extensions/browser/permissions/scripting_permissions_modifier.h"
 #include "extensions/browser/permissions/site_permissions_helper.h"
@@ -906,6 +907,8 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuViewModelBrowserTest,
   EXPECT_EQ(menu_entry_state.site_permissions_button.accessible_name,
             u"No access needed");
   EXPECT_EQ(menu_entry_state.site_permissions_button.tooltip_text, u"");
+  EXPECT_EQ(menu_entry_state.action_button.accessible_name,
+            u"Extension, No access needed");
 }
 
 // Tests the menu item state for an extension that did not request access to
@@ -930,6 +933,8 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuViewModelBrowserTest,
   EXPECT_EQ(menu_entry_state.site_permissions_button.accessible_name,
             u"No access needed");
   EXPECT_EQ(menu_entry_state.site_permissions_button.tooltip_text, u"");
+  EXPECT_EQ(menu_entry_state.action_button.accessible_name,
+            u"Simple Extension, No access needed");
 
   // When site setting is set to 'block all extensions':
   //   - site access toggle is hidden.
@@ -974,6 +979,9 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuViewModelBrowserTest,
             u"Ask on every visit. Select to change site permissions");
   EXPECT_EQ(menu_entry_state.site_permissions_button.tooltip_text,
             u"Change site permissions");
+  EXPECT_EQ(
+      menu_entry_state.action_button.accessible_name,
+      u"Extension, Ask on every visit. Select to change site permissions");
 
   // When site setting is set to 'block all extensions':
   //   - site access toggle is hidden.
@@ -1399,6 +1407,10 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuViewModelBrowserTest,
 // matching the action_models_ order, regardless of the order they are added.
 IN_PROC_BROWSER_TEST_F(ExtensionsMenuViewModelBrowserTest,
                        HostAccessRequests_SortedInsertionAndRemoval) {
+  auto cooldown_reset =
+      extensions::HostAccessRequestsHelper::SetCooldownForTesting(
+          base::TimeDelta());
+
   // Add 3 extensions (A, B, C) and withhold their permissions, using names that
   // ensure alphabetical order.
   auto extension_A = AddExtensionWithHostPermission("Alpha", "<all_urls>");

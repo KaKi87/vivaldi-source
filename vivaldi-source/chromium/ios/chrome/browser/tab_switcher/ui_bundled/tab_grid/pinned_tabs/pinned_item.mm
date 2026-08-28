@@ -25,8 +25,8 @@ using vivaldi::IsVivaldiRunning;
                 imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
   // End Vivaldi
 
-  return CustomSymbolWithPointSize(kChromeProductSymbol,
-                                   kPinnedCellFaviconSymbolPointSize);
+  return SymbolWithPointSize(SymbolChromeProduct,
+                             kPinnedCellFaviconSymbolPointSize);
 }
 
 @end

@@ -29,11 +29,11 @@
 #include <memory>
 
 #include "dawn/wire/WireClient.h"
-#include "src/dawn/common/Assert.h"
 #include "src/dawn/common/StringViewUtils.h"
 #include "src/dawn/tests/StringViewMatchers.h"
 #include "src/dawn/tests/unittests/wire/WireFutureTest.h"
 #include "src/dawn/tests/unittests/wire/WireTest.h"
+#include "src/utils/assert.h"
 
 namespace wgpu {
 // Define a stream operator for wgpu::MapMode so that it can be found on resolution for test name
@@ -334,16 +334,14 @@ TEST_P(WireBufferMappingTests, DestroyCalledTooEarlyServerSideError) {
 
 // Check the map callback when the map request would have worked, but the device was released.
 TEST_P(WireBufferMappingTests, DeviceReleasedTooEarly) {
-    TestEarlyMapCancelled(
-        [&]() { device = nullptr; }, [&]() { EXPECT_CALL(api, DeviceRelease(apiDevice)); },
-        wgpu::MapAsyncStatus::Aborted, "The Device was lost before mapping was resolved.", false);
+    TestEarlyMapCancelled([&]() { device = nullptr; }, [&]() {}, wgpu::MapAsyncStatus::Aborted,
+                          "The Device was lost before mapping was resolved.", false);
 }
 
 // Check that if device is released early client-side, we disregard server-side validation errors.
 TEST_P(WireBufferMappingTests, DeviceReleasedTooEarlyServerSideError) {
-    TestEarlyMapErrorCancelled(
-        [&]() { device = nullptr; }, [&]() { EXPECT_CALL(api, DeviceRelease(apiDevice)); },
-        wgpu::MapAsyncStatus::Aborted, "The Device was lost before mapping was resolved.", false);
+    TestEarlyMapErrorCancelled([&]() { device = nullptr; }, [&]() {}, wgpu::MapAsyncStatus::Aborted,
+                               "The Device was lost before mapping was resolved.", false);
 }
 
 // Check the map callback when the map request would have worked, but the device was destroyed.

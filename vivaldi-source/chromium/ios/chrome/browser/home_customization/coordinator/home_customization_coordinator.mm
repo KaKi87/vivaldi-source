@@ -8,6 +8,7 @@
 #import "components/feature_engagement/public/tracker.h"
 #import "components/image_fetcher/ios/ios_image_data_fetcher_wrapper.h"
 #import "components/prefs/pref_service.h"
+#import "components/sync/base/features.h"
 #import "ios/chrome/browser/commerce/model/shopping_service_factory.h"
 #import "ios/chrome/browser/discover_feed/model/discover_feed_visibility_browser_agent.h"
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
@@ -27,6 +28,8 @@
 #import "ios/chrome/browser/home_customization/ui/home_customization_search_engine_logo_mediator_provider.h"
 #import "ios/chrome/browser/home_customization/utils/home_customization_constants.h"
 #import "ios/chrome/browser/image_fetcher/model/image_fetcher_service_factory.h"
+#import "ios/chrome/browser/intelligence/bwg/utils/gemini_constants.h"
+#import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/ntp/model/set_up_list_item_type.h"
 #import "ios/chrome/browser/ntp/model/set_up_list_prefs.h"
 #import "ios/chrome/browser/ntp/search_engine_logo/mediator/search_engine_logo_mediator.h"
@@ -39,6 +42,7 @@
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
+#import "ios/chrome/browser/shared/public/commands/gemini_commands.h"
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_browser_agent.h"
@@ -53,10 +57,10 @@ CGFloat const kSheetCornerRadius = 30;
 }  // namespace
 
 @interface HomeCustomizationCoordinator () <
-    UISheetPresentationControllerDelegate,
     HomeCustomizationBackgroundPickerPresentationDelegate,
     HomeCustomizationMainViewControllerDelegate,
-    HomeCustomizationSearchEngineLogoMediatorProvider> {
+    HomeCustomizationSearchEngineLogoMediatorProvider,
+    UISheetPresentationControllerDelegate> {
   // Displays the background picker action sheet.
   HomeCustomizationBackgroundPickerActionSheetCoordinator*
       _backgroundPickerActionSheetCoordinator;
@@ -70,8 +74,7 @@ CGFloat const kSheetCornerRadius = 30;
 
   // The Background customization service for getting current and recently used
   // backgrounds.
-  raw_ptr<HomeBackgroundCustomizationService, DanglingUntriaged>
-      _backgroundService;
+  raw_ptr<HomeBackgroundCustomizationService> _backgroundService;
 
   // The mediator for background configuration generation and interactions.
   HomeCustomizationBackgroundConfigurationMediator*
@@ -107,11 +110,20 @@ CGFloat const kSheetCornerRadius = 30;
 
 @end
 
-@implementation HomeCustomizationCoordinator
+@implementation HomeCustomizationCoordinator {
+  // Command handler for the gemini floaty.
+  __weak id<GeminiCommands> _geminiHandler;
+}
 
 #pragma mark - ChromeCoordinator
 
 - (void)start {
+  CommandDispatcher* dispatcher = self.browser->GetCommandDispatcher();
+  if (IsPageActionMenuEnabled()) {
+    if ([dispatcher dispatchingForProtocol:@protocol(GeminiCommands)]) {
+      _geminiHandler = HandlerForProtocol(dispatcher, GeminiCommands);
+    }
+  }
   _activeSearchEngineLogoMediator = [NSMutableDictionary dictionary];
   _backgroundService =
       HomeBackgroundCustomizationServiceFactory::GetForProfile(self.profile);
@@ -124,8 +136,7 @@ CGFloat const kSheetCornerRadius = 30;
                                              GetForProfile(self.profile)];
   _mediator.navigationDelegate = self;
 
-  if (IsNTPBackgroundCustomizationEnabled() &&
-      !_backgroundService->IsCustomizationDisabledOrColorManagedByPolicy()) {
+  if (!_backgroundService->IsCustomizationDisabledOrColorManagedByPolicy()) {
     UserUploadedImageManager* userUploadedImageManager =
         UserUploadedImageManagerFactory::GetForProfile(self.profile);
     image_fetcher::ImageFetcherService* imageFetcherService =
@@ -146,13 +157,32 @@ CGFloat const kSheetCornerRadius = 30;
   // the first page.
   _currentPageViewController = self.baseViewController;
 
+  if (IsPageActionMenuEnabled()) {
+    [_geminiHandler
+        hideFloatyIfInvokedAnimated:YES
+                         fromSource:gemini::FloatyUpdateSource::ViewTransition];
+  }
+
   [super start];
 }
 
 - (void)stop {
   [_backgroundConfigurationMediator saveCurrentTheme];
 
-  [self.baseViewController dismissViewControllerAnimated:YES completion:nil];
+  if (IsPageActionMenuEnabled()) {
+    __weak id<GeminiCommands> geminiHandler = _geminiHandler;
+    [self.baseViewController
+        dismissViewControllerAnimated:YES
+                           completion:^{
+                             [geminiHandler
+                                 updateFloatyVisibilityIfEligibleAnimated:NO
+                                                               fromSource:
+                                                                   gemini::FloatyUpdateSource::
+                                                                       ViewTransition];
+                           }];
+  } else {
+    [self.baseViewController dismissViewControllerAnimated:YES completion:nil];
+  }
 
   [self dismissBackgroundPickerActionSheet];
 
@@ -179,8 +209,11 @@ CGFloat const kSheetCornerRadius = 30;
         dismissAllSnackbars];
   }
 
+  [_mediator disconnect];
   _mediator = nil;
+  [_backgroundConfigurationMediator disconnect];
   _backgroundConfigurationMediator = nil;
+  _backgroundService = nullptr;
   _mainViewController = nil;
   _magicStackViewController = nil;
   _discoverViewController = nil;
@@ -217,8 +250,7 @@ CGFloat const kSheetCornerRadius = 30;
 - (void)presentCustomizationMenuPage:(CustomizationMenuPage)page {
   UIViewController* menuPage = [self createMenuPage:page];
 
-  if (IsNTPBackgroundCustomizationEnabled() &&
-      page == CustomizationMenuPage::kMain) {
+  if (page == CustomizationMenuPage::kMain) {
     feature_engagement::Tracker* tracker =
         feature_engagement::TrackerFactory::GetForProfile(self.profile);
     if (tracker) {
@@ -540,7 +572,10 @@ CGFloat const kSheetCornerRadius = 30;
 }
 
 - (void)schedulePhotoNotSyncedSnackbarOnDismiss {
-  _shouldShowPhotoNotSyncedSnackbarOnDismiss = YES;
+  if (base::FeatureList::IsEnabled(syncer::kSyncThemesIos) &&
+      _backgroundService->IsThemeSyncActive()) {
+    _shouldShowPhotoNotSyncedSnackbarOnDismiss = YES;
+  }
 }
 
 #pragma mark - HomeCustomizationSearchEngineLogoMediator

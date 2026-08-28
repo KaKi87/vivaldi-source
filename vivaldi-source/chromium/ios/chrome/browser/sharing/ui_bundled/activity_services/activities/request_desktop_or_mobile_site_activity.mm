@@ -72,11 +72,10 @@ NSString* const kRequestDesktopOrMobileSiteActivityType =
       [UIImage imageNamed:vOverflowMobileSite];
   } // End Vivaldi
 
-  NSString* symbolName = self.userAgent == web::UserAgentType::MOBILE
-                             ? kDesktopSymbol
-                             : kIPhoneSymbol;
+  Symbol symbol = self.userAgent == web::UserAgentType::MOBILE ? SymbolDesktop
+                                                               : SymbolIPhone;
   return MakeSymbolMonochrome(
-      DefaultSymbolWithPointSize(symbolName, kSymbolActionPointSize));
+      SymbolWithPointSize(symbol, kSymbolActionPointSize));
 }
 
 - (BOOL)canPerformWithActivityItems:(NSArray*)activityItems {
@@ -88,7 +87,6 @@ NSString* const kRequestDesktopOrMobileSiteActivityType =
 }
 
 - (void)performActivity {
-  [self activityDidFinish:YES];
   if (!_agent) {
     return;
   }
@@ -103,6 +101,7 @@ NSString* const kRequestDesktopOrMobileSiteActivityType =
         base::UserMetricsAction("MobileShareActionRequestMobile"));
     _agent->RequestMobileSite();
   }
+  [self activityDidFinish:YES];
 }
 
 #pragma mark - ChromeActivity

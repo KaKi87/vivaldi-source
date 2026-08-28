@@ -92,8 +92,7 @@ const CGFloat kContentOptimalWidth = 327;
     AddSameConstraints(self, blurBackgroundView);
 
     CGFloat imageSize = IsIOSSoftLockEnabled() ? 50 : 28;
-    UIImage* incognitoLogo =
-        CustomSymbolWithPointSize(kIncognitoSymbol, imageSize);
+    UIImage* incognitoLogo = SymbolWithPointSize(SymbolIncognito, imageSize);
 
     if (IsVivaldiRunning())
       incognitoLogo =

@@ -46,7 +46,6 @@ class Window;
 }  // namespace aura
 
 namespace chromeos {
-class ImmersiveContext;
 class SnapController;
 }  // namespace chromeos
 
@@ -280,7 +279,6 @@ class WindowCycleController;
 class WindowRestoreController;
 class WindowTilingController;
 class WindowTreeHostManager;
-class WmModeController;
 class ArcInputMethodBoundsTracker;
 
 enum class LoginStatus;
@@ -1113,7 +1111,6 @@ class ASH_EXPORT Shell : public SessionObserver,
   std::unique_ptr<HumanPresenceOrientationController>
       human_presence_orientation_controller_;
   std::unique_ptr<ImeControllerImpl> ime_controller_;
-  std::unique_ptr<chromeos::ImmersiveContext> immersive_context_;
   std::unique_ptr<WebAuthNDialogControllerImpl> webauthn_dialog_controller_;
   std::unique_ptr<KeyboardBacklightColorController>
       keyboard_backlight_color_controller_;
@@ -1292,8 +1289,6 @@ class ASH_EXPORT Shell : public SessionObserver,
   std::unique_ptr<DockedMagnifierController> docked_magnifier_controller_;
 
   std::unique_ptr<chromeos::SnapController> snap_controller_;
-
-  std::unique_ptr<WmModeController> wm_mode_controller_;
 
   // |native_cursor_manager_| is owned by |cursor_manager_|, but we keep a
   // pointer to vend to test code.

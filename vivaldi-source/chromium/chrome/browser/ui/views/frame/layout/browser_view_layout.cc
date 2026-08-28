@@ -12,7 +12,7 @@
 #include "base/scoped_observation.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/ui_features.h"
-#include "chrome/browser/ui/views/exclusive_access_bubble_views.h"
+#include "chrome/browser/ui/views/exclusive_access/exclusive_access_bubble_views.h"
 #include "chrome/browser/ui/views/frame/layout/browser_view_app_layout_impl.h"
 #include "chrome/browser/ui/views/frame/layout/browser_view_layout_delegate.h"
 #include "chrome/browser/ui/views/frame/layout/browser_view_popup_layout_impl.h"
@@ -65,7 +65,7 @@ class BrowserViewLayout::BrowserModalDialogHostViews
     observer_list_.Notify(&ModalDialogHostObserver::OnHostDestroying);
   }
 
-  void NotifyPositionRequiresUpdate() {
+  void NotifyPositionRequiresUpdate() override {
     observer_list_.Notify(&ModalDialogHostObserver::OnPositionRequiresUpdate);
   }
 
@@ -188,10 +188,18 @@ void BrowserViewLayout::UpdateBubbles() {
   // the positioning of the bar.
   const gfx::Rect new_contents_bounds =
       views().contents_container->GetBoundsInScreen();
-  if (delegate().HasFindBarController() &&
-      (new_contents_bounds.width() != latest_contents_bounds_.width() ||
-       (new_contents_bounds.y() != latest_contents_bounds_.y() &&
-        new_contents_bounds.height() != latest_contents_bounds_.height()))) {
+#if BUILDFLAG(IS_CHROMEOS)
+  // On ChromeOS, unlike macOS, the find bar can be shown without revealing the
+  // immersive frame, so we should always try to update the position even if
+  // the content bounds doesn't change.
+  bool should_update_location = true;
+#else
+  bool should_update_location =
+      new_contents_bounds.width() != latest_contents_bounds_.width() ||
+      (new_contents_bounds.y() != latest_contents_bounds_.y() &&
+       new_contents_bounds.height() != latest_contents_bounds_.height());
+#endif
+  if (delegate().HasFindBarController() && should_update_location) {
     delegate().MoveWindowForFindBarIfNecessary();
   }
   latest_contents_bounds_ = new_contents_bounds;

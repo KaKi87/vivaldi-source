@@ -118,23 +118,19 @@ LensComposeboxHandler::LensComposeboxHandler(
     Profile* profile,
     content::WebContents* web_contents,
     mojo::PendingReceiver<composebox::mojom::PageHandler> pending_handler,
-    mojo::PendingRemote<composebox::mojom::Page> pending_page,
     mojo::PendingReceiver<searchbox::mojom::PageHandler>
         pending_searchbox_handler,
     mojo::PendingRemote<searchbox::mojom::Page> pending_searchbox_page)
-    : SearchboxHandler(
-          std::move(pending_searchbox_handler),
-          std::move(pending_searchbox_page),
-          profile,
-          web_contents,
-          std::make_unique<OmniboxController>(
-              std::make_unique<LensComposeboxOmniboxClient>(
-                  profile,
-                  web_contents,
-                  /*lens_composebox_controller=*/parent_controller),
-              lens::features::GetLensAimSuggestionTimeout())),
+    : SearchboxHandler(std::move(pending_searchbox_handler),
+                       std::move(pending_searchbox_page),
+                       profile,
+                       web_contents,
+                       std::make_unique<LensComposeboxOmniboxClient>(
+                           profile,
+                           web_contents,
+                           /*lens_composebox_controller=*/parent_controller),
+                       lens::features::GetLensAimSuggestionTimeout()),
       lens_composebox_controller_(parent_controller),
-      page_{std::move(pending_page)},
       handler_(this, std::move(pending_handler)) {
   autocomplete_controller_observation_.Observe(autocomplete_controller());
 }

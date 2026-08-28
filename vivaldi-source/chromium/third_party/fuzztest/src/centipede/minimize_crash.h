@@ -17,19 +17,19 @@
 
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/environment.h"
+#include "./centipede/stop.h"
 #include "./common/defs.h"
 
 namespace fuzztest::internal {
 
 // Tries to minimize `crashy_input`.
 // Uses `callbacks_factory` to create `env.num_threads` workers.
-// Returns EXIT_SUCCESS if at least one smaller crasher was found,
-// EXIT_FAILURE otherwise.
-// Also returns EXIT_FAILURE if the original input didn't crash.
-// Stores the newly found crashy inputs in
-// `WorkDir{env}.CrashReproducerDirPath()`.
-int MinimizeCrash(ByteSpan crashy_input, const Environment &env,
-                  CentipedeCallbacksFactory &callbacks_factory);
+// Requests to stop with EXIT_FAILURE using `stop_condition` if no smaller
+// crasher was found or if the original input didn't crash. Stores the newly
+// found crashy inputs in `WorkDir{env}.CrashReproducerDirPath()`.
+void MinimizeCrash(ByteSpan crashy_input, const Environment& env,
+                   CentipedeCallbacksFactory& callbacks_factory,
+                   StopCondition& stop_condition);
 
 }  // namespace fuzztest::internal
 

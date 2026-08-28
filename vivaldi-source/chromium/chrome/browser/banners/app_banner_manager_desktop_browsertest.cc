@@ -26,7 +26,6 @@
 #include "chrome/browser/ui/browser_command_controller.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/browser/ui/views/web_apps/web_app_dialog_test_support.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/ui/web_applications/web_app_dialog_utils.h"
 #include "chrome/browser/ui/web_applications/web_app_dialogs.h"
@@ -76,8 +75,10 @@ class AppBannerManagerDesktopBrowserTest
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
-  web_app::test::ScopedAutoAcceptWebAppDialogs
-      auto_accept_pwa_install_confirmation_;
+  base::AutoReset<web_app::InstallDialogTestResponse>
+      auto_accept_pwa_install_confirmation_{
+          web_app::SetPwaInstallationAutoRespondForTesting(
+              web_app::InstallDialogTestResponse::kAcceptAndLaunch)};
 };  // namespace webapps
 
 IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTest,
@@ -266,7 +267,7 @@ IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTest,
   if (IsPageActionMigrated(PageActionIconType::kPwaInstall)) {
     actions::ActionManager::Get().FindAction(kActionInstallPwa)->InvokeAction();
   } else {
-    browser()->window()->ExecutePageActionIconForTesting(
+    BrowserWindow::FromBrowser(browser())->ExecutePageActionIconForTesting(
         PageActionIconType::kPwaInstall);
   }
 
@@ -289,7 +290,7 @@ IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTest,
       web_app::CreateInstallOptions(GetBannerURL());
   options.install_source = web_app::ExternalInstallSource::kExternalPolicy;
   options.user_display_mode = web_app::mojom::UserDisplayMode::kBrowser;
-  web_app::ExternallyManagedAppManagerInstall(browser()->profile(), options);
+  web_app::ExternallyManagedAppManagerInstall(browser()->GetProfile(), options);
 
   // Run promotability check.
   {
@@ -311,7 +312,7 @@ IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTest,
   TestAppBannerManagerDesktop* manager =
       TestAppBannerManagerDesktop::FromWebContents(
           browser()->tab_strip_model()->GetActiveWebContents());
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
 
   // Install web app by policy.
   web_app::ExternalInstallOptions options =
@@ -439,7 +440,7 @@ IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTest,
           "/banners/manifest_display_override_contains_browser.json"));
   options.install_source = web_app::ExternalInstallSource::kExternalPolicy;
   options.user_display_mode = web_app::mojom::UserDisplayMode::kBrowser;
-  web_app::ExternallyManagedAppManagerInstall(browser()->profile(), options);
+  web_app::ExternallyManagedAppManagerInstall(browser()->GetProfile(), options);
 
   // Run promotability check.
   {

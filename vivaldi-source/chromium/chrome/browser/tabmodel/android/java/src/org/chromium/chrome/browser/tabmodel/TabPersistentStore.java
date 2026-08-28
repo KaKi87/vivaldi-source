@@ -9,6 +9,7 @@ import androidx.annotation.IntDef;
 import org.chromium.base.CallbackUtils;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.tab.TabStateAttributes;
 import org.chromium.chrome.browser.tabmodel.PersistentStoreMigrationManager.StoreType;
 
 import java.lang.annotation.Retention;
@@ -21,7 +22,7 @@ import java.lang.annotation.RetentionPolicy;
  * TabPersistentStore} instance is not available.
  */
 @NullMarked
-public interface TabPersistentStore {
+public interface TabPersistentStore extends TabStateAttributes.StoreKey {
     /** Alerted at various stages of operation. */
     interface TabPersistentStoreObserver {
         /**
@@ -225,4 +226,7 @@ public interface TabPersistentStore {
     /** Returns the type of store this instance represents. */
     @StoreType
     int getStoreType();
+
+    /** Returns the number of regular fallback tabs created during restoration. */
+    int getRegularFallbackTabCount();
 }

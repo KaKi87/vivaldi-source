@@ -10,6 +10,7 @@ import groovy.transform.SourceURI
 import org.gradle.api.DefaultTask
 import org.gradle.api.Project
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
 
@@ -30,6 +31,21 @@ import java.util.regex.Pattern
  * </pre>
  */
 class BuildConfigGenerator extends DefaultTask {
+
+    // Gradle 8+ deprecates accessing `Task.getProject()` at execution time (inside @TaskAction).
+    // Capturing `project` at configuration time (task construction) and overriding `getProject()`
+    // allows all `project.*` calls in this task to use the cached Project reference directly,
+    // avoiding DefaultTask's execution-time access checks and deprecation warnings. This is a hacky
+    // workaround, see
+    // https://docs.gradle.org/current/userguide/configuration_cache_requirements.html#config_cache:requirements:use_project_during_execution
+    // for what we "should" do.
+    private Project projectRef = project
+
+    @Override
+    @Internal
+    Project getProject() {
+        return projectRef ?: super.getProject()
+    }
 
     private static final String BUILD_GN_TOKEN_START = '# === Generated Code Start ==='
     private static final String BUILD_GN_TOKEN_END = '# === Generated Code End ==='
@@ -846,17 +862,6 @@ No modifications.
                     append('  # Reduce binary size. https:crbug.com/954584\n')
                     append('  ignore_proguard_configs = true\n')
                     append('  proguard_configs = ["material_design.flags"]\n')
-                    append('\n')
-                    append('  # Ensure ConstraintsLayout is not included by unused layouts:\n')
-                    append('  # https://crbug.com/1292510\n')
-                    // Keep in sync with the copy in fetch_all.py.
-                    append('  resource_exclusion_globs = [\n')
-                    append('      "res/layout*/*calendar*",\n')
-                    append('      "res/layout*/*chip_input*",\n')
-                    append('      "res/layout*/*clock*",\n')
-                    append('      "res/layout*/*picker*",\n')
-                    append('      "res/layout*/*time*",\n')
-                    append('  ]\n')
                 }
                 break
             case 'com_google_ar_core':

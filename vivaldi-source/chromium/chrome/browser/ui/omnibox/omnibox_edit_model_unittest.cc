@@ -18,6 +18,8 @@
 #include "base/test/task_environment.h"
 #include "build/build_config.h"
 #include "chrome/browser/contextual_search/contextual_search_service_factory.h"
+#include "chrome/browser/ui/contextual_search/searchbox_context_data.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/omnibox/chrome_omnibox_client.h"
 #include "chrome/browser/ui/omnibox/omnibox_controller.h"
 #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
@@ -27,7 +29,10 @@
 #include "chrome/browser/ui/omnibox/test_omnibox_edit_model.h"
 #include "chrome/browser/ui/omnibox/test_omnibox_popup_view.h"
 #include "chrome/browser/ui/omnibox/test_omnibox_view.h"
+#include "chrome/test/base/browser_with_test_window_test.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
+#include "components/sessions/content/session_tab_helper.h"
+#include "components/tabs/public/tab_interface.h"
 #include "components/contextual_search/contextual_search_metrics_recorder.h"
 #include "components/contextual_search/mock_contextual_search_service.h"
 #include "components/contextual_search/mock_contextual_search_session_handle.h"
@@ -157,17 +162,16 @@ class MockQueryContextualizer : public contextual_tasks::QueryContextualizer {
       : QueryContextualizer(service, delegate) {}
   ~MockQueryContextualizer() override = default;
 
-  void Contextualize(const TaskIdType& task_id,
-                     const std::string& query_text,
-                     const TabIdList& tabs_to_recontextualize,
-                     const TabIdList& tabs_to_force_contextualize,
-                     IneligibleCallback on_ineligible_callback,
-                     ProcessedCallback on_processed_callback,
-                     ContCallback callback,
-                     bool enable_smart_tab_selection) override {
-    MockContextualize(task_id, query_text, tabs_to_recontextualize,
-                      tabs_to_force_contextualize);
-    std::move(callback).Run(nullptr);
+  void Contextualize(contextual_tasks::QueryContextualizer::ContextualizeParams
+                         params) override {
+    std::vector<contextual_tasks::QueryContextualizer::TabId> force_tabs =
+        params.auto_suggested_chip_tabs;
+    if (force_tabs.empty()) {
+      force_tabs = params.tabs_for_contextual_searchbox_first_turn;
+    }
+    MockContextualize(params.task_id, params.query_text,
+                      params.tabs_to_recontextualize, force_tabs);
+    std::move(params.complete_callback).Run(nullptr);
   }
 
   MOCK_METHOD(void,
@@ -421,6 +425,38 @@ TEST_F(OmniboxEditModelTest, DisplayText) {
   EXPECT_FALSE(model()->ShouldShowCurrentPageIcon());
 }
 
+TEST_F(OmniboxEditModelTest, UnelideDoesNothingWhenUserActionInProgress) {
+  // Preamble to set the omnibox to a state similar to if the user navigated to
+  // https://www.example.com and the omnibox is showing the elided URL.
+  location_bar_model()->set_url(GURL("https://www.example.com/"));
+  location_bar_model()->set_url_for_display(u"example.com");
+  EXPECT_TRUE(model()->ResetDisplayTexts());
+  model()->Revert();
+  EXPECT_EQ(model()->GetPermanentDisplayText(), u"example.com");
+  EXPECT_EQ(view()->GetText(), u"example.com");
+
+  // Set `has_temporary_text_` to true to simulate user match selection.
+  model()->has_temporary_text_ = true;
+  EXPECT_FALSE(model()->user_input_in_progress_);
+
+  // Verify `Unelide()` does nothing.
+  EXPECT_FALSE(model()->Unelide());
+  EXPECT_EQ(view()->GetText(), u"example.com");
+
+  // Set `user_input_in_progress_` to true to simulate user input.
+  model()->has_temporary_text_ = false;
+  model()->user_input_in_progress_ = true;
+
+  // Verify `Unelide()` does nothing.
+  EXPECT_FALSE(model()->Unelide());
+  EXPECT_EQ(view()->GetText(), u"example.com");
+
+  // Clear both states and verify `Unelide()` unelides.
+  model()->user_input_in_progress_ = false;
+  EXPECT_TRUE(model()->Unelide());
+  EXPECT_EQ(view()->GetText(), u"https://www.example.com/");
+}
+
 TEST_F(OmniboxEditModelTest, UnelideDoesNothingWhenFullURLAlreadyShown) {
   location_bar_model()->set_url(GURL("https://www.example.com/"));
   location_bar_model()->set_url_for_display(u"https://www.example.com/");
@@ -431,7 +467,7 @@ TEST_F(OmniboxEditModelTest, UnelideDoesNothingWhenFullURLAlreadyShown) {
   EXPECT_EQ(u"https://www.example.com/", model()->GetPermanentDisplayText());
   EXPECT_TRUE(model()->CurrentTextIsURL());
 
-  // Verify Unelide does nothing.
+  // Verify `Unelide()` does nothing.
   EXPECT_FALSE(model()->Unelide());
   EXPECT_EQ(u"https://www.example.com/", view()->GetText());
   EXPECT_FALSE(model()->user_input_in_progress());
@@ -611,7 +647,6 @@ class OmniboxEditModelPopupTest : public ::testing::Test {
                 (override));
     MOCK_METHOD(void, OnMatchIconUpdated, (size_t), (override));
     MOCK_METHOD(void, OnContentsChanged, (), (override));
-    MOCK_METHOD(void, OnKeywordStateChanged, (bool), (override));
     MOCK_METHOD(void, OnCharTyped, (base::TimeTicks), (override));
   };
 
@@ -790,6 +825,29 @@ TEST_F(OmniboxEditModelPopupTest,
             test_case.input_text, true, &label_prefix_length);
     EXPECT_EQ(test_case.expected_label, label);
   }
+}
+
+TEST_F(OmniboxEditModelPopupTest,
+       GetPopupAccessibilityLabelForCurrentSelection_NullResultMessage) {
+  ACMatches matches;
+  AutocompleteMatch match(nullptr, 1000, false,
+                          AutocompleteMatchType::NULL_RESULT_MESSAGE);
+  match.contents = u"Disclaimer Text";
+  matches.push_back(match);
+
+  auto* result = &AutocompleteControllerPublishedResult();
+  result->AppendMatches(matches);
+
+  model()->SetPopupSelection(OmniboxPopupSelection(0));
+
+  int label_prefix_length = 0;
+  std::u16string label = model()->GetPopupAccessibilityLabelForCurrentSelection(
+      u"user input", true, &label_prefix_length);
+
+  // The label should contain the match contents "Disclaimer Text"
+  // rather than the user input "user input".
+  EXPECT_NE(label.find(u"Disclaimer Text"), std::u16string::npos);
+  EXPECT_EQ(label.find(u"user input"), std::u16string::npos);
 }
 
 TEST_F(OmniboxEditModelPopupTest, SetSelectedLineWithNoDefaultMatches) {
@@ -1557,7 +1615,7 @@ TEST_F(OmniboxEditModelTest, OmniboxEscapeHistogram) {
                               std::u16string(), std::u16string(),
                               KeywordState::kNone, std::u16string(), {});
 
-  EXPECT_TRUE(model()->HasTemporaryText());
+  EXPECT_TRUE(model()->has_temporary_text_);
   EXPECT_TRUE(controller()->IsPopupOpen());
   EXPECT_EQ(view()->GetText(), u"fake_temporary_text");
   EXPECT_TRUE(model()->user_input_in_progress());
@@ -1568,7 +1626,7 @@ TEST_F(OmniboxEditModelTest, OmniboxEscapeHistogram) {
     base::HistogramTester histogram_tester;
     EXPECT_TRUE(model()->OnEscapeKeyPressed());
     histogram_tester.ExpectUniqueSample("Omnibox.Escape", 1, 1);
-    EXPECT_FALSE(model()->HasTemporaryText());
+    EXPECT_FALSE(model()->has_temporary_text_);
     EXPECT_TRUE(controller()->IsPopupOpen());
     EXPECT_EQ(view()->GetText(), u"");
     EXPECT_TRUE(model()->user_input_in_progress());
@@ -1582,7 +1640,7 @@ TEST_F(OmniboxEditModelTest, OmniboxEscapeHistogram) {
     histogram_tester.ExpectUniqueSample("Omnibox.Escape", 2, 1);
     controller()->popup_state_manager()->SetPopupState(
         OmniboxPopupState::kNone);
-    EXPECT_FALSE(model()->HasTemporaryText());
+    EXPECT_FALSE(model()->has_temporary_text_);
     EXPECT_FALSE(controller()->IsPopupOpen());
     EXPECT_EQ(view()->GetText(), u"");
     EXPECT_TRUE(model()->user_input_in_progress());
@@ -1594,7 +1652,7 @@ TEST_F(OmniboxEditModelTest, OmniboxEscapeHistogram) {
     base::HistogramTester histogram_tester;
     EXPECT_TRUE(model()->OnEscapeKeyPressed());
     histogram_tester.ExpectUniqueSample("Omnibox.Escape", 3, 1);
-    EXPECT_FALSE(model()->HasTemporaryText());
+    EXPECT_FALSE(model()->has_temporary_text_);
     EXPECT_FALSE(controller()->IsPopupOpen());
     EXPECT_EQ(view()->GetText(), u"");
     EXPECT_FALSE(model()->user_input_in_progress());
@@ -1608,7 +1666,7 @@ TEST_F(OmniboxEditModelTest, OmniboxEscapeHistogram) {
     histogram_tester.ExpectUniqueSample("Omnibox.Escape", 5, 1);
     model()->OnKillFocus();  // `TestOmniboxEditModel` stubs the client which
                              // handles blurring the omnibox.
-    EXPECT_FALSE(model()->HasTemporaryText());
+    EXPECT_FALSE(model()->has_temporary_text_);
     EXPECT_FALSE(controller()->IsPopupOpen());
     EXPECT_EQ(view()->GetText(), u"");
     EXPECT_FALSE(model()->user_input_in_progress());
@@ -1682,9 +1740,6 @@ TEST_F(OmniboxEditModelTest, OpenTabMatch) {
 #endif  // !BUILDFLAG(IS_ANDROID)
 
 TEST_F(OmniboxEditModelTest, OpenAiModeTriggersContextualize) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeature(omnibox::kAiModeOmniboxEntryPoint);
-
   // Create a new model so it initializes QueryContextualizer. We inject our
   // mock contextualizer using the setter to verify interactions.
   auto mock_service =
@@ -1703,7 +1758,7 @@ TEST_F(OmniboxEditModelTest, OpenAiModeTriggersContextualize) {
 
   EXPECT_CALL(*mock_ptr, MockContextualize(_, "test query", _, _)).Times(1);
 
-  model()->OpenAiMode(/*via_keyboard=*/false, /*via_context_menu=*/false);
+  model()->OpenAiMode(OmniboxEditModel::AimActivation::kClickOrGesture);
 
   // Reset the mock contextualizer so it is destroyed before the local
   // mock_service and fake_delegate it points to.
@@ -1711,9 +1766,6 @@ TEST_F(OmniboxEditModelTest, OpenAiModeTriggersContextualize) {
 }
 
 TEST_F(OmniboxEditModelTest, OpenAiModeTriggersContextualizeWithoutService) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeature(omnibox::kAiModeOmniboxEntryPoint);
-
   // Inject our mock contextualizer with a null service.
   auto fake_delegate = std::make_unique<FakeQueryContextualizerDelegate>();
   auto mock_contextualizer =
@@ -1729,7 +1781,7 @@ TEST_F(OmniboxEditModelTest, OpenAiModeTriggersContextualizeWithoutService) {
 
   EXPECT_CALL(*mock_ptr, MockContextualize(_, "test query", _, _)).Times(1);
 
-  model()->OpenAiMode(/*via_keyboard=*/false, /*via_context_menu=*/false);
+  model()->OpenAiMode(OmniboxEditModel::AimActivation::kClickOrGesture);
 
   // Reset the mock contextualizer so it is destroyed before the local
   // fake_delegate it points to.
@@ -1806,32 +1858,59 @@ TEST_F(OmniboxEditModelPopupTest,
                          match_with_bitmap_bitmap->getColor(0, 0));
 }
 
-TEST_F(OmniboxEditModelPopupTest, KeywordStateObserver) {
-  TestObserver observer;
-  model()->AddObserver(&observer);
+TEST_F(OmniboxEditModelPopupTest,
+       MaybeGetPopupAccessibilityLabelForIPHSuggestion) {
+  ACMatches matches;
+  // Match 0: regular search match.
+  matches.push_back(AutocompleteMatch(nullptr, 1000, false,
+                                      AutocompleteMatchType::SEARCH_SUGGEST));
+  // Match 1: regular IPH tip.
+  AutocompleteMatch regular_iph(nullptr, 900, false,
+                                AutocompleteMatchType::NULL_RESULT_MESSAGE);
+  regular_iph.iph_type = IphType::kGemini;
+  regular_iph.contents = u"Chrome Tip";
+  matches.push_back(regular_iph);
+  // Match 2: regular search match.
+  matches.push_back(AutocompleteMatch(nullptr, 800, false,
+                                      AutocompleteMatchType::SEARCH_SUGGEST));
+  // Match 3: IPH disclaimer.
+  AutocompleteMatch disclaimer_iph(nullptr, 700, false,
+                                   AutocompleteMatchType::NULL_RESULT_MESSAGE);
+  disclaimer_iph.iph_type = IphType::kHistoryEmbeddingsDisclaimer;
+  disclaimer_iph.iph_link_url = GURL("chrome://settings");
+  disclaimer_iph.contents = u"Disclaimer Text";
+  matches.push_back(disclaimer_iph);
+  // Match 4: regular search match.
+  matches.push_back(AutocompleteMatch(nullptr, 600, false,
+                                      AutocompleteMatchType::SEARCH_SUGGEST));
+  // Match 5: IPH settings promo.
+  AutocompleteMatch settings_promo_iph(
+      nullptr, 500, false, AutocompleteMatchType::NULL_RESULT_MESSAGE);
+  settings_promo_iph.iph_type = IphType::kHistoryEmbeddingsSettingsPromo;
+  settings_promo_iph.iph_link_url = GURL("chrome://settings");
+  settings_promo_iph.contents = u"Settings Promo Text";
+  matches.push_back(settings_promo_iph);
 
-  auto changed = [this](std::u16string keyword, KeywordState keyword_state) {
-    model()->OnPopupDataChanged(std::u16string(), false, std::u16string(),
-                                keyword, std::u16string(), keyword_state,
-                                std::u16string(), {});
-  };
+  auto* result = &AutocompleteControllerPublishedResult();
+  result->AppendMatches(matches);
 
-  // Keyword hint is not fully in keyword mode, so state is false.
-  EXPECT_CALL(observer, OnKeywordStateChanged(false));
-  changed(u"keyword", KeywordState::kHint);
-  testing::Mock::VerifyAndClearExpectations(&observer);
+  // When selection is on match 0 (preceding regular IPH tip), it should append
+  // the IPH accessibility label.
+  model()->SetPopupSelection(OmniboxPopupSelection(0));
+  EXPECT_FALSE(
+      model()->MaybeGetPopupAccessibilityLabelForIPHSuggestion().empty());
 
-  // Entering keyword mode (not hint) sets state to true.
-  EXPECT_CALL(observer, OnKeywordStateChanged(true));
-  changed(u"keyword", KeywordState::kKeyword);
-  testing::Mock::VerifyAndClearExpectations(&observer);
+  // When selection is on match 2 (preceding IPH disclaimer), it should return
+  // empty string so the disclaimer is not appended.
+  model()->SetPopupSelection(OmniboxPopupSelection(2));
+  EXPECT_TRUE(
+      model()->MaybeGetPopupAccessibilityLabelForIPHSuggestion().empty());
 
-  // State is false when out of keyword mode.
-  EXPECT_CALL(observer, OnKeywordStateChanged(false));
-  changed(u"", KeywordState::kNone);
-  testing::Mock::VerifyAndClearExpectations(&observer);
-
-  model()->RemoveObserver(&observer);
+  // When selection is on match 4 (preceding IPH settings promo), it should
+  // return empty string so the promo is not appended.
+  model()->SetPopupSelection(OmniboxPopupSelection(4));
+  EXPECT_TRUE(
+      model()->MaybeGetPopupAccessibilityLabelForIPHSuggestion().empty());
 }
 
 TEST_F(OmniboxEditModelPopupTest, AimPopupDisabled) {
@@ -1840,7 +1919,7 @@ TEST_F(OmniboxEditModelPopupTest, AimPopupDisabled) {
   EXPECT_CALL(*client(), IsAimPopupEnabled()).WillRepeatedly(Return(false));
   EXPECT_CALL(*client(), OpenUrl(_, _)).Times(1);
 
-  model()->OpenAiMode(/*via_keyboard=*/true, /*via_context_menu=*/false);
+  model()->OpenAiMode(OmniboxEditModel::AimActivation::kKeyboard);
 
   histogram_tester.ExpectBucketCount(
       "Omnibox.AimEntrypoint.Activated.ViaKeyboard", true, 1);
@@ -1856,7 +1935,7 @@ TEST_F(OmniboxEditModelPopupTest, AimPopupEnabledNavigationFallback) {
 
   model()->SetUserText(u"query");  // User input in progress.
 
-  model()->OpenAiMode(/*via_keyboard=*/true, /*via_context_menu=*/false);
+  model()->OpenAiMode(OmniboxEditModel::AimActivation::kKeyboard);
 
   histogram_tester.ExpectBucketCount(
       "Omnibox.AimEntrypoint.Activated.ViaKeyboard", true, 1);
@@ -1870,15 +1949,103 @@ TEST_F(OmniboxEditModelPopupTest, AimPopupEnabledPopupOpened) {
   EXPECT_CALL(*client(), IsAimPopupEnabled()).WillRepeatedly(Return(true));
   EXPECT_CALL(*client(), OpenUrl(_, _)).Times(0);
 
-  model()->OpenAiMode(/*via_keyboard=*/true, /*via_context_menu=*/true);
+  model()->OpenAiMode(OmniboxEditModel::AimActivation::kContextMenu);
 
   EXPECT_EQ(OmniboxPopupState::kAim,
             controller()->popup_state_manager()->popup_state());
 
   histogram_tester.ExpectBucketCount(
-      "Omnibox.AimEntrypoint.Activated.ViaKeyboard", true, 1);
+      "Omnibox.AimEntrypoint.Activated.ViaKeyboard", false, 1);
   histogram_tester.ExpectBucketCount(
       "Omnibox.AimEntrypoint.Activated.UserTextPresent", false, 1);
+}
+
+TEST_F(OmniboxEditModelPopupTest, RecordAiModeMetrics_ThirdParty) {
+  auto* service = client()->GetAiModeButtonService();
+  EXPECT_CALL(*client(), IsAimPopupEnabled()).WillRepeatedly(Return(true));
+  EXPECT_CALL(*client(), OpenUrl(_, _)).WillRepeatedly(Return());
+
+  // Test google config.
+  {
+    AiModeButtonUiConfig google_config(
+        SearchEngineType::SEARCH_ENGINE_GOOGLE, u"AI Mode", u"Google",
+        /*favicon_url=*/"", /*navigation_url=*/"",
+        /*navigation_url_empty=*/"");
+    service->current_ui_config_ = google_config;
+
+    base::HistogramTester histogram_tester;
+    model()->RecordAiModeMetrics(u"",
+                                 OmniboxEditModel::AimActivation::kKeyboard);
+
+    // Verify base metrics are recorded.
+    histogram_tester.ExpectBucketCount(
+        "Omnibox.AimEntrypoint.Activated.ViaKeyboard", true, 1);
+    histogram_tester.ExpectBucketCount(
+        "Omnibox.AimEntrypoint.Activated.UserTextPresent", false, 1);
+    histogram_tester.ExpectBucketCount("Omnibox.AimEntrypoint.Shown", false, 1);
+    histogram_tester.ExpectBucketCount(
+        "Omnibox.AimEntrypoint.Shown.ByPageContext.OTHER", false, 1);
+
+    // Verify Google sliced metrics are recorded.
+    histogram_tester.ExpectBucketCount(
+        "Omnibox.AimEntrypoint.Activated.ViaKeyboard.google", true, 1);
+    histogram_tester.ExpectBucketCount(
+        "Omnibox.AimEntrypoint.Activated.UserTextPresent.google", false, 1);
+    histogram_tester.ExpectBucketCount("Omnibox.AimEntrypoint.Shown.google",
+                                       false, 1);
+    histogram_tester.ExpectBucketCount(
+        "Omnibox.AimEntrypoint.Shown.ByPageContext.OTHER.google", false, 1);
+
+    // Verify 3P sliced metrics are NOT recorded.
+    histogram_tester.ExpectTotalCount(
+        "Omnibox.AimEntrypoint.Activated.ViaKeyboard.3p", 0);
+    histogram_tester.ExpectTotalCount(
+        "Omnibox.AimEntrypoint.Activated.UserTextPresent.3p", 0);
+    histogram_tester.ExpectTotalCount("Omnibox.AimEntrypoint.Shown.3p", 0);
+    histogram_tester.ExpectTotalCount(
+        "Omnibox.AimEntrypoint.Shown.ByPageContext.OTHER.3p", 0);
+  }
+
+  // Test 3P config.
+  {
+    AiModeButtonUiConfig third_party_config(
+        SearchEngineType::SEARCH_ENGINE_YAHOO, u"Yahoo AI", u"Yahoo",
+        /*favicon_url=*/"", /*navigation_url=*/"",
+        /*navigation_url_empty=*/"");
+    service->current_ui_config_ = third_party_config;
+
+    base::HistogramTester histogram_tester;
+    model()->RecordAiModeMetrics(u"",
+                                 OmniboxEditModel::AimActivation::kKeyboard);
+
+    // Verify base metrics are recorded.
+    histogram_tester.ExpectBucketCount(
+        "Omnibox.AimEntrypoint.Activated.ViaKeyboard", true, 1);
+    histogram_tester.ExpectBucketCount(
+        "Omnibox.AimEntrypoint.Activated.UserTextPresent", false, 1);
+    histogram_tester.ExpectBucketCount("Omnibox.AimEntrypoint.Shown", false, 1);
+    histogram_tester.ExpectBucketCount(
+        "Omnibox.AimEntrypoint.Shown.ByPageContext.OTHER", false, 1);
+
+    // Verify Google sliced metrics are recorded.
+    histogram_tester.ExpectBucketCount(
+        "Omnibox.AimEntrypoint.Activated.ViaKeyboard.3p", true, 1);
+    histogram_tester.ExpectBucketCount(
+        "Omnibox.AimEntrypoint.Activated.UserTextPresent.3p", false, 1);
+    histogram_tester.ExpectBucketCount("Omnibox.AimEntrypoint.Shown.3p", false,
+                                       1);
+    histogram_tester.ExpectBucketCount(
+        "Omnibox.AimEntrypoint.Shown.ByPageContext.OTHER.3p", false, 1);
+
+    // Verify 3P sliced metrics are NOT recorded.
+    histogram_tester.ExpectTotalCount(
+        "Omnibox.AimEntrypoint.Activated.ViaKeyboard.google", 0);
+    histogram_tester.ExpectTotalCount(
+        "Omnibox.AimEntrypoint.Activated.UserTextPresent.google", 0);
+    histogram_tester.ExpectTotalCount("Omnibox.AimEntrypoint.Shown.google", 0);
+    histogram_tester.ExpectTotalCount(
+        "Omnibox.AimEntrypoint.Shown.ByPageContext.OTHER.google", 0);
+  }
 }
 
 TEST_F(OmniboxEditModelPopupTest, AimPopupEnabled_ForcedNavigationDisabled) {
@@ -1889,13 +2056,13 @@ TEST_F(OmniboxEditModelPopupTest, AimPopupEnabled_ForcedNavigationDisabled) {
   EXPECT_CALL(*client(), OpenUrl(_, _)).Times(0);
 
   controller()->popup_state_manager()->SetPopupState(OmniboxPopupState::kNone);
-  model()->OpenAiMode(/*via_keyboard=*/true, /*via_context_menu=*/true);
+  model()->OpenAiMode(OmniboxEditModel::AimActivation::kContextMenu);
 
   EXPECT_EQ(OmniboxPopupState::kAim,
             controller()->popup_state_manager()->popup_state());
 
   controller()->popup_state_manager()->SetPopupState(OmniboxPopupState::kNone);
-  model()->OpenAiMode(/*via_keyboard=*/true, /*via_context_menu=*/false);
+  model()->OpenAiMode(OmniboxEditModel::AimActivation::kKeyboard);
 
   EXPECT_EQ(OmniboxPopupState::kAim,
             controller()->popup_state_manager()->popup_state());
@@ -1912,7 +2079,7 @@ TEST_F(OmniboxEditModelPopupTest, AimPopupEnabled_ForcedNavigationEnabled) {
   EXPECT_CALL(*client(), OpenUrl(_, _)).Times(1);
 
   model()->SetUserText(u"query");
-  model()->OpenAiMode(/*via_keyboard=*/true, /*via_context_menu=*/false);
+  model()->OpenAiMode(OmniboxEditModel::AimActivation::kKeyboard);
 
   EXPECT_EQ(OmniboxPopupState::kNone,
             controller()->popup_state_manager()->popup_state());
@@ -1929,7 +2096,7 @@ TEST_F(OmniboxEditModelPopupTest, AimPopupEnabled_ForcedNavigationEnabled) {
   EXPECT_CALL(*client(), IsAimPopupEnabled()).WillRepeatedly(Return(true));
   EXPECT_CALL(*client(), OpenUrl(_, _)).Times(0);
 
-  model()->OpenAiMode(/*via_keyboard=*/true, /*via_context_menu=*/true);
+  model()->OpenAiMode(OmniboxEditModel::AimActivation::kContextMenu);
 
   EXPECT_EQ(OmniboxPopupState::kAim,
             controller()->popup_state_manager()->popup_state());
@@ -1945,7 +2112,7 @@ TEST_F(OmniboxEditModelPopupTest, AiModeButtonClickNtpOmnibox) {
   EXPECT_CALL(*client(), IsAimPopupEnabled()).WillRepeatedly(Return(true));
   EXPECT_CALL(*client(), OpenUrl(_, _)).Times(0);
 
-  model()->OpenAiMode(/*via_keyboard=*/false, /*via_context_menu=*/false);
+  model()->OpenAiMode(OmniboxEditModel::AimActivation::kClickOrGesture);
 
   EXPECT_EQ(OmniboxPopupState::kAim,
             controller()->popup_state_manager()->popup_state());
@@ -1956,7 +2123,7 @@ TEST_F(OmniboxEditModelPopupTest, AiModeButtonClickNtpOmnibox) {
   histogram_tester.ExpectUniqueSample(
       "ContextualSearch.AiModeButtonClick.NtpOmnibox", true, 1);
 
-  model()->OpenAiMode(/*via_keyboard=*/false, /*via_context_menu=*/true);
+  model()->OpenAiMode(OmniboxEditModel::AimActivation::kContextMenu);
 
   EXPECT_EQ(user_action_tester.GetActionCount(
                 "ContextualSearch.AiModeButtonClick.NtpOmnibox"),
@@ -1976,7 +2143,7 @@ TEST_F(OmniboxEditModelPopupTest, AiModeButtonClickSrpOmnibox) {
   EXPECT_CALL(*client(), IsAimPopupEnabled()).WillRepeatedly(Return(true));
   EXPECT_CALL(*client(), OpenUrl(_, _)).Times(0);
 
-  model()->OpenAiMode(/*via_keyboard=*/true, /*via_context_menu=*/false);
+  model()->OpenAiMode(OmniboxEditModel::AimActivation::kKeyboard);
 
   EXPECT_EQ(OmniboxPopupState::kAim,
             controller()->popup_state_manager()->popup_state());
@@ -1987,7 +2154,7 @@ TEST_F(OmniboxEditModelPopupTest, AiModeButtonClickSrpOmnibox) {
   histogram_tester.ExpectUniqueSample(
       "ContextualSearch.AiModeButtonClick.SrpOmnibox", true, 1);
 
-  model()->OpenAiMode(/*via_keyboard=*/true, /*via_context_menu=*/true);
+  model()->OpenAiMode(OmniboxEditModel::AimActivation::kContextMenu);
 
   EXPECT_EQ(user_action_tester.GetActionCount(
                 "ContextualSearch.AiModeButtonClick.SrpOmnibox"),
@@ -2006,7 +2173,7 @@ TEST_F(OmniboxEditModelPopupTest, AiModeButtonClickWebOmnibox) {
   EXPECT_CALL(*client(), IsAimPopupEnabled()).WillRepeatedly(Return(true));
   EXPECT_CALL(*client(), OpenUrl(_, _)).Times(0);
 
-  model()->OpenAiMode(/*via_keyboard=*/true, /*via_context_menu=*/false);
+  model()->OpenAiMode(OmniboxEditModel::AimActivation::kKeyboard);
 
   EXPECT_EQ(OmniboxPopupState::kAim,
             controller()->popup_state_manager()->popup_state());
@@ -2017,7 +2184,7 @@ TEST_F(OmniboxEditModelPopupTest, AiModeButtonClickWebOmnibox) {
   histogram_tester.ExpectUniqueSample(
       "ContextualSearch.AiModeButtonClick.WebOmnibox", true, 1);
 
-  model()->OpenAiMode(/*via_keyboard=*/true, /*via_context_menu=*/true);
+  model()->OpenAiMode(OmniboxEditModel::AimActivation::kContextMenu);
 
   EXPECT_EQ(user_action_tester.GetActionCount(
                 "ContextualSearch.AiModeButtonClick.WebOmnibox"),
@@ -2042,7 +2209,6 @@ class ResultClearingObserver : public OmniboxEditModel::Observer {
     // This invalidates any references to matches in the result.
     result_->Reset();
   }
-  void OnKeywordStateChanged(bool) override {}
   void OnCharTyped(base::TimeTicks timestamp) override {}
 
  private:
@@ -2170,18 +2336,39 @@ TEST_F(OmniboxEditModelPopupTest, OpenFeaturedSearchMatch) {
   EXPECT_FALSE(model()->is_keyword_hint());
 }
 
+TEST_F(OmniboxEditModelTest, NavigateToThirdPartyAiMode) {
+  // Setup testing config.
+  AiModeButtonUiConfig test_config(
+      SearchEngineType::SEARCH_ENGINE_YAHOO, u"Yahoo AI", u"Yahoo",
+      "https://url.com/favicon.ico", "https://url.com/search?p={searchTerms}",
+      "https://url-empty.com");
+  client()->GetAiModeButtonService()->current_ui_config_ = test_config;
+
+  // Test with query.
+  EXPECT_CALL(*client(), OpenUrl(GURL("https://url.com/search?p=query"),
+                                 WindowOpenDisposition::CURRENT_TAB))
+      .Times(1);
+  model()->NavigateToThirdPartyAiMode(u"query");
+
+  // Test without query.
+  EXPECT_CALL(*client(), OpenUrl(GURL("https://url-empty.com"),
+                                 WindowOpenDisposition::CURRENT_TAB))
+      .Times(1);
+  model()->NavigateToThirdPartyAiMode(u"");
+}
+
 class OmniboxEditModelContextualSearchTest
-    : public ChromeRenderViewHostTestHarness {
+    : public BrowserWithTestWindowTest {
  public:
   OmniboxEditModelContextualSearchTest() = default;
   ~OmniboxEditModelContextualSearchTest() override = default;
 
   void SetUp() override {
-    ChromeRenderViewHostTestHarness::SetUp();
+    BrowserWithTestWindowTest::SetUp();
 
     // Create the ChromeOmniboxClient.
     auto omnibox_client = std::make_unique<ChromeOmniboxClient>(
-        /*location_bar=*/nullptr, /*browser=*/nullptr, profile());
+        /*location_bar=*/nullptr, browser(), profile());
 
     // Create the OmniboxController.
     controller_ =
@@ -2197,7 +2384,7 @@ class OmniboxEditModelContextualSearchTest
   void TearDown() override {
     model_ = nullptr;
     controller_.reset();
-    ChromeRenderViewHostTestHarness::TearDown();
+    BrowserWithTestWindowTest::TearDown();
   }
 
   TestOmniboxEditModel* model() { return model_; }
@@ -2210,9 +2397,6 @@ class OmniboxEditModelContextualSearchTest
 
 TEST_F(OmniboxEditModelContextualSearchTest,
        NavigateToAiModeWithSessionCreatesSearchUrl) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeature(omnibox::kAiModeOmniboxEntryPoint);
-
   auto session_handle =
       std::make_unique<contextual_search::MockContextualSearchSessionHandle>();
   EXPECT_CALL(*session_handle, CreateSearchUrl(_, _)).Times(1);
@@ -2225,9 +2409,6 @@ TEST_F(OmniboxEditModelContextualSearchTest,
 
 TEST_F(OmniboxEditModelContextualSearchTest,
        NavigateToAiModeWithNullSessionCreatesSessionHandleAndSearchUrl) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeature(omnibox::kAiModeOmniboxEntryPoint);
-
   // Set the testing factory for ContextualSearchService.
   ContextualSearchServiceFactory::GetInstance()->SetTestingFactory(
       profile(), base::BindRepeating([](content::BrowserContext* context)
@@ -2265,4 +2446,54 @@ TEST_F(OmniboxEditModelContextualSearchTest,
   model()
       ->NavigateToAiModeWithContextualizerOnContextualizationCompleteForTesting(
           u"test query", WindowOpenDisposition::CURRENT_TAB, nullptr);
+}
+
+TEST_F(OmniboxEditModelTest, OpenComposeboxForAskG) {
+  EXPECT_NE(controller()->popup_state_manager()->popup_state(),
+            OmniboxPopupState::kAim);
+
+  model()->OpenComposeboxForAskG();
+
+  EXPECT_EQ(controller()->popup_state_manager()->popup_state(),
+            OmniboxPopupState::kAim);
+}
+
+TEST_F(OmniboxEditModelContextualSearchTest,
+       OpenComposeboxForAskGPopulatesContext) {
+  const GURL expected_url("https://example.com/test-page");
+  AddTab(browser(), expected_url);
+
+  content::WebContents* web_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(web_contents);
+
+  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  ASSERT_TRUE(tab);
+  int32_t expected_tab_handle = tab->GetHandle().raw_value();
+  SessionID session_id = sessions::SessionTabHelper::IdForTab(web_contents);
+
+  // Trigger the AskG flow.
+  model()->OpenComposeboxForAskG();
+
+  // Verify the popup state is correct.
+  EXPECT_EQ(controller()->popup_state_manager()->popup_state(),
+            OmniboxPopupState::kAim);
+
+  // Verify context was populated correctly with TabHandle (not SessionID).
+  SearchboxContextData* context_data =
+      browser()->GetFeatures().searchbox_context_data();
+  ASSERT_TRUE(context_data);
+
+  std::unique_ptr<SearchboxContextData::Context> context =
+      context_data->TakePendingContext();
+  ASSERT_TRUE(context);
+  ASSERT_EQ(context->file_infos.size(), 1u);
+
+  const auto& attachment = context->file_infos[0];
+  ASSERT_TRUE(attachment->is_tab_attachment());
+
+  const auto& tab_attachment = attachment->get_tab_attachment();
+  EXPECT_EQ(tab_attachment->tab_id, expected_tab_handle);
+  EXPECT_NE(tab_attachment->tab_id, session_id.id());
+  EXPECT_EQ(tab_attachment->url, expected_url);
 }

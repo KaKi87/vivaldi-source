@@ -17,7 +17,7 @@
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "components/zoom/zoom_controller.h"
-#include "extensions/api/bookmarks/bookmarks_private_api.h"
+#include "extensions/api/bookmarks_private/bookmarks_private_api.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/extension_function.h"
 #include "extensions/browser/extension_function_dispatcher.h"

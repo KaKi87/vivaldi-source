@@ -264,8 +264,8 @@ public class CustomTabActivity extends BaseCustomTabActivity {
             // Vivaldi AUTO-344: Skip on AAOS. setDecorFitsSystemWindows(false)
             // shifts layout behind the status bar, causing a touch offset.
             if (!DeviceInfo.isAutomotive()) {
-                ImmersiveModeController cinemaModeController = new ImmersiveModeController(
-                        this, getWindowAndroid(), getLifecycleDispatcher());
+                ImmersiveModeController cinemaModeController = new ImmersiveModeController(this,
+                        getWindowAndroid(), getEdgeToEdgeStateProvider(), getLifecycleDispatcher());
                 cinemaModeController.enterImmersiveMode(
                         0 /* LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT */, true /* sticky */);
             }

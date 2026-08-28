@@ -99,6 +99,12 @@ message DeviceInfoSpecifics {
   // The form factor of the device.
   optional SyncEnums.DeviceFormFactor device_form_factor = 20;
 
+  // Prefix of the android.os.Build.FINGERPRINT (until the first colon).
+  optional string android_os_build_fingerprint_prefix = 21;
+
+  // A name determined by the server that can be used to personalize the device.
+  optional string server_determined_model_name = 22;
+
   optional int64 vivaldi_total_synced_files_size = 10000;
 }
 
@@ -167,8 +173,8 @@ message SharingSpecificFields {
     UNKNOWN = 0;
     SMS_FETCHER = 3;
     REMOTE_COPY = 4;
-    // Supports Click to Call via sender ID.
-    CLICK_TO_CALL_V2 = 7;
+    reserved 7;
+    reserved "CLICK_TO_CALL_V2";
     // Supports Shared Clipboard via sender ID.
     SHARED_CLIPBOARD_V2 = 8;
     // Supports optimization guide push notification.

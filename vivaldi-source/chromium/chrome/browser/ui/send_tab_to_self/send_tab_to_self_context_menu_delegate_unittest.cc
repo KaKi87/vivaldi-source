@@ -11,6 +11,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/send_tab_to_self/send_tab_to_self_page_handler.h"
@@ -20,6 +21,7 @@
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/send_tab_to_self/fake_send_tab_to_self_model.h"
 #include "components/send_tab_to_self/features.h"
+#include "components/send_tab_to_self/metrics_util.h"
 #include "components/send_tab_to_self/send_tab_to_self_model.h"
 #include "components/send_tab_to_self/send_tab_to_self_sync_service.h"
 #include "components/send_tab_to_self/stub_send_tab_to_self_sync_service.h"
@@ -84,7 +86,8 @@ TEST_F(SendTabToSelfContextMenuDelegateTest, GetDevicesForDisplayLimitsToFive) {
   }
   model()->SetTargetDeviceInfoSortedList(devices);
 
-  SendTabToSelfContextMenuDelegate delegate(web_contents());
+  SendTabToSelfContextMenuDelegate delegate(web_contents(),
+                                            ShareEntryPoint::kContentMenu);
   ui::SimpleMenuModel menu_model(&delegate);
   delegate.PopulateSubmenu(&menu_model);
 
@@ -112,7 +115,8 @@ TEST_F(SendTabToSelfContextMenuDelegateTest, ExecuteCommandSendsToDevice) {
       web_contents()->GetController().GetLastCommittedEntry();
   web_contents()->UpdateTitleForEntry(entry, kExampleTitle);
 
-  SendTabToSelfContextMenuDelegate delegate(web_contents());
+  SendTabToSelfContextMenuDelegate delegate(web_contents(),
+                                            ShareEntryPoint::kContentMenu);
   ui::SimpleMenuModel menu_model(&delegate);
   delegate.PopulateSubmenu(&menu_model);
 
@@ -126,6 +130,68 @@ TEST_F(SendTabToSelfContextMenuDelegateTest, ExecuteCommandSendsToDevice) {
   EXPECT_EQ(sent_entry->GetTitle(), base::UTF16ToUTF8(kExampleTitle));
 }
 
+// Tests that ExecuteCommand uses the target URL and target title passed to the
+// constructor when sending to a device (e.g., when right-clicking a hyperlink).
+TEST_F(SendTabToSelfContextMenuDelegateTest,
+       ExecuteCommandSendsTargetUrlAndTitleWhenProvided) {
+  base::Time now = base::Time::Now();
+  std::vector<TargetDeviceInfo> devices;
+  devices.emplace_back("Device 0", "guid0",
+                       syncer::DeviceInfo::FormFactor::kDesktop, now);
+  model()->SetTargetDeviceInfoSortedList(devices);
+
+  const GURL kPageUrl("https://example.com/page");
+  const GURL kLinkUrl("https://example.com/link");
+  const std::string kLinkTitle = "Link Anchor Text";
+  NavigateAndCommit(kPageUrl);
+
+  SendTabToSelfContextMenuDelegate delegate(
+      web_contents(), ShareEntryPoint::kLinkMenu, kLinkUrl, kLinkTitle);
+  ui::SimpleMenuModel menu_model(&delegate);
+  delegate.PopulateSubmenu(&menu_model);
+
+  delegate.ExecuteCommand(IDC_CONTENT_CONTEXT_SEND_TAB_TO_SELF_DEVICE1, 0);
+
+  std::vector<std::string> guids = model()->GetAllGuids();
+  ASSERT_EQ(guids.size(), 1u);
+  const SendTabToSelfEntry* sent_entry = model()->GetEntryByGUID(guids[0]);
+  EXPECT_EQ(sent_entry->GetTargetDeviceSyncCacheGuid(), "guid0");
+  EXPECT_EQ(sent_entry->GetURL(), kLinkUrl);
+  EXPECT_EQ(sent_entry->GetTitle(), kLinkTitle);
+}
+
+// Tests that when target title is empty, the delegate falls back to the parent
+// web contents page title during ExecuteCommand.
+TEST_F(SendTabToSelfContextMenuDelegateTest,
+       ExecuteCommandSendsTitleFallbackWhenTitleEmpty) {
+  base::Time now = base::Time::Now();
+  std::vector<TargetDeviceInfo> devices;
+  devices.emplace_back("Device 0", "guid0",
+                       syncer::DeviceInfo::FormFactor::kDesktop, now);
+  model()->SetTargetDeviceInfoSortedList(devices);
+
+  const GURL kPageUrl("https://example.com/page");
+  const std::u16string kPageTitle = u"Page Title";
+  const GURL kLinkUrl("https://example.com/link");
+  NavigateAndCommit(kPageUrl);
+  content::NavigationEntry* entry =
+      web_contents()->GetController().GetLastCommittedEntry();
+  web_contents()->UpdateTitleForEntry(entry, kPageTitle);
+
+  SendTabToSelfContextMenuDelegate delegate(
+      web_contents(), ShareEntryPoint::kLinkMenu, kLinkUrl);
+  ui::SimpleMenuModel menu_model(&delegate);
+  delegate.PopulateSubmenu(&menu_model);
+
+  delegate.ExecuteCommand(IDC_CONTENT_CONTEXT_SEND_TAB_TO_SELF_DEVICE1, 0);
+
+  std::vector<std::string> guids = model()->GetAllGuids();
+  ASSERT_EQ(guids.size(), 1u);
+  const SendTabToSelfEntry* sent_entry = model()->GetEntryByGUID(guids[0]);
+  EXPECT_EQ(sent_entry->GetURL(), kLinkUrl);
+  EXPECT_EQ(sent_entry->GetTitle(), base::UTF16ToUTF8(kPageTitle));
+}
+
 // Tests that PopulateSubmenu correctly adds the device items and the "Manage
 // Devices" item to the menu model.
 TEST_F(SendTabToSelfContextMenuDelegateTest,
@@ -136,7 +202,8 @@ TEST_F(SendTabToSelfContextMenuDelegateTest,
                        syncer::DeviceInfo::FormFactor::kDesktop, now);
   model()->SetTargetDeviceInfoSortedList(devices);
 
-  SendTabToSelfContextMenuDelegate delegate(web_contents());
+  SendTabToSelfContextMenuDelegate delegate(web_contents(),
+                                            ShareEntryPoint::kContentMenu);
   ui::SimpleMenuModel menu_model(&delegate);
   delegate.PopulateSubmenu(&menu_model);
 
@@ -147,6 +214,30 @@ TEST_F(SendTabToSelfContextMenuDelegateTest,
   EXPECT_EQ(menu_model.GetTypeAt(1), ui::MenuModel::TYPE_SEPARATOR);
   EXPECT_EQ(menu_model.GetCommandIdAt(2),
             IDC_CONTENT_CONTEXT_SEND_TAB_TO_SELF_MANAGE_DEVICES);
+}
+
+// Tests that OnMenuWillShow correctly records device count metrics.
+TEST_F(SendTabToSelfContextMenuDelegateTest, OnMenuWillShowRecordsMetrics) {
+  base::Time now = base::Time::Now();
+  std::vector<TargetDeviceInfo> devices;
+  devices.emplace_back("Device 0", "guid0",
+                       syncer::DeviceInfo::FormFactor::kDesktop, now);
+  devices.emplace_back("Device 1", "guid1",
+                       syncer::DeviceInfo::FormFactor::kDesktop, now);
+  model()->SetTargetDeviceInfoSortedList(devices);
+
+  base::HistogramTester histogram_tester;
+
+  SendTabToSelfContextMenuDelegate delegate(web_contents(),
+                                            ShareEntryPoint::kContentMenu);
+  ui::SimpleMenuModel menu_model(&delegate);
+  delegate.PopulateSubmenu(&menu_model);
+
+  delegate.OnMenuWillShow(&menu_model);
+
+  histogram_tester.ExpectUniqueSample(
+      "Sharing.SendTabToSelf.TargetDeviceCount",
+      static_cast<int>(SendTabToSelfDeviceCount::kTwoDevices), 1);
 }
 }  // namespace
 

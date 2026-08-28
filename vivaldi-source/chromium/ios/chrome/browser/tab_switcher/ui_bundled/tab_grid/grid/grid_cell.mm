@@ -45,29 +45,6 @@ const CGFloat kIndicatorScale = 0.75;
 // Inset between the snapshot view and the cell.
 const CGFloat kSnapshotInset = 4.0f;
 
-// Frame-based layout utilities for GridTransitionCell.
-// Scales the size of `view`'s frame by `factor` in both height and width. This
-// scaling is done by changing the frame size without changing its origin,
-// unlike a scale transform which scales around the view's center.
-void ScaleView(UIView* view, CGFloat factor) {
-  if (!view) {
-    return;
-  }
-  CGRect frame = view.frame;
-  frame.size.width *= factor;
-  frame.size.height *= factor;
-  view.frame = frame;
-}
-
-// Positions `view` by setting its frame's origin to `point`.
-void PositionView(UIView* view, CGPoint point) {
-  if (!view) {
-    return;
-  }
-  CGRect frame = view.frame;
-  frame.origin = point;
-  view.frame = frame;
-}
 
 // Returns the accessibility identifier to set on a GridCell when positioned at
 // the given index.
@@ -86,17 +63,6 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 
 @interface GridCell ()
 
-// The constraints enabled under accessibility font size.
-@property(nonatomic, strong)
-    NSArray<NSLayoutConstraint*>* accessibilityConstraints;
-// The constraints enabled under normal font size.
-@property(nonatomic, strong)
-    NSArray<NSLayoutConstraint*>* nonAccessibilityConstraints;
-// The constraints enabled while showing the close icon.
-@property(nonatomic, strong) NSArray<NSLayoutConstraint*>* closeIconConstraints;
-// The constraints enabled while showing the selection icon.
-@property(nonatomic, strong)
-    NSArray<NSLayoutConstraint*>* selectIconConstraints;
 // Header height of the cell.
 @property(nonatomic, strong) NSLayoutConstraint* topBarHeightConstraint;
 // Visual components of the cell.
@@ -125,6 +91,10 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 @property(nonatomic, strong) UIView* groupingBackgroundView;
 // Dimming view over the cell contents while cell is highlighted.
 @property(nonatomic, strong) UIView* dimmingView;
+// The trait change registration object for system trait changes.
+@property(nonatomic, strong) id<UITraitChangeRegistration> traitRegistration;
+// The window scene that the trait change registration is registered on.
+@property(nonatomic, weak) UIWindowScene* registeredWindowScene;
 
 // Vivaldi
 // Whether or not the cell is currently displaying is the selected or
@@ -138,6 +108,17 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 @implementation GridCell {
   // YES if the cell is currently highlighted.
   BOOL _highlighted;
+  // Width and height constraints for `iconView`, updated on accessibility font
+  // size changes.
+  NSLayoutConstraint* _iconViewWidthConstraint;
+  NSLayoutConstraint* _iconViewHeightConstraint;
+  // Leading constraint for `titleLabel`, constant updated to 0 in accessibility
+  // mode.
+  NSLayoutConstraint* _titleLabelLeadingConstraint;
+  // Trailing constraints for `titleLabel` to `closeIconView` and
+  // `selectIconView`, activated/deactivated depending on selection mode.
+  NSLayoutConstraint* _titleLabelToCloseConstraint;
+  NSLayoutConstraint* _titleLabelToSelectConstraint;
 }
 
 + (instancetype)transitionSelectionCellFromCell:(GridCell*)cell {
@@ -348,6 +329,10 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
   return self;
 }
 
+- (void)dealloc {
+  [self updateInterfaceStyleForWindow:nil];
+}
+
 #pragma mark - UIView
 
 - (void)didMoveToWindow {
@@ -371,6 +356,7 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 
 - (void)prepareForReuse {
   [super prepareForReuse];
+  [self updateInterfaceStyleForWindow:nil];
   self.title = nil;
   self.icon = nil;
   self.snapshot = nil;
@@ -424,7 +410,7 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 // Updates the theme to either forced dark or dynamic. Updating is only done if
 // the current theme is not the desired theme.
 - (void)setTheme:(GridTheme)theme {
-  if (_theme == theme) {
+  if (self.registeredWindowScene && _theme == theme) {
     return;
   }
 
@@ -445,6 +431,7 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
           [UIColor colorNamed:kStaticBlue400Color].CGColor;
       break;
     case GridTheme::kDark:
+      [self updateInterfaceStyleForWindow:nil];
       self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
       self.border.layer.borderColor = UIColor.whiteColor.CGColor;
       break;
@@ -652,7 +639,7 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
   closeIconView.contentMode = UIViewContentModeCenter;
   closeIconView.hidden = self.isInSelectionMode;
   closeIconView.image =
-      DefaultSymbolTemplateWithPointSize(kXMarkSymbol, kIconSymbolPointSize);
+      SymbolTemplateWithPointSize(SymbolXMark, kIconSymbolPointSize);
 
   UIImageView* selectIconView = [[UIImageView alloc] init];
   selectIconView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -674,64 +661,55 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
   _titleLabel = titleLabel;
   _closeIconView = closeIconView;
 
-  _accessibilityConstraints = @[
-    [titleLabel.leadingAnchor
-        constraintEqualToAnchor:topBar.leadingAnchor
-                       constant:kGridCellHeaderLeadingInset],
-    [iconView.widthAnchor constraintEqualToConstant:0],
-    [iconView.heightAnchor constraintEqualToConstant:0],
-  ];
+  _topBarHeightConstraint =
+      [topBar.heightAnchor constraintEqualToConstant:kGridCellHeaderHeight];
 
-  _nonAccessibilityConstraints = @[
+  BOOL isAccessibility = UIContentSizeCategoryIsAccessibilityCategory(
+      self.traitCollection.preferredContentSizeCategory);
+  CGFloat initialIconSize = isAccessibility ? 0 : kGridCellIconDiameter;
+  CGFloat initialTitleLeadingInset =
+      isAccessibility ? 0 : kGridCellHeaderLeadingInset;
+
+  _iconViewWidthConstraint =
+      [iconView.widthAnchor constraintEqualToConstant:initialIconSize];
+  _iconViewHeightConstraint =
+      [iconView.heightAnchor constraintEqualToConstant:initialIconSize];
+
+  _titleLabelLeadingConstraint = [titleLabel.leadingAnchor
+      constraintEqualToAnchor:iconView.trailingAnchor
+                     constant:initialTitleLeadingInset];
+
+  _titleLabelToCloseConstraint = [titleLabel.trailingAnchor
+      constraintEqualToAnchor:closeIconView.leadingAnchor
+                     constant:-kGridCellTitleLabelContentInset];
+  _titleLabelToSelectConstraint = [titleLabel.trailingAnchor
+      constraintEqualToAnchor:selectIconView.leadingAnchor
+                     constant:-kGridCellTitleLabelContentInset];
+
+  NSArray* constraints = @[
+    _topBarHeightConstraint,
     [iconView.leadingAnchor
         constraintEqualToAnchor:topBar.leadingAnchor
                        constant:kGridCellHeaderLeadingInset],
     [iconView.centerYAnchor constraintEqualToAnchor:topBar.centerYAnchor],
-    [iconView.widthAnchor constraintEqualToConstant:kGridCellIconDiameter],
-    [iconView.heightAnchor constraintEqualToConstant:kGridCellIconDiameter],
-    [titleLabel.leadingAnchor
-        constraintEqualToAnchor:iconView.trailingAnchor
-                       constant:kGridCellHeaderLeadingInset],
-  ];
-
-  _topBarHeightConstraint =
-      [topBar.heightAnchor constraintEqualToConstant:kGridCellHeaderHeight];
-
-  _closeIconConstraints = @[
-    [titleLabel.trailingAnchor
-        constraintEqualToAnchor:closeIconView.leadingAnchor
-                       constant:-kGridCellTitleLabelContentInset],
+    _iconViewWidthConstraint,
+    _iconViewHeightConstraint,
+    _titleLabelLeadingConstraint,
+    [titleLabel.centerYAnchor constraintEqualToAnchor:topBar.centerYAnchor],
     [topBar.topAnchor constraintEqualToAnchor:closeIconView.centerYAnchor
                                      constant:-kGridCellCloseButtonTopSpacing],
     [closeIconView.trailingAnchor
         constraintEqualToAnchor:topBar.trailingAnchor
                        constant:-kGridCellCloseButtonContentInset],
-  ];
-
-  if (_selectIconView) {
-    _selectIconConstraints = @[
-      [_selectIconView.heightAnchor
-          constraintEqualToConstant:kGridCellSelectIconSize],
-      [_selectIconView.widthAnchor
-          constraintEqualToConstant:kGridCellSelectIconSize],
-      [titleLabel.trailingAnchor
-          constraintEqualToAnchor:_selectIconView.leadingAnchor
-                         constant:-kGridCellTitleLabelContentInset],
-      [topBar.topAnchor constraintEqualToAnchor:_selectIconView.topAnchor
-                                       constant:-kGridCellSelectIconTopSpacing],
-      [_selectIconView.trailingAnchor
-          constraintEqualToAnchor:topBar.trailingAnchor
-                         constant:-kGridCellSelectIconContentInset],
-
-    ];
-  }
-
-  [self updateTopBarSize];
-  [self configureCloseOrSelectIconConstraints];
-
-  NSArray* constraints = @[
-    _topBarHeightConstraint,
-    [titleLabel.centerYAnchor constraintEqualToAnchor:topBar.centerYAnchor],
+    [selectIconView.heightAnchor
+        constraintEqualToConstant:kGridCellSelectIconSize],
+    [selectIconView.widthAnchor
+        constraintEqualToConstant:kGridCellSelectIconSize],
+    [topBar.topAnchor constraintEqualToAnchor:selectIconView.topAnchor
+                                     constant:-kGridCellSelectIconTopSpacing],
+    [selectIconView.trailingAnchor
+        constraintEqualToAnchor:topBar.trailingAnchor
+                       constant:-kGridCellSelectIconContentInset],
   ];
 
   // Center indicator over favicon.
@@ -739,6 +717,8 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
   AddSameCenterYConstraint(self, iconView, activityIndicator);
 
   [NSLayoutConstraint activateConstraints:constraints];
+  [self configureCloseOrSelectIconConstraints];
+  [self updateTopBarSize];
   [titleLabel
       setContentCompressionResistancePriority:UILayoutPriorityDefaultLow
                                       forAxis:UILayoutConstraintAxisHorizontal];
@@ -747,43 +727,32 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
                                       forAxis:UILayoutConstraintAxisHorizontal];
   [closeIconView setContentHuggingPriority:UILayoutPriorityRequired
                                    forAxis:UILayoutConstraintAxisHorizontal];
-  if (_selectIconView) {
-    [_selectIconView
-        setContentCompressionResistancePriority:UILayoutPriorityRequired
-                                        forAxis:
-                                            UILayoutConstraintAxisHorizontal];
-    [_selectIconView
-        setContentHuggingPriority:UILayoutPriorityRequired
-                          forAxis:UILayoutConstraintAxisHorizontal];
-  }
+  [selectIconView
+      setContentCompressionResistancePriority:UILayoutPriorityRequired
+                                      forAxis:UILayoutConstraintAxisHorizontal];
+  [selectIconView setContentHuggingPriority:UILayoutPriorityRequired
+                                    forAxis:UILayoutConstraintAxisHorizontal];
   return topBar;
 }
 
 - (UIImage*)selectIconImageForCurrentState {
   if (_state == GridCellStateEditingUnselected) {
-    return DefaultSymbolTemplateWithPointSize(kCircleSymbol,
-                                              kIconSymbolPointSize);
+    return SymbolTemplateWithPointSize(SymbolCircle, kIconSymbolPointSize);
   }
-  return DefaultSymbolTemplateWithPointSize(kCheckmarkCircleFillSymbol,
-                                            kIconSymbolPointSize);
+  return SymbolTemplateWithPointSize(SymbolCheckmarkCircleFill,
+                                     kIconSymbolPointSize);
 }
 
-// Update constraints of top bar when system font size changes. If accessibility
-// font size is chosen, the favicon will be hidden, and the title text will be
-// shown in two lines.
 - (void)updateTopBarSize {
   self.topBarHeightConstraint.constant = [self topBarHeight];
-
-  if (UIContentSizeCategoryIsAccessibilityCategory(
-          self.traitCollection.preferredContentSizeCategory)) {
-    self.titleLabel.numberOfLines = 2;
-    [NSLayoutConstraint deactivateConstraints:_nonAccessibilityConstraints];
-    [NSLayoutConstraint activateConstraints:_accessibilityConstraints];
-  } else {
-    self.titleLabel.numberOfLines = 1;
-    [NSLayoutConstraint deactivateConstraints:_accessibilityConstraints];
-    [NSLayoutConstraint activateConstraints:_nonAccessibilityConstraints];
-  }
+  BOOL isAccessibility = UIContentSizeCategoryIsAccessibilityCategory(
+      self.traitCollection.preferredContentSizeCategory);
+  CGFloat iconSize = isAccessibility ? 0 : kGridCellIconDiameter;
+  _iconViewWidthConstraint.constant = iconSize;
+  _iconViewHeightConstraint.constant = iconSize;
+  _titleLabelLeadingConstraint.constant =
+      isAccessibility ? 0 : kGridCellHeaderLeadingInset;
+  self.titleLabel.numberOfLines = isAccessibility ? 2 : 1;
 }
 
 - (void)configureCloseOrSelectIconConstraints {
@@ -793,11 +762,11 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
   self.selectIconView.hidden = !showSelectionMode;
 
   if (showSelectionMode) {
-    [NSLayoutConstraint deactivateConstraints:_closeIconConstraints];
-    [NSLayoutConstraint activateConstraints:_selectIconConstraints];
+    _titleLabelToCloseConstraint.active = NO;
+    _titleLabelToSelectConstraint.active = YES;
   } else {
-    [NSLayoutConstraint deactivateConstraints:_selectIconConstraints];
-    [NSLayoutConstraint activateConstraints:_closeIconConstraints];
+    _titleLabelToSelectConstraint.active = NO;
+    _titleLabelToCloseConstraint.active = YES;
   }
 }
 
@@ -878,16 +847,23 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 // If window is not nil, register for updates to its interface style updates and
 // set the user interface style to be the same as the window.
 - (void)updateInterfaceStyleForWindow:(UIWindow*)window {
+  if (self.traitRegistration && self.registeredWindowScene) {
+    [self.registeredWindowScene
+        unregisterForTraitChanges:self.traitRegistration];
+    self.traitRegistration = nil;
+    self.registeredWindowScene = nil;
+  }
   if (!window) {
     return;
   }
-  [self.window.windowScene
+  self.registeredWindowScene = window.windowScene;
+  self.traitRegistration = [window.windowScene
       registerForTraitChanges:@[ UITraitUserInterfaceStyle.class ]
                    withTarget:self
                        action:@selector(interfaceStyleChangedForWindow:
                                                        traitCollection:)];
   self.overrideUserInterfaceStyle =
-      self.window.windowScene.traitCollection.userInterfaceStyle;
+      window.windowScene.traitCollection.userInterfaceStyle;
 }
 
 // Callback for the observation of the user interface style trait of the window
@@ -895,7 +871,7 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 - (void)interfaceStyleChangedForWindow:(UIView*)window
                        traitCollection:(UITraitCollection*)traitCollection {
   self.overrideUserInterfaceStyle =
-      self.window.windowScene.traitCollection.userInterfaceStyle;
+      self.registeredWindowScene.traitCollection.userInterfaceStyle;
 }
 
 // Updates the size of the 'top bar' UI when the view's UITraits change.
@@ -1001,187 +977,6 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
       self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
       break;
   }
-}
-// End Vivaldi
-
-@end
-
-@implementation GridTransitionCell {
-  // Previous tab view width, used to scale the tab views.
-  CGFloat _previousTabViewWidth;
-}
-
-// Synthesis of GridToTabTransitionView properties.
-@synthesize topTabView = _topTabView;
-@synthesize mainTabView = _mainTabView;
-@synthesize bottomTabView = _bottomTabView;
-
-+ (instancetype)transitionCellFromCell:(GridCell*)cell {
-  GridTransitionCell* proxy = [[self alloc] initWithFrame:cell.bounds];
-  proxy.selected = NO;
-  proxy.theme = cell.theme;
-  proxy.icon = cell.icon;
-  proxy.snapshot = cell.snapshot;
-  proxy.title = cell.title;
-  proxy.priceCardView = cell.priceCardView;
-  proxy.opacity = cell.opacity;
-  return proxy;
-}
-#pragma mark - GridToTabTransitionView properties.
-
-- (void)setTopCellView:(UIView*)topCellView {
-  // The top cell view is `topBar` and can't be changed.
-  NOTREACHED();
-}
-
-- (UIView*)topCellView {
-  return self.topBar;
-}
-
-- (void)setTopTabView:(UIView*)topTabView {
-  DCHECK(!_topTabView) << "topTabView should only be set once.";
-  if (!topTabView.superview) {
-    [self.contentView addSubview:topTabView];
-  }
-  _topTabView = topTabView;
-}
-
-- (void)setMainCellView:(UIView*)mainCellView {
-  // The main cell view is the snapshot view and can't be changed.
-  NOTREACHED();
-}
-
-- (UIView*)mainCellView {
-  return self.snapshotView;
-}
-
-- (void)setMainTabView:(UIView*)mainTabView {
-  DCHECK(!_mainTabView) << "mainTabView should only be set once.";
-  if (!mainTabView.superview) {
-    [self.contentView addSubview:mainTabView];
-  }
-  _previousTabViewWidth = mainTabView.frame.size.width;
-  _mainTabView = mainTabView;
-}
-
-- (void)setBottomTabView:(UIView*)bottomTabView {
-  DCHECK(!_bottomTabView) << "bottomTabView should only be set once.";
-  if (!bottomTabView.superview) {
-    [self.contentView addSubview:bottomTabView];
-  }
-  _bottomTabView = bottomTabView;
-}
-
-- (CGFloat)cornerRadius {
-  return self.contentView.layer.cornerRadius;
-}
-
-- (void)setCornerRadius:(CGFloat)radius {
-  self.contentView.layer.cornerRadius = radius;
-}
-
-#pragma mark - GridToTabTransitionView methods
-
-- (void)prepareForTransitionWithAnimationDirection:
-    (GridAnimationDirection)animationDirection {
-  // Use the same animation set up for both directions.
-  [self prepareForAnimation];
-}
-
-- (void)positionTabViews {
-  if (!IsNewTabGridTransitionsEnabled()) {
-    self.containerLeadingConstraint.constant = 0;
-    self.containerTrailingConstraint.constant = 0;
-    self.containerView.layer.cornerRadius = 0;
-    self.snapshotView.layer.cornerRadius = 0;
-  }
-  [self scaleTabViews];
-  self.topBarHeightConstraint.constant = self.topTabView.frame.size.height;
-  [self setNeedsUpdateConstraints];
-  [self layoutIfNeeded];
-  PositionView(self.topTabView, CGPointMake(0, 0));
-  // Position the main view so it's top-aligned with the main cell view.
-  PositionView(self.mainTabView, self.mainCellView.frame.origin);
-  if (!self.bottomTabView) {
-    return;
-  }
-
-  // Position the bottom tab view at the bottom.
-  CGFloat yPosition = CGRectGetMaxY(self.contentView.bounds) -
-                      self.bottomTabView.frame.size.height;
-  PositionView(self.bottomTabView, CGPointMake(0, yPosition));
-}
-
-- (void)positionCellViews {
-  if (!IsNewTabGridTransitionsEnabled()) {
-    self.containerView.layer.cornerRadius = kGridCellCornerRadius;
-    self.containerLeadingConstraint.constant = kSnapshotInset;
-    self.containerTrailingConstraint.constant = -kSnapshotInset;
-
-    if (IsVivaldiRunning()) {
-      self.snapshotView.layer.cornerRadius =
-          GridInnerCornerRadius(kGridCellCornerRadius, kSnapshotInset);
-    } else {
-    self.snapshotView.layer.cornerRadius = kGridCellCornerRadius;
-    } // End Vivaldi
-
-  }
-  [self scaleTabViews];
-  self.topBarHeightConstraint.constant = [self topBarHeight];
-  [self setNeedsUpdateConstraints];
-  [self layoutIfNeeded];
-  CGFloat topYOffset =
-      kGridCellHeaderHeight - self.topTabView.frame.size.height;
-  PositionView(self.topTabView, CGPointMake(0, topYOffset));
-  // Position the main view so it's top-aligned with the main cell view.
-  PositionView(self.mainTabView, self.mainCellView.frame.origin);
-  if (!self.bottomTabView) {
-    return;
-  }
-
-  if (self.bottomTabView.frame.origin.y > 0) {
-    // Position the bottom tab so it's equivalently located.
-    CGFloat scale = self.bounds.size.width / _previousTabViewWidth;
-    PositionView(self.bottomTabView,
-                 CGPointMake(0, self.bottomTabView.frame.origin.y * scale));
-  } else {
-    // Position the bottom tab view below the main content view.
-    CGFloat bottomYOffset = CGRectGetMaxY(self.mainCellView.frame);
-    PositionView(self.bottomTabView, CGPointMake(0, bottomYOffset));
-  }
-}
-
-#pragma mark - Private helper methods
-
-// Common logic for the cell animation preparation.
-- (void)prepareForAnimation {
-  // Remove dark corners from the transition animtation cell.
-  self.backgroundColor = [UIColor clearColor];
-}
-
-// Scales the tab views relative to the current width of the cell.
-- (void)scaleTabViews {
-  CGFloat scale = self.bounds.size.width / _previousTabViewWidth;
-  ScaleView(self.topTabView, scale);
-  ScaleView(self.mainTabView, scale);
-  ScaleView(self.bottomTabView, scale);
-  _previousTabViewWidth = self.mainTabView.frame.size.width;
-}
-
-// Vivaldi
-- (void)removeSelectionBorder {
-  self.contentView.layer.borderColor =
-      [UIColor colorNamed:vTabGridNotSelectedColor].CGColor;
-  self.contentView.layer.borderWidth = vTabGridNotSelectedBorderWidth;
-}
-
-- (void)setTopHeaderColor:(BOOL)isIncognito {
-  UIColor* backgroundColor = isIncognito ?
-      [UIColor colorNamed:vPrivateModeToolbarBackgroundColor] :
-      [UIColor colorNamed:vNTPBackgroundColor];
-  self.topBar.backgroundColor = backgroundColor;
-  self.contentView.backgroundColor = backgroundColor;
-  self.snapshotView.backgroundColor = backgroundColor;
 }
 // End Vivaldi
 

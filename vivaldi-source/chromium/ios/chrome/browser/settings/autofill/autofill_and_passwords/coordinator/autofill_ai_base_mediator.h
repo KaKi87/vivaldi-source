@@ -17,6 +17,8 @@ namespace autofill {
 class EntityDataManager;
 }
 
+class PrefService;
+
 @class AutofillAIBaseMediator;
 @class TableViewItem;
 
@@ -42,11 +44,14 @@ class EntityDataManager;
 // Delegate for this mediator.
 @property(nonatomic, weak) id<AutofillAIBaseMediatorDelegate> delegate;
 
+// The PrefService associated with this mediator.
+@property(nonatomic, readonly) PrefService* prefService;
+
 // Point size for AI entity icons.
 + (CGFloat)entityIconPointSize;
 
-- (instancetype)initWithEntityDataManager:
-    (autofill::EntityDataManager*)entityDataManager NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithEntityDataManager:(autofill::EntityDataManager*)entityDataManager
+                              prefService:(PrefService*)prefService NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;
 

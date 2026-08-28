@@ -17,6 +17,7 @@
 #include "base/time/time.h"
 #include "base/values.h"
 #include "components/signin/public/base/oauth_consumer_id.h"
+#include "components/signin/public/base/signin_switches.h"
 #include "components/signin/public/identity_manager/access_token_info.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "components/sync/base/data_type.h"
@@ -152,9 +153,29 @@ std::string_view GetBaseUrl(version_info::Channel channel) {
   return kStagingPreviewUrl;
 }
 
+// The list of data types to fetch statistics for. This list explicitly requests
+// only the data types currently used by metrics.
+// The comma-separated integer values map to the data type's specifics field.
+// 31729: AUTOFILL
+// 32904: BOOKMARKS
+// 37702: PREFERENCES
+// 41210: THEMES
+// 45873: PASSWORDS
+// 48119: EXTENSIONS
+// 48364: APPS
+// 50119: SESSIONS
+// 154522: DEVICE_INFO
+// 330441: AUTOFILL_WALLET_METADATA
+// 411028: READING_LIST
+// 1164238: AUTOFILL_WALLET_CREDENTIAL
 GURL GetStatsUrlForChannel(version_info::Channel channel) {
-  return GURL(
+  GURL url(
       base::StrCat({GetBaseUrl(channel), "/dataTypes/-/dataTypesStatistics"}));
+  for (int data_type : signin::kRequestedDataTypes) {
+    url = net::AppendQueryParameter(url, "dataTypes",
+                                    base::NumberToString(data_type));
+  }
+  return url;
 }
 
 GURL GetPreviewsUrlForChannel(version_info::Channel channel) {
@@ -210,9 +231,13 @@ void AccountPreviewDataFetcher::OnAccessTokenReceived(
 
 void AccountPreviewDataFetcher::StartNetworkRequests(
     const std::string& access_token) {
+  const bool fetch_previews = base::FeatureList::IsEnabled(
+      switches::kEnableAccountPreviewEntityPreviews);
+
   barrier_callback_ = base::BarrierCallback<bool>(
-      2, base::BindOnce(&AccountPreviewDataFetcher::OnFetchCompleted,
-                        weak_ptr_factory_.GetWeakPtr()));
+      fetch_previews ? 2 : 1,
+      base::BindOnce(&AccountPreviewDataFetcher::OnFetchCompleted,
+                     weak_ptr_factory_.GetWeakPtr()));
 
   net::NetworkTrafficAnnotationTag traffic_annotation =
       net::DefineNetworkTrafficAnnotation("chrome_sync_preview_fetcher", R"(
@@ -265,21 +290,24 @@ void AccountPreviewDataFetcher::StartNetworkRequests(
       base::BindOnce(&AccountPreviewDataFetcher::OnStatsFetchCompleted,
                      weak_ptr_factory_.GetWeakPtr()));
 
-  // 2. Previews Request
-  auto previews_request = std::make_unique<network::ResourceRequest>();
-  previews_request->url = GetPreviewsUrlForChannel(channel_);
-  previews_request->method = "GET";
-  previews_request->credentials_mode = network::mojom::CredentialsMode::kOmit;
-  previews_request->headers.SetHeader(net::HttpRequestHeaders::kAuthorization,
-                                      base::StrCat({"Bearer ", access_token}));
+  if (fetch_previews) {
+    // 2. Previews Request
+    auto previews_request = std::make_unique<network::ResourceRequest>();
+    previews_request->url = GetPreviewsUrlForChannel(channel_);
+    previews_request->method = "GET";
+    previews_request->credentials_mode = network::mojom::CredentialsMode::kOmit;
+    previews_request->headers.SetHeader(
+        net::HttpRequestHeaders::kAuthorization,
+        base::StrCat({"Bearer ", access_token}));
 
-  previews_url_loader_ = network::SimpleURLLoader::Create(
-      std::move(previews_request), traffic_annotation);
+    previews_url_loader_ = network::SimpleURLLoader::Create(
+        std::move(previews_request), traffic_annotation);
 
-  previews_url_loader_->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
-      url_loader_factory_.get(),
-      base::BindOnce(&AccountPreviewDataFetcher::OnPreviewsFetchCompleted,
-                     weak_ptr_factory_.GetWeakPtr()));
+    previews_url_loader_->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
+        url_loader_factory_.get(),
+        base::BindOnce(&AccountPreviewDataFetcher::OnPreviewsFetchCompleted,
+                       weak_ptr_factory_.GetWeakPtr()));
+  }
 
   base::UmaHistogramEnumeration(kFetchStateHistogram, FetchState::kRequested);
 }

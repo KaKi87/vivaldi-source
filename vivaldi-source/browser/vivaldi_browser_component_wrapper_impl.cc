@@ -37,7 +37,6 @@
 #include "chrome/browser/task_manager/web_contents_tags.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_command_controller.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
@@ -86,15 +85,15 @@
 #include "content/public/browser/media_stream_request.h"
 #include "content/public/browser/render_frame_host.h"
 
-#include "extensions/api/tabs/tabs_private_api.h"
-#include "extensions/api/window/window_private_api.h"
+#include "extensions/api/tabs_private/tabs_private_api.h"
+#include "extensions/api/window_private/window_private_api.h"
 #include "extensions/browser/extension_action.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/guest_view/web_view/web_view_guest.h"
 #include "extensions/common/api/commands/commands_handler.h"
 #include "extensions/common/api/extension_action/action_info.h"
 
-#include "extensions/schema/browser_action_utilities.h"
+#include "extensions/schema/extension_action_utils.h"
 #include "extensions/schema/window_private.h"
 #include "extensions/tools/vivaldi_tools.h"
 #include "extensions/vivaldi_associated_tabs.h"
@@ -109,12 +108,12 @@
 
 #include "ui/window_registry_service.h"
 
-#include "chrome/browser/send_tab_to_self/receiving_ui_handler.h"
 #include "chrome/browser/send_tab_to_self/send_tab_to_self_util.h"
 #include "chrome/browser/sync/device_info_sync_service_factory.h"
 #include "chrome/browser/sync/send_tab_to_self_sync_service_factory.h"
 #include "components/ext_data/tab_ext_data.h"
 #include "components/ext_data/tab_ext_data_impl.h"
+#include "components/send_tab_to_self/receiving_ui_handler.h"
 #include "components/send_tab_to_self/send_tab_to_self_bridge.h"
 #include "components/send_tab_to_self/send_tab_to_self_entry.h"
 #include "components/send_tab_to_self/send_tab_to_self_sync_service.h"
@@ -187,9 +186,17 @@ void UpdateExtData(Browser* browser,
       target_ext->GetPositioningParams();
 
   if (::vivaldi::tab_positioning::IsEmailWebContents(source)) {
-    positional_params.invoked_by = ::vivaldi::TabInvokedBy::kEmailLinkBackground;
+    positional_params.invoked_by =
+        ::vivaldi::TabInvokedBy::kEmailLinkBackground;
   } else {
     positional_params.invoked_by = ::vivaldi::TabInvokedBy::kBackground;
+    if (::vivaldi::TabExtData::Has(source)) {
+      ::vivaldi::TabExtData* source_ext = ::vivaldi::TabExtData::Get(source);
+      if (source_ext->GetPanelId()) {
+        positional_params.invoked_by =
+            ::vivaldi::TabInvokedBy::kPanelLinkBackground;
+      }
+    }
   }
 
   target_ext->SetPositioningParams(positional_params);
@@ -383,7 +390,9 @@ void VivaldiBrowserComponentWrapperImpl::BrowserListInitVivaldiCommandState() {
 
 Browser* VivaldiBrowserComponentWrapperImpl::FindBrowserWithTab(
     content::WebContents* tab) {
-  return chrome::FindBrowserWithTab(tab);
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(tab);
+  return browser ? browser->GetBrowserForMigrationOnly() : nullptr;
 }
 
 Browser* VivaldiBrowserComponentWrapperImpl::FindLastActiveBrowserWithProfile(
@@ -491,7 +500,8 @@ VivaldiBrowserComponentWrapperImpl::WebViewGuestOpenUrlFromTab(
         nav_params.url);
 
     load_url_params.initiator_frame_token = nav_params.initiator_frame_token;
-    load_url_params.initiator_process_id = nav_params.initiator_process_id;
+    load_url_params.initiator_process_id =
+        content::ChildProcessId(nav_params.initiator_process_id);
     load_url_params.initiator_origin = nav_params.initiator_origin;
     load_url_params.initiator_base_url = nav_params.initiator_base_url;
     load_url_params.source_site_instance = nav_params.source_site_instance;
@@ -513,7 +523,9 @@ VivaldiBrowserComponentWrapperImpl::WebViewGuestOpenUrlFromTab(
     load_url_params.was_activated = nav_params.was_activated;
     load_url_params.href_translate = nav_params.href_translate;
     load_url_params.reload_type = nav_params.reload_type;
-    load_url_params.impression = nav_params.impression;
+    load_url_params.internal_scroll_to_text_fragment =
+        nav_params.internal_scroll_to_text_fragment;
+    load_url_params.started_by_ad = nav_params.started_by_ad;
 
     if (nav_params.post_data) {
       load_url_params.load_type =
@@ -524,13 +536,14 @@ VivaldiBrowserComponentWrapperImpl::WebViewGuestOpenUrlFromTab(
     // Create new webcontents and navigate this.
     scoped_refptr<content::SiteInstance>
         initial_site_instance_for_new_contents =
-            tab_util::GetSiteInstanceForNewTab(browser->profile(), params.url);
+            tab_util::GetSiteInstanceForNewTab(browser->GetProfile(),
+                                               params.url);
 
     content::WebContents::CreateParams webcontents_create_params(
-        browser->profile(), initial_site_instance_for_new_contents);
+        browser->GetProfile(), initial_site_instance_for_new_contents);
 
     // Filter out data that must not be shared between profiles while loading.
-    Profile* navigation_profile = browser->profile();
+    Profile* navigation_profile = browser->GetProfile();
     if (nav_params.source_site_instance) {
       navigation_profile = Profile::FromBrowserContext(
           nav_params.source_site_instance->GetBrowserContext());
@@ -542,7 +555,7 @@ VivaldiBrowserComponentWrapperImpl::WebViewGuestOpenUrlFromTab(
 
     // A tab is being opened from a link from a different profile, we must
     // reset source information that may cause state to be shared.
-    if (navigation_profile != browser->profile()) {
+    if (navigation_profile != browser->GetProfile()) {
       nav_params.opener = nullptr;
       nav_params.source_contents = nullptr;
       nav_params.source_site_instance = nullptr;
@@ -551,10 +564,7 @@ VivaldiBrowserComponentWrapperImpl::WebViewGuestOpenUrlFromTab(
       load_url_params.source_site_instance = nullptr;
       load_url_params.referrer = content::Referrer();
 
-      webcontents_create_params.opener_render_frame_id =
-          IPC::mojom::kRoutingIdNone;
-      webcontents_create_params.opener_render_process_id =
-          content::ChildProcessHost::kInvalidUniqueID;
+      webcontents_create_params.opener_id = {};
 
       load_url_params.load_type =
           content::NavigationController::LOAD_TYPE_DEFAULT;
@@ -566,8 +576,9 @@ VivaldiBrowserComponentWrapperImpl::WebViewGuestOpenUrlFromTab(
     }
 
 #if defined(USE_AURA)
-    if (browser->window() && browser->window()->GetNativeWindow()) {
-      webcontents_create_params.context = browser->window()->GetNativeWindow();
+    if (browser->GetWindow() && browser->GetWindow()->GetNativeWindow()) {
+      webcontents_create_params.context =
+          browser->GetWindow()->GetNativeWindow();
     }
 #endif
 
@@ -850,7 +861,7 @@ int VivaldiBrowserComponentWrapperImpl::WindowPrivateCreate(
   // Delay sending the response until the newly created window has
   // finished its navigation or was closed during that process.
   VivaldiBrowserWindow* window =
-      static_cast<VivaldiBrowserWindow*>(browser->window());
+      static_cast<VivaldiBrowserWindow*>(browser->GetWindow());
   window->SetDidFinishNavigationCallback(std::move(callback));
 
   if (!tab_url.empty()) {
@@ -1145,7 +1156,7 @@ void VivaldiBrowserComponentWrapperImpl::AddGuestToTabStripModel(
     }
   }
 
-  if (!browser || !browser->window()) {
+  if (!browser || !browser->GetWindow()) {
     if (windowId) {
       NOTREACHED();
       // return;
@@ -1157,7 +1168,7 @@ void VivaldiBrowserComponentWrapperImpl::AddGuestToTabStripModel(
             ->FindTabbedBrowser();
     browser = bwi ? bwi->GetBrowserForMigrationOnly() : nullptr;
 
-    if (!browser || !browser->window()) {
+    if (!browser || !browser->GetWindow()) {
       NOTREACHED();
       // return;
     }
@@ -1493,7 +1504,7 @@ bool VivaldiBrowserComponentWrapperImpl::SendTabToSelfAddToModel(
       SendTabToSelfSyncServiceFactory::GetForProfile(profile)
           ->GetSendTabToSelfModel();
   if (model) {
-    model->SendEntry(url, title, guid, {}, {}, base::DoNothing());
+    model->SendEntry(url, title, guid, {}, {}, base::DoNothing(), {});
   }
   return !!model;
 }
@@ -1786,4 +1797,17 @@ bool VivaldiBrowserComponentWrapperImpl::ExecuteCommandMenuItem(
                           content::ContextMenuParams(), action_id);
 
   return true;
+}
+
+void VivaldiBrowserComponentWrapperImpl::VivaldiForBrowserShowWebsiteSettingsAt(
+    Browser* browser,
+    Profile* profile,
+    content::WebContents* web_contents,
+    const GURL& url,
+    gfx::Point pos) {
+  BrowserWindow* browser_window = BrowserWindow::FromBrowser(browser);
+  if (browser_window) {
+    browser_window->VivaldiShowWebsiteSettingsAt(profile, web_contents, url,
+                                                 pos);
+  }
 }

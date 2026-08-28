@@ -61,7 +61,7 @@ const std::vector<EngineAndTier> GetSearchEngineDetails(
 
   // Vivaldi
 
-  for (const auto* prepopulated_engine : prepopulated_engines_list.list) {
+  for (const auto prepopulated_engine : prepopulated_engines_list.list) {
     EngineAndTier engine_and_tier;
     engine_and_tier.tier = SearchEngineTier::kTopEngines;
     engine_and_tier.search_engine = prepopulated_engine;

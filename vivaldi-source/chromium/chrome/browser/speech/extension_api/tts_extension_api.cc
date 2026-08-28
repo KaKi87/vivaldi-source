@@ -10,6 +10,8 @@
 #include <string>
 #include <utility>
 
+#include "base/i18n/language_tag.h"
+#include "base/i18n/tag_converters.h"
 #include "base/lazy_instance.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
@@ -24,12 +26,13 @@
 #include "extensions/browser/extension_function_registry.h"
 #include "extensions/browser/extension_host.h"
 #include "extensions/browser/process_manager.h"
+#include "extensions/common/constants.h"
 #include "third_party/blink/public/mojom/speech/speech_synthesis.mojom.h"
 #include "ui/base/l10n/l10n_util.h"
 
 #if BUILDFLAG(IS_CHROMEOS)
+#include "ash/constants/ash_extension_constants.h"
 #include "chrome/browser/speech/extension_api/tts_engine_extension_observer_chromeos_factory.h"
-#include "chrome/common/extensions/extension_constants.h"
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace constants = tts_extension_api_constants;
@@ -196,7 +199,9 @@ ExtensionFunction::ResponseAction TtsSpeakFunction::Run() {
     EXTENSION_FUNCTION_VALIDATE(lang_value->is_string());
     lang = lang_value->GetString();
   }
-  if (!lang.empty() && !l10n_util::IsValidLocaleSyntax(lang)) {
+  if (!lang.empty() && !base::i18n::LanguageTagConverter::GetInstance()
+                            .FromString(lang)
+                            .has_value()) {
     return RespondNow(Error(constants::kErrorInvalidLang));
   }
 

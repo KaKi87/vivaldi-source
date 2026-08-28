@@ -84,16 +84,6 @@ static_library("browser") {
       "//vivaldi/browser:vivaldi_browser_component_wrapper_impl",
     ]
   }
-  allow_circular_includes_from = [
-    "//components/renderer_context_menu",
-    "//vivaldi/app",
-  ]
-  if (enable_extensions) {
-    allow_circular_includes_from += [
-      "//chrome/browser/extensions",
-      "//vivaldi/extensions/api:apis",
-    ]
-  }
   sources = [
     "../components/adverse_adblocking/adverse_ad_filter_list_factory.cc",
     "../components/adverse_adblocking/adverse_ad_filter_list_factory.h",
@@ -301,6 +291,7 @@ source_set("stats_reporter") {
     deps += [
       "//chrome/browser:browser_process",
       "//components/embedder_support:user_agent",
+      "//vivaldi/components:user_agent_config_service"
     ]
   } else {
     sources += [ "stats_reporter_impl_ios.mm" ]

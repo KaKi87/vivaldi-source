@@ -53,8 +53,8 @@ const CSS_AUTHORING_HINTS_ICON_SELECTOR = '.hint';
 export const SEARCH_BOX_SELECTOR = '.search-bar';
 const SEARCH_RESULTS_MATCHES = '.search-results-matches';
 export const EMULATE_FOCUSED_PAGE = 'Emulate a focused page';
-const DOM_BREAKPOINTS_SECTION_SELECTOR = '[aria-label="DOM Breakpoints"]';
-const DOM_BREAKPOINTS_LIST_SELECTOR = '[aria-label="DOM Breakpoints list"]';
+const DOM_BREAKPOINTS_SECTION_SELECTOR = '[aria-label="DOM breakpoints"]';
+const DOM_BREAKPOINTS_LIST_SELECTOR = '[aria-label="DOM breakpoints list"]';
 const TOGGLE_COMMON_RENDERING_EMULATIONS_SELECTOR = '[aria-label="Toggle common rendering emulations"]';
 
 export const openLayoutPane = async (devToolsPage: DevToolsPage) => {
@@ -127,7 +127,8 @@ export const toggleAdornerSetting = async (type: string, devToolsPage: DevToolsP
   await openSubMenu(SELECTED_TREE_ELEMENT_SELECTOR, 'Badge settings', devToolsPage);
 
   const adornerToggle = await Promise.any([
-    devToolsPage.waitFor(`[aria-label="${type}, unchecked"]`), devToolsPage.waitFor(`[aria-label="${type}, checked"]`)
+    devToolsPage.waitFor(`[aria-label="${type}, unchecked"]`),
+    devToolsPage.waitFor(`[aria-label="${type}, checked"]`),
   ]);
   await adornerToggle.click();
   await expectVeEvents([veClick(`Menu > Toggle: ${type}`)], undefined, devToolsPage);
@@ -342,11 +343,11 @@ export const waitForElementsStyleSection =
 };
 
 export const waitForElementsDOMBreakpointsSection = async (devToolsPage: DevToolsPage) => {
-  let domBreakpointsPane = await devToolsPage.$('DOM Breakpoints', undefined, 'aria');
+  let domBreakpointsPane = await devToolsPage.$('DOM breakpoints', undefined, 'aria');
   if (!domBreakpointsPane) {
     const elementsPanel = await devToolsPage.waitForAria('Elements panel');
     await devToolsPage.clickMoreTabsButton(elementsPanel);
-    domBreakpointsPane = await devToolsPage.waitForAria('DOM Breakpoints');
+    domBreakpointsPane = await devToolsPage.waitForAria('DOM breakpoints');
   }
   await devToolsPage.click(DOM_BREAKPOINTS_SECTION_SELECTOR);
   await devToolsPage.waitFor(DOM_BREAKPOINTS_LIST_SELECTOR);
@@ -1014,17 +1015,6 @@ export const toggleClassesPaneCheckbox = async (checkboxLabel: string, devToolsP
   await Promise.all([nodeChange, veEvents]);
 };
 
-export const uncheckStylesPaneCheckbox = async (checkboxLabel: string, devToolsPage: DevToolsPage) => {
-  console.error('uncheckStylesPaneCheckbox', checkboxLabel);
-  const initialValue = await getContentOfSelectedNode(devToolsPage);
-  await devToolsPage.click(`.enabled-button[aria-label="${checkboxLabel}"]`);
-  await waitForSelectedNodeChange(initialValue, devToolsPage);
-  await expectVeEvents(
-      [veClick(`Panel: elements > Pane: styles > Section: style-properties > Tree > TreeItem: ${
-          checkboxLabel.split(' ')[0]} > Toggle`)],
-      undefined, devToolsPage);
-};
-
 export const assertSelectedNodeClasses = async (expectedClasses: string[], devToolsPage: DevToolsPage) => {
   const nodeText = await getContentOfSelectedNode(devToolsPage);
   const match = nodeText.match(/class=\u200B"([^"]*)/);
@@ -1202,3 +1192,5 @@ export const getMultilineGhostElements = async (devToolsPage: DevToolsPage) => {
   const ghostRows = await devToolsPage.$$(GHOST_ROW_SELECTOR);
   return await Promise.all(ghostRows.map(row => row.evaluate(node => node.textContent)));
 };
+
+export const getAccessibilityTreeNodeSelector = (textContent: string) => `pierceShadowText/${textContent}`;

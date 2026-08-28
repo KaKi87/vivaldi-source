@@ -8,19 +8,37 @@
 #include <memory>
 
 #include "base/notimplemented.h"
+#include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/supports_user_data.h"
+#include "chrome/browser/external_protocol/external_protocol_handler.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/omnibox/ai_mode_page_action_controller.h"
 #include "chrome/browser/ui/omnibox/omnibox_controller.h"
+#include "chrome/browser/ui/omnibox/omnibox_edit_model.h"
 #include "chrome/browser/ui/omnibox/omnibox_tab_helper.h"
+#include "chrome/browser/ui/views/chrome_typography.h"
+#include "chrome/browser/ui/views/location_bar/location_bar_util.h"
 #include "chrome/browser/ui/views/location_bar/webui_location_bar.h"
+#include "chrome/browser/ui/views/omnibox/omnibox_placeholder_util.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_popup_closer.h"
+#include "chrome/browser/ui/views/page_action/webui_page_action_control.h"
+#include "chrome/browser/ui/views/toolbar/webui_toolbar_web_view.h"
 #include "chrome/browser/ui/webui/webui_toolbar/browser_controls_service.h"
+#include "chrome/grit/generated_resources.h"
 #include "components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom.h"
+#include "components/omnibox/browser/omnibox_pref_names.h"
+#include "components/omnibox/browser/omnibox_text_util.h"
+#include "components/omnibox/browser/searchbox_utils.h"
+#include "components/prefs/pref_change_registrar.h"
+#include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "net/cert/cert_status_flags.h"
 #include "ui/events/event_constants.h"
 #include "ui/events/keycodes/dom/dom_key.h"
 #include "ui/events/keycodes/dom/keycode_converter.h"
+#include "ui/menus/simple_menu_model.h"
+#include "ui/touch_selection/touch_editing_controller.h"
 
 namespace {
 
@@ -47,11 +65,30 @@ OmniboxState::~OmniboxState() = default;
 
 WebUIReadOnlyOmnibox::UpdatePropagator::~UpdatePropagator() = default;
 
-WebUIReadOnlyOmnibox::WebUIReadOnlyOmnibox(OmniboxController* controller,
-                                           UpdatePropagator& update_propagator)
+WebUIReadOnlyOmnibox::WebUIReadOnlyOmnibox(
+    LocationBar* location_bar,
+    WebUIToolbarControlDelegate* toolbar_delegate,
+    OmniboxController* controller,
+    UpdatePropagator& update_propagator)
     : OmniboxView(controller),
+      OmniboxContextMenuMixin<ui::SimpleMenuModel::Delegate>(location_bar,
+                                                             controller),
+      location_bar_(location_bar),
+      toolbar_delegate_(toolbar_delegate),
       update_propagator_(update_propagator),
-      selection_(gfx::Range::InvalidRange()) {}
+      selection_(gfx::Range::InvalidRange()) {
+  // Refresh UI if the user toggles the 'show full URLs' setting.
+  if (location_bar_ && location_bar_->GetProfile()) {
+    pref_change_registrar_.Init(location_bar_->GetProfile()->GetPrefs());
+    pref_change_registrar_.Add(
+        omnibox::kPreventUrlElisionsInOmnibox,
+        base::BindRepeating(&WebUIReadOnlyOmnibox::Update,
+                            base::Unretained(this)));
+  }
+
+  scoped_template_url_service_observation_.Observe(
+      controller->client()->GetTemplateURLService());
+}
 
 WebUIReadOnlyOmnibox::~WebUIReadOnlyOmnibox() = default;
 
@@ -62,8 +99,11 @@ void WebUIReadOnlyOmnibox::SaveStateToTab(content::WebContents* tab) {
                    std::make_unique<OmniboxState>(state, selection_));
 }
 
-void WebUIReadOnlyOmnibox::OnTabChanged(
-    const content::WebContents* web_contents) {
+void WebUIReadOnlyOmnibox::OnTabChanged(content::WebContents* web_contents) {
+  // Observe the WebContents for title changes and navigations for updating the
+  // placeholder text.
+  Observe(web_contents);
+
   const OmniboxState* state = static_cast<OmniboxState*>(
       web_contents->GetUserData(OmniboxTabHelper::kOmniboxStateKey));
   controller()->edit_model()->RestoreState(state ? &state->model_state
@@ -91,7 +131,27 @@ WebUIReadOnlyOmnibox::OnOmniboxAction(
 
     case toolbar_ui_api::mojom::OmniboxAction::Tag::kKey:
       return OnKey(*action->get_key());
+
+    case toolbar_ui_api::mojom::OmniboxAction::Tag::kMouse:
+      return OnMouse(*action->get_mouse());
+
+    case toolbar_ui_api::mojom::OmniboxAction::Tag::kDropText:
+      return OnDropText(*action->get_drop_text());
+
+    case toolbar_ui_api::mojom::OmniboxAction::Tag::kDropFile:
+      return OnDropFile(*action->get_drop_file());
   }
+}
+
+void WebUIReadOnlyOmnibox::HandleContextMenu(
+    views::Widget* widget,
+    const gfx::Point& point,
+    ui::mojom::MenuSourceType source_type,
+    const content::ContextMenuParams& menu_params) {
+  menu_params_ = menu_params;
+  PrepareToShowContextMenu(base::BindOnce(
+      &WebUIReadOnlyOmnibox::OnContextMenuReady, weak_ptr_factory_.GetWeakPtr(),
+      widget, point, source_type));
 }
 
 void WebUIReadOnlyOmnibox::Update() {
@@ -118,10 +178,7 @@ void WebUIReadOnlyOmnibox::SetTextAndSelectedRange(
     const gfx::Range& selection) {
   text_ = text;
   inline_autocompletion_ = inline_autocompletion;
-
-  // The JS side will likely render the inline completion using selection,
-  // but conceptually we're at end of text.
-  selection_ = gfx::Range(text.size());
+  selection_ = selection;
   ResetFormatting();
 }
 
@@ -145,6 +202,7 @@ void WebUIReadOnlyOmnibox::SetWindowTextAndCaretPos(const std::u16string& text,
     TextChanged();
   }
 
+  SetAdditionalText(std::u16string());
   RequestUpdateWebUI();
 }
 
@@ -156,11 +214,15 @@ void WebUIReadOnlyOmnibox::SetCaretPos(size_t caret_pos) {
 
 void WebUIReadOnlyOmnibox::SetAdditionalText(
     const std::u16string& additional_text) {
-  NOTIMPLEMENTED();
+  additional_text_ = FormatOmniboxAdditionalText(additional_text);
+  RequestUpdateWebUI();
 }
 
 void WebUIReadOnlyOmnibox::EnterKeywordModeForDefaultSearchProvider() {
-  NOTIMPLEMENTED();
+  controller()->edit_model()->EnterKeywordModeForDefaultSearchProvider(
+      metrics::OmniboxEventProto::KEYBOARD_SHORTCUT);
+  ResetBrowserVersion();
+  RequestUpdateWebUI();
 }
 
 bool WebUIReadOnlyOmnibox::IsSelectAll() const {
@@ -196,12 +258,19 @@ void WebUIReadOnlyOmnibox::RevertAll() {
 }
 
 void WebUIReadOnlyOmnibox::SetFocus(bool is_user_initiated) {
-  NOTIMPLEMENTED();
+  SetFocusWithTarget(
+      is_user_initiated
+          ? toolbar_ui_api::mojom::FocusRequestTarget::kLocationBarUserInitiated
+          : toolbar_ui_api::mojom::FocusRequestTarget::kLocationBar);
 }
 
 bool WebUIReadOnlyOmnibox::AimButtonVisible() const {
-  NOTIMPLEMENTED();
   return false;
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  return location_bar_ &&
+         omnibox::AiModePageActionController::From(location_bar_->GetBrowser())
+             ->IsVisible();
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 }
 
 void WebUIReadOnlyOmnibox::ApplyCaretVisibility() {
@@ -234,6 +303,7 @@ void WebUIReadOnlyOmnibox::OnInlineAutocompleteTextMaybeChanged(
   // but conceptually we're at end of text.
   gfx::Range selection(user_text.size());
   SetTextAndSelectedRange(user_text, inline_autocompletion, selection);
+  SetAdditionalText(std::u16string());
   ResetFormatting();
   EmphasizeURLComponents();
   RequestUpdateWebUI();
@@ -273,6 +343,10 @@ bool WebUIReadOnlyOmnibox::OnAfterPossibleChange(bool allow_keyword_ui_change) {
   }
 
   return something_changed;
+}
+
+void WebUIReadOnlyOmnibox::OnKeywordPlaceholderTextChange() {
+  RequestUpdateWebUI();
 }
 
 int WebUIReadOnlyOmnibox::GetOmniboxTextLength() const {
@@ -327,16 +401,57 @@ void WebUIReadOnlyOmnibox::UpdateSchemeStyle(const gfx::Range& range) {
   }
 }
 
+void WebUIReadOnlyOmnibox::ExecuteCommand(int command_id, int event_flags) {
+  if (!HandleExecuteCommand(command_id, event_flags)) {
+    if (!toolbar_delegate_) {
+      return;
+    }
+    HandleExecuteTextEditingCommandOnWebContents(
+        toolbar_delegate_->GetWebContents(), command_id, event_flags);
+  }
+}
+
+bool WebUIReadOnlyOmnibox::GetAcceleratorForCommandId(
+    int command_id,
+    ui::Accelerator* accelerator) const {
+  return HandleGetAcceleratorForCommandId(command_id, accelerator);
+}
+
+bool WebUIReadOnlyOmnibox::IsContextMenuForReadOnlyOmnibox() const {
+  // TODO(http://crbug.com/470042732): Once WebUILocationBar can be used for
+  // popups, this will need to return true for those.
+  return false;
+}
+
+const gfx::FontList& WebUIReadOnlyOmnibox::FontListForContextMenu() const {
+  const auto& typography_provider = views::TypographyProvider::Get();
+  return typography_provider.GetFont(CONTEXT_OMNIBOX_PRIMARY,
+                                     views::style::STYLE_PRIMARY);
+}
+
+bool WebUIReadOnlyOmnibox::IsContextMenuTextEditingCommandEnabled(
+    int command_id) const {
+  return HandleIsContextMenuTextEditingCommandEnabled(command_id, menu_params_);
+}
+
+views::Widget* WebUIReadOnlyOmnibox::GetWidgetForTextServices() {
+  return toolbar_delegate_->GetView()->GetWidget();
+}
+
 toolbar_ui_api::mojom::OmniboxViewStatePtr
-WebUIReadOnlyOmnibox::ComputeMojoState() const {
+WebUIReadOnlyOmnibox::ComputeMojoState() {
   auto state = toolbar_ui_api::mojom::OmniboxViewState::New();
   state->ui_version = ui_version_;
   state->browser_version = browser_version_;
   if (selection_.IsValid()) {
     state->selection = selection_;
   }
+  state->formatted_full_url = controller()->client()->GetFormattedFullURL();
   state->inline_autocompletion = inline_autocompletion_;
   state->text_is_url = text_is_url_;
+  state->additional_text = additional_text_;
+  state->user_input_in_progress =
+      controller()->edit_model()->user_input_in_progress();
 
   // Figure out all the breakpoints so we can go through text span-by-span.
   std::vector<size_t> breakpoints;
@@ -358,12 +473,50 @@ WebUIReadOnlyOmnibox::ComputeMojoState() const {
     size_t end = breakpoints[i + 1];
 
     state->text_pieces.push_back(toolbar_ui_api::mojom::OmniboxTextPortion::New(
-        base::UTF16ToUTF8(text_.substr(begin, end - begin)),
+        text_.substr(begin, end - begin),
         text_strike_through_.GetBreak(begin)->second,
         text_colors_.GetBreak(begin)->second));
   }
 
+  std::u16string placeholder_text;
+  // TODO(crbug.com/507045398): Pay attention to this.
+  std::optional<std::u16string> maybe_a11y_placeholder;
+
+  omnibox::ComputePlaceholderText(location_bar_, placeholder_text,
+                                  maybe_a11y_placeholder);
+  if (has_focus_ && !aim_hint_currently_shown_ &&
+      omnibox::IsAimPlaceholderText(location_bar_, placeholder_text)) {
+    omnibox::RecordAimHintImpression(location_bar_);
+    aim_hint_currently_shown_ = true;
+  }
+
+  if (!placeholder_text.empty() &&
+      omnibox::ShouldShowPlaceholderText(
+          location_bar_,
+          /*in_popup_state_transition=*/false,
+          /*aim_button_visible=*/AimButtonVisible(),
+          /*aim_hint_currently_shown=*/aim_hint_currently_shown_)) {
+    state->placeholder = toolbar_ui_api::mojom::OmniboxTextPortion::New(
+        placeholder_text,
+        /*strikethrough=*/false,
+        omnibox::ShouldUseDimPlaceholderColor(location_bar_)
+            ? toolbar_ui_api::mojom::OmniboxTextColor::
+                  kOmniboxForegroundDisabled
+            : toolbar_ui_api::mojom::OmniboxTextColor::kOmniboxText);
+  }
+
   return state;
+}
+
+void WebUIReadOnlyOmnibox::SetFocusWithTarget(
+    toolbar_ui_api::mojom::FocusRequestTarget target) {
+  update_propagator_->PropagateFocusRequest(target);
+
+  // If the user attempts to focus the omnibox, and the ctrl key is pressed, we
+  // want to prevent ctrl-enter behavior until the ctrl key is released and
+  // re-pressed. This occurs even if the omnibox is already focused and we
+  // re-request focus (e.g. pressing ctrl-l twice).
+  controller()->edit_model()->ConsumeCtrlKey();
 }
 
 void WebUIReadOnlyOmnibox::RequestUpdateWebUI() {
@@ -387,16 +540,30 @@ base::expected<std::monostate, mojo_base::mojom::ErrorPtr>
 WebUIReadOnlyOmnibox::OnFocusChange(
     const toolbar_ui_api::mojom::OmniboxActionFocusChange& focus_change) {
   if (focus_change.has_focus) {
+    has_focus_ = true;
+    selection_ = focus_change.selection;
     // TODO(crbug.com/500653057): Key state, though Views impl doesn't have it.
-    // TODO(crbug.com/503784990): May have to call ConsumeCtrlKey() when
-    //   acquiring focus, including via Ctrl-L.
     controller()->edit_model()->OnSetFocus(/*control_down=*/false);
+
+    if (focus_change.request_clear_keyword) {
+      controller()->edit_model()->ClearKeyword();
+    }
+    if (focus_change.start_zero_suggest) {
+      controller()->edit_model()->StartZeroSuggestRequest();
+    }
+    if (focus_change.activate_default_search) {
+      EnterKeywordModeForDefaultSearchProvider();
+    }
+    RequestUpdateWebUI();
   } else {
+    has_focus_ = false;
+    aim_hint_currently_shown_ = false;
     controller()->edit_model()->OnWillKillFocus();
     if (auto* popup_closer = controller()->client()->GetOmniboxPopupCloser()) {
       popup_closer->CloseWithReason(omnibox::PopupCloseReason::kBlur);
     }
     controller()->edit_model()->OnKillFocus();
+    RequestUpdateWebUI();
   }
   return base::ok(std::monostate());
 }
@@ -408,7 +575,7 @@ WebUIReadOnlyOmnibox::OnTextInput(
     OnBeforePossibleChange();
     ui_version_ = text_input.ui_version;
     SetTextAndSelectedRange(text_input.text, text_input.inline_autocompletion,
-                            gfx::Range(text_input.text.size()));
+                            text_input.selection);
     OnAfterPossibleChange(/*allow_keyword_ui_change=*/true);
   }
   return base::ok(std::monostate());
@@ -445,8 +612,8 @@ WebUIReadOnlyOmnibox::OnKey(
   switch (dom_key) {
     case ui::DomKey::ENTER: {
       WindowOpenDisposition disposition =
-          ComputeOpenDispositionFromModifiersAndLogToUma(shift, control, alt,
-                                                         command);
+          searchbox::ComputeOpenDispositionFromModifiersAndLogToUma(
+              shift, control, alt, command);
       // TODO(crbug.com/503784580): Views impl has some special handling of
       //   AIM button here. We may or may not need it depending on how we
       //   implement its focus behavior.
@@ -499,6 +666,74 @@ WebUIReadOnlyOmnibox::OnKey(
   return base::ok(std::monostate());
 }
 
+base::expected<std::monostate, mojo_base::mojom::ErrorPtr>
+WebUIReadOnlyOmnibox::OnMouse(
+    const toolbar_ui_api::mojom::OmniboxActionMouse& mouse) {
+  // Either mouse up or mouse down permit launches.
+  ExternalProtocolHandler::PermitLaunchUrl();
+
+  if (mouse.is_mouse_down) {
+    // Mouse down clears the pseudo-focus the popup has.
+    if (controller()->IsPopupOpen()) {
+      OmniboxPopupSelection selection =
+          controller()->edit_model()->GetPopupSelection();
+      if (selection.state != OmniboxPopupSelection::KEYWORD_MODE) {
+        selection.state = OmniboxPopupSelection::NORMAL;
+        controller()->edit_model()->SetPopupSelection(selection);
+      }
+    }
+  } else {
+    // Mouse up may start zero-suggest.
+    if (mouse.start_zero_suggest) {
+      controller()->edit_model()->StartZeroSuggestRequest();
+    }
+  }
+  return base::ok(std::monostate());
+}
+
+base::expected<std::monostate, mojo_base::mojom::ErrorPtr>
+WebUIReadOnlyOmnibox::OnDropText(
+    const toolbar_ui_api::mojom::OmniboxActionDropText& drop_text) {
+  std::u16string text = omnibox::StripJavascriptSchemas(
+      base::CollapseWhitespace(drop_text.text, true));
+  base::TrimWhitespace(text, base::TRIM_ALL, &text);
+
+  SetUserText(text, /*update_popup=*/false);
+  SelectAll(false);
+  return base::ok(std::monostate());
+}
+
+base::expected<std::monostate, mojo_base::mojom::ErrorPtr>
+WebUIReadOnlyOmnibox::OnDropFile(
+    const toolbar_ui_api::mojom::OmniboxActionDropFile& drop_file) {
+  if (std::optional<GURL> url =
+          update_propagator_->ConsumeDroppedUrl(drop_file.drop_position)) {
+    std::u16string text = base::UTF8ToUTF16(url->spec());
+    if (!text.empty()) {
+      SetUserText(text, /*update_popup=*/false);
+      SelectAll(false);
+    }
+  }
+  return base::ok(std::monostate());
+}
+
+void WebUIReadOnlyOmnibox::OnContextMenuReady(
+    views::Widget* widget,
+    const gfx::Point& point,
+    ui::mojom::MenuSourceType source_type) {
+  menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
+  AddTextfieldItems(toolbar_delegate_->GetWebContents()->GetWeakPtr(),
+                    menu_params_, menu_model_.get());
+  AddOmniboxSpecificItems(menu_model_.get());
+
+  menu_runner_ = std::make_unique<views::MenuRunner>(
+      menu_model_.get(),
+      views::MenuRunner::HAS_MNEMONICS | views::MenuRunner::CONTEXT_MENU);
+  menu_runner_->RunMenuAt(widget, /*button_controller=*/nullptr,
+                          gfx::Rect(point, gfx::Size()),
+                          views::MenuAnchorPosition::kTopLeft, source_type);
+}
+
 ui::DomKey WebUIReadOnlyOmnibox::LookupAndCacheDomKey(
     std::string_view key_str) {
   // ui::KeycodeConverter is quite slow for looking up by KeyEvent.Key strings,
@@ -511,4 +746,38 @@ ui::DomKey WebUIReadOnlyOmnibox::LookupAndCacheDomKey(
   ui::DomKey dom_key = ui::KeycodeConverter::KeyStringToDomKey(key_str);
   key_code_cache_.insert(std::pair(std::string(key_str), dom_key));
   return dom_key;
+}
+
+void WebUIReadOnlyOmnibox::OnTemplateURLServiceChanged() {
+  RequestUpdateWebUI();  // for placeholder text
+}
+
+void WebUIReadOnlyOmnibox::DidFinishNavigation(
+    content::NavigationHandle* navigation_handle) {
+  // Update the placeholder text after primary main frame navigation of the
+  // currently displayed WebContents to ensure it reflects the current page,
+  // including cases like back/forward navigation between the New Tab Page and
+  // Contextual Tasks page.
+  if (!location_bar_ || location_bar_->GetWebContents() != web_contents()) {
+    return;
+  }
+
+  if (navigation_handle->IsInPrimaryMainFrame() &&
+      navigation_handle->HasCommitted()) {
+    RequestUpdateWebUI();  // for placeholder text
+  }
+}
+
+void WebUIReadOnlyOmnibox::TitleWasSet(content::NavigationEntry* entry) {
+  // Update the placeholder text after title changes in the primary main frame
+  // of the currently displayed WebContents.
+  // For Contextual Tasks page, updates the placeholder text to the page title.
+  if (!location_bar_ || location_bar_->GetWebContents() != web_contents()) {
+    return;
+  }
+
+  if (entry &&
+      entry == web_contents()->GetController().GetLastCommittedEntry()) {
+    RequestUpdateWebUI();  // for placeholder text
+  }
 }

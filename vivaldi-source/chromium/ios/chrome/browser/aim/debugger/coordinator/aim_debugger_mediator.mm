@@ -54,6 +54,10 @@
                           _service->IsAimAllowedByDse());
   eligibility.PutOrRemove(AimEligibilityCheck::kIsServerEligibilityEnabled,
                           _service->IsServerEligibilityEnabled());
+  eligibility.PutOrRemove(AimEligibilityCheck::kIsCobrowseEligible,
+                          _service->IsCobrowseEligible());
+  eligibility.PutOrRemove(AimEligibilityCheck::kIsFuseboxEligible,
+                          _service->IsFuseboxEligible());
 
   const auto& response = _service->GetMostRecentResponse();
   eligibility.PutOrRemove(AimEligibilityCheck::kIsEligibleByServer,

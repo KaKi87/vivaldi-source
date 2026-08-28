@@ -117,6 +117,14 @@ FakeCrosHealthd* FakeCrosHealthd::Get() {
   return g_instance;
 }
 
+void FakeCrosHealthd::AddObserver(Observer* observer) {
+  observers_.AddObserver(observer);
+}
+
+void FakeCrosHealthd::RemoveObserver(Observer* observer) {
+  observers_.RemoveObserver(observer);
+}
+
 void FakeCrosHealthd::SetAvailableRoutinesForTesting(
     std::vector<mojom::DiagnosticRoutineEnum> available_routines) {
   available_routines_ = std::move(available_routines);
@@ -785,6 +793,7 @@ void FakeCrosHealthd::AddEventObserver(
   }
 
   it->second.Add(std::move(observer));
+  observers_.Notify(&Observer::OnEventObserverAdded);
 }
 
 void FakeCrosHealthd::IsEventSupported(
@@ -826,6 +835,7 @@ void FakeCrosHealthd::CreateRoutine(
   routine_controllers_.emplace(
       std::piecewise_construct, std::forward_as_tuple(argument->which()),
       std::forward_as_tuple(std::move(pending_receiver), std::move(observer)));
+  observers_.Notify(&Observer::OnRoutineCreated);
 }
 
 void FakeCrosHealthd::IsRoutineArgumentSupported(

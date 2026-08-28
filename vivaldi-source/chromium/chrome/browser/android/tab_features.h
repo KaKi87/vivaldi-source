@@ -34,6 +34,10 @@ namespace content {
 class WebContents;
 }  // namespace content
 
+namespace enterprise_data_protection {
+class DataProtectionNavigationController;
+}  // namespace enterprise_data_protection
+
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 namespace glic {
 class GlicInstanceHelper;
@@ -64,6 +68,11 @@ class TabFeatures {
     return new_tab_page_preload_pipeline_manager_.get();
   }
 
+  enterprise_data_protection::DataProtectionNavigationController*
+  data_protection_controller() {
+    return data_protection_tab_controller_.get();
+  }
+
  private:
   // Returns the factory used to create owned components.
   static ui::UserDataFactoryWithOwner<TabInterface>& GetUserDataFactory();
@@ -86,6 +95,10 @@ class TabFeatures {
       contextual_tasks_tab_visit_tracker_;
   std::unique_ptr<lens::TabContextualizationController>
       tab_contextualization_controller_;
+
+  std::unique_ptr<
+      enterprise_data_protection::DataProtectionNavigationController>
+      data_protection_tab_controller_;
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   std::unique_ptr<glic::GlicInstanceHelper> glic_instance_helper_;

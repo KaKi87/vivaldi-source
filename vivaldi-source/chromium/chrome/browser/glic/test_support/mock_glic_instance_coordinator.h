@@ -36,12 +36,20 @@ class MockGlicInstanceCoordinator
               GetInstanceWithGlicWebContents,
               (content::WebContents*),
               (const, override));
+  MOCK_METHOD(GlicInstance*,
+              GetInstanceForTabGroup,
+              (tab_groups::TabGroupId),
+              (const, override));
+  MOCK_METHOD(GlicInstance*,
+              ShowInstanceForTabGroup,
+              (tab_groups::TabGroupId),
+              (override));
 
   MOCK_METHOD(void,
               Toggle,
               (BrowserWindowInterface*, bool, mojom::InvocationSource),
               (override));
-  MOCK_METHOD(void, EnsurePreload, (), (override));
+  MOCK_METHOD(bool, MaybeStartInitialWarming, (), (override));
   MOCK_METHOD(base::WeakPtr<GlicInstance>,
               Invoke,
               (GlicInvokeOptions),
@@ -84,22 +92,14 @@ class MockGlicInstanceCoordinator
               (ActiveInstanceChangedCallback callback),
               (override));
   MOCK_METHOD(GlicInstance*, GetActiveInstance, (), (override));
-  MOCK_METHOD(GlicSharingManager&,
+  MOCK_METHOD(GlicSharingManagerInternal&,
               active_instance_sharing_manager,
               (),
               (override));
 
-  MOCK_METHOD(void,
-              CreateNewConversationForTabs,
-              (const std::vector<tabs::TabInterface*>&),
-              (override));
-  MOCK_METHOD(void,
-              ShowInstanceForTabs,
-              (const std::vector<tabs::TabInterface*>&, const InstanceId&),
-              (override));
   MOCK_METHOD(std::vector<ConversationInfo>,
               GetRecentlyActiveInstances,
-              (size_t),
+              (size_t, base::TimeDelta),
               (override));
   MOCK_METHOD(bool,
               IsTabPinnedToAnyInstance,
@@ -114,11 +114,6 @@ class MockGlicInstanceCoordinator
               (content::RenderFrameHost*),
               (override));
 
-  MOCK_METHOD(void,
-              GetExperimentalTriggeringUpdates,
-              (mojo::PendingRemote<mojom::ExperimentalTriggeringUpdatesHandler>,
-               base::OnceCallback<void(bool)>),
-              (override));
 
  private:
   GlicDelegatingSharingManager dummy_sharing_manager_;

@@ -39,46 +39,48 @@ namespace {
 using ::testing::Optional;
 
 TEST(CommandTest, ToString) {
-  EXPECT_EQ(Command{"x"}.ToString(), "env \\\nx");
+  EXPECT_EQ(Command{"x"}.ToString(), "exec env \\\nx");
   {
     Command::Options cmd_options;
     cmd_options.args = {"arg1", "arg2"};
     EXPECT_EQ((Command{"path", std::move(cmd_options)}.ToString()),
-              "env \\\npath \\\narg1 \\\narg2");
+              "exec env \\\npath \\\narg1 \\\narg2");
   }
   {
     Command::Options cmd_options;
     cmd_options.env_diff = {"K1=V1", "K2=V2", "-K3"};
     EXPECT_EQ((Command{"x", std::move(cmd_options)}.ToString()),
-              "env \\\n-u K3 \\\nK1=V1 \\\nK2=V2 \\\nx");
+              "exec env \\\n-u K3 \\\nK1=V1 \\\nK2=V2 \\\nx");
   }
 }
 
 TEST(CommandTest, Execute) {
+  StopCondition stop_condition;
+
   // Check for default exit code.
   Command echo{"echo"};
-  EXPECT_EQ(echo.Execute(), 0);
-  EXPECT_FALSE(ShouldStop());
+  EXPECT_EQ(echo.Execute(&stop_condition), 0);
+  EXPECT_FALSE(stop_condition.ShouldStop());
 
   // Check for exit code 7.
   Command exit7{"bash -c 'exit 7'"};
-  EXPECT_EQ(exit7.Execute(), 7);
-  EXPECT_FALSE(ShouldStop());
+  EXPECT_EQ(exit7.Execute(&stop_condition), 7);
+  EXPECT_FALSE(stop_condition.ShouldStop());
 }
 
 TEST(CommandTest, HandlesInterruptedCommand) {
+  StopCondition stop_condition;
   Command self_sigint{"bash -c 'kill -SIGINT $$'"};
   self_sigint.ExecuteAsync();
-  self_sigint.Wait(absl::InfiniteFuture());
-  EXPECT_TRUE(ShouldStop());
-  ClearEarlyStopRequestAndSetStopTime(absl::InfiniteFuture());
+  self_sigint.Wait(absl::InfiniteFuture(), &stop_condition);
+  EXPECT_TRUE(stop_condition.ShouldStop());
 }
 
 TEST(CommandTest, InputFileWildCard) {
   Command::Options cmd_options;
   cmd_options.temp_file_path = "TEMP_FILE";
   Command cmd{"foo bar @@ baz", std::move(cmd_options)};
-  EXPECT_EQ(cmd.ToString(), "env \\\nfoo bar TEMP_FILE baz");
+  EXPECT_EQ(cmd.ToString(), "exec env \\\nfoo bar TEMP_FILE baz");
 }
 
 TEST(CommandTest, ForkServer) {

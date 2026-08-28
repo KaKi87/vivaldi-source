@@ -14,7 +14,6 @@
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/contents_capture_border_view.h"
 #include "chrome/browser/ui/views/frame/contents_container_view.h"
-#include "chrome/browser/ui/views/tabs/tab.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/compositor/layer.h"
 #include "ui/gfx/canvas.h"
@@ -83,7 +82,7 @@ ContextSharingBorderView::ContextSharingBorderView(
     Browser* browser,
     ContentsWebView* contents_web_view,
     std::unique_ptr<Tester> tester)
-    : AnimatedEffectView(browser->profile(), std::move(tester)),
+    : AnimatedEffectView(browser->GetProfile(), std::move(tester)),
       browser_(browser),
       controller_(std::move(controller)) {
   // Post-initialization updates. Don't do the update in the controller's ctor

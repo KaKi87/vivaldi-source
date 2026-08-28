@@ -82,24 +82,16 @@ type triageConfig struct {
 	filterArg     string
 }
 
-// runCmd is a helper that executes a command for a triage subtask with standardized output capturing and logging
-// behaviour
-func (tc *triageConfig) runCmd(name string, args ...string) ([]byte, error) {
-	if tc.verbose {
-		fmt.Printf("executing: %s %s\n", name, strings.Join(args, " "))
-	}
-	cmd := tc.execWrapper.Command(name, args...)
-	out, err := cmd.RunWithCombinedOutput()
-	if tc.verbose {
-		fmt.Printf("output:\n%s\n", string(out))
-	}
-	return out, err
-}
-
 // runTriage performs an automated triage of a fuzzer crash.
 // It verifies the reproduction, extracts human-readable IR and WGSL, identifies the failing transformation pass, and
 // generates a detailed Markdown report. Returns an error if a subtask fails unexpectedly.
 func runTriage(t *taskConfig) error {
+	if !t.skipInputTypeCheck {
+		if err := checkInputFileType(t.triageFile, t.fuzzMode, t.osWrapper); err != nil {
+			return err
+		}
+	}
+
 	tc := &triageConfig{taskConfig: t}
 	tc.inputBase = filepath.Base(tc.triageFile)
 	tc.reproFile = tc.inputBase + ".repro"
@@ -126,7 +118,7 @@ func runTriage(t *taskConfig) error {
 	fmt.Println("determining failing pass...")
 	failingPass, err := determineFailingPass(fuzzerOutput)
 	if err != nil {
-		return err
+		fmt.Printf("warning: %v\n", err)
 	}
 	tc.failingPass = failingPass
 
@@ -254,10 +246,17 @@ func determineFailingPass(fuzzerOutput string) (string, error) {
 // failing pass with verbose logging and IR dumping enabled. The output is captured and written
 // to a log file. Returns the verbose output, the filter argument used, and any error.
 func runSpecificPassAndLog(tc *triageConfig) error {
-	tc.filterArg = "--filter=" + tc.failingPass
+	args := []string{"--verbose", "--dump-ir=true"}
+	if tc.failingPass != "" {
+		tc.filterArg = "--filter=" + tc.failingPass
+		args = append(args, tc.filterArg)
+	} else {
+		tc.filterArg = ""
+	}
+	args = append(args, tc.reproFile)
 
 	// Ignore command exit status issues (command is expected to crash)
-	tc.verboseOut, _ = tc.runCmd(tc.fuzzer, "--verbose", "--dump-ir=true", tc.filterArg, tc.reproFile)
+	tc.verboseOut, _ = tc.runCmd(tc.fuzzer, args...)
 
 	if err := tc.osWrapper.WriteFile(tc.logFile, tc.verboseOut, 0644); err != nil {
 		return fmt.Errorf("failed to write log file: %w", err)
@@ -313,6 +312,33 @@ func generateTriageReport(tc *triageConfig) error {
 		irDumpDisplay = "```\n" + irDump + "```"
 	}
 
+	failingPassDisplay := tc.failingPass
+	if failingPassDisplay == "" {
+		failingPassDisplay = "Unknown (failed to identify from fuzzer output)"
+	}
+
+	failingTransformDisplay := failingTransform
+	if failingTransformDisplay == "" {
+		failingTransformDisplay = "Unknown"
+	}
+
+	transformsRunDisplay := strings.Join(transformsRun, "\n")
+	if transformsRunDisplay == "" {
+		transformsRunDisplay = "None"
+	}
+
+	reproCmdParts := []string{tc.fuzzer, "--verbose", "--dump-ir=true"}
+	if tc.filterArg != "" {
+		reproCmdParts = append(reproCmdParts, tc.filterArg)
+	}
+	reproCmdParts = append(reproCmdParts, tc.reproFile)
+	reproCmd := strings.Join(reproCmdParts, " ")
+
+	stackTraceDisplay := stackTrace
+	if stackTraceDisplay == "" {
+		stackTraceDisplay = "Unknown (failed to extract stack trace)"
+	}
+
 	report := fmt.Sprintf(`# Triage Report for %s
 
 ## Status
@@ -330,7 +356,7 @@ func generateTriageReport(tc *triageConfig) error {
 %s
 ## Reproduction Instructions
 `+"```"+`
-%s --verbose --dump-ir=true %s %s
+%s
 `+"```"+`
 
 ## Failing Pass
@@ -359,13 +385,13 @@ func generateTriageReport(tc *triageConfig) error {
 		tc.triageFile,
 		tc.reproFile, tc.reproStatus.NoteString(),
 		tc.inputsDisplay,
-		tc.fuzzer, tc.filterArg, tc.reproFile,
-		tc.failingPass,
-		strings.Join(transformsRun, "\n"),
-		failingTransform,
+		reproCmd,
+		failingPassDisplay,
+		transformsRunDisplay,
+		failingTransformDisplay,
 		irDumpStatus,
 		irDumpDisplay,
-		stackTrace)
+		stackTraceDisplay)
 
 	fmt.Println("\n--- TRIAGE REPORT ---")
 	fmt.Println(report)

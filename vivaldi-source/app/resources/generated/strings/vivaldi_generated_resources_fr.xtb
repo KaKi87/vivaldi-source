@@ -39,7 +39,6 @@
 <translation id="1601560923496285236">Appliquer</translation>
 <translation id="1603914832182249871">(Navigation privée)</translation>
 <translation id="1627276047960621195">Descripteurs de fichiers</translation>
-<translation id="1654713139320245449">Aucune destination de diffusion trouvée. Besoin d’aide ?</translation>
 <translation id="166278006618318542">Algorithme de clé publique de l’objet</translation>
 <translation id="1682548588986054654">Nouvelle fenêtre privée</translation>
 <translation id="1708338024780164500">(Inactive)</translation>
@@ -60,7 +59,6 @@
 <translation id="1906488504371069394">Découvrez davantage d’extensions et de thèmes sur le <ph name="BEGIN_LINK" />Chrome Web Store<ph name="END_LINK" /></translation>
 <translation id="1921584744613111023"><ph name="DPI" /> points par pouce</translation>
 <translation id="1925021887439448749">Saisissez une adresse Web personnalisée</translation>
-<translation id="1932098463447129402">Pas avant le</translation>
 <translation id="1936157145127842922">Afficher dans l’explorateur de fichiers</translation>
 <translation id="1936931585862840749">Indiquez le nombre de copies à imprimer (1 à <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">&amp;Ouvrir le fichier audio dans un nouvel onglet</translation>
@@ -102,7 +100,6 @@
 <translation id="253557089021624350">Nombre de keepalive (pour extensions)</translation>
 <translation id="2550212893339833758">Mémoire Swap</translation>
 <translation id="2553440850688409052">Masquer ce plug-in</translation>
-<translation id="2607101320794533334">Infos sur la clé publique de l’objet</translation>
 <translation id="261305050785128654">Permettez aux sites Web de connaître les langues que vous parlez. Ils afficheront le contenu dans ces langues, si possible.</translation>
 <translation id="26224892172169984">Interdire à tous les sites de gérer les protocoles</translation>
 <translation id="2653275834716714682">Remplacement du texte</translation>
@@ -112,7 +109,6 @@
 <translation id="2719936478972253983">Les cookies suivants ont été bloqués</translation>
 <translation id="2721037002783622288">Rechercher une &amp;image avec <ph name="SEARCH_ENGINE" /></translation>
 <translation id="2722547199758472013">ID: <ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">Pas après le</translation>
 <translation id="2749881179542288782">Vérifier la grammaire et l’orthographe</translation>
 <translation id="2785873697295365461">Descripteurs de fichiers</translation>
 <translation id="2825758591930162672">Clé publique de l’objet</translation>
@@ -163,7 +159,6 @@
 <translation id="3387614642886316601">Utiliser le correcteur orthographique amélioré</translation>
 <translation id="3390013585654699824">Détails sur l’application</translation>
 <translation id="345693547134384690">Ouvrir l’&amp;image dans un nouvel onglet</translation>
-<translation id="3493881266323043047">Validité</translation>
 <translation id="3511307672085573050">Copier l’adr&amp;esse du lien</translation>
 <translation id="354068948465830244">Possibilité de lire et de modifier les données du site</translation>
 <translation id="3555812735919707620">Supprimer l’extension</translation>
@@ -179,7 +174,6 @@
 <translation id="3760460896538743390">Inspecter la page d’&amp;arrière-plan</translation>
 <translation id="3786224729726357296">Supprimer les données de site et les autorisations de <ph name="SITE" /></translation>
 <translation id="3797900183766075808">&amp;Rechercher "<ph name="SEARCH_TERMS" />" avec <ph name="SEARCH_ENGINE" /></translation>
-<translation id="3798449238516105146">Version</translation>
 <translation id="3810973564298564668">Gérer</translation>
 <translation id="3838085852053358637">Échec du chargement de l’extension</translation>
 <translation id="383891835335927981">Vous n’avez fait de zoom avant ou arrière sur aucun site</translation>
@@ -266,12 +260,10 @@
 <translation id="5063480226653192405">Utilisation</translation>
 <translation id="5116628073786783676">En&amp;registrer le fichier audio sous…</translation>
 <translation id="5154108062446123722">Paramètres avancés pour <ph name="PRINTING_DESTINATION" /></translation>
-<translation id="5154702632169343078">Objet</translation>
 <translation id="5170568018924773124">Afficher dans l’explorateur de fichiers</translation>
 <translation id="5171343362375269016">Espace mémoire d’échange</translation>
 <translation id="5233231016133573565">ID du processus</translation>
 <translation id="5233736638227740678">Co&amp;ller</translation>
-<translation id="5244466461749935369">Conserver pour l’instant</translation>
 <translation id="5256861893479663409">Sur tous les sites</translation>
 <translation id="5260334392110301220">Guillemets courbes</translation>
 <translation id="5269977353971873915">Échec de l’impression</translation>
@@ -310,7 +302,6 @@
 <translation id="5780973441651030252">Priorité de traitement</translation>
 <translation id="5804241973901381774">Autorisations</translation>
 <translation id="5828633471261496623">Impression...</translation>
-<translation id="5851868085455377790">Émetteur</translation>
 <translation id="5860491529813859533">Activer</translation>
 <translation id="5910363049092958439">En&amp;registrer l’image sous…</translation>
 <translation id="5914724413750400082">Module (<ph name="MODULUS_NUM_BITS" /> bits) :
@@ -459,7 +450,6 @@ Conservez votre fichier de clé en lieu sûr. Vous en aurez besoin lors de la cr
 <translation id="862750493060684461">Cache CSS</translation>
 <translation id="8661290697478713397">Ouvrir le lien dans une fenêtre de navi&amp;gation privée</translation>
 <translation id="8664389313780386848">&amp;Afficher le code source de la page</translation>
-<translation id="8705331520020532516">Numéro de série</translation>
 <translation id="8708000541097332489">Supprimer les données à la fin de la session</translation>
 <translation id="8714838604780058252">Graphiques d’arrière-plan</translation>
 <translation id="8725066075913043281">Réessayer</translation>

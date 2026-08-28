@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2016 The Chromium Authors. All rights reserved.
+# Copyright 2016 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -7,10 +7,12 @@ import ctypes
 import platform
 import subprocess
 import sys
-from third_party import colorama
+import from_third_party
+
+colorama = from_third_party.import_module("colorama")
 
 IS_TTY = None
-OUT_TYPE = 'unknown'
+OUT_TYPE = "unknown"
 
 
 def enable_native_ansi():
@@ -29,11 +31,16 @@ def enable_native_ansi():
         return False
 
     if not (mode.value & ENABLE_VIRTUAL_TERMINAL_PROCESSING):
-        if kernel32.SetConsoleMode(
-                out_handle,
-                mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING) == 0:
-            print('kernel32.SetConsoleMode to enable ANSI sequences failed',
-                  file=sys.stderr)
+        if (
+            kernel32.SetConsoleMode(
+                out_handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING
+            )
+            == 0
+        ):
+            print(
+                "kernel32.SetConsoleMode to enable ANSI sequences failed",
+                file=sys.stderr,
+            )
             return False
 
     return True
@@ -47,17 +54,18 @@ def init():
     should_wrap = False
     global IS_TTY, OUT_TYPE
     IS_TTY = sys.stdout.isatty()
-    is_windows = sys.platform.startswith('win')
+    is_windows = sys.platform.startswith("win")
     if IS_TTY:
         # Yay! We detected a console in the normal way. It doesn't really matter
         # if it's windows or not, we win.
-        OUT_TYPE = 'console'
+        OUT_TYPE = "console"
         should_wrap = True
     elif is_windows:
         # assume this is some sort of file
-        OUT_TYPE = 'file (win)'
+        OUT_TYPE = "file (win)"
 
         import msvcrt
+
         h = msvcrt.get_osfhandle(sys.stdout.fileno())
         # h is the win32 HANDLE for stdout.
         ftype = ctypes.windll.kernel32.GetFileType(h)
@@ -65,11 +73,11 @@ def init():
             # This is a normal cmd console, but we'll only get here if we're
             # running inside a `git command` which is actually
             # git->bash->command. Not sure why isatty doesn't detect this case.
-            OUT_TYPE = 'console (cmd via msys)'
+            OUT_TYPE = "console (cmd via msys)"
             IS_TTY = True
             should_wrap = True
         elif ftype == 3:  # FILE_TYPE_PIPE
-            OUT_TYPE = 'pipe (win)'
+            OUT_TYPE = "pipe (win)"
 
             # This is some kind of pipe on windows. This could either be a real
             # pipe or this could be msys using a pipe to emulate a pty. We use
@@ -88,13 +96,17 @@ def init():
                 return status >= 0
 
             class UNICODE_STRING(ctypes.Structure):
-                _fields_ = [('Length', ctypes.c_ushort),
-                            ('MaximumLength', ctypes.c_ushort),
-                            ('Buffer', ctypes.c_wchar_p)]
+                _fields_ = [
+                    ("Length", ctypes.c_ushort),
+                    ("MaximumLength", ctypes.c_ushort),
+                    ("Buffer", ctypes.c_wchar_p),
+                ]
 
             class OBJECT_NAME_INFORMATION(ctypes.Structure):
-                _fields_ = [('Name', UNICODE_STRING),
-                            ('NameBuffer', ctypes.c_wchar_p)]
+                _fields_ = [
+                    ("Name", UNICODE_STRING),
+                    ("NameBuffer", ctypes.c_wchar_p),
+                ]
 
             buf = ctypes.create_string_buffer(1024)
             # Ask NT what the name of the object our stdout HANDLE is. It would
@@ -104,30 +116,30 @@ def init():
             #
             # The '1' here is ObjectNameInformation
             if NT_SUCCESS(
-                    ctypes.windll.ntdll.NtQueryObject(h, 1, buf,
-                                                      len(buf) - 2, None)):
+                ctypes.windll.ntdll.NtQueryObject(h, 1, buf, len(buf) - 2, None)
+            ):
                 out = OBJECT_NAME_INFORMATION.from_buffer(buf)
-                name = out.Name.Buffer.split('\\')[-1]
-                IS_TTY = name.startswith('msys-') and '-pty' in name
+                name = out.Name.Buffer.split("\\")[-1]
+                IS_TTY = name.startswith("msys-") and "-pty" in name
                 if IS_TTY:
-                    OUT_TYPE = 'bash (msys)'
+                    OUT_TYPE = "bash (msys)"
         else:
             # A normal file, or an unknown file type.
             pass
     else:
         # This is non-windows, so we trust isatty.
-        OUT_TYPE = 'pipe or file'
+        OUT_TYPE = "pipe or file"
 
     if IS_TTY and is_windows:
         # Wrapping may cause errors on some Windows versions
         # (crbug.com/1114548).
-        if platform.release() != '10' or enable_native_ansi():
+        if platform.release() != "10" or enable_native_ansi():
             should_wrap = False
 
     colorama.init(wrap=should_wrap)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     init()
-    print('IS_TTY:', IS_TTY)
-    print('OUT_TYPE:', OUT_TYPE)
+    print("IS_TTY:", IS_TTY)
+    print("OUT_TYPE:", OUT_TYPE)

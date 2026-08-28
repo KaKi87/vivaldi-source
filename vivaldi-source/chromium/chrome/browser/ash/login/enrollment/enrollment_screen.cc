@@ -688,7 +688,9 @@ void EnrollmentScreen::OnIdentifierEntered(const std::string& email) {
   auto callback = base::BindOnce(&EnrollmentScreen::OnAccountStatusFetched,
                                  base::Unretained(this), email);
   status_checker_.reset();
-  status_checker_ = std::make_unique<AccountStatusCheckFetcher>(email);
+  status_checker_ = std::make_unique<AccountStatusCheckFetcher>(
+      shared_url_loader_factory_,
+      browser_policy_connector_ash_->device_management_service(), email);
   status_checker_->Fetch(std::move(callback),
                          /*fetch_enrollment_nudge_policy=*/false);
 }
@@ -912,6 +914,8 @@ void EnrollmentScreen::SetNetworkStateForTesting(const NetworkState* state) {
 // should be refactored in the future.
 void EnrollmentScreen::UpdateStateInternal(NetworkError::ErrorReason reason,
                                            bool force_update) {
+  CHECK_NE(reason, NetworkError::ERROR_REASON_FRAME_ERROR);
+
   if (!force_update && !IsOnEnrollmentScreen() &&
       !IsEnrollmentScreenHiddenByError()) {
     return;
@@ -925,7 +929,6 @@ void EnrollmentScreen::UpdateStateInternal(NetworkError::ErrorReason reason,
   const bool is_online = (state == NetworkStateInformer::ONLINE);
   const bool is_behind_captive_portal =
       (state == NetworkStateInformer::CAPTIVE_PORTAL);
-  const bool is_frame_error = reason == NetworkError::ERROR_REASON_FRAME_ERROR;
 
   LOG(WARNING) << "EnrollmentScreen::UpdateStateInternal(): "
                << "state=" << state << ", "
@@ -935,27 +938,21 @@ void EnrollmentScreen::UpdateStateInternal(NetworkError::ErrorReason reason,
     error_screen_->HideCaptivePortal();
   }
 
-  if (is_frame_error) {
-    LOG(WARNING) << "Retry page load";
-    // TODO(rsorokin): Too many consecutive reloads.
-    view_->ReloadSigninScreen();
-  }
-
-  if (!is_online || is_frame_error) {
-    SetupAndShowOfflineMessage(state, reason);
-  } else {
+  if (is_online) {
     HideOfflineMessage(state, reason);
+  } else {
+    SetupAndShowOfflineMessage(state, reason);
   }
 }
 
 void EnrollmentScreen::SetupAndShowOfflineMessage(
     NetworkStateInformer::State state,
     NetworkError::ErrorReason reason) {
+  CHECK_NE(reason, NetworkError::ERROR_REASON_FRAME_ERROR);
   const std::string network_path = network_state_informer_->network_path();
   const bool is_behind_captive_portal =
       state == NetworkStateInformer::CAPTIVE_PORTAL;
   const bool is_proxy_error = NetworkStateInformer::IsProxyError(state, reason);
-  const bool is_frame_error = reason == NetworkError::ERROR_REASON_FRAME_ERROR;
 
   if (is_proxy_error) {
     error_screen_->SetErrorState(NetworkError::ERROR_STATE_PROXY,
@@ -973,11 +970,6 @@ void EnrollmentScreen::SetupAndShowOfflineMessage(
         NetworkStateInformer::GetNetworkName(network_path);
     error_screen_->SetErrorState(NetworkError::ERROR_STATE_PORTAL,
                                  network_name);
-  } else if (is_frame_error) {
-    // TODO(b/249996052): Clean up dead code, this method is never called with
-    // `NetworkError::ERROR_REASON_FRAME_ERROR`.
-    error_screen_->SetErrorState(NetworkError::ERROR_STATE_LOADING_TIMEOUT,
-                                 std::string());
   } else {
     error_screen_->SetErrorState(NetworkError::ERROR_STATE_OFFLINE,
                                  std::string());

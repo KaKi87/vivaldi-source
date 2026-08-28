@@ -4,109 +4,81 @@
 
 package org.chromium.chrome.browser.ntp_customization.theme_sync.data;
 
-import static org.chromium.build.NullUtil.assertNonNull;
-import static org.chromium.build.NullUtil.assumeNonNull;
+import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NTP_UPLOAD_IMAGES_DIR;
 
-import android.graphics.Matrix;
+import android.graphics.Bitmap;
 
 import androidx.annotation.ColorInt;
-import androidx.annotation.VisibleForTesting;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundType;
+import org.chromium.chrome.browser.ntp_customization.theme.upload_image.BackgroundImageInfo;
 
 import java.util.Objects;
 
 /** Data class for NTP uploaded background image. */
 @NullMarked
-public class NtpBackgroundDataUploadImage extends NtpBackgroundDataBase {
-    @VisibleForTesting
-    static final String LAST_UPLOAD_IMAGE_FILE_PATH_KEY = "lastUploadImageFilePath";
-
-    private final String mLastUploadImageFilePath;
-    private final @ColorInt int mPrimaryColor;
-    private final Matrix mPortraitMatrix;
-    private final Matrix mLandscapeMatrix;
-
+public class NtpBackgroundDataUploadImage extends NtpBackgroundDataImageBase {
+    /**
+     * @param platformType The platform type of the device.
+     * @param backgroundImageInfo The background image info containing matrices and window sizes.
+     * @param bitmap The local bitmap, not synced.
+     * @param primaryColor The primary color of the background image.
+     * @param fileIdHash The ID hash of the image file.
+     */
     public NtpBackgroundDataUploadImage(
             @PlatformType int platformType,
-            String lastUploadImageFilePath,
-            @ColorInt int primaryColor,
-            Matrix portraitMatrix,
-            Matrix landscapeMatrix) {
-        super(platformType);
-        mLastUploadImageFilePath = lastUploadImageFilePath;
-        mPrimaryColor = primaryColor;
-        mPortraitMatrix = portraitMatrix;
-        mLandscapeMatrix = landscapeMatrix;
+            @Nullable BackgroundImageInfo backgroundImageInfo,
+            @Nullable Bitmap bitmap,
+            @Nullable @ColorInt Integer primaryColor,
+            @Nullable String fileIdHash) {
+        super(platformType, backgroundImageInfo, bitmap, primaryColor, fileIdHash);
     }
 
-    /** Returns the file path of the last uploaded image. */
-    public String getLastUploadImageFilePath() {
-        return mLastUploadImageFilePath;
-    }
-
-    /** Returns the primary color of the background image. */
-    public @ColorInt int getPrimaryColor() {
-        return mPrimaryColor;
-    }
-
-    /** Returns the portrait transformation matrix. */
-    public Matrix getPortraitMatrix() {
-        return mPortraitMatrix;
-    }
-
-    /** Returns the landscape transformation matrix. */
-    public Matrix getLandscapeMatrix() {
-        return mLandscapeMatrix;
+    /** Returns the subdirectory name for saving the image file. */
+    @Override
+    public String getImageDirName() {
+        return NTP_UPLOAD_IMAGES_DIR;
     }
 
     // NtpBackgroundDataBase implementations.
 
     @Override
-    protected @NtpBackgroundType int getBackgroundType() {
+    public @NtpBackgroundType int getBackgroundType() {
         return NtpBackgroundType.IMAGE_FROM_DISK;
-    }
-
-    @Override
-    public JSONObject toJson() throws JSONException {
-        JSONObject json = super.toJson();
-        json.put(LAST_UPLOAD_IMAGE_FILE_PATH_KEY, mLastUploadImageFilePath);
-        json.put(PRIMARY_COLOR_KEY, mPrimaryColor);
-        json.put(PORTRAIT_MATRIX_KEY, NtpBackgroundDataUtils.matrixToJsonArray(mPortraitMatrix));
-        json.put(LANDSCAPE_MATRIX_KEY, NtpBackgroundDataUtils.matrixToJsonArray(mLandscapeMatrix));
-        return json;
     }
 
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof NtpBackgroundDataUploadImage other) {
             return super.equals(obj)
-                    && Objects.equals(mLastUploadImageFilePath, other.mLastUploadImageFilePath)
-                    && mPrimaryColor == other.mPrimaryColor;
+                    && Objects.equals(getFileIdHash(), other.getFileIdHash())
+                    && Objects.equals(getBackgroundImageInfo(), other.getBackgroundImageInfo());
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), mLastUploadImageFilePath, mPrimaryColor);
+        return Objects.hash(super.hashCode(), getFileIdHash(), getBackgroundImageInfo());
     }
 
     /** Returns the NtpBackgroundDataUploadImage object from the given JSON. */
     public static NtpBackgroundDataUploadImage fromJson(JSONObject json) throws JSONException {
+        BackgroundImageInfo backgroundImageInfo = null;
+        if (json.has(BACKGROUND_IMAGE_INFO_KEY)) {
+            backgroundImageInfo =
+                    BackgroundImageInfo.fromJson(json.getJSONObject(BACKGROUND_IMAGE_INFO_KEY));
+        }
         return new NtpBackgroundDataUploadImage(
                 json.getInt(PLATFORM_TYPE_KEY),
-                json.getString(LAST_UPLOAD_IMAGE_FILE_PATH_KEY),
-                json.getInt(PRIMARY_COLOR_KEY),
-                assumeNonNull(
-                        NtpBackgroundDataUtils.jsonArrayToMatrix(
-                                json.getJSONArray(PORTRAIT_MATRIX_KEY))),
-                assertNonNull(
-                        NtpBackgroundDataUtils.jsonArrayToMatrix(
-                                json.getJSONArray(LANDSCAPE_MATRIX_KEY))));
+                backgroundImageInfo,
+                /* bitmap= */ null,
+                json.has(PRIMARY_COLOR_KEY) ? json.getInt(PRIMARY_COLOR_KEY) : null,
+                json.has(FILE_ID_HASH_KEY) ? json.getString(FILE_ID_HASH_KEY) : null);
     }
 }

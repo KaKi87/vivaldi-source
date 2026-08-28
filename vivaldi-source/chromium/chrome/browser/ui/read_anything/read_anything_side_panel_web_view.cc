@@ -10,7 +10,6 @@
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/read_anything/read_anything_controller.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry_scope.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_web_ui_view.h"
 #include "chrome/browser/ui/webui/side_panel/read_anything/read_anything_untrusted_page_handler.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/generated_resources.h"
@@ -19,11 +18,9 @@
 #include "content/public/browser/context_menu_params.h"
 #include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/web_contents_delegate.h"
-#include "content/public/common/url_constants.h"
 #include "ui/accessibility/accessibility_features.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/events/keycodes/keyboard_codes.h"
-#include "url/url_constants.h"
 
 using SidePanelWebUIViewT_ReadAnythingUntrustedUI =
     SidePanelWebUIViewT<ReadAnythingUntrustedUI>;
@@ -70,11 +67,9 @@ content::WebContents* ReadAnythingSidePanelWebView::OpenURLFromTab(
     const content::OpenURLParams& params,
     base::OnceCallback<void(content::NavigationHandle&)>
         navigation_handle_callback) {
-  // Block navigation to unsupported URL schemes.
-  if (params.url.SchemeIs(content::kChromeUIScheme) ||
-      params.url.SchemeIs(url::kFileScheme) ||
-      params.url.SchemeIs(content::kChromeUIUntrustedScheme) ||
-      params.url.SchemeIs(url::kJavaScriptScheme)) {
+  // Reading Mode only renders links from distilled web content, so restrict
+  // forwarded navigations to web schemes.
+  if (!params.url.SchemeIsHTTPOrHTTPS()) {
     return nullptr;
   }
   ReadAnythingSidePanelController* controller =

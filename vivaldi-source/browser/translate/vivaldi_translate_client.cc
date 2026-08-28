@@ -58,9 +58,9 @@
 #include "components/translate/content/android/translate_message.h"
 #else
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #endif
 
@@ -400,6 +400,11 @@ bool VivaldiTranslateClient::IsTranslatableURL(const GURL& url) {
   return TranslateService::IsTranslatableURL(url);
 }
 
+void VivaldiTranslateClient::CheckIfPdfIsTranslatable(
+  base::OnceCallback<void(bool)> callback) {
+  std::move(callback).Run(false);
+}
+
 void VivaldiTranslateClient::WebContentsDestroyed() {
   // Translation process can be interrupted.
   // Destroying the TranslateManager now guarantees that it never has to deal
@@ -512,7 +517,8 @@ ShowTranslateBubbleResult VivaldiTranslateClient::ShowBubble(
     const std::string& target_language,
     translate::TranslateErrors error_type) {
   DCHECK(translate_manager_);
-  Browser* browser = chrome::FindBrowserWithTab(web_contents());
+  BrowserWindowInterface* const browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(web_contents());
 
   // |browser| might be NULL when testing. In this case, Show(...) should be
   // called because the implementation for testing is used.

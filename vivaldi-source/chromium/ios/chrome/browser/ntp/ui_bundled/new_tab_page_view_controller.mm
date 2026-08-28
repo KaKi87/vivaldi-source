@@ -37,6 +37,7 @@
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_quick_actions_view_controller.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_shortcuts_handler.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_trait.h"
+#import "ios/chrome/browser/ntp/ui_bundled/ntp_identity_disc_button.h"
 #import "ios/chrome/browser/overscroll_actions/ui_bundled/overscroll_actions_controller.h"
 #import "ios/chrome/browser/shared/model/utils/first_run_util.h"
 #import "ios/chrome/browser/shared/public/commands/help_commands.h"
@@ -77,9 +78,10 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 @property(nonatomic, strong)
     OverscrollActionsController* overscrollActionsController;
 
-// Whether or not the fake omnibox is pinned to the top of the NTP. Redefined
-// to make readwrite.
 @property(nonatomic, assign) BOOL isFakeboxPinned;
+
+// Layout guide for NTP modules.
+@property(nonatomic, readonly) UILayoutGuide* moduleLayoutGuide;
 
 // Array of constraints used to pin the fake Omnibox header into the top of the
 // view.
@@ -115,9 +117,6 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 
 // Array of all objects (views or view controllers) above the feed.
 @property(nonatomic, strong) NSMutableArray<id>* objectsAboveFeed;
-
-// Identity disc shown in the NTP.
-@property(nonatomic, weak) UIButton* identityDiscButton;
 
 // Tap gesture recognizer when the omnibox is focused.
 @property(nonatomic, strong) UITapGestureRecognizer* tapGestureRecognizer;
@@ -192,6 +191,8 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
   NewTabPageQuickActionsViewController* _quickActionsViewController;
   // Whether AIM is allowed.
   BOOL _isAIMAllowed;
+  // Whether the omnibox is in bottom position.
+  BOOL _isBottomOmnibox;
 }
 
 // Properties synthesized from NewTabPageConsumer.
@@ -228,6 +229,7 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 
   _quickActionsViewController =
       [[NewTabPageQuickActionsViewController alloc] init];
+  _quickActionsViewController.layoutGuideCenter = self.layoutGuideCenter;
   _quickActionsViewController.NTPShortcutsHandler = self.NTPShortcutsHandler;
 
   // TODO(crbug.com/40799579): Remove this when bug is fixed.
@@ -246,22 +248,15 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
   [self updateModularHomeBackgroundColorForUserInterfaceStyle:
             self.traitCollection.userInterfaceStyle];
 
-  if (IsNTPBackgroundCustomizationEnabled()) {
-    _backgroundImageView = [[HomeCustomizationImageView alloc] init];
-    _backgroundImageView.translatesAutoresizingMaskIntoConstraints = NO;
-    [self updateBackgroundImageView];
-    [self.view addSubview:_backgroundImageView];
-    AddSameConstraints(_backgroundImageView, self.view);
-  } else {
-    self.view.backgroundColor = [UIColor colorNamed:@"ntp_background_color"];
-  }
+  _backgroundImageView = [[HomeCustomizationImageView alloc] init];
+  _backgroundImageView.translatesAutoresizingMaskIntoConstraints = NO;
+  [self updateBackgroundImageView];
+  [self.view addSubview:_backgroundImageView];
+  AddSameConstraints(_backgroundImageView, self.view);
 
   [self registerNotifications];
 
   [self layoutContentInParentCollectionView];
-
-  self.identityDiscButton = [self.headerView identityDiscButton];
-  DCHECK(self.identityDiscButton);
 
   self.viewDidFinishLoading = YES;
 
@@ -275,12 +270,10 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
     [weakSelf updateUIOnTraitChange:previousCollection];
   };
   [self registerForTraitChanges:traits withHandler:handler];
-  if (IsNTPBackgroundCustomizationEnabled()) {
-    [self registerForTraitChanges:
-              @[ NewTabPageTrait.class, NewTabPageImageBackgroundTrait.class ]
-                       withAction:@selector(applyBackgroundTheme)];
-    [self applyBackgroundTheme];
-  }
+  [self registerForTraitChanges:
+            @[ NewTabPageTrait.class, NewTabPageImageBackgroundTrait.class ]
+                     withAction:@selector(applyBackgroundTheme)];
+  [self applyBackgroundTheme];
   [self.mutator checkNewBadgeEligibility];
 }
 
@@ -306,6 +299,9 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 
 - (void)viewDidAppear:(BOOL)animated {
   [super viewDidAppear:animated];
+  if (!self.objectsAboveFeed) {
+    return;
+  }
   [self.headerView didAppear];
 
   [self updateHeightAboveFeed];
@@ -346,19 +342,6 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 
   [self.helpHandler
       presentInProductHelpWithType:InProductHelpType::kDiscoverFeedMenu];
-
-  if (!IsFirstRunRecent(base::Days(3))) {
-    if (!IsNTPBackgroundCustomizationEnabled()) {
-      [self.helpHandler presentInProductHelpWithType:
-                            InProductHelpType::kHomeCustomizationMenu];
-    }
-  }
-
-  // Scrolls NTP into feed initially if `shouldScrollIntoFeed`.
-  if (self.shouldScrollIntoFeed) {
-    [self scrollIntoFeed];
-    self.shouldScrollIntoFeed = NO;
-  }
 
   [self updateFeedSigninPromoIsVisible];
 
@@ -464,19 +447,15 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
     _feedContainer = [[UIView alloc] initWithFrame:CGRectZero];
     _feedContainer.userInteractionEnabled = YES;
     _feedContainer.translatesAutoresizingMaskIntoConstraints = NO;
-    if (IsNTPBackgroundCustomizationEnabled()) {
-      UIVisualEffect* blurEffect =
-          [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterial];
-      _feedVisualEffectBackgroundView =
-          [[UIVisualEffectView alloc] initWithEffect:blurEffect];
-      _feedVisualEffectBackgroundView
-          .translatesAutoresizingMaskIntoConstraints = NO;
-      [_feedContainer addSubview:_feedVisualEffectBackgroundView];
-      AddSameConstraints(_feedContainer, _feedVisualEffectBackgroundView);
-      [self applyBackgroundThemeToFeedContainer];
-    } else {
-      _feedContainer.backgroundColor = [UIColor colorNamed:kBackgroundColor];
-    }
+    UIVisualEffect* blurEffect =
+        [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterial];
+    _feedVisualEffectBackgroundView =
+        [[UIVisualEffectView alloc] initWithEffect:blurEffect];
+    _feedVisualEffectBackgroundView.translatesAutoresizingMaskIntoConstraints =
+        NO;
+    [_feedContainer addSubview:_feedVisualEffectBackgroundView];
+    AddSameConstraints(_feedContainer, _feedVisualEffectBackgroundView);
+    [self applyBackgroundThemeToFeedContainer];
 
     // Add corner radius to the top border.
     _feedContainer.clipsToBounds = YES;
@@ -606,9 +585,10 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
     _feedVisualEffectBackgroundView = nil;
   }
 
-  [self removeObjectFromViewHierarchy:self.feedWrapperViewController];
-  [self removeObjectFromViewHierarchy:self.magicStackCollectionView];
-  [self removeObjectFromViewHierarchy:self.contentSuggestionsViewController];
+  if (self.feedWrapperViewController) {
+    [self removeObjectFromViewHierarchy:self.feedWrapperViewController];
+    self.feedWrapperViewController = nil;
+  }
   for (id obj in self.objectsAboveFeed) {
     [self removeObjectFromViewHierarchy:obj];
   }
@@ -756,7 +736,9 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 #pragma mark - NewTabPageConsumer
 
 - (void)restoreScrollPosition:(CGFloat)scrollPosition {
-  [self.view layoutIfNeeded];
+  if (self.view.window) {
+    [self.view layoutIfNeeded];
+  }
   if (scrollPosition != -CGFLOAT_MAX) {
     [self setSavedContentOffset:scrollPosition];
   } else {
@@ -823,11 +805,17 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
   _isAIMAllowed = allowed;
 }
 
-#pragma mark - NewTabPageHeaderViewDelegate
-
-- (void)didChangeOmniboxPosition:(NewTabPageHeaderView*)headerView {
-  CHECK_EQ(headerView, self.headerView);
-  [self updateFakeOmniboxForScrollPosition];
+- (void)setOmniboxInBottomPosition:(BOOL)isBottomOmnibox {
+  if (_isBottomOmnibox == isBottomOmnibox) {
+    return;
+  }
+  _isBottomOmnibox = isBottomOmnibox;
+  if (self.viewDidFinishLoading) {
+    if (!self.feedVisible) {
+      [self setMinimumHeight];
+    }
+    [self updateFakeOmniboxForScrollPosition];
+  }
 }
 
 #pragma mark - UIScrollViewDelegate
@@ -1142,6 +1130,11 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
   _quickActionsViewController.NTPShortcutsHandler = NTPShortcutsHandler;
 }
 
+- (void)setLayoutGuideCenter:(LayoutGuideCenter*)layoutGuideCenter {
+  _layoutGuideCenter = layoutGuideCenter;
+  _quickActionsViewController.layoutGuideCenter = layoutGuideCenter;
+}
+
 // Whether the quick actions button row is visible.
 - (BOOL)quickActionsVisible {
   return _isAIMAllowed && IsAimEnabledInNtp();
@@ -1310,6 +1303,7 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
     weakSelf.scrolledToMinimumHeight = NO;
     weakSelf.headerView.allowFontScaleAnimation = NO;
     weakSelf.shiftDownInProgress = NO;
+    [weakSelf.headerView revertHeaderExpansionOnUnfocus];
   }];
   self.animator.interruptible = YES;
   [self.animator startAnimation];
@@ -1370,16 +1364,21 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
     // Otherwise, anchor the header to the module below it.
     NSInteger headerIndex =
         [self.objectsAboveFeed indexOfObject:self.headerView];
-    UIView* viewBelowHeader =
-        [self viewForAboveFeedObject:[self.objectsAboveFeed
-                                         objectAtIndex:(headerIndex + 1)]];
-    self.fakeOmniboxConstraints = @[
-      [viewBelowHeader.topAnchor
-          constraintEqualToAnchor:self.headerView.bottomAnchor
-                         constant:self.quickActionsVisible
-                                      ? kQuickActionSpacingTop
-                                      : kSpaceBetweenModules],
-    ];
+    if (headerIndex == NSNotFound ||
+        headerIndex + 1 >= (NSInteger)self.objectsAboveFeed.count) {
+      self.fakeOmniboxConstraints = @[];
+    } else {
+      UIView* viewBelowHeader =
+          [self viewForAboveFeedObject:[self.objectsAboveFeed
+                                           objectAtIndex:(headerIndex + 1)]];
+      self.fakeOmniboxConstraints = @[
+        [viewBelowHeader.topAnchor
+            constraintEqualToAnchor:self.headerView.bottomAnchor
+                           constant:self.quickActionsVisible
+                                        ? kQuickActionSpacingTop
+                                        : kSpaceBetweenModules],
+      ];
+    }
   }
   [NSLayoutConstraint activateConstraints:self.fakeOmniboxConstraints];
 }
@@ -1400,6 +1399,8 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
                                     screenWidth:width
                                  safeAreaInsets:insets
                          animateScrollAnimation:!self.disableScrollAnimation];
+    [self.NTPContentDelegate
+        didUpdateNTPTabOmniboxScrollProgress:self.headerView.scrollProgress];
   } else {
     [self.headerView updateFakeOmniboxForWidth:width];
   }
@@ -1425,6 +1426,8 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
                        screenWidth:self.collectionView.frame.size.width
                     safeAreaInsets:insets
             animateScrollAnimation:animateScrollAnimation];
+    [self.NTPContentDelegate
+        didUpdateNTPTabOmniboxScrollProgress:self.headerView.scrollProgress];
   }
 }
 
@@ -1627,19 +1630,21 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
     // header, anchor to the module above it.
     NSUInteger headerIndex =
         [self.objectsAboveFeed indexOfObject:self.headerView];
-    for (NSUInteger index = startIndex; index > headerIndex + 1; --index) {
-      BOOL isQuickActions =
-          _quickActionsViewController == self.objectsAboveFeed[index - 1];
-      UIView* view = [self viewForAboveFeedObject:self.objectsAboveFeed[index]];
-      UIView* viewAbove =
-          [self viewForAboveFeedObject:self.objectsAboveFeed[index - 1]];
+    if (headerIndex != NSNotFound && startIndex < self.objectsAboveFeed.count) {
+      for (NSUInteger index = startIndex; index > headerIndex + 1; --index) {
+        BOOL isQuickActions =
+            _quickActionsViewController == self.objectsAboveFeed[index - 1];
+        UIView* view = [self viewForAboveFeedObject:self.objectsAboveFeed[index]];
+        UIView* viewAbove =
+            [self viewForAboveFeedObject:self.objectsAboveFeed[index - 1]];
 
-      CGFloat spacingToUse =
-          isQuickActions ? kQuickActionSpacingBottom : kSpaceBetweenModules;
-      [NSLayoutConstraint activateConstraints:@[
-        [view.topAnchor constraintEqualToAnchor:viewAbove.bottomAnchor
-                                       constant:spacingToUse],
-      ]];
+        CGFloat spacingToUse =
+            isQuickActions ? kQuickActionSpacingBottom : kSpaceBetweenModules;
+        [NSLayoutConstraint activateConstraints:@[
+          [view.topAnchor constraintEqualToAnchor:viewAbove.bottomAnchor
+                                         constant:spacingToUse],
+        ]];
+      }
     }
   }
 
@@ -1792,19 +1797,9 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
                   completion:nil];
 }
 
-// Returns if the given size represents a landscape orientation on an iPhone or
-// iPad.
+// Returns if the given size represents a landscape orientation.
 - (BOOL)isOrientationLandscapeForSize:(CGSize)size {
-  BOOL isLandscape = size.width > size.height;
-  if (isLandscape) {
-    UIUserInterfaceIdiom deviceIdiom =
-        [[UIDevice currentDevice] userInterfaceIdiom];
-    if (deviceIdiom == UIUserInterfaceIdiomPad ||
-        deviceIdiom == UIUserInterfaceIdiomPhone) {
-      return YES;
-    }
-  }
-  return NO;
+  return size.width > size.height;
 }
 
 // Lays out content above feed and adjusts content suggestions for the given
@@ -1838,6 +1833,11 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
     if ([self shouldPinFakeOmnibox]) {
       minimumHeight -= [self stickyOmniboxHeight];
     } else {
+      // Adjust the minimumHeight when the top toolbar is visible and the
+      // Discover feed is turned off so Quick Actions remain visible.
+      if (!_isBottomOmnibox && !self.feedVisible) {
+        minimumHeight -= [self stickyOmniboxHeight];
+      }
       // Add in half of the margin between the fakebox and the rest of the
       // content suggestions, to ensure there is enough height to fully
       // finish the fakebox to omnibox transition.

@@ -27,6 +27,7 @@
 #include "chrome/browser/ui/webui/signin/history_sync_optin/history_sync_optin_ui.h"
 #include "chrome/browser/ui/webui/signin/history_sync_optin_helper.h"
 #include "chrome/browser/ui/webui/signin/login_ui_service_factory.h"
+#include "chrome/browser/ui/webui/signin/managed_user_profile_notice_ui.h"
 #include "chrome/browser/ui/webui/signin/signin_url_utils.h"
 #include "chrome/browser/ui/webui/signin/signin_utils.h"
 #include "chrome/browser/ui/webui/signin/sync_confirmation_ui.h"
@@ -38,7 +39,6 @@
 #include "components/signin/public/base/signin_switches.h"
 #include "components/signin/public/identity_manager/account_info.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
-#include "components/signin/public/identity_manager/tribool.h"
 #include "components/sync/base/features.h"
 #include "content/public/browser/context_menu_params.h"
 #include "content/public/browser/render_frame_host.h"
@@ -257,10 +257,12 @@ void ProfilePickerPostSignInAdapter::SwitchToManagedUserProfileNotice(
       switches::IsFirstRunDesktopRefreshEnabled(
           is_in_search_engine_choice_region);
 
-  host_->ShowScreen(contents(),
-                    use_refreshed_ui
-                        ? GURL(chrome::kChromeUIManagedUserProfileNoticeRefreshURL)
-                        : GURL(chrome::kChromeUIManagedUserProfileNoticeUrl),
+  GURL managed_user_profile_notice_url =
+      use_refreshed_ui
+          ? ManagedUserProfileNoticeUI::GetURLForType(type)
+          : GURL(chrome::kChromeUIManagedUserProfileNoticeUrl);
+
+  host_->ShowScreen(contents(), managed_user_profile_notice_url,
                     /*navigation_finished_closure=*/
                     base::BindOnce(&ProfilePickerPostSignInAdapter::
                                        SwitchToManagedUserProfileNoticeFinished,

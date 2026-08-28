@@ -21,6 +21,7 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.autofill.payments.BankAccount;
 import org.chromium.components.autofill.payments.Ewallet;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
+import org.chromium.components.facilitated_payments.core.metrics.FacilitatedPaymentsType;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 
@@ -83,6 +84,17 @@ public class FacilitatedPaymentsPaymentMethodsCoordinator
     @Override
     public void showPixAccountLinkingPrompt(int strikeCount) {
         mMediator.showPixAccountLinkingPrompt(strikeCount);
+    }
+
+    @Override
+    public void showPixAccountLinkingSuccessScreen() {
+        mMediator.showPixAccountLinkingSuccessScreen();
+    }
+
+    @Override
+    public void showAccountLinkingPrompt(
+            @FacilitatedPaymentsType int fopType, String fopDisplayName, int strikeCount) {
+        mMediator.showAccountLinkingPrompt(fopType, fopDisplayName, strikeCount);
     }
 
     /**

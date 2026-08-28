@@ -5,7 +5,7 @@
     "namespace": "dnsOverHttpsPrivate",
     "description": "Function(s) to handle DNS over HTTPS data.",
     "compiler_options": {
-      "implemented_in": "extensions/api/doh/doh_functions.h"
+      "implemented_in": "extensions/api/doh_functions/doh_functions_api.h"
     },
     "types": [
       {

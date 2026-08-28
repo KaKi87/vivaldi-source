@@ -365,7 +365,7 @@ TEST_F(ReportingEventRouterTest, TestOnUrlFilteringInterstitial_Blocked) {
   *expected_event.add_referrers() = test::MakeUrlInfoReferrer();
   expected_event.set_web_app_signed_in_account(kFakeActiveUserEmail);
 
-    validator.ExpectProtoBasedUrlFilteringInterstitialEvent(expected_event);
+  validator.ExpectUrlFilteringInterstitialEvent(expected_event);
 
   safe_browsing::RTLookupResponse response;
   auto* threat_info = response.add_threat_info();
@@ -410,7 +410,7 @@ TEST_F(ReportingEventRouterTest, TestOnUrlFilteringInterstitial_Warned) {
   *expected_event.add_referrers() = test::MakeUrlInfoReferrer();
   expected_event.set_web_app_signed_in_account(kFakeActiveUserEmail);
 
-    validator.ExpectProtoBasedUrlFilteringInterstitialEvent(expected_event);
+  validator.ExpectUrlFilteringInterstitialEvent(expected_event);
 
   safe_browsing::RTLookupResponse response;
   auto* threat_info = response.add_threat_info();
@@ -458,7 +458,7 @@ TEST_F(ReportingEventRouterTest, TestOnUrlFilteringInterstitial_Bypassed) {
   *expected_event.add_referrers() = test::MakeUrlInfoReferrer();
   expected_event.set_web_app_signed_in_account(kFakeActiveUserEmail);
 
-    validator.ExpectProtoBasedUrlFilteringInterstitialEvent(expected_event);
+  validator.ExpectUrlFilteringInterstitialEvent(expected_event);
 
   safe_browsing::RTLookupResponse response;
   auto* threat_info = response.add_threat_info();
@@ -506,7 +506,7 @@ TEST_F(ReportingEventRouterTest,
   *expected_event.add_referrers() = test::MakeUrlInfoReferrer();
   expected_event.set_web_app_signed_in_account(kFakeActiveUserEmail);
 
-    validator.ExpectProtoBasedUrlFilteringInterstitialEvent(expected_event);
+  validator.ExpectUrlFilteringInterstitialEvent(expected_event);
 
   safe_browsing::RTLookupResponse response;
   auto* threat_info = response.add_threat_info();
@@ -740,6 +740,50 @@ TEST_F(ReportingEventRouterTest, TestOnDataControlsSensitiveDataEvent) {
       enterprise_connectors::kWebContentUploadDataTransferEventTrigger,
       "active_user@gmail.com", "content_area_user@gmail.com", triggered_rules,
       enterprise_connectors::EventResult::ALLOWED, 1234);
+  run_loop.Run();
+}
+
+TEST_F(ReportingEventRouterTest, TestReportPasteFromGemini) {
+  test::SetOnSecurityEventReporting(
+      profile_->GetPrefs(), /*enabled=*/true,
+      /*enabled_event_names=*/{kKeySensitiveDataEvent},
+      /*enabled_opt_in_events=*/{});
+
+  data_controls::Verdict::TriggeredRules triggered_rules = {
+      {{0, true}, {"1", "rule_1_name"}}};
+  data_controls::Verdict verdict =
+      data_controls::Verdict::Block(triggered_rules);
+
+  test::EventReportValidator validator(client_.get());
+  base::RunLoop run_loop;
+  validator.SetDoneClosure(run_loop.QuitClosure());
+  chrome::cros::reporting::proto::DlpSensitiveDataEvent expected_event;
+
+  expected_event.set_url("https://example.com/");
+  expected_event.set_tab_url("https://example.com/");
+  expected_event.set_source("GEMINI");
+  expected_event.set_destination("https://example.com/");
+  expected_event.set_content_type("text/plain");
+  expected_event.set_content_size(1234);
+  expected_event.set_trigger(chrome::cros::reporting::proto::
+                                 DataTransferEventTrigger::WEB_CONTENT_UPLOAD);
+  expected_event.set_event_result(
+      chrome::cros::reporting::proto::EventResult::EVENT_RESULT_BLOCKED);
+  expected_event.set_web_app_signed_in_account("destination_user@gmail.com");
+
+  TriggeredRuleInfo triggered_rule;
+  triggered_rule.set_rule_id(1);
+  triggered_rule.set_rule_name("rule_1_name");
+
+  *expected_event.add_triggered_rule_info() = triggered_rule;
+  expected_event.set_profile_identifier(GetProfileIdentifier());
+  expected_event.set_profile_user_name(profile_->GetProfileUserName());
+
+  validator.ExpectSensitiveDataEvent(std::move(expected_event));
+
+  reporting_event_router_->ReportPasteFromGemini(
+      GURL("https://example.com/"), "destination_user@gmail.com", verdict, 1234,
+      /*bypassed=*/false);
   run_loop.Run();
 }
 #endif  // BUILDFLAG(ENTERPRISE_DATA_CONTROLS)

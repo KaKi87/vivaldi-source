@@ -4,11 +4,6 @@
 //
 // This file defines the methods useful for uninstalling Chrome.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "installer/mini_installer/setup/uninstall.h"
 
 #include <windows.h>
@@ -24,6 +19,8 @@
 #include <vector>
 
 #include "base/base_paths.h"
+#include "base/compiler_specific.h"
+#include "base/containers/span.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
@@ -112,9 +109,9 @@ void ProcessChromeWorkItems(const InstallerState& installer_state) {
 }
 
 void ClearRlzProductState() {
-  const rlz_lib::AccessPoint points[] = {
-      rlz_lib::CHROME_OMNIBOX, rlz_lib::CHROME_HOME_PAGE,
-      rlz_lib::CHROME_APP_LIST, rlz_lib::NO_ACCESS_POINT};
+  const rlz_lib::AccessPoint points[] = {rlz_lib::CHROME_OMNIBOX,
+                                         rlz_lib::CHROME_HOME_PAGE,
+                                         rlz_lib::CHROME_APP_LIST};
 
   rlz_lib::ClearProductState(rlz_lib::CHROME, points);
 
@@ -783,7 +780,7 @@ bool DeleteChromeRegistrationKeys(const InstallerState& installer_state,
   std::wstring child_key;
   for (const wchar_t* const* proto =
            &ShellUtil::kPotentialProtocolAssociations[0];
-       *proto != nullptr; ++proto) {
+       *proto != nullptr; UNSAFE_TODO(++proto)) {
     parent_key.resize(base_length);
     parent_key.append(*proto);
     child_key.assign(parent_key).append(ShellUtil::kRegShellOpen);

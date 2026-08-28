@@ -9,6 +9,8 @@
 
 #import <optional>
 
+#import "base/ios/block_types.h"
+
 namespace autofill {
 class AutofillProfile;
 class CreditCard;
@@ -54,9 +56,25 @@ enum class PushNotificationClientId;
 - (void)showSyncPassphraseSettingsFromViewController:
     (UIViewController*)baseViewController;
 
+// TODO(crbug.com/41352590) : Do not pass baseViewController through dispatcher.
+// Shows the sync encryption passphrase UI, presenting from
+// `baseViewController`. `completion` is executed after the UI is dismissed.
+// Does nothing if the current scene is blocked.
+- (void)showSyncPassphraseSettingsFromViewController:
+            (UIViewController*)baseViewController
+                                          completion:
+                                              (ProceduralBlock)completion;
+
 // Shows the list of saved passwords in the settings.
 - (void)showSavedPasswordsSettingsFromViewController:
     (UIViewController*)baseViewController;
+
+// Shows the saved passwords settings index. `shouldShowLevelUpWalkthroughIPH`
+// indicates whether the Level Up walkthrough IPH should be shown.
+- (void)showSavedPasswordsSettingsFromViewController:
+            (UIViewController*)baseViewController
+                     shouldShowLevelUpWalkthroughIPH:
+                         (BOOL)shouldShowLevelUpWalkthroughIPH;
 
 // Shows the Autofill and Passwords settings page.
 - (void)showAutofillAndPasswordsSettings;
@@ -128,6 +146,9 @@ enum class PushNotificationClientId;
 // notification client with the given `clientID`.
 - (void)showNotificationsSettingsAndHighlightClient:
     (std::optional<PushNotificationClientId>)clientID;
+
+// Shows the Autofill settings UI.
+- (void)showAutofillSettings;
 
 @end
 

@@ -81,7 +81,7 @@ class InteractiveBrowserTestUiTest : public InteractiveBrowserTest {
 
   void SetUpOnMainThread() override {
     InteractiveBrowserTest::SetUpOnMainThread();
-    browser()->profile()->GetPrefs()->SetBoolean(
+    browser()->GetProfile()->GetPrefs()->SetBoolean(
         prefs::kTabSearchPinnedToTabstrip, true);
     embedded_test_server()->StartAcceptingConnections();
   }
@@ -532,7 +532,7 @@ class WebBubbleView : public views::BubbleDialogDelegateView {
     BrowserView* const browser_view =
         BrowserView::GetBrowserViewForBrowser(browser);
     auto bubble_ptr = base::WrapUnique(
-        new WebBubbleView(browser_view->toolbar(), browser->profile(), url));
+        new WebBubbleView(browser_view->toolbar(), browser->GetProfile(), url));
     auto* const bubble = bubble_ptr.get();
     views::BubbleDialogDelegateView::CreateBubble(bubble_ptr.release())->Show();
     return bubble;
@@ -734,7 +734,8 @@ class InteractiveBrowserTestHoverUiTest : public InteractiveBrowserTestUiTest {
     // Move the mouse somewhere completely outside where the dialog will show.
     auto* const browser_view = BrowserView::GetBrowserViewForBrowser(browser());
     mouse_util().PerformGestures(
-        {browser_view->GetNativeWindow(), /*force_async=*/false},
+        views::test::InteractionTestUtilMouse::GestureParams(
+            browser_view->GetNativeWindow()),
         views::test::InteractionTestUtilMouse::MoveTo(
             browser_view->GetBoundsInScreen().origin() +
             gfx::Vector2d(10, 10)));
@@ -862,7 +863,7 @@ class DragInteractiveUiTest : public InteractiveBrowserTest {
         views::Widget::InitParams::CLIENT_OWNS_WIDGET,
         views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
     params.bounds = gfx::Rect(0, 0, 1000, 1000);
-    params.context = browser()->window()->GetNativeWindow();
+    params.context = browser()->GetWindow()->GetNativeWindow();
     test_widget_ = std::make_unique<views::Widget>();
     test_widget_->Init(std::move(params));
     draggable_view_ =

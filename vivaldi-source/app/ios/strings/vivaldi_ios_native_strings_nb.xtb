@@ -219,6 +219,7 @@ blokkert</translation>
 <translation id="3638687955382971136">Zoom tekst</translation>
 <translation id="3646647753063635401">Synkroniser alle data, og automatisk aktiver synkronisering av nye datatyper</translation>
 <translation id="3682791711395736890">Vis skrivebordsversjonen av nettstedet</translation>
+<translation id="3685766651529450469">Kopier renset lenke</translation>
 <translation id="3689125468279190285">Vis hjemknapp</translation>
 <translation id="3694122362646626770">Nettsteder</translation>
 <translation id="3699026013955941879">Koden er utløpt. Be om en ny aktiveringskode.</translation>
@@ -365,7 +366,7 @@ blokkert</translation>
 <translation id="5094376253685335202">Aktiver Sync</translation>
 <translation id="5116316489033177455">Synkroniser bokmerker og Hurtigvalg</translation>
 <translation id="5122095890854520072">Latvisk (<ph name="ORIGIN" />)</translation>
-<translation id="5128025282874907098">100 % av donasjonene dine vil bli brukt til å finansiere den langsiktige utviklingen av Vivaldi og vår kamp for et bedre internett.</translation>
+<translation id="5128025282874907098">100 % av donasjonene dine vil bli brukt til å finansiere Vivaldis langsiktige utvikling og vår kamp for et bedre internett.</translation>
 <translation id="5153806174841856652">Innlogging feilet</translation>
 <translation id="5160018607418677056"><ph name="BEGIN_LINK" />Send kode på nytt<ph name="END_LINK" /></translation>
 <translation id="5166345991950198590">Vis toppnettsteder</translation>
@@ -421,7 +422,7 @@ blokkert</translation>
 <translation id="5907851754429991366">Vi vil mer enn gjerne se din tilbakemelding på App Store.</translation>
 <translation id="5914847543920496660">Jeg foretrekker programvare med åpen kildekode, for gjennomsiktighet</translation>
 <translation id="591684450784861763">Legg til side...</translation>
-<translation id="5922915428124940994">(Endret)</translation>
+<translation id="5922915428124940994">(endret)</translation>
 <translation id="5939518447894949180">Tilbakestill</translation>
 <translation id="5957613098218939406">Flere valg</translation>
 <translation id="6005497458542935062">Flytt ut av mappe</translation>

@@ -15,6 +15,7 @@
 #include "base/observer_list_types.h"
 #include "base/scoped_observation.h"
 #include "base/scoped_observation_traits.h"
+#include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/glic/host/glic_web_client_access.h"
 #include "chrome/browser/glic/host/host.h"
@@ -23,6 +24,7 @@
 #include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/glic/public/glic_instance.h"
 #include "chrome/browser/glic/public/glic_invoke_options.h"
+#include "chrome/browser/glic/public/glic_window_invocation_tracker.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/chrome_features.h"
 #include "content/public/browser/web_contents.h"
@@ -71,15 +73,16 @@ class GlicInstanceCoordinator {
       const std::string& conversation_id) = 0;
   virtual GlicInstance* GetInstanceForTab(
       const tabs::TabInterface* tab) const = 0;
-  virtual GlicSharingManager& active_instance_sharing_manager() = 0;
+  virtual GlicInstance* GetInstanceForTabGroup(
+      tab_groups::TabGroupId group_id) const = 0;
+  virtual GlicInstance* ShowInstanceForTabGroup(
+      tab_groups::TabGroupId group_id) = 0;
+  virtual GlicSharingManagerInternal& active_instance_sharing_manager() = 0;
   virtual GlicInstance* GetInstanceWithGlicWebContents(
       content::WebContents* glic_web_contents) const = 0;
-  virtual void CreateNewConversationForTabs(
-      const std::vector<tabs::TabInterface*>& tabs) = 0;
-  virtual void ShowInstanceForTabs(const std::vector<tabs::TabInterface*>& tabs,
-                                   const InstanceId& instance_id) = 0;
   virtual std::vector<ConversationInfo> GetRecentlyActiveInstances(
-      size_t limit) = 0;
+      size_t limit,
+      base::TimeDelta max_time_since_active) = 0;
 
   virtual bool IsTabPinnedToAnyInstance(
       const tabs::TabHandle& tab_handle) const = 0;
@@ -92,12 +95,13 @@ class GlicInstanceCoordinator {
 
   // Show, summon, or activate the panel if needed, or close it if it's already
   // active and prevent_close is false.
-  virtual void Toggle(BrowserWindowInterface* bwi,
+  virtual void Toggle(BrowserWindowInterface* browser,
                       bool prevent_close,
                       mojom::InvocationSource source) = 0;
 
-  // Readies glic to show.
-  virtual void EnsurePreload() = 0;
+  // Checks resource constraints (e.g., memory pressure) before readying glic to
+  // show. Returns true if preloading proceeded, or false otherwise.
+  virtual bool MaybeStartInitialWarming() = 0;
 
   // Destroy the glic panel and its web contents.
   virtual void Shutdown() = 0;
@@ -137,11 +141,6 @@ class GlicInstanceCoordinator {
   AddActiveInstanceChangedCallbackAndNotifyImmediately(
       ActiveInstanceChangedCallback callback) = 0;
   virtual GlicInstance* GetActiveInstance() = 0;
-
-  // Registers a handler to observe experimental triggering related updates.
-  virtual void GetExperimentalTriggeringUpdates(
-      mojo::PendingRemote<mojom::ExperimentalTriggeringUpdatesHandler> handler,
-      base::OnceCallback<void(bool)> success_status_callback) = 0;
 };
 
 }  // namespace glic

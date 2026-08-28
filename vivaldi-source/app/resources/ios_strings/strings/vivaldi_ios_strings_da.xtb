@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Bed om at åbne links fra andre apps privat</translation>
 <translation id="1624481300475123200">Autoudfyld adgangskoder</translation>
 <translation id="1743244221910283364">Kassér ændringer</translation>
+<translation id="1972589975368876259">Rediger stak</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Føj fane til stak}
         other {Føj faner til stak}}</translation>
@@ -48,7 +49,6 @@
 <translation id="4772190485302020393">Luk alle faner og stakke</translation>
 <translation id="4802185666270672526">Skjul Anmod om computerside</translation>
 <translation id="4828571836982833289">Opløs fanestak?</translation>
-<translation id="4838250035189612538">Omdøb stak</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 fanestak lukket og gemt}
             other {{count} fanestakke lukket og gemt}}</translation>

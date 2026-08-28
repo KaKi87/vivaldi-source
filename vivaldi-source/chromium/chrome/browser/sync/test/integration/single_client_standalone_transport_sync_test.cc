@@ -55,6 +55,12 @@ syncer::DataTypeSet GetTypesGatedBehindHistoryOptIn() {
                                syncer::SHARED_TAB_GROUP_ACCOUNT_DATA,
                                syncer::SESSIONS,
                                syncer::USER_EVENTS};
+  if (base::FeatureList::IsEnabled(syncer::kSyncEncryptedTabContextContainer)) {
+    types.Put(syncer::ENCRYPTED_TAB_CONTEXT_CONTAINER);
+  }
+  if (base::FeatureList::IsEnabled(syncer::kSyncNotebook)) {
+    types.Put(syncer::NOTEBOOK);
+  }
   if (base::FeatureList::IsEnabled(
           syncer::kReplaceSyncPromosWithSignInPromos)) {
     types.Put(syncer::WORKSPACE_DESK);
@@ -88,12 +94,16 @@ class SingleClientStandaloneTransportSyncTest : public SyncTest {
   SingleClientStandaloneTransportSyncTest() : SyncTest(SINGLE_CLIENT) {
     override_features_.InitWithFeatures(
         /*enabled_features=*/
-        {syncer::kSyncEnableContactInfoDataTypeForCustomPassphraseUsers,
-         switches::kSyncEnableBookmarksInTransportMode,
+        {
+            syncer::kSyncEnableContactInfoDataTypeForCustomPassphraseUsers,
+            switches::kSyncEnableBookmarksInTransportMode,
 #if !BUILDFLAG(IS_ANDROID)
-         syncer::kReadingListEnableSyncTransportModeUponSignIn,
+            syncer::kReadingListEnableSyncTransportModeUponSignIn,
 #endif  // !BUILDFLAG(IS_ANDROID)
-         syncer::kReplaceSyncPromosWithSignInPromos},
+            syncer::kReplaceSyncPromosWithSignInPromos,
+            syncer::kSeparateLocalAndAccountSearchEngines,
+            syncer::kSeparateLocalAndAccountThemes,
+        },
         /*disabled_features=*/{});
   }
 
@@ -180,14 +190,10 @@ IN_PROC_BROWSER_TEST_F(SingleClientStandaloneTransportSyncTest,
   // There are no immediate plans to launch additional types on ChromeOS, so the
   // list is hardcoded here.
   syncer::DataTypeSet expected_types{
-      syncer::DEVICE_INFO,     syncer::NIGORI,
-      syncer::USER_CONSENTS,   syncer::SEND_TAB_TO_SELF,
-      syncer::SECURITY_EVENTS, syncer::SHARING_MESSAGE};
-
-  if (base::FeatureList::IsEnabled(
-          syncer::kSyncSupportAlwaysSyncingPriorityPreferences)) {
-    expected_types.Put(syncer::PRIORITY_PREFERENCES);
-  }
+      syncer::DEVICE_INFO,         syncer::NIGORI,
+      syncer::USER_CONSENTS,       syncer::SEND_TAB_TO_SELF,
+      syncer::SECURITY_EVENTS,     syncer::SHARING_MESSAGE,
+      syncer::PRIORITY_PREFERENCES};
 
   if (base::FeatureList::IsEnabled(syncer::kSyncAccountSettings)) {
     expected_types.Put(syncer::ACCOUNT_SETTING);
@@ -237,7 +243,8 @@ IN_PROC_BROWSER_TEST_F(SingleClientStandaloneTransportSyncTest,
   // mode, except the OS types which are disabled by
   // SetSyncFeatureDisabledViaDashboard().
   syncer::DataTypeSet expected_types = AllowedTypesInStandaloneTransportMode();
-  expected_types.RemoveAll({syncer::APP_LIST, syncer::ARC_PACKAGE,
+  expected_types.RemoveAll({syncer::APP_LIST, syncer::APPS,
+                            syncer::APP_SETTINGS, syncer::ARC_PACKAGE,
                             syncer::WEB_APPS, syncer::OS_PREFERENCES,
                             syncer::OS_PRIORITY_PREFERENCES, syncer::PRINTERS,
                             syncer::WIFI_CONFIGURATIONS});
@@ -659,5 +666,70 @@ IN_PROC_BROWSER_TEST_F(SyncSetupIncompleteMigrationSyncTest,
 }
 
 #endif  // !BUILDFLAG(IS_CHROMEOS)
+
+#if BUILDFLAG(IS_CHROMEOS)
+// Tests that on ChromeOS, when `kReplaceSyncPromosWithSignInPromos` is enabled,
+// changing a preference in transport mode (signin-only) also updates the
+// syncing-user preference, so that it is preserved when the user is migrated
+// to kSync.
+IN_PROC_BROWSER_TEST_F(SingleClientStandaloneTransportSyncTest,
+                       PreservesSelectedTypesWhenPromotingToSync) {
+  // 1. Sign in. This starts sync in transport mode.
+  ASSERT_TRUE(SignIn());
+  ASSERT_FALSE(GetSyncService(0)->IsSyncFeatureEnabled());
+
+  syncer::SyncUserSettings* user_settings =
+      GetSyncService(0)->GetUserSettings();
+
+  // 2. Verify that all preferred types are enabled by default in transport
+  // mode.
+  ASSERT_TRUE(user_settings->IsSyncEverythingEnabled());
+  ASSERT_EQ(user_settings->GetSelectedTypes(),
+            user_settings->GetRegisteredSelectableTypes());
+
+  // 3. Disable Bookmarks in transport mode.
+  user_settings->SetSelectedType(syncer::UserSelectableType::kBookmarks, false);
+  ASSERT_FALSE(user_settings->GetSelectedTypes().Has(
+      syncer::UserSelectableType::kBookmarks));
+
+  // 4. Promote to full sync (Sync-the-feature).
+  ASSERT_TRUE(SetupSyncWithMode(SyncTest::SetupSyncMode::kSyncTheFeature));
+  ASSERT_TRUE(GetSyncService(0)->IsSyncFeatureEnabled());
+  ASSERT_TRUE(GetSyncService(0)->IsSyncFeatureActive());
+
+  // 5. Verify that Bookmarks remain DISABLED after promoting to full sync.
+  EXPECT_FALSE(user_settings->GetSelectedTypes().Has(
+      syncer::UserSelectableType::kBookmarks));
+}
+
+// Tests that on ChromeOS, when `kReplaceSyncPromosWithSignInPromos` is enabled,
+// if the user doesn't change any preferences in transport mode (signin-only),
+// all default preferences remain enabled when the user is migrated to kSync.
+IN_PROC_BROWSER_TEST_F(SingleClientStandaloneTransportSyncTest,
+                       PreservesDefaultSelectedTypesWhenPromotingToSync) {
+  // 1. Sign in. This starts sync in transport mode.
+  ASSERT_TRUE(SignIn());
+  ASSERT_FALSE(GetSyncService(0)->IsSyncFeatureEnabled());
+
+  syncer::SyncUserSettings* user_settings =
+      GetSyncService(0)->GetUserSettings();
+
+  // 2. Verify that all preferred types are enabled by default in transport
+  // mode.
+  ASSERT_TRUE(user_settings->IsSyncEverythingEnabled());
+  ASSERT_EQ(user_settings->GetSelectedTypes(),
+            user_settings->GetRegisteredSelectableTypes());
+
+  // 3. Promote to full sync (Sync-the-feature) without changing anything.
+  ASSERT_TRUE(SetupSyncWithMode(SyncTest::SetupSyncMode::kSyncTheFeature));
+  ASSERT_TRUE(GetSyncService(0)->IsSyncFeatureEnabled());
+  ASSERT_TRUE(GetSyncService(0)->IsSyncFeatureActive());
+
+  // 4. Verify that all preferred types remain enabled after promoting to sync.
+  EXPECT_TRUE(user_settings->IsSyncEverythingEnabled());
+  EXPECT_EQ(user_settings->GetSelectedTypes(),
+            user_settings->GetRegisteredSelectableTypes());
+}
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 }  // namespace

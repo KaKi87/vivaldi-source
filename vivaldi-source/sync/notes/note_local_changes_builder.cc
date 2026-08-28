@@ -28,15 +28,14 @@ NoteLocalChangesBuilder::NoteLocalChangesBuilder(
 }
 
 syncer::CommitRequestDataList NoteLocalChangesBuilder::BuildCommitRequests(
-    size_t max_entries) const {
+    size_t max_entries) {
   DCHECK(note_tracker_);
 
-  const std::vector<const SyncedNoteTrackerEntity*>
-      entities_with_local_changes =
-          note_tracker_->GetEntitiesWithLocalChanges();
+  const std::vector<SyncedNoteTrackerEntity*> entities_with_local_changes =
+      note_tracker_->GetMutableEntitiesWithLocalChanges();
 
   syncer::CommitRequestDataList commit_requests;
-  for (const SyncedNoteTrackerEntity* entity : entities_with_local_changes) {
+  for (SyncedNoteTrackerEntity* entity : entities_with_local_changes) {
     if (commit_requests.size() >= max_entries) {
       break;
     }
@@ -54,9 +53,9 @@ syncer::CommitRequestDataList NoteLocalChangesBuilder::BuildCommitRequests(
     DCHECK(!metadata.client_tag_hash().empty());
     data->client_tag_hash =
         syncer::ClientTagHash::FromHashed(metadata.client_tag_hash());
-    // Earlier vivaldi versions were mistakenly using the BOOKMARKS type to
-    // verify the type, so we temporarily produce tags using the BOOKMARKS
-    // type. Change this to NOTES in a few version. 07-2021
+    // Due to earlier mistakes, the incorrect BOOKMARKS type was used here. This
+    // probably cannot be fixed without removing all existing notes from the
+    // server.
     DCHECK(metadata.is_deleted() ||
            data->client_tag_hash ==
                syncer::ClientTagHash::FromUnhashed(
@@ -76,9 +75,9 @@ syncer::CommitRequestDataList NoteLocalChangesBuilder::BuildCommitRequests(
       DCHECK(node);
       DCHECK(!node->is_permanent_node());
 
-      // Earlier vivaldi versions were mistakenly using the BOOKMARKS type to
-      // verify the type, so we temporarily produce tags using the BOOKMARKS
-      // type. Change this to NOTES in a few version. 07-2021
+      // Due to earlier mistakes, the incorrect BOOKMARKS type was used here.
+      // This probably cannot be fixed without removing all existing notes from
+      // the server.
       DCHECK_EQ(syncer::ClientTagHash::FromUnhashed(
                     syncer::BOOKMARKS, node->uuid().AsLowercaseString()),
                 syncer::ClientTagHash::FromHashed(metadata.client_tag_hash()));
@@ -113,7 +112,7 @@ syncer::CommitRequestDataList NoteLocalChangesBuilder::BuildCommitRequests(
           syncer::UniquePosition::FromProto(metadata.unique_position());
     }
 
-    note_tracker_->MarkCommitMayHaveStarted(entity);
+    entity->MarkCommitMayHaveStarted();
 
     commit_requests.push_back(std::move(request));
   }

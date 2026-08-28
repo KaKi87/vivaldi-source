@@ -15,9 +15,13 @@
 #import "base/timer/timer.h"
 #import "components/actor/core/aggregated_journal.h"
 #import "components/actor/core/journal_details_builder.h"
+#import "components/password_manager/core/browser/actor_login/actor_login_service_impl.h"
 #import "ios/chrome/browser/intelligence/actor/model/actor_engine.h"
+#import "ios/chrome/browser/intelligence/actor/model/actor_tab_helper.h"
 #import "ios/chrome/browser/intelligence/actor/public/actor_task_updates_observer.h"
-#import "ios/chrome/browser/intelligence/actor/tools/model/actor_tool.h"
+#import "ios/chrome/browser/intelligence/actor/tools/model/actor_tool_factory.h"
+#import "ios/chrome/browser/intelligence/actor/tools/model/actor_tool_request.h"
+#import "ios/chrome/browser/intelligence/actor/tools/utils/logging_util.h"
 #import "ios/web/public/web_state.h"
 
 namespace actor {
@@ -51,35 +55,18 @@ std::string ActorTaskStateToString(ActorTaskState state) {
   }
 }
 
-// Logs a task state transition to the journal.
-void LogTaskStateTransition(AggregatedJournal* journal,
-                            ActorTaskId task_id,
-                            ActorTaskState old_state,
-                            ActorTaskState new_state) {
-  CHECK(journal);
-
-  std::vector<mojom::JournalDetailsPtr> details =
-      JournalDetailsBuilder()
-          .Add("current_state", ActorTaskStateToString(old_state))
-          .Add("new_state", ActorTaskStateToString(new_state))
-          .Build();
-
-  journal->Log(GURL(), task_id, "ActorTask::SetState", std::move(details));
-}
-
-// Logs adding a controlled WebState to the journal.
-void LogAddControlledWebState(AggregatedJournal* journal,
-                              ActorTaskId task_id,
-                              web::WebStateID web_state_id) {
-  CHECK(journal);
-
-  std::vector<mojom::JournalDetailsPtr> details =
-      JournalDetailsBuilder()
-          .Add("web_state_id", base::NumberToString(web_state_id.identifier()))
-          .Build();
-
-  journal->Log(GURL::EmptyGURL(), task_id, "ActorTask::AddControlledWebState",
-               std::move(details));
+// Returns true if the task state corresponds to an actuating state.
+bool IsActuatingState(ActorTaskState state) {
+  switch (state) {
+    case ActorTaskState::kActing:
+    case ActorTaskState::kReflecting:
+      return true;
+    case ActorTaskState::kInit:
+      return false;
+    // TODO(crbug.com/496164697): Add all states and remove the default case.
+    default:
+      return false;
+  }
 }
 
 }  // namespace
@@ -87,21 +74,24 @@ void LogAddControlledWebState(AggregatedJournal* journal,
 ActorTask::ActorTask(ActorTaskId task_id,
                      const std::string& title,
                      bool allow_incognito_web_states,
-                     AggregatedJournal* journal)
+                     AggregatedJournal* journal,
+                     ActorToolFactory* tool_factory)
     : task_id_(task_id),
       title_(title),
       allow_incognito_web_states_(allow_incognito_web_states),
-      journal_(journal) {
+      journal_(journal),
+      tool_factory_(tool_factory) {
   // TODO(crbug.com/504704411): Allow incognito WebStates.
   CHECK(!allow_incognito_web_states_);
-
-  engine_ = std::make_unique<ActorEngine>(task_id_, journal_, this);
+  engine_ = std::make_unique<ActorEngine>(/*execution_updates_delegate=*/this,
+                                          /*tool_delegate=*/this);
   observers_ = static_cast<CRBProtocolObservers<ActorTaskUpdatesObserver>*>(
       [CRBProtocolObservers
           observersWithProtocol:@protocol(ActorTaskUpdatesObserver)]);
 }
 
 ActorTask::~ActorTask() {
+  SetActuatingOnWebStates(false);
   load_timeout_timer_.Stop();
   observers_ = nil;
 }
@@ -140,28 +130,16 @@ ActorTaskState ActorTask::GetState() const {
   return state_;
 }
 
-void ActorTask::Act(std::vector<std::unique_ptr<ActorTool>> actions,
+void ActorTask::Act(std::vector<std::unique_ptr<ActorToolRequest>> actions,
                     const std::string& task_update,
                     ActCallback callback) {
   // TODO(crbug.com/503054406): Check for invalid states.
   SetState(ActorTaskState::kActing);
   last_task_update_ = task_update;
-  AddControlledWebStates(actions);
   engine_->Act(
       std::move(actions),
       base::BindOnce(&ActorTask::OnActCompleted, weak_ptr_factory_.GetWeakPtr(),
                      std::move(callback)));
-}
-
-void ActorTask::AddControlledWebStates(
-    const std::vector<std::unique_ptr<ActorTool>>& actions) {
-  for (const auto& action : actions) {
-    if (!action) {
-      continue;
-    }
-
-    AddControlledWebState(action->GetTargetWebState().get());
-  }
 }
 
 void ActorTask::AddControlledWebState(web::WebState* web_state) {
@@ -171,9 +149,15 @@ void ActorTask::AddControlledWebState(web::WebState* web_state) {
 
   if (!std::ranges::contains(controlled_web_states_, web_state,
                              &base::WeakPtr<web::WebState>::get)) {
-    LogAddControlledWebState(journal_, task_id_,
-                             web_state->GetUniqueIdentifier());
+    LogJournalEvent(
+        GetJournal(), GURL(), task_id_, "ActorTask::AddControlledWebState",
+        {{"web_state_id", base::NumberToString(
+                              web_state->GetUniqueIdentifier().identifier())}});
     controlled_web_states_.push_back(web_state->GetWeakPtr());
+    if (ActorTabHelper* tab_helper = ActorTabHelper::FromWebState(web_state)) {
+      const bool is_actuating = IsActuatingState(state_);
+      tab_helper->SetActuating(is_actuating);
+    }
     [observers_ actorTaskWithID:task_id_
                  didAddWebState:web_state->GetUniqueIdentifier()];
   }
@@ -213,12 +197,91 @@ void ActorTask::DeferActCompletion(ActCallback callback,
                                            weak_ptr_factory_.GetWeakPtr()));
 }
 
+void ActorTask::SetUserSelectedCredential(
+    const actor_login::Credential& credential,
+    bool should_store_permission,
+    base::OnceClosure affiliations_fetched) {
+  CredentialWithPermission credential_with_permission;
+  credential_with_permission.credential = credential;
+  credential_with_permission.always_allow = should_store_permission;
+  user_selected_credentials_[credential.request_origin] =
+      credential_with_permission;
+  // TODO(crbug.com/472291829): Implement affiliation service related logic
+  // to fetch affiliated domains so we can reuse the permission.
+  std::move(affiliations_fetched).Run();
+}
+
 void ActorTask::DidStopLoading(web::WebState* web_state) {
   OnWebStateFinishedLoading(web_state);
 }
 
 void ActorTask::WebStateDestroyed(web::WebState* web_state) {
   OnWebStateFinishedLoading(web_state);
+}
+
+ActorTaskId ActorTask::GetTaskId() const {
+  return task_id_;
+}
+
+AggregatedJournal& ActorTask::GetJournal() const {
+  CHECK(journal_);
+  return *journal_;
+}
+
+ActorToolFactory& ActorTask::GetToolFactory() const {
+  CHECK(tool_factory_);
+  return *tool_factory_;
+}
+
+void ActorTask::InterruptFromTool() {
+  if (GetState() != ActorTaskState::kReflecting &&
+      GetState() != ActorTaskState::kActing) {
+    return;
+  }
+  Pause(/*by_actor=*/true);
+  SetState(ActorTaskState::kWaitingOnUser);
+}
+
+void ActorTask::UninterruptFromTool() {
+  if (GetState() != ActorTaskState::kWaitingOnUser) {
+    return;
+  }
+  Resume();
+  SetState(ActorTaskState::kActing);
+}
+
+actor_login::ActorLoginService* ActorTask::GetActorLoginService() {
+  if (!actor_login_service_) {
+    actor_login_service_ =
+        std::make_unique<actor_login::ActorLoginServiceImpl>();
+  }
+  return actor_login_service_.get();
+}
+
+void ActorTask::PromptToSelectCredential(
+    const std::vector<actor_login::Credential>& credentials,
+    CredentialSelectedCallback callback) {
+  CHECK(!credentials.empty());
+
+  // TODO(crbug.com/472291829): Placeholder values in place of the real
+  // credential and permission the user has selected in the drop-down.
+  const actor_login::Credential& selected_credential = credentials.front();
+  bool should_store_permission = false;
+  base::OnceClosure affiliations_fetched_callback = base::BindOnce(
+      std::move(callback), std::make_optional(selected_credential),
+      should_store_permission);
+
+  SetUserSelectedCredential(selected_credential, should_store_permission,
+                            std::move(affiliations_fetched_callback));
+}
+
+std::optional<ToolDelegate::CredentialWithPermission>
+ActorTask::GetUserSelectedCredential(const url::Origin& request_origin) const {
+  auto it = user_selected_credentials_.find(request_origin);
+  if (it != user_selected_credentials_.end()) {
+    return it->second;
+  }
+  return std::nullopt;
 }
 
 void ActorTask::OnWebStateFinishedLoading(web::WebState* web_state) {
@@ -248,6 +311,7 @@ void ActorTask::OnPageLoadedTimeout() {
 
 void ActorTask::Stop(ActorTaskStoppedReason stop_reason) {
   [observers_ actorTaskDidStopWithID:task_id_ finalState:state_];
+  SetActuatingOnWebStates(false);
   // TODO(crbug.com/496164697): Implement and test.
 }
 
@@ -283,10 +347,34 @@ bool ActorTask::allow_incognito_web_states() const {
   return allow_incognito_web_states_;
 }
 
+void ActorTask::SetActuatingOnWebStates(bool actuating) {
+  for (const base::WeakPtr<web::WebState>& web_state_weak :
+       controlled_web_states_) {
+    web::WebState* web_state = web_state_weak.get();
+    if (!web_state) {
+      continue;
+    }
+    ActorTabHelper* tab_helper = ActorTabHelper::FromWebState(web_state);
+    if (!tab_helper) {
+      continue;
+    }
+    tab_helper->SetActuating(actuating);
+  }
+}
+
 void ActorTask::SetState(ActorTaskState new_state) {
-  LogTaskStateTransition(journal_, task_id_, state_, new_state);
+  LogJournalEvent(GetJournal(), GURL(), task_id_, "ActorTask::SetState",
+                  {{"current_state", ActorTaskStateToString(state_)},
+                   {"new_state", ActorTaskStateToString(new_state)}});
   ActorTaskState old_state = state_;
   state_ = new_state;
+
+  bool old_is_actuating = IsActuatingState(old_state);
+  bool new_is_actuating = IsActuatingState(new_state);
+  if (old_is_actuating != new_is_actuating) {
+    SetActuatingOnWebStates(new_is_actuating);
+  }
+
   [observers_ actorTaskWithID:task_id_
                didChangeState:new_state
                     fromState:old_state];

@@ -352,11 +352,11 @@ export async function waitForNewLocation(oldLocation: string, devToolsPage: DevT
 }
 
 export async function setEventListenerBreakpoint(groupName: string, eventName: string, devToolsPage: DevToolsPage) {
-  const eventListenerBreakpointsSection = await devToolsPage.waitForAria('Event Listener Breakpoints');
+  const eventListenerBreakpointsSection = await devToolsPage.waitForAria('Event listener breakpoints');
   const expanded = await eventListenerBreakpointsSection.evaluate(el => el.getAttribute('aria-expanded'));
   if (expanded !== 'true') {
-    await devToolsPage.click('[aria-label="Event Listener Breakpoints"]');
-    await devToolsPage.waitFor('[aria-label="Event Listener Breakpoints"][aria-expanded="true"]');
+    await devToolsPage.click('[aria-label="Event listener breakpoints"]');
+    await devToolsPage.waitFor('[aria-label="Event listener breakpoints"][aria-expanded="true"]');
   }
 
   const eventSelector = `input[type="checkbox"][title="${eventName}"]`;
@@ -366,15 +366,19 @@ export async function setEventListenerBreakpoint(groupName: string, eventName: s
   await devToolsPage.waitForVisible(groupSelector);
   const eventCheckbox = await devToolsPage.$(eventSelector);
   if (!eventCheckbox || !(await eventCheckbox.evaluate(x => x.checkVisibility()))) {
-    // Unfortunately the shadow DOM makes it hard to find the expander element
-    // we are attempting to click on, so we click to the left of the checkbox
-    // bounding box.
-    const rectData = await groupCheckbox.evaluate(element => {
-      const {left, top, width, height} = element.getBoundingClientRect();
-      return {left, top, width, height};
+    // The tree element is an <li> with a ::before pseudoelement for the triangle.
+    // We compute the exact coordinate of the triangle as done by isEventWithinDisclosureTriangle
+    const rectData = await groupCheckbox.evaluate(node => {
+      const paddingLeftValue = window.getComputedStyle(node).paddingLeft;
+      const computedLeftPadding = parseFloat(paddingLeftValue);
+      const left = node.getBoundingClientRect().left + computedLeftPadding;
+      const top = node.getBoundingClientRect().top;
+      const height = node.getBoundingClientRect().height;
+      return {left, top, height};
     });
 
-    await devToolsPage.page.mouse.click(rectData.left - 10, rectData.top + rectData.height * .5);
+    await devToolsPage.page.mouse.click(rectData.left + 5, rectData.top + rectData.height * 0.5);
+
     await devToolsPage.waitForVisible(eventSelector);
   }
 

@@ -1,0 +1,23 @@
+// Copyright (c) 2026 Vivaldi Technologies AS. All rights reserved
+
+module vivaldi_user_agent.mojom;
+
+enum BrandSelection {
+  kNoBrand,
+  kVivaldiBrand,
+  kCustomBrand,
+  kChromeBrand,
+  kEdgeBrand,
+};
+
+struct BrandConfiguration {
+  BrandSelection brand;
+  bool specify_vivaldi_brand;
+  string custom_brand;
+  string custom_brand_version;
+};
+
+// Render process interface to cache browser-settings. Bound to a service that keeps a RemoteSet.
+interface VivaldiUserAgentConfig {
+  SetPreferences(BrandConfiguration config);
+};

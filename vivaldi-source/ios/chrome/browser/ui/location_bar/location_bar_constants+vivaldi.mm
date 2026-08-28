@@ -4,12 +4,14 @@
 
 #pragma mark - Sizes and paddings
 // Space between the location icon and the location label.
-const CGFloat vLocationBarSteadyViewLocationImageToLabelSpacing = -6;
+const CGFloat vLocationBarSteadyViewLocationImageToLabelSpacing = -8;
 // Trailing space between the trailing button and the trailing edge of the
 // location bar.
 const CGFloat vLocationBarSteadyViewShareButtonTrailingSpacing = -8;
 // Size for site connection security status icon
 const CGFloat vLocationBarSiteConnectionStatusIconSize = 16;
+// Width of the tracker blocker button touch target.
+const CGFloat vLocationBarLeadingButtonTouchTargetWidth = 40;
 
 #pragma mark - Icons
 NSString* vLocationBarPageInfo = @"location_bar_page_info";

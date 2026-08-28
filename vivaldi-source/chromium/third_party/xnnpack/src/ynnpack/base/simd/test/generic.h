@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 #include "ynnpack/base/arithmetic.h"
 #include "ynnpack/base/bfloat16.h"
+#include "ynnpack/base/fp8.h"
 #include "ynnpack/base/half.h"
 #include "ynnpack/base/simd/vec.h"
 #include "ynnpack/base/span.h"
@@ -48,6 +49,8 @@ using u8 = uint8_t;
 using s8 = int8_t;
 using u16 = uint16_t;
 using s16 = int16_t;
+using f8_e4m3 = fp8_e4m3;
+using f8_e5m2 = fp8_e5m2;
 using f16 = half;
 using bf16 = bfloat16;
 using f32 = float;
@@ -234,13 +237,14 @@ void test_op() {
     for (size_t i = 0; i < vector::N; ++i) {
       scalar expected = op(a[i], b[i]);
 #ifdef YNN_ARCH_ARM32
-      if (std::abs(expected) < type_info<scalar>::smallest_normal()) {
+      if (std::abs(static_cast<double>(expected)) <
+          type_info<scalar>::smallest_normal()) {
         // ARM32 flushes denormals to 0(?).
         continue;
       }
 #endif  // YNN_ARCH_ARM32
-      if (std::isnan(expected)) {
-        ASSERT_TRUE(std::isnan(result[i]));
+      if (ynn::isnan(expected)) {
+        ASSERT_TRUE(ynn::isnan(result[i]));
       } else {
         ASSERT_EQ(result[i], expected);
       }
@@ -338,13 +342,14 @@ void test_abs() {
   TEST_F(test_class, abs_##type##x##N) { test_abs<type, N>(); }
 
 namespace internal {
-float tol_relative(float y_ref, float rel_tol) {
+
+static float tol_relative(float y_ref, float rel_tol) {
   // Note that `y_ref * rel_tol`, i.e. the expected absolute difference,
   // may round differently than `y_ref * (1 + rel_tol) - y_ref`, i.e. the
   // effective absolute difference computed in `float`s. We therefore use
   // the latter form since it is the true difference between two `float`s
   // within the given relative tolerance.
-  if (!std::isfinite(y_ref)) {
+  if (!ynn::isfinite(y_ref)) {
     // If the reference value is infinity, the computation below will produce
     // NaN. We probably want to compute the tolerance as if the value is the
     // largest value, not infinity.
@@ -352,11 +357,35 @@ float tol_relative(float y_ref, float rel_tol) {
   }
   return std::abs(y_ref * (1.0f + rel_tol)) - std::abs(y_ref);
 }
+
 }  // namespace internal
 
 template <typename scalar, size_t N>
 void test_sqrt() {
   using vector = vec<scalar, N>;
+
+  std::pair<scalar, scalar> special_values[] = {
+      {static_cast<scalar>(0.0), 0.0},
+      {static_cast<scalar>(-0.0), 0.0},
+      {type_info<scalar>::infinity(), type_info<scalar>::infinity()},
+      {static_cast<scalar>(-1.0), type_info<scalar>::nan()},
+      {-type_info<scalar>::infinity(), type_info<scalar>::nan()},
+      {-type_info<scalar>::max(), type_info<scalar>::nan()},
+      {type_info<scalar>::nan(), type_info<scalar>::nan()},
+  };
+
+  for (const auto& [input, expected] : special_values) {
+    scalar a[vector::N];
+    std::fill_n(a, vector::N, input);
+
+    scalar result[vector::N];
+    store(result, sqrt(load(a, vector::N)));
+    if (ynn::isnan(expected)) {
+      ASSERT_TRUE(ynn::isnan(result[0])) << input;
+    } else {
+      ASSERT_EQ(result[0], expected) << input;
+    }
+  }
 
   ReplicableRandomDevice rng;
   for (auto _ : FuzzTest(std::chrono::milliseconds(100))) {
@@ -377,14 +406,14 @@ void test_sqrt() {
 
     for (size_t i = 0; i < vector::N; ++i) {
       scalar expected = std::sqrt(a[i]);
-      if (std::isnan(expected)) {
-        ASSERT_TRUE(std::isnan(result[i]));
+      if (ynn::isnan(expected)) {
+        ASSERT_TRUE(ynn::isnan(result[i]));
       } else {
         if constexpr (std::is_same_v<scalar, float>) {
           ASSERT_NEAR(result[i], expected,
                       internal::tol_relative(
                           expected, 2.0f * type_info<float>::epsilon()))
-              << a[i] << " " << result[i];
+              << a[i];
         } else {
           ASSERT_EQ(result[i], expected);
         }
@@ -407,6 +436,7 @@ void test_floor_log2() {
       {static_cast<scalar>(-1.0), type_info<scalar>::nan()},
       {-type_info<scalar>::infinity(), type_info<scalar>::nan()},
       {-type_info<scalar>::max(), type_info<scalar>::nan()},
+      {type_info<scalar>::nan(), type_info<scalar>::nan()},
   };
 
   for (const auto& [input, expected] : special_values) {
@@ -415,8 +445,8 @@ void test_floor_log2() {
 
     scalar result[vector::N];
     store(result, floor_log2(load(a, vector::N)));
-    if (std::isnan(expected)) {
-      ASSERT_TRUE(std::isnan(result[0])) << input;
+    if (ynn::isnan(expected)) {
+      ASSERT_TRUE(ynn::isnan(result[0])) << input;
     } else {
       ASSERT_EQ(result[0], expected) << input;
     }
@@ -425,7 +455,8 @@ void test_floor_log2() {
   ReplicableRandomDevice rng;
   for (auto _ : FuzzTest(std::chrono::milliseconds(100))) {
     scalar a[vector::N];
-    fill_random(a, vector::N, rng, 0.0, 1000.0);
+    fill_random(a, vector::N, rng, type_info<scalar>::smallest_normal(),
+                1000.0);
 
     scalar result[vector::N];
     store(result, floor_log2(load(a, vector::N)));
@@ -469,31 +500,76 @@ void test_exp2_round() {
   TEST_F(test_class, exp2_round_##type##x##N) { test_exp2_round<type, N>(); }
 
 template <typename scalar, size_t N>
-void test_copynan() {
+void test_comparisons() {
   using vector = vec<scalar, N>;
-
-  scalar x[vector::N];
-  std::iota(x, x + vector::N, static_cast<scalar>(0));
-
-  scalar nan[vector::N];
+  scalar a[vector::N];
+  scalar b[vector::N];
   for (size_t i = 0; i < vector::N; ++i) {
-    nan[i] = i % 3 == 0 ? type_info<scalar>::nan() : static_cast<scalar>(i);
+    a[i] = static_cast<scalar>(i);
+    b[i] = static_cast<scalar>(vector::N / 2);
   }
+  auto mask_eq = load(a, vector::N) == load(b, vector::N);
+  auto mask_gt = load(a, vector::N) > load(b, vector::N);
 
-  scalar result[vector::N];
-  store(result, copynan(load(x, vector::N), load(nan, vector::N)));
+  scalar res_eq[vector::N];
+  scalar res_gt[vector::N];
+  store(res_eq, select(mask_eq, broadcast<vector::N>(static_cast<scalar>(1)),
+                       broadcast<vector::N>(static_cast<scalar>(0))));
+  store(res_gt, select(mask_gt, broadcast<vector::N>(static_cast<scalar>(1)),
+                       broadcast<vector::N>(static_cast<scalar>(0))));
 
   for (size_t i = 0; i < vector::N; ++i) {
-    if (i % 3 == 0) {
-      ASSERT_TRUE(std::isnan(result[i]));
-    } else {
-      ASSERT_EQ(result[i], static_cast<scalar>(i));
-    }
+    ASSERT_EQ(res_eq[i], a[i] == b[i] ? 1 : 0) << "at index " << i;
+    ASSERT_EQ(res_gt[i], a[i] > b[i] ? 1 : 0) << "at index " << i;
   }
 }
 
-#define TEST_COPYNAN(test_class, type, N) \
-  TEST_F(test_class, copynan_##type##x##N) { test_copynan<type, N>(); }
+#define TEST_COMPARISONS(test_class, type, N) \
+  TEST_F(test_class, comparisons_##type##x##N) { test_comparisons<type, N>(); }
+
+template <typename scalar, size_t N>
+void test_isnan() {
+  using vector = vec<scalar, N>;
+  scalar a[vector::N];
+  for (size_t i = 0; i < vector::N; ++i) {
+    a[i] = i % 2 == 0 ? type_info<scalar>::nan() : static_cast<scalar>(i);
+  }
+  auto mask = isnan(load(a, vector::N));
+  scalar result[vector::N];
+  store(result, select(mask, broadcast<vector::N>(static_cast<scalar>(1)),
+                       broadcast<vector::N>(static_cast<scalar>(0))));
+  for (size_t i = 0; i < vector::N; ++i) {
+    ASSERT_EQ(result[i], i % 2 == 0 ? 1 : 0) << "at index " << i;
+  }
+}
+
+#define TEST_ISNAN(test_class, type, N) \
+  TEST_F(test_class, isnan_##type##x##N) { test_isnan<type, N>(); }
+
+template <typename scalar, size_t N>
+void test_isfinite() {
+  using vector = vec<scalar, N>;
+  scalar a[vector::N];
+  for (size_t i = 0; i < vector::N; ++i) {
+    if (i % 3 == 0) {
+      a[i] = type_info<scalar>::nan();
+    } else if (i % 3 == 1) {
+      a[i] = type_info<scalar>::infinity();
+    } else {
+      a[i] = static_cast<scalar>(i);
+    }
+  }
+  auto mask = isfinite(load(a, vector::N));
+  scalar result[vector::N];
+  store(result, select(mask, broadcast<vector::N>(static_cast<scalar>(1)),
+                       broadcast<vector::N>(static_cast<scalar>(0))));
+  for (size_t i = 0; i < vector::N; ++i) {
+    ASSERT_EQ(result[i], i % 3 == 2 ? 1 : 0) << "at index " << i;
+  }
+}
+
+#define TEST_ISFINITE(test_class, type, N) \
+  TEST_F(test_class, isfinite_##type##x##N) { test_isfinite<type, N>(); }
 
 struct min_op {
   template <typename T>
@@ -524,6 +600,9 @@ struct add_op {
   T operator()(T a, T b) {
     return a + b;
   }
+  half operator()(half a, half b) {
+    return static_cast<half>(static_cast<float>(a) + static_cast<float>(b));
+  }
   int32_t operator()(int32_t a, int32_t b) {
     // For integers, don't hit signed integer overflow.
     return static_cast<int64_t>(a) + static_cast<int64_t>(b);
@@ -534,6 +613,9 @@ struct sub_op {
   template <typename T>
   T operator()(T a, T b) {
     return a - b;
+  }
+  half operator()(half a, half b) {
+    return static_cast<half>(static_cast<float>(a) - static_cast<float>(b));
   }
   int32_t operator()(int32_t a, int32_t b) {
     // For integers, don't hit signed integer overflow.
@@ -546,6 +628,13 @@ struct multiply_op {
   T operator()(T a, T b) {
     return a * b;
   }
+  half operator()(half a, half b) {
+    return static_cast<half>(static_cast<float>(a) * static_cast<float>(b));
+  }
+  uint16_t operator()(uint16_t a, uint16_t b) {
+    // For integers, don't hit signed integer overflow.
+    return static_cast<int64_t>(a) * static_cast<int64_t>(b);
+  }
   int32_t operator()(int32_t a, int32_t b) {
     // For integers, don't hit signed integer overflow.
     return static_cast<int64_t>(a) * static_cast<int64_t>(b);
@@ -556,6 +645,9 @@ struct divide_op {
   template <typename T>
   T operator()(T a, T b) {
     return a / b;
+  }
+  half operator()(half a, half b) {
+    return static_cast<half>(static_cast<float>(a) / static_cast<float>(b));
   }
 };
 
@@ -847,53 +939,10 @@ void test_fma() {
   }
 }
 
-#define TEST_FMA(test_class, type, N) \
-  TEST_F(test_class, fma_##type##x##N) { test_fma<type, N>(); }
-
-template <typename scalar, size_t N>
-void test_kahan_sum() {
-  using vector = vec<scalar, N>;
-
-  ReplicableRandomDevice rng;
-  for (auto _ : FuzzTest(std::chrono::milliseconds(100))) {
-    scalar a[vector::N];
-    scalar b[vector::N];
-    fill_random(a, vector::N, rng);
-    fill_random(b, vector::N, rng);
-
-    vector acc = broadcast<N>(static_cast<scalar>(0));
-    vector error = broadcast<N>(static_cast<scalar>(0));
-    kahan_sum(load(a, vector::N), acc, error);
-    kahan_sum(load(b, vector::N), acc, error);
-
-    scalar sum[vector::N];
-    store(sum, acc);
-
-    for (size_t i = 0; i < vector::N; ++i) {
-      scalar a_i = a[i];
-      scalar b_i = b[i];
-      scalar expected = a_i + b_i;
-
-#ifdef YNN_ARCH_ARM32
-      if (std::abs(expected) < type_info<scalar>::smallest_normal()) {
-        // ARM32 flushes denormals to 0(?).
-        continue;
-      }
-#endif  // YNN_ARCH_ARM32
-
-      if (std::isnan(expected)) {
-        ASSERT_TRUE(std::isnan(sum[i]));
-      } else {
-        scalar tolerance = type_info<scalar>::epsilon() *
-                           std::max(std::abs(a_i), std::abs(b_i));
-        ASSERT_NEAR(sum[i], expected, tolerance);
-      }
-    }
+#define TEST_FMA(test_class, type, N)                             \
+  TEST_F(test_class, fma_##type##x##N) {                          \
+    test_fma<type, N>(); \
   }
-}
-
-#define TEST_KAHAN_SUM(test_class, type, N) \
-  TEST_F(test_class, kahan_sum_##type##x##N) { test_kahan_sum<type, N>(); }
 
 template <typename scalar, size_t N>
 void test_add_sat() {
@@ -935,6 +984,84 @@ void test_sub_sat() {
   TEST_F(test_class, add_sat_##type##x##N) { test_add_sat<type, N>(); }
 #define TEST_SUB_SAT(test_class, type, N) \
   TEST_F(test_class, sub_sat_##type##x##N) { test_sub_sat<type, N>(); }
+
+template <typename scalar, size_t N, typename F, typename Ref>
+void test_unary(F f, Ref ref, float epsilons,
+                double min_val = -std::numeric_limits<double>::infinity(),
+                double max_val = std::numeric_limits<double>::infinity()) {
+  using vector = vec<scalar, N>;
+  using scalar_info = type_info<scalar>;
+
+  scalar special_values[] = {
+      static_cast<scalar>(0.0),
+      static_cast<scalar>(-0.0),
+      scalar_info::smallest_normal(),
+      -scalar_info::smallest_normal(),
+      scalar_info::max(),
+      -scalar_info::max(),
+      scalar_info::infinity(),
+      -scalar_info::infinity(),
+      scalar_info::nan(),
+  };
+
+  for (scalar input : special_values) {
+    if (!std::isnan(input) && (input < min_val || input > max_val)) continue;
+    scalar expected = ref(input);
+    scalar a[vector::N];
+    std::fill_n(a, vector::N, input);
+
+    scalar result[vector::N];
+    store(result, f(load(a, vector::N)));
+    if (ynn::isnan(expected)) {
+      ASSERT_TRUE(ynn::isnan(result[0])) << input;
+    } else {
+      ASSERT_NEAR(result[0], expected, scalar_info::epsilon()) << input;
+    }
+  }
+
+  ReplicableRandomDevice rng;
+  for (auto _ : FuzzTest(std::chrono::milliseconds(100))) {
+    scalar a[vector::N];
+    fill_random(a, vector::N, rng, min_val, max_val);
+
+    scalar result[vector::N];
+    store(result, f(load(a, vector::N)));
+
+    for (size_t i = 0; i < vector::N; ++i) {
+      auto k = ref(a[i]);
+      if (ynn::isnan(k)) {
+        ASSERT_TRUE(ynn::isnan(result[i])) << a[i];
+      } else if (std::abs(k) <= scalar_info::smallest_normal()) {
+        // Treat all denormals as equal.
+        ASSERT_LE(result[i], scalar_info::smallest_normal()) << a[i];
+      } else {
+        const scalar abs_error =
+            static_cast<scalar>(static_cast<double>(scalar_info::epsilon()) *
+                                static_cast<double>(std::abs(k) * epsilons));
+        ASSERT_NEAR(result[i], k, abs_error) << a[i];
+      }
+    }
+  }
+}
+
+// Test that |op(x) - ref(x)| <= `epsilons`*epsilon where epsilon is the epsilon
+// of `type`. Use the double version of cmath's functions, to avoid inaccurate
+// libm functions to the extent we can.
+#define TEST_UNARY(test_class, op, type, N, ref, epsilons)                     \
+  TEST_F(test_class, op##_##type##x##N) {                                      \
+    test_unary<type, N>(                                                       \
+        [](vec<type, N> x) { return op(x); },                                  \
+        [](type x) { return static_cast<type>(ref(static_cast<double>(x))); }, \
+        epsilons);                                                             \
+  }
+
+#define TEST_UNARY_RANGE(test_class, op, type, N, ref, epsilons, min, max)     \
+  TEST_F(test_class, op##_##type##x##N) {                                      \
+    test_unary<type, N>(                                                       \
+        [](vec<type, N> x) { return op(x); },                                  \
+        [](type x) { return static_cast<type>(ref(static_cast<double>(x))); }, \
+        epsilons, min, max);                                                   \
+  }
 
 }  // namespace simd
 

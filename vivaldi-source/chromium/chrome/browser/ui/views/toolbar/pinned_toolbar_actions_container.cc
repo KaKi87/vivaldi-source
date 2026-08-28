@@ -31,6 +31,8 @@
 #include "chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.h"
 #include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container_layout.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_divider.h"
+#include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+#include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/feature_engagement/public/feature_constants.h"
 #include "ui/actions/action_id.h"
@@ -268,6 +270,12 @@ void PinnedToolbarActionsContainer::UpdatePinnedStateAndAnnounce(
   model_->UpdatePinnedState(id, pin);
 }
 
+void PinnedToolbarActionsContainer::MovePinnedAction(
+    actions::ActionId action_id,
+    int target_index) {
+  model_->MovePinnedAction(action_id, target_index);
+}
+
 void PinnedToolbarActionsContainer::MovePinnedActionBy(actions::ActionId id,
                                                        int delta) {
   DCHECK(IsActionPinned(id));
@@ -310,7 +318,7 @@ bool PinnedToolbarActionsContainer::AreDropTypesRequired() {
 
 bool PinnedToolbarActionsContainer::CanDrop(const OSExchangeData& data) {
   return BrowserActionDragData::CanDrop(data,
-                                        browser_view_->browser()->profile());
+                                        browser_view_->browser()->GetProfile());
 }
 
 void PinnedToolbarActionsContainer::OnDragEntered(
@@ -390,7 +398,7 @@ views::View::DropCallback PinnedToolbarActionsContainer::GetDropCallback(
   base::ScopedClosureRunner cleanup(
       base::BindOnce(&PinnedToolbarActionsContainer::DragDropCleanup,
                      weak_ptr_factory_.GetWeakPtr(), action_id));
-  return base::BindOnce(&PinnedToolbarActionsContainer::MovePinnedAction,
+  return base::BindOnce(&PinnedToolbarActionsContainer::MovePinnedActionOnDrop,
                         drop_weak_ptr_factory_.GetWeakPtr(), action_id, index,
                         std::move(cleanup));
 }
@@ -518,7 +526,7 @@ void PinnedToolbarActionsContainer::AddPinnedActionButtonFor(
   // Pinned buttons shouldn't appear in web apps or browsers without a tabstrip
   // (like popups).
   if (auto* browser = browser_view_->browser();
-      browser && (browser->app_controller() ||
+      browser && (web_app::AppBrowserController::From(browser) ||
                   !browser->SupportsWindowFeature(
                       Browser::WindowFeature::kFeatureTabStrip))) {
     return;
@@ -783,7 +791,7 @@ void PinnedToolbarActionsContainer::SetActionButtonIconVisibility(
   }
 }
 
-void PinnedToolbarActionsContainer::MovePinnedAction(
+void PinnedToolbarActionsContainer::MovePinnedActionOnDrop(
     actions::ActionId action_id,
     size_t index,
     base::ScopedClosureRunner cleanup,
@@ -882,6 +890,13 @@ ToolbarButton* PinnedToolbarActionsContainer::GetDownloadButton() {
 
 views::BubbleAnchor PinnedToolbarActionsContainer::GetBubbleAnchor(
     actions::ActionId action_id) {
+  if (IsOverflowed(action_id)) {
+    if (browser_view_ && browser_view_->toolbar() &&
+        browser_view_->toolbar()->overflow_button() &&
+        browser_view_->toolbar()->overflow_button()->GetVisible()) {
+      return views::BubbleAnchor(browser_view_->toolbar()->overflow_button());
+    }
+  }
   return views::BubbleAnchor(GetButtonFor(action_id));
 }
 

@@ -27,12 +27,13 @@
 #include "base/types/pass_key.h"
 #include "base/version_info/channel.h"
 #include "base/version_info/version_info.h"
-#include "chrome/browser/ai/ai_classifier.h"
 #include "chrome/browser/ai/ai_context_bound_object.h"
 #include "chrome/browser/ai/ai_context_bound_object_set.h"
 #include "chrome/browser/ai/ai_language_model.h"
 #include "chrome/browser/ai/ai_proofreader.h"
 #include "chrome/browser/ai/ai_rewriter.h"
+#include "chrome/browser/ai/ai_semantic_embedder.h"
+#include "chrome/browser/ai/ai_semantic_embedder_service_launcher.h"
 #include "chrome/browser/ai/ai_summarizer.h"
 #include "chrome/browser/ai/ai_writer.h"
 #include "chrome/browser/ai/features.h"
@@ -47,6 +48,7 @@
 #include "components/on_device_ai/ai_utils.h"
 #include "components/optimization_guide/core/delivery/model_util.h"
 #include "components/optimization_guide/core/model_execution/feature_keys.h"
+#include "components/optimization_guide/core/model_execution/model_execution_prefs.h"
 #include "components/optimization_guide/core/model_execution/model_execution_util.h"
 #include "components/optimization_guide/core/model_execution/on_device_capability.h"
 #include "components/optimization_guide/core/model_execution/on_device_features.h"
@@ -71,7 +73,6 @@
 #include "services/on_device_model/public/mojom/download_observer.mojom.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
 #include "third_party/blink/public/common/features_generated.h"
-#include "third_party/blink/public/mojom/ai/ai_classifier.mojom.h"
 #include "third_party/blink/public/mojom/ai/ai_common.mojom.h"
 #include "third_party/blink/public/mojom/ai/ai_language_model.mojom.h"
 #include "third_party/blink/public/mojom/ai/ai_manager.mojom.h"
@@ -90,17 +91,17 @@ constexpr float kMinTemperature = 0.0f;
 constexpr float kMostPredictableTemperature = 0.0f;
 constexpr uint32_t kMostPredictableTopK = 1;
 
-constexpr float kPredictableTemperature = 0.2f;
-constexpr uint32_t kPredictableTopK = 2;
+constexpr float kPredictableTemperature = 0.3f;
+constexpr uint32_t kPredictableTopK = 30;
 
-constexpr float kBalancedTemperature = 1.0f;
-constexpr uint32_t kBalancedTopK = 3;
+constexpr float kBalancedTemperature = 0.7f;
+constexpr uint32_t kBalancedTopK = 64;
 
 constexpr float kCreativeTemperature = 1.1f;
-constexpr uint32_t kCreativeTopK = 10;
+constexpr uint32_t kCreativeTopK = 80;
 
 constexpr float kMostCreativeTemperature = 1.2f;
-constexpr uint32_t kMostCreativeTopK = 25;
+constexpr uint32_t kMostCreativeTopK = 100;
 
 const char kUnsupportedLanguageError[] =
     "Unsupported %s API languages were specified, and the request was aborted. "
@@ -161,6 +162,10 @@ ConvertModelNotSupportedReasonToModelAvailabilityCheckResult(
         kInsufficientDiskSpace:
       return blink::mojom::ModelAvailabilityCheckResult::
           kUnavailableInsufficientDiskSpace;
+    case optimization_guide::mojom::ModelNotSupportedDetailedReason::
+        kInsufficientDiskSpaceForCaches:
+      return blink::mojom::ModelAvailabilityCheckResult::
+          kUnavailableInsufficientDiskSpaceForCaches;
     case optimization_guide::mojom::ModelNotSupportedDetailedReason::
         kModelAdaptationNotAvailable:
       return blink::mojom::ModelAvailabilityCheckResult::
@@ -657,11 +662,24 @@ void CheckAndLogEligibility(
   }
 }
 
+template <typename OptionsPtr>
+uint32_t GetInputContextLimit(const OptionsPtr& options) {
+  if constexpr (std::is_same_v<OptionsPtr,
+                               blink::mojom::AISummarizerCreateOptionsPtr>) {
+    return AISummarizer::GetInputContextLimit(options);
+  }
+  if constexpr (std::is_same_v<OptionsPtr,
+                               blink::mojom::AIProofreaderCreateOptionsPtr>) {
+    return AIProofreader::GetInputContextLimit(options);
+  }
+  return blink::mojom::kWritingAssistanceMaxInputTokenSize;
+}
+
 }  // namespace
 
 // Feature flag for enabling foundational models in the AI API, requires the
 // field param kModelVersionParam to specify the model version. Example:
-// --enable-features=AIApiFoundationalModel:model_version=v4
+// --enable-features=AIApiFoundationalModel:model_version/v4
 BASE_FEATURE(kAIApiFoundationalModel, base::FEATURE_DISABLED_BY_DEFAULT);
 const char kModelVersionParam[] = "model_version";
 
@@ -687,9 +705,25 @@ void AIManager::AddReceiver(
   receivers_.Add(this, std::move(receiver));
 }
 
+bool AIManager::IsPromptApiEnabled() const {
+  if (base::FeatureList::IsEnabled(blink::features::kAIPromptAPI)) {
+    return true;
+  }
+  if (base::FeatureList::IsEnabled(
+          blink::features::kAIPromptAPIMultimodalInput)) {
+    return true;
+  }
+  return false;
+}
+
 void AIManager::CanCreateLanguageModel(
     blink::mojom::AILanguageModelCreateOptionsPtr options,
     CanCreateLanguageModelCallback callback) {
+  if (!IsPromptApiEnabled()) {
+    std::move(callback).Run(blink::mojom::ModelAvailabilityCheckResult::
+                                kUnavailableFeatureNotEnabled);
+    return;
+  }
   if (IsPermissionsPolicyBlocked(
           network::mojom::PermissionsPolicyFeature::kLanguageModel)) {
     receivers_.ReportBadMessage("Permissions policy disabled");
@@ -758,6 +792,10 @@ void AIManager::CreateLanguageModel(
     blink::mojom::AILanguageModelCreateOptionsPtr options,
     mojo::PendingRemote<on_device_model::mojom::DownloadObserver> monitor) {
   CHECK(options);
+  if (!IsPromptApiEnabled()) {
+    receivers_.ReportBadMessage("Feature not enabled");
+    return;
+  }
   if (IsBlocked(network::mojom::PermissionsPolicyFeature::kLanguageModel)) {
     receivers_.ReportBadMessage("Policy or user setting disabled");
     return;
@@ -936,6 +974,11 @@ void AIManager::CreateLanguageModelInternal(
 void AIManager::CanCreateSummarizer(
     blink::mojom::AISummarizerCreateOptionsPtr options,
     CanCreateSummarizerCallback callback) {
+  if (!base::FeatureList::IsEnabled(blink::features::kAISummarizationAPI)) {
+    std::move(callback).Run(blink::mojom::ModelAvailabilityCheckResult::
+                                kUnavailableFeatureNotEnabled);
+    return;
+  }
   if (IsPermissionsPolicyBlocked(
           network::mojom::PermissionsPolicyFeature::kSummarizer)) {
     receivers_.ReportBadMessage("Permissions policy disabled");
@@ -989,6 +1032,10 @@ void AIManager::CreateSummarizer(
     mojo::PendingRemote<blink::mojom::AIManagerCreateSummarizerClient> client,
     blink::mojom::AISummarizerCreateOptionsPtr options,
     mojo::PendingRemote<on_device_model::mojom::DownloadObserver> monitor) {
+  if (!base::FeatureList::IsEnabled(blink::features::kAISummarizationAPI)) {
+    receivers_.ReportBadMessage("Feature not enabled");
+    return;
+  }
   if (IsBlocked(network::mojom::PermissionsPolicyFeature::kSummarizer)) {
     receivers_.ReportBadMessage("Policy or user setting disabled");
     return;
@@ -1103,6 +1150,11 @@ AIManager::CreateSummarizerSessionCallback(
 void AIManager::CanCreateProofreader(
     blink::mojom::AIProofreaderCreateOptionsPtr options,
     CanCreateProofreaderCallback callback) {
+  if (!base::FeatureList::IsEnabled(blink::features::kAIProofreadingAPI)) {
+    std::move(callback).Run(blink::mojom::ModelAvailabilityCheckResult::
+                                kUnavailableFeatureNotEnabled);
+    return;
+  }
   // TODO(crbug.com/466425250): Enforce permissions policy.
   // TODO(crbug.com/424673180): Add a warning message when options
   // `includeCorrectionTypes` and `includeCorrectionExplanations` are set to
@@ -1126,6 +1178,10 @@ void AIManager::CreateProofreader(
     mojo::PendingRemote<blink::mojom::AIManagerCreateProofreaderClient> client,
     blink::mojom::AIProofreaderCreateOptionsPtr options,
     mojo::PendingRemote<on_device_model::mojom::DownloadObserver> monitor) {
+  if (!base::FeatureList::IsEnabled(blink::features::kAIProofreadingAPI)) {
+    receivers_.ReportBadMessage("Feature not enabled");
+    return;
+  }
   // TODO(crbug.com/466425250): Enforce permissions policy.
   if (IsBlocked()) {
     receivers_.ReportBadMessage("Policy or user setting disabled");
@@ -1234,6 +1290,11 @@ void AIManager::GetLanguageModelParams(
 
 void AIManager::CanCreateWriter(blink::mojom::AIWriterCreateOptionsPtr options,
                                 CanCreateWriterCallback callback) {
+  if (!base::FeatureList::IsEnabled(blink::features::kAIWriterAPI)) {
+    std::move(callback).Run(blink::mojom::ModelAvailabilityCheckResult::
+                                kUnavailableFeatureNotEnabled);
+    return;
+  }
   if (IsPermissionsPolicyBlocked(
           network::mojom::PermissionsPolicyFeature::kWriter)) {
     receivers_.ReportBadMessage("Permissions policy disabled");
@@ -1268,6 +1329,10 @@ void AIManager::CreateWriter(
     mojo::PendingRemote<blink::mojom::AIManagerCreateWriterClient> client,
     blink::mojom::AIWriterCreateOptionsPtr options,
     mojo::PendingRemote<on_device_model::mojom::DownloadObserver> monitor) {
+  if (!base::FeatureList::IsEnabled(blink::features::kAIWriterAPI)) {
+    receivers_.ReportBadMessage("Feature not enabled");
+    return;
+  }
   if (IsBlocked(network::mojom::PermissionsPolicyFeature::kWriter)) {
     receivers_.ReportBadMessage("Policy or user setting disabled");
     return;
@@ -1337,6 +1402,11 @@ void AIManager::CreateWriter(
 void AIManager::CanCreateRewriter(
     blink::mojom::AIRewriterCreateOptionsPtr options,
     CanCreateRewriterCallback callback) {
+  if (!base::FeatureList::IsEnabled(blink::features::kAIRewriterAPI)) {
+    std::move(callback).Run(blink::mojom::ModelAvailabilityCheckResult::
+                                kUnavailableFeatureNotEnabled);
+    return;
+  }
   if (IsPermissionsPolicyBlocked(
           network::mojom::PermissionsPolicyFeature::kRewriter)) {
     receivers_.ReportBadMessage("Permissions policy disabled");
@@ -1370,6 +1440,10 @@ void AIManager::CreateRewriter(
     mojo::PendingRemote<blink::mojom::AIManagerCreateRewriterClient> client,
     blink::mojom::AIRewriterCreateOptionsPtr options,
     mojo::PendingRemote<on_device_model::mojom::DownloadObserver> monitor) {
+  if (!base::FeatureList::IsEnabled(blink::features::kAIRewriterAPI)) {
+    receivers_.ReportBadMessage("Feature not enabled");
+    return;
+  }
   if (IsBlocked(network::mojom::PermissionsPolicyFeature::kRewriter)) {
     receivers_.ReportBadMessage("Policy or user setting disabled");
     return;
@@ -1434,65 +1508,6 @@ void AIManager::CreateRewriter(
         optimization_guide::mojom::OnDeviceFeature::kWritingAssistanceApi,
         ::optimization_guide::SessionConfigParams{}, std::move(callback));
   }
-}
-
-void AIManager::CanCreateClassifier(
-    blink::mojom::AIClassifierCreateOptionsPtr options,
-    CanCreateClassifierCallback callback) {
-  if (!base::FeatureList::IsEnabled(blink::features::kAIClassifierAPI)) {
-    receivers_.ReportBadMessage("Feature not enabled");
-    return;
-  }
-  // TODO(crbug.com/499365168): Enforce permissions policy and
-  // CheckAndFixLanguages.
-  if (auto pref_blocked_result = GetPrefBlockedResult()) {
-    std::move(callback).Run(*pref_blocked_result);
-    return;
-  }
-  CanCreateSession(optimization_guide::mojom::OnDeviceFeature::kClassifier,
-                   on_device_model::Capabilities(), std::move(callback));
-}
-
-void AIManager::CreateClassifier(
-    mojo::PendingRemote<blink::mojom::AIManagerCreateClassifierClient> client,
-    blink::mojom::AIClassifierCreateOptionsPtr options,
-    // TODO(crbug.com/481796902): Implement download monitor for classifier.
-    mojo::PendingRemote<on_device_model::mojom::DownloadObserver> monitor) {
-  if (!base::FeatureList::IsEnabled(blink::features::kAIClassifierAPI)) {
-    receivers_.ReportBadMessage("Feature not enabled");
-    return;
-  }
-  // TODO(crbug.com/499365168): Enforce permissions policy and
-  // CheckAndFixLanguages.
-  if (IsBlocked()) {
-    receivers_.ReportBadMessage("Policy or user setting disabled");
-    return;
-  }
-
-  CheckAndLogEligibility(
-      browser_context_,
-      optimization_guide::mojom::OnDeviceFeature::kClassifier);
-
-  if (!model_broker_client_) {
-    mojo::Remote<blink::mojom::AIManagerCreateClassifierClient> client_remote(
-        std::move(client));
-    on_device_ai::SendClientRemoteError(
-        client_remote,
-        blink::mojom::AIManagerCreateClientError::kUnableToCreateSession);
-    return;
-  }
-
-  auto callback =
-      base::BindOnce(&AIManager::OnSessionCreated<
-                         AIClassifier, blink::mojom::AIClassifier,
-                         blink::mojom::AIManagerCreateClassifierClient,
-                         blink::mojom::AIClassifierCreateOptionsPtr>,
-                     weak_factory_.GetWeakPtr(), std::move(options),
-                     /*initial_request=*/std::nullopt, std::move(client));
-  tried_init_.insert(optimization_guide::mojom::OnDeviceFeature::kClassifier);
-  model_broker_client_->CreateSession(
-      optimization_guide::mojom::OnDeviceFeature::kClassifier,
-      ::optimization_guide::SessionConfigParams{}, std::move(callback));
 }
 
 void AIManager::CanCreateSession(
@@ -1653,12 +1668,12 @@ void AIManager::OnGotExecutionInputSizeInTokens(
         blink::mojom::AIManagerCreateClientError::kUnableToCalculateTokenSize);
     return;
   }
-  uint32_t quota = blink::mojom::kWritingAssistanceMaxInputTokenSize;
-  if (result.value() > quota) {
+  uint32_t context_window_size = GetInputContextLimit(options);
+  if (result.value() > context_window_size) {
     on_device_ai::SendClientRemoteError(
         client_remote,
         blink::mojom::AIManagerCreateClientError::kInitialInputTooLarge,
-        blink::mojom::QuotaErrorInfo::New(result.value(), quota));
+        blink::mojom::QuotaErrorInfo::New(result.value(), context_window_size));
     return;
   }
   mojo::PendingRemote<ContextBoundObjectReceiverInterface> pending_remote;
@@ -1777,6 +1792,105 @@ void AIManager::StartModelPathValidationIfOverrideSet() {
         base::BindOnce(&AIManager::OnModelPathValidationComplete,
                        weak_factory_.GetWeakPtr(), model_path.value()));
   }
+}
+
+void AIManager::CanCreateSemanticEmbedder(
+    CanCreateSemanticEmbedderCallback callback) {
+  if (!base::FeatureList::IsEnabled(blink::features::kAIEmbeddingsAPI)) {
+    std::move(callback).Run(blink::mojom::ModelAvailabilityCheckResult::
+                                kUnavailableFeatureNotEnabled);
+    return;
+  }
+
+  // TODO(crbug.com/428233906): Implement a dedicated Permissions Policy for the
+  // Embedding API.
+  if (IsPermissionsPolicyBlocked(
+          network::mojom::PermissionsPolicyFeature::kLanguageModel)) {
+    receivers_.ReportBadMessage("Permissions policy disabled");
+    return;
+  }
+
+  if (auto pref_blocked_result = GetPrefBlockedResult()) {
+    std::move(callback).Run(*pref_blocked_result);
+    return;
+  }
+
+  auto* service_launcher = AISemanticEmbedderServiceLauncher::Get();
+
+  if (!service_launcher->controller()->IsModelAvailable()) {
+    std::move(callback).Run(
+        blink::mojom::ModelAvailabilityCheckResult::kDownloadable);
+    return;
+  }
+
+  // Reject if the crash limit is reached
+  if (!service_launcher->AllowedToLaunch()) {
+    std::move(callback).Run(blink::mojom::ModelAvailabilityCheckResult::
+                                kUnavailableTooManyRecentCrashes);
+    return;
+  }
+
+  std::move(callback).Run(
+      blink::mojom::ModelAvailabilityCheckResult::kAvailable);
+}
+
+void AIManager::CreateSemanticEmbedder(
+    mojo::PendingRemote<blink::mojom::AIManagerCreateSemanticEmbedderClient>
+        client,
+    mojo::PendingRemote<on_device_model::mojom::DownloadObserver> monitor) {
+  if (!base::FeatureList::IsEnabled(blink::features::kAIEmbeddingsAPI)) {
+    receivers_.ReportBadMessage("Feature not enabled");
+    return;
+  }
+
+  if (IsBlocked(network::mojom::PermissionsPolicyFeature::kLanguageModel)) {
+    receivers_.ReportBadMessage("Policy or user setting disabled");
+    return;
+  }
+
+  if (!AISemanticEmbedderServiceLauncher::Get()->AllowedToLaunch()) {
+    mojo::Remote<blink::mojom::AIManagerCreateSemanticEmbedderClient>
+        client_remote(std::move(client));
+    client_remote->OnError(
+        blink::mojom::AIManagerCreateClientError::kUnableToCreateSession);
+    return;
+  }
+
+  if (monitor) {
+    AISemanticEmbedderServiceLauncher::Get()->AddDownloadObserver(
+        std::move(monitor));
+  }
+
+  AISemanticEmbedderServiceLauncher::Get()->WaitForModelAvailable(
+      base::BindOnce(&AIManager::OnSemanticEmbedderModelReady,
+                     weak_factory_.GetWeakPtr(), std::move(client)));
+}
+
+void AIManager::OnSemanticEmbedderModelReady(
+    mojo::PendingRemote<blink::mojom::AIManagerCreateSemanticEmbedderClient>
+        client) {
+  mojo::Remote<blink::mojom::AIManagerCreateSemanticEmbedderClient>
+      client_remote(std::move(client));
+  auto* service_launcher = AISemanticEmbedderServiceLauncher::Get();
+
+  if (!service_launcher->controller()->IsModelAvailable()) {
+    client_remote->OnError(
+        blink::mojom::AIManagerCreateClientError::kUnableToCreateSession);
+    return;
+  }
+
+  if (!service_launcher->AllowedToLaunch()) {
+    client_remote->OnError(
+        blink::mojom::AIManagerCreateClientError::kUnableToCreateSession);
+    return;
+  }
+
+  mojo::PendingRemote<blink::mojom::AISemanticEmbedder> pending_remote;
+  context_bound_object_set_.AddContextBoundObject(
+      std::make_unique<AISemanticEmbedder>(
+          context_bound_object_set_,
+          pending_remote.InitWithNewPipeAndPassReceiver()));
+  client_remote->OnResult(std::move(pending_remote));
 }
 
 void AIManager::RenderWidgetHostVisibilityChanged(

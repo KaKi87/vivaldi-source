@@ -24,6 +24,9 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.ui.UiSwitches;
 import org.chromium.ui.insets.WindowInsetsUtils;
 
+// Vivaldi
+import org.chromium.build.BuildConfig;
+
 /**
  * A wrapper layout that adjusts padding based on the current window insets. It ensures it's child
  * views have no overlap with system insets, making them edge to edge compatible.
@@ -183,6 +186,9 @@ public class EdgeToEdgeBaseLayout extends FrameLayout {
     }
 
     void setStatusBarInsets(Insets insets) {
+        // Vivaldi VAB-12694: when the status bar height changes, request a layout so it gets
+        // redrawn. Without this the status bar can stay blank.
+        if (BuildConfig.IS_VIVALDI && !mStatusBarInsets.equals(insets)) requestLayout();
         mStatusBarInsets = insets;
     }
 

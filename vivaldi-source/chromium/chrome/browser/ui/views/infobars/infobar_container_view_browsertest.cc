@@ -8,14 +8,12 @@
 #include <string>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/infobars/confirm_infobar.h"
 #include "chrome/browser/ui/views/infobars/infobar_view.h"
@@ -28,6 +26,7 @@
 #include "content/public/test/browser_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/gfx/animation/animation_test_api.h"
+#include "ui/views/test/widget_activation_waiter.h"
 #include "ui/views/view_utils.h"
 #include "url/gurl.h"
 
@@ -246,6 +245,12 @@ IN_PROC_BROWSER_TEST_F(InfoBarContainerPriorityTest,
 
 IN_PROC_BROWSER_TEST_F(InfoBarContainerPriorityTest,
                        PromotionRestoresFocusWhenFocusWasInInfobars) {
+  // Ensure the browser window is active to avoid focus races.
+  views::Widget* widget =
+      BrowserView::GetBrowserViewForBrowser(browser())->GetWidget();
+  widget->Activate();
+  views::test::WaitForWidgetActive(widget, true);
+
   infobars::InfoBar* first = AddInfoBar(
       infobars::InfoBarDelegate::InfobarPriority::kDefault, "Default 1");
   AddInfoBar(infobars::InfoBarDelegate::InfobarPriority::kDefault,
@@ -331,7 +336,7 @@ class InfoBarContainerSplitTabTest : public InfoBarContainerViewBrowserTest {
   // Switches focus between the two panes of the active split tab.
   void SwitchSplitTabFocus() {
     TabStripModel* tab_strip_model = browser()->tab_strip_model();
-    ASSERT_TRUE(tab_strip_model->IsActiveTabSplit());
+    ASSERT_TRUE(tab_strip_model->GetActiveTab()->IsSplit());
 
     // In this test setup with exactly two tabs (0 and 1) involved in a split,
     // switching focus simply means activating the other index.
@@ -369,7 +374,7 @@ IN_PROC_BROWSER_TEST_F(InfoBarContainerSplitTabTest,
   SplitTabWithActive(0);
   // The tabs are now split but remain as distinct indices in the model.
   ASSERT_EQ(2, tab_strip_model->count());
-  ASSERT_TRUE(tab_strip_model->IsActiveTabSplit());
+  ASSERT_TRUE(tab_strip_model->GetActiveTab()->IsSplit());
 
   // 4. Verify the infobars are still visible in the active pane (Tab 1).
   EXPECT_EQ(GURL("chrome://version"),

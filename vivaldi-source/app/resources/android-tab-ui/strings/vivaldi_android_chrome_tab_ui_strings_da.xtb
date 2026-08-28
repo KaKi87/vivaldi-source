@@ -11,7 +11,9 @@
           other {Oprettet <ph name="NUM_YEARS_MANY" /> år siden}
         }</translation>
 <translation id="1133985792690629147"><ph name="COLOR_NAME" /> fanestak ikonfarve</translation>
+<translation id="1284091376947323642">Flyt fanestak til højre</translation>
 <translation id="1329584516321524826">Opdateret lige nu</translation>
+<translation id="1458791605942787797">Ny stak fra din anden enhed</translation>
 <translation id="1487138071670610189">Træk faner for at stakke dem</translation>
 <translation id="149054111719651807">{NUM_MINS, plural,
           =1 {Oprettet <ph name="NUM_MINS_ONE" /> minut siden}
@@ -40,6 +42,7 @@
 <translation id="2823409674319971145">Tilføj ny fane til stak</translation>
 <translation id="2947471979790858922">Din aktivitet i disse private faner fjernes fra denne enhed</translation>
 <translation id="3298614730029636660">Forlad stak</translation>
+<translation id="3316876767347568113">Fjern fane fra stak</translation>
 <translation id="354698175756845966">Rediger stakfarve</translation>
 <translation id="3832906837818406941"><ph name="TITLE_OF_GROUP" /> indstilinger for fanestak</translation>
 <translation id="4009732926939031387">{NUM_DAYS, plural,
@@ -47,6 +50,7 @@
           other {Oprettet <ph name="NUM_DAYS_MANY" /> dage siden}
         }</translation>
 <translation id="4166594760689356813">Luk alle faner og stak</translation>
+<translation id="423046824994248930">Vælg fanestak eller opret en ny</translation>
 <translation id="4453940245650019914">{NUM_DAYS, plural,
           =1 {Opdateret <ph name="NUM_DAYS_ONE" /> dag siden}
           other {Opdateret <ph name="NUM_DAYS_MANY" /> dage siden}
@@ -57,11 +61,14 @@
 <translation id="4779979121749047116">Vælg hvornår faner og fanestakke automatisk flyttes til den inaktive sektion.</translation>
 <translation id="4870911314065352661">Luk alle faner?</translation>
 <translation id="4871187110787939393">Luk alle private faner?</translation>
+<translation id="5011517165747668569">Vælg fanestak</translation>
 <translation id="5494920125229734069">Vælg alle</translation>
+<translation id="570198925265232174">Omdøb fanestak</translation>
 <translation id="6807841890213931603">Fjern fane og slet stak</translation>
 <translation id="750227952939161636">Dine fanestakke gemmes og opdateres automatisk mellem alle dine indloggede enheder</translation>
 <translation id="7640137753339219124">Slet stak</translation>
 <translation id="7653857400289671414">Dine fanestakke gemmes automatisk</translation>
+<translation id="7720577161467416873">Flyt fanestak til venstre</translation>
 <translation id="775668479044571025">{NUM_MONTHS, plural,
           =1 {Opdateret <ph name="NUM_YEARS_ONE" /> år siden}
           other {Opdateret <ph name="NUM_YEARS_MANY" /> år siden}

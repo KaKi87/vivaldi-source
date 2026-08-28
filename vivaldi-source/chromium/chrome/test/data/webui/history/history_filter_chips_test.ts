@@ -4,22 +4,23 @@
 
 import 'chrome://history/history.js';
 
-import {BrowserServiceImpl} from 'chrome://history/history.js';
+import {BrowserProxyImpl} from 'chrome://history/history.js';
 import type {HistoryFilterChipsElement} from 'chrome://history/history.js';
+import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {microtasksFinished} from 'chrome://webui-test/test_util.js';
 
-import {TestBrowserService} from './test_browser_service.js';
+import {TestHistoryBrowserProxy} from './test_browser_proxy.js';
 
 suite('HistoryFilterChipsTest', function() {
   let element: HistoryFilterChipsElement;
-  let browserService: TestBrowserService;
+  let browserService: TestHistoryBrowserProxy;
 
   setup(async () => {
     document.body.innerHTML = window.trustedTypes?.emptyHTML || '';
 
-    browserService = new TestBrowserService();
-    BrowserServiceImpl.setInstance(browserService);
+    browserService = new TestHistoryBrowserProxy();
+    BrowserProxyImpl.setInstance(browserService);
 
     element = document.createElement('history-filter-chips');
     document.body.appendChild(element);
@@ -114,8 +115,7 @@ suite('HistoryFilterChipsTest', function() {
     assertTrue(eventDetail.actorVisits);
     assertFalse(actorChip.hasAttribute('selected'));
     // <if expr="_google_chrome">
-    assertEquals(
-        'history-internal:screensaver-auto', actorIcon.icon);
+    assertEquals('history-internal:screensaver-auto', actorIcon.icon);
     // </if>
     // <if expr="not _google_chrome">
     assertEquals('', actorIcon.icon);
@@ -187,5 +187,32 @@ suite('HistoryFilterChipsTest', function() {
     assertTrue(eventDetail.actorVisits);
     assertFalse(userChip.hasAttribute('selected'));
     assertFalse(actorChip.hasAttribute('selected'));
+  });
+
+  test('CriticalActionsIcons', async () => {
+    loadTimeData.overrideValues({
+      isCriticalActionsEnabled: true,
+    });
+    element.requestUpdate();
+    await element.updateComplete;
+
+    const userChip =
+        element.shadowRoot.querySelector<HTMLElement>('#userVisitsChip');
+    const actorChip =
+        element.shadowRoot.querySelector<HTMLElement>('#actorVisitsChip');
+    assertTrue(!!userChip && !!actorChip);
+
+    const userIcon = userChip.querySelector('cr-icon');
+    const actorIcon = actorChip.querySelector('cr-icon');
+    assertTrue(!!userIcon && !!actorIcon);
+
+    assertEquals('cr:person-outline', userIcon.icon);
+
+    // <if expr="_google_chrome">
+    assertEquals('history-internal:arrow-selector-spark', actorIcon.icon);
+    // </if>
+    // <if expr="not _google_chrome">
+    assertEquals('', actorIcon.icon);
+    // </if>
   });
 });

@@ -21,7 +21,7 @@
 #include "extensions/browser/extension_icon_image.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
-#include "extensions/schema/browser_action_utilities.h"
+#include "extensions/schema/extension_action_utils.h"
 #include "extensions/vivaldi_browser_component_wrapper.h"
 
 class PrefChangeRegistrar;

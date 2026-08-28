@@ -42,9 +42,8 @@ const CGFloat textStackSpacing = 4;
   return self;
 }
 
-- (void)configureCell:(LegacyTableViewCell*)cell
-           withStyler:(ChromeTableViewStyler*)styler {
-  [super configureCell:cell withStyler:styler];
+- (void)configureCell:(LegacyTableViewCell*)cell {
+  [super configureCell:cell];
   TableViewNoteFolderCell* folderCell =
       base::apple::ObjCCastStrict<TableViewNoteFolderCell>(cell);
   switch (self.style) {

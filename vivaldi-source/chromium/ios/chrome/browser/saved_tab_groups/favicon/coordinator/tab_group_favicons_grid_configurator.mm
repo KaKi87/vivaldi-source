@@ -100,9 +100,9 @@ void TabGroupFaviconsGridConfigurator::ConfigureFaviconsGrid(
   const int saved_tabs_count = saved_tabs.size();
   __weak TabGroupFaviconsGridConfigurationToken* weak_token =
       favicons_grid.configurationToken;
-  UIImage* fallback_image = SymbolWithPalette(
-      DefaultSymbolWithPointSize(kGlobeAmericasSymbol, kFaviconSize),
-      @[ [UIColor colorNamed:kGrey400Color] ]);
+  UIImage* fallback_image =
+      SymbolWithPalette(SymbolWithPointSize(SymbolGlobeAmericas, kFaviconSize),
+                        @[ [UIColor colorNamed:kGrey400Color] ]);
 
   if (IsVivaldiRunning())
     fallback_image = [UIImage imageNamed:vNTPSDFallbackFavicon]; // End Vivaldi
@@ -190,9 +190,9 @@ void TabGroupFaviconsGridConfigurator::FetchFaviconsGrid(
         }
       });
 
-  UIImage* fallback_image = SymbolWithPalette(
-      DefaultSymbolWithPointSize(kGlobeAmericasSymbol, kFaviconSize),
-      @[ [UIColor colorNamed:kGrey400Color] ]);
+  UIImage* fallback_image =
+      SymbolWithPalette(SymbolWithPointSize(SymbolGlobeAmericas, kFaviconSize),
+                        @[ [UIColor colorNamed:kGrey400Color] ]);
 
   if (IsVivaldiRunning())
     fallback_image = [UIImage imageNamed:vNTPSDFallbackFavicon]; // End Vivaldi

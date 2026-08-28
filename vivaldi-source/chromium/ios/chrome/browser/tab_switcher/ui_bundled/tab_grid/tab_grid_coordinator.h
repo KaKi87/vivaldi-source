@@ -66,11 +66,6 @@ class Browser;
 // Sets the `mode` as the active one.
 - (void)setActiveMode:(TabGridMode)mode;
 
-// Vivaldi
-// Hide and show the tab grid(regular and private) from outside of this class.
-- (void)setTabGridHidden:(BOOL)hidden;
-// End Vivaldi
-
 @end
 
 #endif  // IOS_CHROME_BROWSER_TAB_SWITCHER_UI_BUNDLED_TAB_GRID_TAB_GRID_COORDINATOR_H_

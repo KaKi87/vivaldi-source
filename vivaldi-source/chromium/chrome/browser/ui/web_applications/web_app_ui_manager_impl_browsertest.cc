@@ -25,6 +25,7 @@
 #include "components/webapps/browser/uninstall_result_code.h"
 #include "components/webapps/common/web_app_id.h"
 #include "content/public/test/browser_test.h"
+#include "content/public/test/browser_test_utils.h"
 #include "url/gurl.h"
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -44,7 +45,7 @@ class WebAppUiManagerImplBrowserTest : public InProcessBrowserTest {
         WebAppProvider::GetForTest(profile()));
   }
 
-  Profile* profile() { return browser()->profile(); }
+  Profile* profile() { return browser()->GetProfile(); }
 
   webapps::AppId InstallWebApp(const GURL& start_url) {
     auto web_app_info =
@@ -184,7 +185,7 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(WebAppUiManagerImplBrowserTest, MigrateAppAttribute) {
   app_list::AppListSyncableService* app_list_service =
       app_list::AppListSyncableServiceFactory::GetForProfile(
-          browser()->profile());
+          browser()->GetProfile());
 
   // Install an old app to be replaced.
   webapps::AppId old_app_id = test::InstallDummyWebApp(
@@ -206,5 +207,37 @@ IN_PROC_BROWSER_TEST_F(WebAppUiManagerImplBrowserTest, MigrateAppAttribute) {
             "positionold");
 }
 #endif  // BUILDFLAG(IS_CHROMEOS)
+
+IN_PROC_BROWSER_TEST_F(WebAppUiManagerImplBrowserTest,
+                       CloseAppWindows_BypassesBeforeUnload) {
+  ASSERT_TRUE(embedded_test_server()->Start());
+
+  const GURL app_url = embedded_test_server()->GetURL("/empty.html");
+  const webapps::AppId app_id = InstallWebApp(app_url);
+  Browser* const app_browser = LaunchWebApp(app_id);
+
+  EXPECT_TRUE(app_browser);
+  EXPECT_EQ(1u, ui_manager().GetNumWindowsForApp(app_id));
+
+  content::WebContents* const web_contents =
+      app_browser->tab_strip_model()->GetActiveWebContents();
+
+  // Inject beforeunload handler.
+  ASSERT_TRUE(
+      content::ExecJs(web_contents,
+                      "window.addEventListener('beforeunload', (event) => {\n"
+                      "  event.preventDefault();\n"
+                      "  event.returnValue = '';\n"
+                      "});"));
+
+  // Prep contents for beforeunload (triggers user activation).
+  content::PrepContentsForBeforeUnloadTest(web_contents);
+
+  BrowserWaiter waiter(app_browser);
+  ui_manager().CloseAppWindows(app_id);
+  waiter.AwaitRemoved();
+
+  EXPECT_EQ(0u, ui_manager().GetNumWindowsForApp(app_id));
+}
 
 }  // namespace web_app

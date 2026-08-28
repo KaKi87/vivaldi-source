@@ -39,6 +39,9 @@ import org.chromium.ui.display.DisplayAndroidManager;
 import org.chromium.ui.display.DisplayUtil;
 import org.chromium.url.GURL;
 
+// Vivaldi
+import org.chromium.build.BuildConfig;
+
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
@@ -116,6 +119,20 @@ public class DesktopSiteUtils {
         // Desktop Android always requests desktop sites.
         if (DeviceInfo.isDesktop()) {
             return true;
+        }
+
+        // Vivaldi AUTO-350: Mercedes defaults to desktop site, skipping the hardware gates.
+        // Still honor a prior default-enable or a manual user change.
+        if (BuildConfig.IS_OEM_MERCEDES_BUILD) {
+            SharedPreferencesManager prefs = ChromeSharedPreferences.getInstance();
+            boolean defaultedBefore =
+                    prefs.readBoolean(
+                            ChromePreferenceKeys.DEFAULT_ENABLED_DESKTOP_SITE_GLOBAL_SETTING, false);
+            boolean userChanged =
+                    prefs.contains(
+                            SingleCategorySettingsConstants
+                                    .USER_ENABLED_DESKTOP_SITE_GLOBAL_SETTING_PREFERENCE_KEY);
+            return !defaultedBefore && !userChanged;
         }
 
         // Do not default-enable if memory is below threshold.
@@ -266,6 +283,10 @@ public class DesktopSiteUtils {
     static boolean shouldApplyWindowSetting(Profile profile, @Nullable GURL url, Context context) {
         // Skip window setting on Automotive and revisit if / when they add split screen.
         if (DeviceInfo.isAutomotive()) {
+            return false;
+        }
+        // Vivaldi AUTO-350: Mercedes never downgrades to mobile on narrow windows.
+        if (BuildConfig.IS_OEM_MERCEDES_BUILD) {
             return false;
         }
         PrefService prefService = UserPrefs.get(profile);

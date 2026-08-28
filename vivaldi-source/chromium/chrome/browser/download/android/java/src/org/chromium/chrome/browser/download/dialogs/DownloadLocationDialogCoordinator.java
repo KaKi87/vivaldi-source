@@ -252,7 +252,7 @@ public class DownloadLocationDialogCoordinator
                         .with(
                                 ModalDialogProperties.POSITIVE_BUTTON_TEXT,
                                 resources,
-                                R.string.duplicate_download_infobar_download_button)
+                                R.string.duplicate_download_prompt_download_button)
                         .with(
                                 ModalDialogProperties.BUTTON_STYLES,
                                 ModalDialogProperties.ButtonStyles.PRIMARY_FILLED_NEGATIVE_OUTLINE)
@@ -334,6 +334,7 @@ public class DownloadLocationDialogCoordinator
                         DownloadUtils.getStringForBytes(mContext, mTotalBytes));
                 builder.with(DownloadLocationDialogProperties.SHOW_SUBTITLE, false);
                 break;
+            case DownloadLocationDialogType.FORCE_PROMPT:
             case DownloadLocationDialogType.DEFAULT:
                 builder.with(DownloadLocationDialogProperties.TITLE, getDefaultTitle());
 
@@ -454,7 +455,7 @@ public class DownloadLocationDialogCoordinator
     public void onDirectorySelectionChanged() {}
 
     @Override
-    public DownloadLocationHelper getDownloadLocationHelper() {
-        return assumeNonNull(mDownloadLocationHelper);
+    public @Nullable DownloadLocationHelper getDownloadLocationHelper() {
+        return mDownloadLocationHelper;
     }
 }

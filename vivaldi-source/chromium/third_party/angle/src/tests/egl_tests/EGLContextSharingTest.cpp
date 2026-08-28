@@ -6,11 +6,8 @@
 // EGLContextSharingTest.cpp:
 //   Tests relating to shared Contexts.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-#    pragma allow_unsafe_buffers
-#endif
-
 #include <gtest/gtest.h>
+#include "common/unsafe_buffers.h"
 
 #include "common/tls.h"
 #include "test_utils/ANGLETest.h"
@@ -809,11 +806,12 @@ TEST_P(EGLContextSharingTest, DeleteReaderOfSharedTexture)
 
     for (size_t t = 0; t < kThreadCount; ++t)
     {
-        surface[t] = eglCreatePbufferSurface(dpy, config, pbufferAttributes);
+        ANGLE_UNSAFE_TODO(surface[t]) = eglCreatePbufferSurface(dpy, config, pbufferAttributes);
         EXPECT_EGL_SUCCESS();
 
-        ctx[t] = window->createContext(t == 0 ? EGL_NO_CONTEXT : ctx[0], nullptr);
-        EXPECT_NE(EGL_NO_CONTEXT, ctx[t]);
+        ANGLE_UNSAFE_TODO(ctx[t]) =
+            window->createContext(t == 0 ? EGL_NO_CONTEXT : ctx[0], nullptr);
+        ANGLE_UNSAFE_TODO(EXPECT_NE(EGL_NO_CONTEXT, ctx[t]));
     }
 
     // Initialize test resources.  They are done outside the threads to reduce the sources of
@@ -838,19 +836,20 @@ TEST_P(EGLContextSharingTest, DeleteReaderOfSharedTexture)
 
     for (size_t t = 0; t < kThreadCount; ++t)
     {
-        ASSERT_EGL_TRUE(eglMakeCurrent(dpy, surface[t], surface[t], ctx[t]));
+        ANGLE_UNSAFE_TODO(ASSERT_EGL_TRUE(eglMakeCurrent(dpy, surface[t], surface[t], ctx[t])));
 
-        glBindRenderbuffer(GL_RENDERBUFFER, renderbuffer[t]);
+        glBindRenderbuffer(GL_RENDERBUFFER, ANGLE_UNSAFE_TODO(renderbuffer[t]));
         constexpr int kRenderbufferSize = 4;
         glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, kRenderbufferSize, kRenderbufferSize);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo[t]);
+        glBindFramebuffer(GL_FRAMEBUFFER, ANGLE_UNSAFE_TODO(fbo[t]));
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER,
-                                  renderbuffer[t]);
+                                  ANGLE_UNSAFE_TODO(renderbuffer[t]));
 
         glBindTexture(GL_TEXTURE_2D, sharedTex);
-        program[t].makeRaster(essl1_shaders::vs::Texture2D(), essl1_shaders::fs::Texture2D());
-        ASSERT_TRUE(program[t].valid());
+        ANGLE_UNSAFE_TODO(program[t])
+            .makeRaster(essl1_shaders::vs::Texture2D(), essl1_shaders::fs::Texture2D());
+        ANGLE_UNSAFE_TODO(ASSERT_TRUE(program[t].valid()));
     }
 
     EXPECT_EGL_TRUE(eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT));
@@ -966,8 +965,8 @@ TEST_P(EGLContextSharingTest, DeleteReaderOfSharedTexture)
     // Clean up
     for (size_t t = 0; t < kThreadCount; ++t)
     {
-        eglDestroySurface(dpy, surface[t]);
-        eglDestroyContext(dpy, ctx[t]);
+        eglDestroySurface(dpy, ANGLE_UNSAFE_TODO(surface[t]));
+        eglDestroyContext(dpy, ANGLE_UNSAFE_TODO(ctx[t]));
     }
 }
 
@@ -1105,8 +1104,12 @@ TEST_P(EGLContextSharingTest, UnmakeFromCurrentOnThreadExit)
 // Test that an inactive but alive thread doesn't prevent memory cleanup.
 TEST_P(EGLContextSharingTestNoFixture, InactiveThreadDoesntPreventCleanup)
 {
-    EGLAttrib dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, GetParam().getRenderer(),
-                             EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, GetParam().getDeviceType(),
+    EGLAttrib dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE,
+                             GetParam().getRenderer(),
+                             EGL_PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE,
+                             static_cast<EGLAttrib>(mOsWindow->getNativeDisplayPlatformType()),
+                             EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE,
+                             GetParam().getDeviceType(),
                              EGL_NONE};
 
     // Synchronization tools to ensure the two threads are interleaved as designed by this test.
@@ -1210,7 +1213,9 @@ TEST_P(EGLContextSharingTestNoFixture, EglTerminateMultiThreaded)
     //        B: eglTerminate() <<--- this release context A
     // Thread A: eglMakeCurrent(context B)
 
-    EGLAttrib dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, GetParam().getRenderer(), EGL_NONE};
+    EGLAttrib dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, GetParam().getRenderer(),
+                             EGL_PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE,
+                             static_cast<EGLAttrib>(GetPbufferOnlyDefaultPlatformType()), EGL_NONE};
     mDisplay              = eglGetPlatformDisplay(GetEglPlatform(),
                                                   reinterpret_cast<void *>(EGL_DEFAULT_DISPLAY), dispattrs);
     EXPECT_TRUE(mDisplay != EGL_NO_DISPLAY);
@@ -1328,7 +1333,10 @@ TEST_P(EGLContextSharingTestNoFixture, EglTerminateMultiThreaded)
 // errors.
 TEST_P(EGLContextSharingTestNoFixture, EglDestoryContextManyTimesSameContext)
 {
-    EGLAttrib dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, GetParam().getRenderer(), EGL_NONE};
+    EGLAttrib dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, GetParam().getRenderer(),
+                             EGL_PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE,
+                             static_cast<EGLAttrib>(mOsWindow->getNativeDisplayPlatformType()),
+                             EGL_NONE};
     mDisplay              = eglGetPlatformDisplay(GetEglPlatform(),
                                                   reinterpret_cast<void *>(EGL_DEFAULT_DISPLAY), dispattrs);
     EXPECT_TRUE(mDisplay != EGL_NO_DISPLAY);
@@ -1464,7 +1472,10 @@ TEST_P(EGLContextSharingTestNoFixture, EglTerminateMultipleTimes)
     //   eglDestroySurface(srf1)
     //   eglTerminate(shared-display)
 
-    EGLAttrib dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, GetParam().getRenderer(), EGL_NONE};
+    EGLAttrib dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, GetParam().getRenderer(),
+                             EGL_PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE,
+                             static_cast<EGLAttrib>(mOsWindow->getNativeDisplayPlatformType()),
+                             EGL_NONE};
     mDisplay              = eglGetPlatformDisplay(GetEglPlatform(),
                                                   reinterpret_cast<void *>(EGL_DEFAULT_DISPLAY), dispattrs);
     EXPECT_TRUE(mDisplay != EGL_NO_DISPLAY);
@@ -1507,7 +1518,10 @@ TEST_P(EGLContextSharingTestNoFixture, EglTerminateMultipleTimes)
 // Test that we can eglSwapBuffers in one thread while another thread renders to a texture.
 TEST_P(EGLContextSharingTestNoFixture, SwapBuffersShared)
 {
-    EGLAttrib dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, GetParam().getRenderer(), EGL_NONE};
+    EGLAttrib dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, GetParam().getRenderer(),
+                             EGL_PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE,
+                             static_cast<EGLAttrib>(mOsWindow->getNativeDisplayPlatformType()),
+                             EGL_NONE};
     mDisplay              = eglGetPlatformDisplay(GetEglPlatform(),
                                                   reinterpret_cast<void *>(EGL_DEFAULT_DISPLAY), dispattrs);
     EXPECT_TRUE(mDisplay != EGL_NO_DISPLAY);
@@ -1639,14 +1653,14 @@ TEST_P(EGLContextSharingTestNoSyncTextureUploads, NoSync)
 
     for (size_t t = 0; t < kThreadCount; ++t)
     {
-        mContexts[t] = eglCreateContext(display, config, t == 0 ? EGL_NO_CONTEXT : mContexts[0],
-                                        inShareGroupContextAttribs);
+        ANGLE_UNSAFE_TODO(mContexts[t]) = eglCreateContext(
+            display, config, t == 0 ? EGL_NO_CONTEXT : mContexts[0], inShareGroupContextAttribs);
         ASSERT_EGL_SUCCESS();
-        ASSERT_NE(EGL_NO_CONTEXT, mContexts[t]);
+        ANGLE_UNSAFE_TODO(ASSERT_NE(EGL_NO_CONTEXT, mContexts[t]));
 
-        surface[t] = eglCreatePbufferSurface(display, config, pbufferAttributes);
+        ANGLE_UNSAFE_TODO(surface[t]) = eglCreatePbufferSurface(display, config, pbufferAttributes);
         EXPECT_EGL_SUCCESS();
-        ASSERT_NE(EGL_NO_SURFACE, surface[t]);
+        ANGLE_UNSAFE_TODO(ASSERT_NE(EGL_NO_SURFACE, surface[t]));
     }
 
     GLTexture textureFromCtx0;
@@ -1694,11 +1708,11 @@ TEST_P(EGLContextSharingTestNoSyncTextureUploads, NoSync)
         // We create redundant textures here to ensure that we trigger that threshold.
         for (size_t i = 0; i < kTextureCount; i++)
         {
-            glBindTexture(GL_TEXTURE_2D, textures[i]);
+            glBindTexture(GL_TEXTURE_2D, ANGLE_UNSAFE_TODO(textures[i]));
             glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, 1, 1);
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-            ASSERT_GL_TRUE(glIsTexture(textures[i]));
+            ANGLE_UNSAFE_TODO(ASSERT_GL_TRUE(glIsTexture(textures[i])));
 
             glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE,
                             &GLColor::blue);
@@ -1768,7 +1782,7 @@ TEST_P(EGLContextSharingTestNoSyncTextureUploads, NoSync)
 
     for (size_t t = 0; t < kThreadCount; ++t)
     {
-        ASSERT_EGL_TRUE(eglDestroySurface(display, surface[t]));
+        ANGLE_UNSAFE_TODO(ASSERT_EGL_TRUE(eglDestroySurface(display, surface[t])));
         ASSERT_EGL_SUCCESS();
     }
 }
@@ -1777,7 +1791,10 @@ TEST_P(EGLContextSharingTestNoSyncTextureUploads, NoSync)
 // created.
 TEST_P(EGLContextSharingTestNoFixture, ImmediateContextDestroyAfterCreation)
 {
-    EGLAttrib dispattrs[3] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, GetParam().getRenderer(), EGL_NONE};
+    EGLAttrib dispattrs[]  = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, GetParam().getRenderer(),
+                              EGL_PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE,
+                              static_cast<EGLAttrib>(mOsWindow->getNativeDisplayPlatformType()),
+                              EGL_NONE};
     mDisplay               = eglGetPlatformDisplay(GetEglPlatform(),
                                                    reinterpret_cast<void *>(EGL_DEFAULT_DISPLAY), dispattrs);
     EXPECT_TRUE(mDisplay != EGL_NO_DISPLAY);
@@ -1803,7 +1820,9 @@ class EGLPriorityContextSharingTestNoFixture : public EGLContextSharingTest
     void testSetUp() override
     {
         mMajorVersion          = GetParam().majorVersion;
-        EGLAttrib dispattrs[3] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, GetParam().getRenderer(),
+        EGLAttrib dispattrs[]  = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, GetParam().getRenderer(),
+                                  EGL_PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE,
+                                  static_cast<EGLAttrib>(GetPbufferOnlyDefaultPlatformType()),
                                   EGL_NONE};
         mDisplay               = eglGetPlatformDisplay(GetEglPlatform(),
                                                        reinterpret_cast<void *>(EGL_DEFAULT_DISPLAY), dispattrs);
@@ -1845,24 +1864,26 @@ TEST_P(EGLPriorityContextSharingTestNoFixture, MultiContextsCreateDestroy)
 
     for (size_t t = 0; t < kContextCount; ++t)
     {
-        surface[t] = eglCreatePbufferSurface(mDisplay, config, pbufferAttributes);
+        ANGLE_UNSAFE_TODO(surface[t]) =
+            eglCreatePbufferSurface(mDisplay, config, pbufferAttributes);
         EXPECT_EGL_SUCCESS();
 
-        attributes[1] = priorities[t];
+        attributes[1] = ANGLE_UNSAFE_TODO(priorities[t]);
 
-        ctx[t] = eglCreateContext(mDisplay, config, t == 0 ? EGL_NO_CONTEXT : ctx[0], attributes);
-        EXPECT_NE(EGL_NO_CONTEXT, ctx[t]);
+        ANGLE_UNSAFE_TODO(ctx[t]) =
+            eglCreateContext(mDisplay, config, t == 0 ? EGL_NO_CONTEXT : ctx[0], attributes);
+        ANGLE_UNSAFE_TODO(EXPECT_NE(EGL_NO_CONTEXT, ctx[t]));
         EXPECT_EGL_SUCCESS();
 
-        eglMakeCurrent(mDisplay, surface[t], surface[t], ctx[t]);
+        ANGLE_UNSAFE_TODO(eglMakeCurrent(mDisplay, surface[t], surface[t], ctx[t]));
         EXPECT_EGL_SUCCESS();
     }
 
     eglMakeCurrent(mDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     for (size_t t = 0; t < kContextCount; ++t)
     {
-        eglDestroySurface(mDisplay, surface[t]);
-        eglDestroyContext(mDisplay, ctx[t]);
+        eglDestroySurface(mDisplay, ANGLE_UNSAFE_TODO(surface[t]));
+        eglDestroyContext(mDisplay, ANGLE_UNSAFE_TODO(ctx[t]));
         EXPECT_EGL_SUCCESS();
     }
 
@@ -1876,7 +1897,6 @@ TEST_P(EGLPriorityContextSharingTestNoFixture, MultiContextsCreateDestroy)
 
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(EGLContextSharingTest);
 ANGLE_INSTANTIATE_TEST(EGLContextSharingTest,
-                       ES2_D3D9(),
                        ES2_D3D11(),
                        ES3_D3D11(),
                        ES2_METAL(),

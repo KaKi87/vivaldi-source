@@ -369,6 +369,94 @@ suite('SelectionController', () => {
       assertEquals(highlightStart + focusOffset, actualFocusOffset);
     });
 
+    test('selection with element container maps to text nodes', () => {
+      const node0 = getNodeAt(0);
+      const node1 = getNodeAt(1);
+      nodeStore.setDomNode(node0.node, node0.id);
+      nodeStore.setDomNode(node1.node, node1.id);
+      const parent = node0.node.parentElement!;
+      nodeStore.setDomNode(parent, parentIds[0]!);
+
+      // Anchor is parent at index 0 (before node0), focus is parent at index 1
+      // (after node0).
+      selection.setBaseAndExtent(parent, 0, parent, 1);
+      selectionController.onSelectionChange(selection);
+
+      // It should map to text node 0 fully!
+      assertEquals(node0.id, actualAnchorId);
+      assertEquals(node0.id, actualFocusId);
+      assertEquals(0, actualAnchorOffset);
+      assertEquals(node0.text.length, actualFocusOffset);
+    });
+
+    test(
+        'triple click like selection with element container maps to text nodes',
+        () => {
+          // Register all text nodes in nodeStore
+          for (let i = 0; i < textNodes.length; i++) {
+            const node = getNodeAt(i);
+            nodeStore.setDomNode(node.node, node.id);
+          }
+          const parent = textNodes[0]!.parentElement!;
+          nodeStore.setDomNode(parent, parentIds[0]!);
+
+          // Set selection visually on the parent element, around the entire
+          // paragraph (children index 0 to 4).
+          selection.setBaseAndExtent(parent, 0, parent, 4);
+          selectionController.onSelectionChange(selection);
+
+          // It should be normalized to the first text node at start and last
+          // text node at end!
+          const nodeStart = getNodeAt(0);
+          const nodeEnd = getNodeAt(3);
+          assertEquals(nodeStart.id, actualAnchorId);
+          assertEquals(nodeEnd.id, actualFocusId);
+          assertEquals(0, actualAnchorOffset);
+          assertEquals(nodeEnd.text.length, actualFocusOffset);
+        });
+
+    test('collapsed selection is not shifted and collapses selection', () => {
+      const node = getNodeAt(1);
+      nodeStore.setDomNode(node.node, node.id);
+
+      let collapseCalled = false;
+      chrome.readingMode.onCollapseSelection = () => {
+        collapseCalled = true;
+      };
+
+      // Set a collapsed selection at the end of node (offset 10)
+      selection.setBaseAndExtent(node.node, 10, node.node, 10);
+      selectionController.onSelectionChange(selection);
+
+      assertTrue(collapseCalled);
+      assertEquals(-1, actualAnchorId);
+      assertEquals(-1, actualFocusId);
+    });
+
+    test(
+        'backward selection is correctly normalized without shifting past boundaries',
+        () => {
+          // Register text nodes
+          for (let i = 0; i < textNodes.length; i++) {
+            const node = getNodeAt(i);
+            nodeStore.setDomNode(node.node, node.id);
+          }
+
+          // Drag backward from end of node 1 (offset length) to start of node 1
+          // (offset 0)
+          const node = getNodeAt(1);
+          selectNodes(node, node.text.length, node, 0);
+
+          // Anchor is end, Focus is start.
+          // With backward selection, the focus (start) should NOT shift
+          // backward to node 0 (title) and the anchor (end) should NOT shift
+          // forward to node 2.
+          assertEquals(node.id, actualAnchorId);
+          assertEquals(node.id, actualFocusId);
+          assertEquals(node.text.length, actualAnchorOffset);
+          assertEquals(0, actualFocusOffset);
+        });
+
     test('selection in node with axNodeOffset', () => {
       const node = getNodeAt(1);
       const axNodeOffset = 10;
@@ -403,6 +491,71 @@ suite('SelectionController', () => {
       // Expected = user_offset(2) + offset_in_span(5) + span_ax_offset(20) = 27
       assertEquals(
           anchorOffset + highlightStart + axNodeOffset, actualAnchorOffset);
+    });
+
+    test('shifts focus backward skipping unmapped nodes in readability', () => {
+      // Recreate clean DOM for scenario where whitespace unmapped nodes exist.
+      document.body.innerHTML = window.trustedTypes!.emptyHTML;
+      const parent = document.createElement('p');
+      const node0 = document.createTextNode(texts[0]!);
+      const spacer1 = document.createTextNode(' \n  ');
+      const spacer2 = document.createTextNode('   ');
+      const node1 = document.createTextNode(texts[1]!);
+      parent.appendChild(node0);
+      parent.appendChild(spacer1);
+      parent.appendChild(spacer2);
+      parent.appendChild(node1);
+      document.body.appendChild(parent);
+
+      // Register parent, node0 and node1, but NOT the spacers.
+      nodeStore.setDomNode(parent, parentIds[0]!);
+      nodeStore.setDomNode(node0, textNodeIds[0]!);
+      nodeStore.setDomNode(node1, textNodeIds[1]!);
+
+      // Drag from end of node0 to start of node1 (offset 0), which is a
+      // forward drag (isBackward = false).
+      selection.setBaseAndExtent(node0, 5, node1, 0);
+      selectionController.onSelectionChange(selection);
+
+      // The focus node (node1 at offset 0) should be shifted backward
+      // skipping the unmapped spacer1 and spacer2 to the end of node0!
+      assertEquals(textNodeIds[0], actualAnchorId);
+      assertEquals(textNodeIds[0], actualFocusId);
+      assertEquals(5, actualAnchorOffset);
+      assertEquals(node0.textContent.length, actualFocusOffset);
+    });
+
+    test('shifts anchor forward skipping unmapped nodes in readability', () => {
+      // Recreate clean DOM for scenario where whitespace unmapped nodes exist.
+      document.body.innerHTML = window.trustedTypes!.emptyHTML;
+      const parent = document.createElement('p');
+      const node0 = document.createTextNode(texts[0]!);
+      const spacer1 = document.createTextNode(' \n  ');
+      const spacer2 = document.createTextNode('   ');
+      const node1 = document.createTextNode(texts[1]!);
+      parent.appendChild(node0);
+      parent.appendChild(spacer1);
+      parent.appendChild(spacer2);
+      parent.appendChild(node1);
+      document.body.appendChild(parent);
+
+      nodeStore.setDomNode(parent, parentIds[0]!);
+      nodeStore.setDomNode(node0, textNodeIds[0]!);
+      nodeStore.setDomNode(node1, textNodeIds[1]!);
+
+      // Drag from end of node0 (offset length) to some point in node1.
+      // This is a forward drag (isBackward = false), so start boundary
+      // sits at the end of node0 and should shift forward.
+      selection.setBaseAndExtent(node0, node0.textContent.length, node1, 5);
+      selectionController.onSelectionChange(selection);
+
+      // The anchor node (node0 at offset length) should be shifted
+      // forward skipping the unmapped spacer1 and spacer2 to the start of
+      // node1!
+      assertEquals(textNodeIds[1], actualAnchorId);
+      assertEquals(textNodeIds[1], actualFocusId);
+      assertEquals(0, actualAnchorOffset);
+      assertEquals(5, actualFocusOffset);
     });
   });
 

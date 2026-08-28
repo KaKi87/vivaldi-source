@@ -25,6 +25,7 @@
 #include "sync/notes/synced_note_tracker.h"
 #include "sync/notes/synced_note_tracker_entity.h"
 #include "sync/vivaldi_hash_util.h"
+#include "sync/vivaldi_server_defined_unique_tags.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
 #include "ui/base/models/tree_node_iterator.h"
 
@@ -37,25 +38,6 @@ using syncer::UpdateResponseData;
 using syncer::UpdateResponseDataList;
 
 static const size_t kInvalidIndex = -1;
-
-// The sync protocol identifies top-level entities by means of well-known tags,
-// (aka server defined tags) which should not be confused with titles or client
-// tags that aren't supported by notes (at the time of writing). Each tag
-// corresponds to a singleton instance of a particular top-level node in a
-// user's share; the tags are consistent across users. The tags allow us to
-// locate the specific folders whose contents we care about synchronizing,
-// without having to do a lookup by name or path.  The tags should not be made
-// user-visible. For example, the tag "main_notes" represents the permanent
-// node under which notes are normally stored in vivaldi. The tag "other_notes"
-// represents the currently unused permanent folder Other Notes in Vivaldi.
-//
-// It is the responsibility of something upstream (at time of writing, the sync
-// server) to create these tagged nodes when initializing sync for the first
-// time for a user.  Thus, once the backend finishes initializing, the
-// SyncService can rely on the presence of tagged nodes.
-const char kMainNotesTag[] = "main_notes";
-const char kOtherNotesTag[] = "other_notes";
-const char kTrashNotesTag[] = "trash_notes";
 
 // Maximum depth to sync notes tree to protect against stack overflow.
 // Keep in sync with |base::internal::kAbsoluteMaxDepth| in json_common.h.
@@ -79,39 +61,17 @@ const vivaldi::NoteNode* GetPermanentFolderForServerDefinedUniqueTag(
 
   // WARNING: Keep this logic consistent with the analogous in
   // GetPermanentFolderUuidForServerDefinedUniqueTag().
-  if (server_defined_unique_tag == kMainNotesTag) {
+  if (server_defined_unique_tag == syncer::kMainNotesTag) {
     return notes_model->main_node();
   }
-  if (server_defined_unique_tag == kOtherNotesTag) {
+  if (server_defined_unique_tag == syncer::kOtherNotesTag) {
     return notes_model->other_node();
   }
-  if (server_defined_unique_tag == kTrashNotesTag) {
+  if (server_defined_unique_tag == syncer::kTrashNotesTag) {
     return notes_model->trash_node();
   }
 
   return nullptr;
-}
-
-// Gets the note UUID corresponding to a permanent folder identified by
-// |served_defined_unique_tag| or an invalid UUID if the tag is unknown.
-// |server_defined_unique_tag| must not be empty.
-base::Uuid GetPermanentFolderUuidForServerDefinedUniqueTag(
-    const std::string& server_defined_unique_tag) {
-  DCHECK(!server_defined_unique_tag.empty());
-
-  // WARNING: Keep this logic consistent with the analogous in
-  // GetPermanentFolderForServerDefinedUniqueTag().
-  if (server_defined_unique_tag == kMainNotesTag) {
-    return base::Uuid::ParseLowercase(vivaldi::NoteNode::kMainNodeUuid);
-  }
-  if (server_defined_unique_tag == kOtherNotesTag) {
-    return base::Uuid::ParseLowercase(vivaldi::NoteNode::kOtherNotesNodeUuid);
-  }
-  if (server_defined_unique_tag == kTrashNotesTag) {
-    return base::Uuid::ParseLowercase(vivaldi::NoteNode::kTrashNodeUuid);
-  }
-
-  return base::Uuid();
 }
 
 std::string LegacyCanonicalizedTitleFromSpecifics(
@@ -490,7 +450,12 @@ void NoteModelMerger::Merge() {
   if (base::FeatureList::IsEnabled(
           switches::kSyncMigrateBookmarksWithoutClientTagHash)) {
     for (const auto& [server_defined_unique_tag, root] : remote_forest_) {
-      MigrateNotesInSubtreeWithoutClientTagHash(root);
+      const vivaldi::NoteNode* permanent_folder =
+          GetPermanentFolderForServerDefinedUniqueTag(
+              notes_model_, server_defined_unique_tag);
+      if (permanent_folder) {
+        MigrateNotesInSubtreeWithoutClientTagHash(root, permanent_folder);
+      }
     }
   }
 }
@@ -620,17 +585,26 @@ NoteModelMerger::FindGuidMatchesOrReassignLocal(
 }
 
 void NoteModelMerger::MigrateNotesInSubtreeWithoutClientTagHash(
-    const RemoteTreeNode& remote_node) {
+    const RemoteTreeNode& remote_node,
+    const vivaldi::NoteNode* local_node) {
+  CHECK(local_node);
+  CHECK_LE(remote_node.children().size(), local_node->children().size());
   // Recursively iterate children first for simplicity, as the order doesn't
   // matter.
-  for (const RemoteTreeNode& child : remote_node.children()) {
-    MigrateNotesInSubtreeWithoutClientTagHash(child);
+  for (size_t i = 0; i < remote_node.children().size(); ++i) {
+    const RemoteTreeNode& child_remote = remote_node.children()[i];
+    CHECK_LT(i, local_node->children().size());
+    const vivaldi::NoteNode* child_local = local_node->children()[i].get();
+    MigrateNotesInSubtreeWithoutClientTagHash(child_remote, child_local);
   }
 
   // Nothing to do for permanent folders.
   if (!remote_node.entity().server_defined_unique_tag.empty()) {
     return;
   }
+
+  CHECK_EQ(remote_node.entity().specifics.bookmark().guid(),
+           local_node->uuid().AsLowercaseString());
 
   // Nothing to do if this entity already uses a client tag hash.
   if (!remote_node.entity().client_tag_hash.value().empty()) {
@@ -642,49 +616,44 @@ void NoteModelMerger::MigrateNotesInSubtreeWithoutClientTagHash(
         !remote_node.entity().originator_client_item_id.empty());
 
   const SyncedNoteTrackerEntity* old_entity =
-      note_tracker_->GetEntityForSyncId(remote_node.entity().id);
+      note_tracker_->GetEntityForNoteNode(local_node);
   CHECK(old_entity);
-  CHECK(old_entity->note_node());
 
   const base::Time creation_time =
       syncer::ProtoTimeToTime(old_entity->metadata().creation_time());
   const syncer::UniquePosition pos = syncer::UniquePosition::FromProto(
       old_entity->metadata().unique_position());
 
-  const vivaldi::NoteNode* node = old_entity->note_node();
   note_tracker_->MarkDeleted(old_entity, FROM_HERE);
-  note_tracker_->IncrementSequenceNumber(old_entity);
 
   // TODO(crbug.com/376641665): Consider generating new UUIDs deterministically
   // rather than randomly to guard against concurrent clients or interrupted
   // migrations.
   const base::Uuid new_guid = base::Uuid::GenerateRandomV4();
-  node = ReplaceNoteNodeUuid(node, new_guid, notes_model_);
+  local_node = ReplaceNoteNodeUuid(local_node, new_guid, notes_model_);
 
   const sync_pb::EntitySpecifics specifics =
-      CreateSpecificsFromNoteNode(node, notes_model_, pos.ToProto());
+      CreateSpecificsFromNoteNode(local_node, notes_model_, pos.ToProto());
 
-  const SyncedNoteTrackerEntity* new_entity =
-      note_tracker_->Add(node, /*sync_id=*/new_guid.AsLowercaseString(),
-                         syncer::kUncommittedVersion, creation_time, specifics);
-
-  // Mark the entity that it needs to be committed.
-  note_tracker_->IncrementSequenceNumber(new_entity);
+  note_tracker_->AddLocalCreation(local_node,
+                                  /*sync_id=*/new_guid.AsLowercaseString(),
+                                  creation_time, specifics);
 
   // Make sure all direct children are marked for commit, because their parent
   // changed.
-  for (const RemoteTreeNode& child : remote_node.children()) {
-    const SyncedNoteTrackerEntity* child_entity =
-        note_tracker_->GetEntityForSyncId(child.entity().id);
+  for (const std::unique_ptr<vivaldi::NoteNode>& child :
+       local_node->children()) {
+    SyncedNoteTrackerEntity* child_entity =
+        note_tracker_->GetEntityForNoteNode(child.get());
     CHECK(child_entity);
-    note_tracker_->IncrementSequenceNumber(child_entity);
+    child_entity->IncrementSequenceNumber();
   }
 }
 
 void NoteModelMerger::MergeSubtree(const vivaldi::NoteNode* local_subtree_root,
                                    const RemoteTreeNode& remote_node) {
   const EntityData& remote_update_entity = remote_node.entity();
-  const SyncedNoteTrackerEntity* entity = note_tracker_->Add(
+  SyncedNoteTrackerEntity* entity = note_tracker_->AddRemote(
       local_subtree_root, remote_update_entity.id,
       remote_node.response_version(), remote_update_entity.creation_time,
       remote_update_entity.specifics);
@@ -692,7 +661,7 @@ void NoteModelMerger::MergeSubtree(const vivaldi::NoteNode* local_subtree_root,
       !local_subtree_root->is_permanent_node() &&
       IsNoteEntityReuploadNeeded(remote_update_entity);
   if (is_reupload_needed) {
-    note_tracker_->IncrementSequenceNumber(entity);
+    entity->IncrementSequenceNumber();
   }
 
   // If there are remote child updates, try to match them.
@@ -837,13 +806,13 @@ void NoteModelMerger::ProcessRemoteCreation(
   const vivaldi::NoteNode* note_node = CreateNoteNodeFromSpecifics(
       specifics.notes(), local_parent, index, notes_model_);
   DCHECK(note_node);
-  const SyncedNoteTrackerEntity* entity = note_tracker_->Add(
+  SyncedNoteTrackerEntity* entity = note_tracker_->AddRemote(
       note_node, remote_update_entity.id, remote_node.response_version(),
       remote_update_entity.creation_time, specifics);
   const bool is_reupload_needed =
       IsNoteEntityReuploadNeeded(remote_node.entity());
   if (is_reupload_needed) {
-    note_tracker_->IncrementSequenceNumber(entity);
+    entity->IncrementSequenceNumber();
   }
 
   // Recursively, match by UUID or, if not possible, create local node for all
@@ -893,11 +862,9 @@ void NoteModelMerger::ProcessLocalCreation(const vivaldi::NoteNode* parent,
       GenerateUniquePositionForLocalCreation(parent, index, suffix);
   const sync_pb::EntitySpecifics specifics =
       CreateSpecificsFromNoteNode(node, notes_model_, pos.ToProto());
-  const SyncedNoteTrackerEntity* entity =
-      note_tracker_->Add(node, /*sync_id=*/node->uuid().AsLowercaseString(),
-                         syncer::kUncommittedVersion, creation_time, specifics);
-  // Mark the entity that it needs to be committed.
-  note_tracker_->IncrementSequenceNumber(entity);
+  note_tracker_->AddLocalCreation(node,
+                                  /*sync_id=*/node->uuid().AsLowercaseString(),
+                                  creation_time, specifics);
   for (size_t i = 0; i < node->children().size(); ++i) {
     // If a local node hasn't matched with any remote entity, its descendants
     // will neither, unless they have been or will be matched by UUID, in which

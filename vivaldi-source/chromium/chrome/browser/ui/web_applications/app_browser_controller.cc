@@ -22,6 +22,7 @@
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_init_state.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -34,6 +35,8 @@
 #include "chrome/browser/ui/tabs/tab_menu_model_factory.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/ui_features.h"
+#include "chrome/browser/ui/unload_controller.h"
+#include "chrome/browser/ui/window_metadata/window_metadata_controller.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/browser/web_applications/web_app_tab_helper.h"
@@ -129,6 +132,21 @@ bool AppBrowserController::IsIsolatedWebApp(
   return IsWebApp(browser) && From(browser)->IsIsolatedWebApp();
 }
 
+#if BUILDFLAG(IS_CHROMEOS)
+const ash::SystemWebAppDelegate* GetSystemWebAppDelegate(
+    const BrowserWindowInterface* browser) {
+  auto* app_controller =
+      browser ? AppBrowserController::From(browser) : nullptr;
+  return app_controller ? app_controller->system_app() : nullptr;
+}
+
+std::optional<ash::SystemWebAppType> GetSystemWebAppType(
+    const BrowserWindowInterface* browser) {
+  auto* swa_delegate = GetSystemWebAppDelegate(browser);
+  return swa_delegate ? std::optional(swa_delegate->GetType()) : std::nullopt;
+}
+#endif  // BUILDFLAG(IS_CHROMEOS)
+
 // static
 bool AppBrowserController::IsForWebApp(const BrowserWindowInterface* browser,
                                        const webapps::AppId& app_id) {
@@ -150,8 +168,8 @@ BrowserWindowInterface* AppBrowserController::FindForWebApp(
   BrowserWindowInterface* browser_for_web_app = nullptr;
   ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
       [&](BrowserWindowInterface* browser) {
-        if (browser->GetBrowserForMigrationOnly()
-                ->IsAttemptingToCloseBrowser()) {
+        if (UnloadController::From(browser->GetBrowserForMigrationOnly())
+                ->is_attempting_to_close_browser()) {
           return true;  // continue iterating
         }
         if (browser->GetType() != BrowserWindowInterface::TYPE_APP) {
@@ -220,8 +238,8 @@ AppBrowserController::FindTopLevelBrowsingContextForWebApp(
       browser_and_tab_index = std::nullopt;
   ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
       [&](BrowserWindowInterface* browser) {
-        if (browser->GetBrowserForMigrationOnly()
-                ->IsAttemptingToCloseBrowser()) {
+        if (UnloadController::From(browser->GetBrowserForMigrationOnly())
+                ->is_attempting_to_close_browser()) {
           return true;  // continue iterating
         }
         if (IsWebApp(browser) != for_app_browser) {
@@ -290,6 +308,10 @@ AppBrowserController::~AppBrowserController() {
   } else {
     CHECK_IS_TEST();
   }
+}
+
+bool AppBrowserController::IsTrustedSource() const {
+  return WindowFeatureController::From(browser_)->IsTrustedSource();
 }
 
 bool AppBrowserController::ShouldShowCustomTabBar() const {
@@ -441,7 +463,7 @@ std::vector<PageActionIconType>
 AppBrowserController::GetTitleBarPageActionTypes() const {
 #if BUILDFLAG(IS_CHROMEOS)
   if (system_app()) {
-    return {PageActionIconType::kFind, PageActionIconType::kZoom};
+    return {PageActionIconType::kFind};
   }
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
@@ -449,9 +471,7 @@ AppBrowserController::GetTitleBarPageActionTypes() const {
   types_enabled.push_back(PageActionIconType::kFind);
   types_enabled.push_back(PageActionIconType::kManagePasswords);
   types_enabled.push_back(PageActionIconType::kTranslate);
-  types_enabled.push_back(PageActionIconType::kZoom);
   types_enabled.push_back(PageActionIconType::kFileSystemAccess);
-  types_enabled.push_back(PageActionIconType::kCookieControls);
   types_enabled.push_back(PageActionIconType::kSaveCard);
 
   return types_enabled;
@@ -525,7 +545,7 @@ void AppBrowserController::TriggerAppUpdateOrMigrationDialog(
     base::TimeTicks start_time) const {}
 
 bool AppBrowserController::IsPreventCloseEnabled() const {
-  auto* provider = WebAppProvider::GetForWebApps(browser()->profile());
+  auto* provider = WebAppProvider::GetForWebApps(browser()->GetProfile());
   if (!provider) {
     return false;
   }
@@ -584,8 +604,8 @@ void AppBrowserController::Uninstall(
 }
 
 void AppBrowserController::UpdateCustomTabBarVisibility(bool animate) const {
-  browser()->window()->UpdateCustomTabBarVisibility(ShouldShowCustomTabBar(),
-                                                    animate);
+  BrowserWindow::FromBrowser(browser())->UpdateCustomTabBarVisibility(
+      ShouldShowCustomTabBar(), animate);
 }
 
 void AppBrowserController::DidStartNavigation(
@@ -871,7 +891,7 @@ void AppBrowserController::OnReceivedInitialURL() {
 
   // If the window bounds have not been overridden, there is no need to resize
   // the window.
-  if (!browser()->bounds_overridden()) {
+  if (!BrowserInitState::From(browser())->bounds_overridden()) {
     return;
   }
 
@@ -887,7 +907,8 @@ void AppBrowserController::OnReceivedInitialURL() {
   // Note that any potential fix should take into account that
   // `override_bounds()` represent the outer window bounds, not the content
   // size.
-  browser()->window()->SetContentsSize(browser()->override_bounds().size());
+  BrowserWindow::FromBrowser(browser())->SetContentsSize(
+      BrowserInitState::From(browser())->override_bounds().size());
 }
 
 void AppBrowserController::OnTabInserted(content::WebContents* contents) {
@@ -916,7 +937,9 @@ void AppBrowserController::OnTabRemoved(content::WebContents* contents) {
 
 ui::ImageModel AppBrowserController::GetFallbackAppIcon() const {
   TRACE_EVENT0("ui", "TaskManagerView::GetFallbackAppIcon");
-  gfx::ImageSkia page_icon = browser()->GetCurrentPageIcon().AsImageSkia();
+  gfx::ImageSkia page_icon = WindowMetadataController::From(browser_)
+                                 ->GetCurrentPageIcon()
+                                 .AsImageSkia();
   if (!page_icon.isNull()) {
 #if BUILDFLAG(IS_CHROMEOS)
     return ui::ImageModel::FromImageSkia(

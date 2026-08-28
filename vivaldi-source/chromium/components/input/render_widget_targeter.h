@@ -41,7 +41,7 @@ struct COMPONENT_EXPORT(INPUT) RenderWidgetTargetResult {
                            std::optional<gfx::PointF> location);
   ~RenderWidgetTargetResult();
 
-  raw_ptr<RenderWidgetHostViewInput, DanglingUntriaged> view = nullptr;
+  raw_ptr<RenderWidgetHostViewInput> view = nullptr;
   bool should_query_view = false;
   std::optional<gfx::PointF> target_location = std::nullopt;
 };
@@ -235,8 +235,7 @@ class RenderWidgetTargeter {
   uint32_t last_request_id_ = 0;
   std::queue<TargetingRequest> requests_;
 
-  std::unordered_set<raw_ptr<RenderWidgetHostViewInput, CtnExperimental>>
-      unresponsive_views_;
+  std::unordered_set<raw_ptr<RenderWidgetHostViewInput>> unresponsive_views_;
 
   // Target to send events to if autoscroll is in progress
   RenderWidgetTargetResult middle_click_result_;
@@ -263,7 +262,7 @@ class RenderWidgetTargeter {
   raw_ptr<RenderWidgetHostViewInput> vivaldi_active_down_target_ = nullptr;
 #endif // !IS_ANDROID && !IS_IOS
 
-  const raw_ptr<Delegate, DanglingUntriaged> delegate_;
+  const raw_ptr<Delegate> delegate_;
   base::WeakPtrFactory<RenderWidgetTargeter> weak_ptr_factory_{this};
 };
 

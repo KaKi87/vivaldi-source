@@ -53,10 +53,7 @@ class ReloadButton : public ToolbarButton, public ReloadControl {
       views::PropertyChangedCallback callback);
 
   // ToolbarButton:
-  void OnMouseEntered(const ui::MouseEvent& event) override;
   void OnMouseExited(const ui::MouseEvent& event) override;
-  bool OnMousePressed(const ui::MouseEvent& event) override;
-  void OnMouseReleased(const ui::MouseEvent& event) override;
   bool ShouldShowMenu() override;
   void ShowDropDownMenu(ui::mojom::MenuSourceType source_type) override;
 
@@ -106,9 +103,7 @@ class ReloadButton : public ToolbarButton, public ReloadControl {
   void OnDoubleClickTimer();
   void OnStopToReloadTimer();
   void UpdateAccessibleHasPopup();
-  void OnNextPresentation(Mode mode,
-                          Button::ButtonState state,
-                          const viz::FrameTimingDetails&);
+  void OnNextPresentation(const viz::FrameTimingDetails&);
 
   base::OneShotTimer double_click_timer_;
 
@@ -133,6 +128,9 @@ class ReloadButton : public ToolbarButton, public ReloadControl {
 
   // The currently-visible mode - this may differ from the intended mode.
   Mode visible_mode_ = Mode::kReload;
+
+  // If true, we will animate the transitions between reload and stop.
+  bool animate_transitions_ = false;
 
   // The delay times for the timers.  These are members so that tests can modify
   // them.

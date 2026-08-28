@@ -22,6 +22,7 @@
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "components/sync/service/sync_service.h"
 #include "components/sync/service/sync_user_settings.h"
+#include "components/trusted_vault/trusted_vault_histograms.h"
 #include "content/public/browser/navigation_handle.h"
 #include "device/fido/public/features.h"
 #include "google_apis/gaia/gaia_urls.h"
@@ -102,12 +103,15 @@ void PasskeyUnlockManager::OpenTabWithPasskeyUnlockChallenge(
     Browser* browser,
     trusted_vault::TrustedVaultUserActionTriggerForUMA trigger) {
   signin::IdentityManager* identity_manager =
-      IdentityManagerFactory::GetForProfile(browser->profile());
+      IdentityManagerFactory::GetForProfile(browser->GetProfile());
   // Default to the first account if the account is not present in the cookie
   // jar. This can happen in tests, or if account state changed right before
   // this code.
   size_t account_index =
       identity_manager->GetSessionIndexForPrimaryAccount().value_or(0u);
+
+  trusted_vault::RecordTrustedVaultRecoveryFlowTriggeredEndpoint(
+      trusted_vault::TrustedVaultRecoveryFlowEndpoint::kDesktop);
   NavigateParams params(GetSingletonTabNavigateParams(
       browser,
       GaiaUrls::GetInstance()->SigninChromePasskeyUnlockUrl(account_index)));

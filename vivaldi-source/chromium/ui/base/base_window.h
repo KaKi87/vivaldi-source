@@ -15,6 +15,8 @@ namespace gfx {
 class Rect;
 }
 
+class VivaldiBrowserWindow;
+
 namespace ui {
 
 // Provides an interface to perform actions on windows, and query window
@@ -103,6 +105,9 @@ class COMPONENT_EXPORT(UI_BASE) BaseWindow {
 
   // Sets the z-order level of the window.
   virtual void SetZOrderLevel(ZOrderLevel order) = 0;
+
+  virtual VivaldiBrowserWindow * VivaldiWindowCast() const { return nullptr; }
+
 };
 
 }  // namespace ui

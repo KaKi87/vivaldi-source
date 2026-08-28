@@ -1,4 +1,4 @@
-# Copyright 2025 The Chromium Authors. All rights reserved.
+# Copyright 2025 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -14,30 +14,29 @@ class Libyuv(config_util.Config):
 
     @staticmethod
     def fetch_spec(props):
-        url = 'https://chromium.googlesource.com/libyuv/libyuv.git'
+        url = "https://chromium.googlesource.com/libyuv/libyuv.git"
         solution = {
-            'name': 'src',
-            'url': url,
-            'deps_file': 'DEPS',
-            'managed': False,
-            'custom_deps': {},
+            "name": "src",
+            "url": url,
+            "deps_file": "DEPS",
+            "custom_deps": {},
         }
         spec = {
-            'solutions': [solution],
+            "solutions": [solution],
         }
         return {
-            'type': 'gclient_git',
-            'gclient_git_spec': spec,
+            "type": "gclient_git",
+            "gclient_git_spec": spec,
         }
 
     @staticmethod
     def expected_root(_props):
-        return 'src'
+        return "src"
 
 
 def main(argv=None):
     return Libyuv().handle_args(argv)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main(sys.argv))

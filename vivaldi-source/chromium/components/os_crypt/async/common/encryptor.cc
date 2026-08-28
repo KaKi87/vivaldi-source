@@ -93,14 +93,9 @@ Encryptor::Key Encryptor::Key::Clone() const {
 Encryptor::Encryptor() = default;
 Encryptor::Encryptor(mojo::DefaultConstruct::Tag) : Encryptor() {}
 
-Encryptor::Encryptor(
-    KeyRing keys,
-    const std::string& provider_for_encryption,
-    const std::string& provider_for_os_crypt_sync_compatible_encryption)
+Encryptor::Encryptor(KeyRing keys, const std::string& provider_for_encryption)
     : keys_(std::move(keys)),
-      provider_for_encryption_(provider_for_encryption),
-      provider_for_os_crypt_sync_compatible_encryption_(
-          provider_for_os_crypt_sync_compatible_encryption) {}
+      provider_for_encryption_(provider_for_encryption) {}
 
 Encryptor::~Encryptor() = default;
 
@@ -308,6 +303,27 @@ bool Encryptor::DecryptString16(const std::string& ciphertext,
   return true;
 }
 
+
+
+bool Encryptor::IsEncryptionAvailable() const {
+  return DefaultEncryptionProviderAvailable();
+}
+
+bool Encryptor::IsDecryptionAvailable() const {
+  return !keys_.empty();
+}
+
+bool Encryptor::DefaultEncryptionProviderAvailable() const {
+  if (provider_for_encryption_.empty()) {
+    return false;
+  }
+  auto it = keys_.find(provider_for_encryption_);
+  return it != keys_.end() && it->second.has_value();
+}
+
+
+
+// Vivaldi
 bool Encryptor::DecryptString16WithRawKey(const std::string& ciphertext,
                                           std::u16string* plaintext,
                                           base::span<const uint8_t> key) {
@@ -331,7 +347,7 @@ bool Encryptor::DecryptString16WithRawKey(const std::string& ciphertext,
   // Also try with empty tag for untagged ciphertext (pre-v10 format).
   keyring.emplace(std::string(), Encryptor::Key(key, algorithm));
 
-  Encryptor temp_encryptor(std::move(keyring), "", "");
+  Encryptor temp_encryptor(std::move(keyring), "");
   std::string utf8;
   if (!temp_encryptor.DecryptString(ciphertext, &utf8)) {
     return false;
@@ -339,45 +355,6 @@ bool Encryptor::DecryptString16WithRawKey(const std::string& ciphertext,
   *plaintext = base::UTF8ToUTF16(utf8);
   return true;
 }
-
-scoped_refptr<Encryptor> Encryptor::Clone(Option option) const {
-  KeyRing keyring;
-  for (const auto& [provider, key] : keys_) {
-    if (key.has_value()) {
-      keyring.emplace(provider, key->Clone());
-    } else {
-      keyring.emplace(provider, std::nullopt);
-    }
-  }
-
-  switch (option) {
-    case Option::kNone:
-      return base::WrapRefCounted(
-          new Encryptor(std::move(keyring), provider_for_encryption_,
-                        provider_for_os_crypt_sync_compatible_encryption_));
-    case Option::kEncryptSyncCompat:
-      return base::WrapRefCounted(new Encryptor(
-          std::move(keyring), provider_for_os_crypt_sync_compatible_encryption_,
-          provider_for_os_crypt_sync_compatible_encryption_));
-  }
-
-  NOTREACHED() << "Unsupported Option.";
-}
-
-bool Encryptor::IsEncryptionAvailable() const {
-  return DefaultEncryptionProviderAvailable();
-}
-
-bool Encryptor::IsDecryptionAvailable() const {
-  return !keys_.empty();
-}
-
-bool Encryptor::DefaultEncryptionProviderAvailable() const {
-  if (provider_for_encryption_.empty()) {
-    return false;
-  }
-  auto it = keys_.find(provider_for_encryption_);
-  return it != keys_.end() && it->second.has_value();
-}
+// End Vivaldi
 
 }  // namespace os_crypt_async

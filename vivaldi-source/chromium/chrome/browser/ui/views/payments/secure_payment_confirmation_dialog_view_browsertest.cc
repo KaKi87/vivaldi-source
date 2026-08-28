@@ -28,7 +28,6 @@
 #include "components/web_modal/web_contents_modal_dialog_manager.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/features.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/base/ui_base_features.h"
@@ -38,7 +37,6 @@
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
-#include "ui/views/controls/link.h"
 #include "ui/views/controls/styled_label.h"
 #include "ui/views/test/mock_input_event_activation_protector.h"
 #include "ui/views/window/dialog_client_view.h"
@@ -80,7 +78,7 @@ class SecurePaymentConfirmationDialogViewTest
     // active here and could check that |IsBrowserWindowActivate()| returned
     // true, but on wayland, windows cannot be activated as they are on other
     // platforms.
-    EXPECT_EQ(browser()->window()->IsActive(),
+    EXPECT_EQ(browser()->GetWindow()->IsActive(),
               test_delegate_->IsBrowserWindowActive());
 
     test_delegate_->ShowDialog(nullptr);

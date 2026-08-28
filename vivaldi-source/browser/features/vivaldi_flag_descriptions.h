@@ -35,9 +35,9 @@ extern const char kInternalPageReaderModeInternalName[];
 extern const char kInternalPageReaderModeName[];
 extern const char kInternalPageReaderModeDescription[];
 
-extern const char kRelatedTabsInternalName[];
-extern const char kRelatedTabsName[];
-extern const char kRelatedTabsDescription[];
+extern const char kLocalCalculatorInternalName[];
+extern const char kLocalCalculatorName[];
+extern const char kLocalCalculatorDescription[];
 
 extern const char kNoteEditorName[];
 extern const char kNoteEditorOption[];
@@ -47,12 +47,12 @@ extern const char kSettings20InternalName[];
 extern const char kSettings20Name[];
 extern const char kSettings20Description[];
 
+extern const char kToolbarOverflowInternalName[];
+extern const char kToolbarOverflowName[];
+extern const char kToolbarOverflowDescription[];
+
 #if BUILDFLAG(IS_IOS)
 // iOS specific feature flags should be delcared within this block.
-
-extern const char kBankIDDigIDLatencyWorkaroundInternalName[];
-extern const char kBankIDDigIDLatencyWorkaroundName[];
-extern const char kBankIDDigIDLatencyWorkaroundDescription[];
 
 extern const char kVivaldiIOSCopySanitizedLinkInternalName[];
 extern const char kVivaldiIOSCopySanitizedLinkName[];

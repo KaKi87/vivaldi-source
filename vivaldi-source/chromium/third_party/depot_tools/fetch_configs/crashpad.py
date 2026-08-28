@@ -1,4 +1,4 @@
-# Copyright 2015 The Chromium Authors. All rights reserved.
+# Copyright 2015 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -11,31 +11,30 @@ import config_util  # pylint: disable=import-error
 # pylint: disable=no-init
 class CrashpadConfig(config_util.Config):
     """Basic Config class for Crashpad."""
+
     @staticmethod
     def fetch_spec(props):
         spec = {
-            'solutions': [
+            "solutions": [
                 {
-                    'name': 'crashpad',
-                    'url':
-                    'https://chromium.googlesource.com/crashpad/crashpad.git',
-                    'managed': False,
+                    "name": "crashpad",
+                    "url": "https://chromium.googlesource.com/crashpad/crashpad.git",
                 },
             ],
         }
         return {
-            'type': 'gclient_git',
-            'gclient_git_spec': spec,
+            "type": "gclient_git",
+            "gclient_git_spec": spec,
         }
 
     @staticmethod
     def expected_root(_props):
-        return 'crashpad'
+        return "crashpad"
 
 
 def main(argv=None):
     return CrashpadConfig().handle_args(argv)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main(sys.argv))

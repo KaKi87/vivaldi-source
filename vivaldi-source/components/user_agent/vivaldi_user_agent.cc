@@ -15,6 +15,7 @@
 #include "url/gurl.h"
 #include "vivaldi/base/base/chrome_spoof_version.h"
 #include "vivaldi/base/base/edge_version.h"
+#include "content/public/browser/browser_thread.h"
 
 namespace vivaldi_user_agent {
 
@@ -132,7 +133,10 @@ bool InternaSpoofStableChromiumVersion(
   if (direct_url.has_value()) {
     test_url = direct_url.value();
   } else {
-    std::optional<GURL> scoped_url = ScopedVivaldiThreadURL::GetURLForThread();
+
+    std::optional<GURL> scoped_url =
+        ScopedVivaldiThreadURL::GetURLForCurrentThread();
+
     if (!scoped_url.has_value()) {
       // Default spoofing as we might have frames that are created with renderer
       // prefs that has no navigation to decide the spoof value. Better to only
@@ -161,7 +165,9 @@ bool SpoofStableChromiumVersion(GURL url) {
   return InternaSpoofStableChromiumVersion(url);
 }
 
+/*static*/
 std::optional<GURL>& ScopedVivaldiThreadURL::GetInstanceForThread() {
+
   static base::NoDestructor<base::ThreadLocalOwnedPointer<std::optional<GURL>>>
       instance;
 
@@ -171,7 +177,7 @@ std::optional<GURL>& ScopedVivaldiThreadURL::GetInstanceForThread() {
   return *(instance->Get());
 }
 
-std::optional<GURL> ScopedVivaldiThreadURL::GetURLForThread() {
+std::optional<GURL> ScopedVivaldiThreadURL::GetURLForCurrentThread() {
   return GetInstanceForThread();
 }
 
@@ -181,6 +187,7 @@ ScopedVivaldiThreadURL::ScopedVivaldiThreadURL(GURL url) : url_(url) {
     spoof = url_;
   }
   old_status = GetInstanceForThread();
+
   GetInstanceForThread() = spoof;
 }
 
@@ -216,26 +223,40 @@ bool IsBingHost(std::string_view host) {
   return false;  // MatchHost(host, kVivaldiEdgeDomains);
 }
 
-void UpdateAgentString(bool reduced, std::string& user_agent) {
+void UpdateAgentString(bool reduced,
+                       std::string& user_agent,
+                       const GURL* maybe_active_url) {
   if (!vivaldi::IsVivaldiRunning())
     return;
 
-  std::optional<GURL> scoped_url = ScopedVivaldiThreadURL::GetURLForThread();
-  if (!scoped_url.has_value())
+  std::optional<GURL> scoped_url =
+      ScopedVivaldiThreadURL::GetURLForCurrentThread();
+  if (!scoped_url.has_value() && !maybe_active_url)
     return;
 
-  GURL test_url = scoped_url.value();
+  GURL test_url =
+      scoped_url.has_value() ? scoped_url.value() : *maybe_active_url;
   if (!test_url.is_valid() || !test_url.SchemeIsHTTPOrHTTPS())
     return;
 
   if (IsBingHost(test_url.host())) {
-    user_agent += (reduced ? kEdgeSuffixReduced : kEdgeSuffix);
+    std::string edgeSuffix =
+        (reduced ? kEdgeSuffixReduced : kEdgeSuffix);
+    if (user_agent.find(edgeSuffix) == std::string::npos) {
+      user_agent += edgeSuffix;
+    }
   }
 
   if (!IsUrlAllowed(test_url))
     return;
 
-  user_agent += (reduced ? kVivaldiSuffixReduced : kVivaldiSuffix);
+  // Do a check for the exsistance of the suffix to avoid multiple, version
+  // numbers has already been updated.
+  std::string vivaldiSuffix =
+      (reduced ? kVivaldiSuffixReduced : kVivaldiSuffix);
+  if (user_agent.find(vivaldiSuffix) == std::string::npos) {
+    user_agent += vivaldiSuffix;
+  }
 }
 
 std::vector<std::string> GetVivaldiAllowlist() {

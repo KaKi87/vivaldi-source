@@ -19,9 +19,6 @@ import org.chromium.components.feature_engagement.EventConstants;
 import org.chromium.components.feature_engagement.FeatureConstants;
 import org.chromium.components.feature_engagement.Tracker;
 
-// Vivaldi
-import org.chromium.build.BuildConfig;
-
 /** Controller to manage when an IPH bubble for PageInfo is shown. */
 @NullMarked
 public class PageInfoIphController {
@@ -73,30 +70,6 @@ public class PageInfoIphController {
                 new IphCommandBuilder(
                                 mStatusView.getContext().getResources(),
                                 FeatureConstants.PAGE_INFO_STORE_INFO_FEATURE,
-                                stringId,
-                                stringId)
-                        .setAutoDismissTimeout(iphTimeout)
-                        .setAnchorView(mStatusView)
-                        .setInsetRect(new Rect())
-                        .setDismissOnTouch(true)
-                        .build());
-    }
-
-    /**
-     * Show the IPH for cookie controls icon in the omnibox.
-     *
-     * @param iphTimeout The timeout after which the IPH bubble should disappear if it was shown.
-     * @param stringId Resource id of the string displayed. The string will also be used for
-     *     accessibility.
-     */
-    public void showCookieControlsIph(int iphTimeout, @StringRes int stringId) {
-        // Vivaldi
-        if (BuildConfig.IS_VIVALDI) return;
-
-        mUserEducationHelper.requestShowIph(
-                new IphCommandBuilder(
-                                mStatusView.getContext().getResources(),
-                                FeatureConstants.COOKIE_CONTROLS_FEATURE,
                                 stringId,
                                 stringId)
                         .setAutoDismissTimeout(iphTimeout)

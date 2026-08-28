@@ -135,7 +135,6 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterBooleanPref(prefs::kPinSplitTabButton, false,
                                 pref_registration_flags);
 
-  registry->RegisterInt64Pref(prefs::kDefaultBrowserInfobarLastDeclined, 0);
   registry->RegisterBooleanPref(prefs::kWebAppCreateOnDesktop, true);
   registry->RegisterBooleanPref(prefs::kWebAppCreateInAppsMenu, true);
   registry->RegisterBooleanPref(prefs::kWebAppCreateInQuickLaunchBar, true);
@@ -168,8 +167,6 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
   // them even though they're only typically controlled via policy.
   registry->RegisterBooleanPref(policy::policy_prefs::kHideWebStoreIcon, false);
   registry->RegisterBooleanPref(prefs::kSharedClipboardEnabled, true);
-
-  registry->RegisterBooleanPref(prefs::kClickToCallEnabled, true);
 
 #if BUILDFLAG(IS_MAC)
   // This really belongs in platform code, but there's no good place to

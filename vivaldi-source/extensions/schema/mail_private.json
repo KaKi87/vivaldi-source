@@ -5,7 +5,7 @@
     "namespace": "mailPrivate",
     "description": "Vivaldi mail api. API for reading/writing mails.",
     "compiler_options": {
-      "implemented_in": "extensions/api/mail/mail_private_api.h"
+      "implemented_in": "extensions/api/mail_private/mail_private_api.h"
     },
     "types": [
       {
@@ -412,6 +412,40 @@
               "description": "Returns true if the file exists."
             }
           ]
+        }
+      },
+      {
+        "name": "writeVivaldiHeaders",
+        "type": "function",
+        "description": "Add or update custom vivaldi headers in the specified file.",
+        "parameters": [
+          {
+            "name": "messageStatus",
+            "type": "string",
+            "description": "The status bitmap to be written as X-Vivaldi-Status."
+          },
+          {
+            "name": "messageLocation",
+            "type": "string",
+            "description": "The comma-separated list of paths to be written as X-Vivaldi-Location."
+          },
+          {
+            "name": "paths",
+            "type": "array",
+            "description": "String array that is used to build path to the file. Starting at user default profile/Mail.",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fileName",
+            "type": "string",
+            "description": "The name of the file that should get the header."
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": []
         }
       },
       {

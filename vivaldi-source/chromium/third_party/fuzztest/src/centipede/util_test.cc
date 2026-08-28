@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <limits>
 #include <map>
 #include <string>
 #include <vector>
@@ -24,6 +25,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/time/time.h"
 #include "./centipede/feature.h"
 #include "./centipede/thread_pool.h"
 #include "./common/defs.h"
@@ -289,6 +291,17 @@ TEST(UtilTest, RemoveSubset) {
   RemoveSubset({1}, vector_set);
   EXPECT_THAT(vector_set,
               testing::ElementsAre(std::vector<int>{1}, std::vector<int>{3}));
+}
+
+TEST(UtilTest, PollTimeoutMsWorks) {
+  EXPECT_GT(PollTimeoutMs(absl::ZeroDuration()), 0);
+  EXPECT_GT(PollTimeoutMs(-absl::InfiniteDuration()), 0);
+  EXPECT_EQ(PollTimeoutMs(absl::InfiniteDuration()), -1);
+  EXPECT_EQ(PollTimeoutMs(absl::Milliseconds(123)), 123);
+  const auto long_finite_duration =
+      absl::Seconds(std::numeric_limits<int64_t>::max());
+  FUZZTEST_CHECK_LT(long_finite_duration, absl::InfiniteDuration());
+  EXPECT_GT(PollTimeoutMs(long_finite_duration), 0);
 }
 
 }  // namespace fuzztest::internal

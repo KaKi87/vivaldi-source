@@ -27,6 +27,8 @@ class WebContents;
 
 namespace contextual_tasks {
 
+class ContextualTasksToast;
+
 // Host class for the Contextual Tasks side panel on Android Desktop.
 // This class manages the lifecycle of the side panel entry, creates the
 // CoBrowse view, and handles communication between the side panel and the
@@ -51,6 +53,7 @@ class ContextualTasksPanelHostDesktopAndroid
   bool IsPanelSuppressed() const override;
   void SetPanelSuppressedForTesting(bool suppressed) override;
   content::WebContents* GetWebContents() override;
+  content::WebContents* GetToolbarWebContents() override;
   void SetWebContents(content::WebContents* web_contents) override;
 
   // SidePanelEntryObserver implementation:
@@ -64,6 +67,8 @@ class ContextualTasksPanelHostDesktopAndroid
       const content::OpenURLParams& params,
       base::OnceCallback<void(content::NavigationHandle&)>
           navigation_handle_callback) override;
+  bool HandleKeyboardEvent(content::WebContents* source,
+                           const input::NativeWebKeyboardEvent& event) override;
 
  private:
   void MaybeRegisterEntry();
@@ -94,6 +99,7 @@ class ContextualTasksPanelHostDesktopAndroid
 
   bool suppressed_for_testing_ = false;
   bool is_open_ = false;
+  std::unique_ptr<ContextualTasksToast> resize_toast_;
 
   base::WeakPtrFactory<ContextualTasksPanelHostDesktopAndroid> weak_factory_{
       this};

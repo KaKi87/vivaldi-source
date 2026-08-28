@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2023 The Chromium Authors. All rights reserved.
+# Copyright 2023 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -22,13 +22,10 @@ import metadata.validation_result as vr
 _PATTERNS_NOT_MODIFIED = [
     # "None" and its variants, like "(none)", "none."
     re.compile(r"^\(?none\.?\)?\.?$", re.IGNORECASE),
-
     # "No modification" or "No modifications".
     re.compile(r"^no modifications?\.?$", re.IGNORECASE),
-
     # "N/A" and its variants, like "NA", "N/A", "N/A.".
     re.compile(r"^(N ?\/ ?A)\.?|na\.?$", re.IGNORECASE),
-
     # "Not applicable".
     re.compile(r"^not applicable\.?$", re.IGNORECASE),
 ]

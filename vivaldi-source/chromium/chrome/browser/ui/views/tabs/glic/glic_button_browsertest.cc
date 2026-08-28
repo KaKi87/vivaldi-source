@@ -5,7 +5,6 @@
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/app/chrome_command_ids.h"
-#include "chrome/browser/glic/fre/glic_fre_controller.h"
 #include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
@@ -13,7 +12,6 @@
 #include "chrome/browser/glic/suggestions/contextual_cueing_features.h"
 #include "chrome/browser/glic/test_support/glic_test_environment.h"
 #include "chrome/browser/glic/test_support/glic_test_util.h"
-#include "chrome/browser/private_ai/private_ai_service.h"
 #include "chrome/browser/private_ai/private_ai_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
@@ -29,6 +27,7 @@
 #include "chrome/test/base/in_process_browser_test.h"
 #include "components/prefs/pref_service.h"
 #include "components/private_ai/features.h"
+#include "components/private_ai/private_ai_service.h"
 #include "components/private_ai/proto/private_ai.pb.h"
 #include "components/private_ai/testing/mock_private_ai_client.h"
 #include "content/public/test/browser_test.h"
@@ -57,7 +56,8 @@ class GlicButtonTest : public InProcessBrowserTest {
   }
 
   GlicKeyedService* glic_service() {
-    return GlicKeyedServiceFactory::GetGlicKeyedService(browser()->profile());
+    return GlicKeyedServiceFactory::GetGlicKeyedService(
+        browser()->GetProfile());
   }
 
   void WaitForGlicPanelShow() {
@@ -71,7 +71,7 @@ class GlicButtonTest : public InProcessBrowserTest {
 };
 
 IN_PROC_BROWSER_TEST_F(GlicButtonTest, ContextMenuPinned) {
-  browser()->profile()->GetPrefs()->SetBoolean(
+  browser()->GetProfile()->GetPrefs()->SetBoolean(
       glic::prefs::kGlicPinnedToTabstrip, true);
 
   glic_button()->ShowContextMenuForViewImpl(glic_button(), gfx::Point(),
@@ -80,7 +80,7 @@ IN_PROC_BROWSER_TEST_F(GlicButtonTest, ContextMenuPinned) {
 }
 
 IN_PROC_BROWSER_TEST_F(GlicButtonTest, ContextMenuUnpinned) {
-  browser()->profile()->GetPrefs()->SetBoolean(
+  browser()->GetProfile()->GetPrefs()->SetBoolean(
       glic::prefs::kGlicPinnedToTabstrip, false);
 
   glic_button()->ShowContextMenuForViewImpl(glic_button(), gfx::Point(),
@@ -89,7 +89,7 @@ IN_PROC_BROWSER_TEST_F(GlicButtonTest, ContextMenuUnpinned) {
 }
 
 IN_PROC_BROWSER_TEST_F(GlicButtonTest, UnpinCommand) {
-  PrefService* profile_prefs = browser()->profile()->GetPrefs();
+  PrefService* profile_prefs = browser()->GetProfile()->GetPrefs();
   profile_prefs->SetBoolean(glic::prefs::kGlicPinnedToTabstrip, true);
 
   glic_button()->ExecuteCommand(IDC_GLIC_TOGGLE_PIN, ui::EF_NONE);
@@ -146,7 +146,7 @@ class GlicButtonPrewarmDelayedTest : public GlicButtonTest {
     mock_client_ptr_ = mock_client.get();
     private_ai::PrivateAiService* service =
         private_ai::PrivateAiServiceFactory::GetForProfile(
-            browser()->profile());
+            browser()->GetProfile());
     ASSERT_TRUE(service);
     service->SetClientForTesting(std::move(mock_client));
   }
@@ -155,7 +155,7 @@ class GlicButtonPrewarmDelayedTest : public GlicButtonTest {
     mock_client_ptr_ = nullptr;
     private_ai::PrivateAiService* service =
         private_ai::PrivateAiServiceFactory::GetForProfile(
-            browser()->profile());
+            browser()->GetProfile());
     if (service) {
       service->SetClientForTesting(nullptr);
     }
@@ -211,7 +211,7 @@ class GlicButtonPrewarmCancelledTest : public GlicButtonTest {
     mock_client_ptr_ = mock_client.get();
     private_ai::PrivateAiService* service =
         private_ai::PrivateAiServiceFactory::GetForProfile(
-            browser()->profile());
+            browser()->GetProfile());
     ASSERT_TRUE(service);
     service->SetClientForTesting(std::move(mock_client));
   }
@@ -220,7 +220,7 @@ class GlicButtonPrewarmCancelledTest : public GlicButtonTest {
     mock_client_ptr_ = nullptr;
     private_ai::PrivateAiService* service =
         private_ai::PrivateAiServiceFactory::GetForProfile(
-            browser()->profile());
+            browser()->GetProfile());
     if (service) {
       service->SetClientForTesting(nullptr);
     }

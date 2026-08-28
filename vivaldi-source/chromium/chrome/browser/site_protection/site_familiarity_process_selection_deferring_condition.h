@@ -5,6 +5,7 @@
 #ifndef CHROME_BROWSER_SITE_PROTECTION_SITE_FAMILIARITY_PROCESS_SELECTION_DEFERRING_CONDITION_H_
 #define CHROME_BROWSER_SITE_PROTECTION_SITE_FAMILIARITY_PROCESS_SELECTION_DEFERRING_CONDITION_H_
 
+#include "base/feature_list.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -19,6 +20,8 @@
 #include "url/origin.h"
 
 namespace site_protection {
+
+BASE_DECLARE_FEATURE(kSkipSiteFamiliarityDeferralForSameSite);
 
 inline constexpr char
     kSiteFamiliarityDeferNavigationForDefaultSearchEngineHistogram[] =
@@ -49,10 +52,6 @@ class SiteFamiliarityProcessSelectionDeferringCondition
 
   // Sets the verdict on the NavigationHandle.
   void SetVerdictOnHandle();
-
-  // Returns true if the navigation is to the default search engine's search
-  // results page.
-  bool IsDefaultSearchEngineNavigation();
 
   // Returns true if the navigation is in a cross-site subframe.
   bool IsCrossSiteSubframe() const;

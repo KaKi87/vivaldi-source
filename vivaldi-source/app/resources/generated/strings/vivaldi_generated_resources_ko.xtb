@@ -39,7 +39,6 @@
 <translation id="1601560923496285236">적용</translation>
 <translation id="1603914832182249871">(사생활 보호 모드)</translation>
 <translation id="1627276047960621195">파일 설명자</translation>
-<translation id="1654713139320245449">전송 대상을 찾을 수 없습니다. 도움이 필요하신가요?</translation>
 <translation id="166278006618318542">대상 공개 키 알고리즘</translation>
 <translation id="1682548588986054654">새 시크릿 창</translation>
 <translation id="1708338024780164500">(비활성)</translation>
@@ -60,7 +59,6 @@
 <translation id="1906488504371069394"><ph name="BEGIN_LINK" />Chrome Web Store<ph name="END_LINK" />에서 더 많은 확장 프로그램 및 테마를 확인해보세요</translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">맞춤 웹 주소 입력</translation>
-<translation id="1932098463447129402">시작 기간:</translation>
 <translation id="1936157145127842922">폴더에 표시</translation>
 <translation id="1936931585862840749">숫자로 인쇄 부수를 표시하세요(1부터 <ph name="MAX_COPIES" />까지).</translation>
 <translation id="2019718679933488176">새 탭에서 오디오 열기(&amp;O)</translation>
@@ -102,7 +100,6 @@
 <translation id="253557089021624350">프로그램 사용 수</translation>
 <translation id="2550212893339833758">교체된 메모리</translation>
 <translation id="2553440850688409052">이 플러그인 숨기기</translation>
-<translation id="2607101320794533334">대상 공개 키 정보</translation>
 <translation id="261305050785128654">웹사이트에 사용 언어를 알려주세요. 가능한 경우 해당 언어로 콘텐츠가 표시됩니다.</translation>
 <translation id="26224892172169984">모든 사이트에서 프로토콜 처리 허용 안함</translation>
 <translation id="2653275834716714682">텍스트 바꾸기</translation>
@@ -112,7 +109,6 @@
 <translation id="2719936478972253983">다음 쿠키가 차단됨</translation>
 <translation id="2721037002783622288"><ph name="SEARCH_ENGINE" />에서 이미지 검색(&amp;S)</translation>
 <translation id="2722547199758472013">ID: <ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">만료 기간:</translation>
 <translation id="2749881179542288782">철자 및 문법 검사</translation>
 <translation id="2785873697295365461">파일 설명자</translation>
 <translation id="2825758591930162672">대상의 공개 키</translation>
@@ -163,7 +159,6 @@
 <translation id="3387614642886316601">향상된 맞춤법 검사 기능 사용</translation>
 <translation id="3390013585654699824">앱 세부정보</translation>
 <translation id="345693547134384690">새 탭에서 이미지 열기(&amp;I)</translation>
-<translation id="3493881266323043047">유효성</translation>
 <translation id="3511307672085573050">링크 주소 복사(&amp;E)</translation>
 <translation id="354068948465830244">사이트 데이터를 읽고 변경할 수 있음</translation>
 <translation id="3555812735919707620">확장 프로그램 삭제</translation>
@@ -179,7 +174,6 @@
 <translation id="3760460896538743390">백그라운드 페이지 검사(&amp;B)</translation>
 <translation id="3786224729726357296"><ph name="SITE" />의 사이트 데이터 및 권한 삭제</translation>
 <translation id="3797900183766075808"><ph name="SEARCH_ENGINE" />에서 “<ph name="SEARCH_TERMS" />” 검색 (&amp;S)</translation>
-<translation id="3798449238516105146">버전</translation>
 <translation id="3810973564298564668">관리</translation>
 <translation id="3838085852053358637">확장 프로그램을 로드하지 못함</translation>
 <translation id="383891835335927981">확대 또는 축소된 사이트가 없음</translation>
@@ -265,12 +259,10 @@
 <translation id="5063480226653192405">사용</translation>
 <translation id="5116628073786783676">오디오를 다른 이름으로 저장(&amp;V)...</translation>
 <translation id="5154108062446123722"><ph name="PRINTING_DESTINATION" /> 고급 설정</translation>
-<translation id="5154702632169343078">대상</translation>
 <translation id="5170568018924773124">폴더에 표시</translation>
 <translation id="5171343362375269016">교체된 메모리</translation>
 <translation id="5233231016133573565">프로세스 ID</translation>
 <translation id="5233736638227740678">붙여넣기 (&amp;P)</translation>
-<translation id="5244466461749935369">유지하기</translation>
 <translation id="5256861893479663409">모든 사이트에서</translation>
 <translation id="5260334392110301220">스마트 인용</translation>
 <translation id="5269977353971873915">인쇄 실패</translation>
@@ -309,7 +301,6 @@
 <translation id="5780973441651030252">프로세스 우선순위</translation>
 <translation id="5804241973901381774">권한</translation>
 <translation id="5828633471261496623">인쇄 중...</translation>
-<translation id="5851868085455377790">발행기관</translation>
 <translation id="5860491529813859533">사용</translation>
 <translation id="5910363049092958439">이미지를 다른 이름으로 저장(&amp;V)...</translation>
 <translation id="5914724413750400082">Modulus (<ph name="MODULUS_NUM_BITS" /> 비트):
@@ -457,7 +448,6 @@
 <translation id="862750493060684461">CSS 캐시</translation>
 <translation id="8661290697478713397">시크릿 창에서 링크 열기(&amp;G)</translation>
 <translation id="8664389313780386848">페이지 소스 보기(&amp;V)</translation>
-<translation id="8705331520020532516">일련번호</translation>
 <translation id="8708000541097332489">종료 시 삭제</translation>
 <translation id="8714838604780058252">배경 그래픽</translation>
 <translation id="8725066075913043281">재시도</translation>

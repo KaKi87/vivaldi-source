@@ -13,6 +13,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry_observer.h"
 #include "chrome/browser/ui/side_panel/side_panel_native_view.h"
+#include "third_party/jni_zero/jni_zero.h"
 
 class SidePanelEntryScope;
 class SidePanelRegistry;
@@ -89,6 +90,8 @@ class GlicSidePanelCoordinatorDesktopAndroid : public GlicSidePanelCoordinator,
   raw_ptr<GlicKeyedService> glic_service_ = nullptr;
 
   std::unique_ptr<GlicToast> resize_toast_;
+
+  jni_zero::ScopedJavaGlobalRef<jobject> java_component_provider_;
 
   base::WeakPtrFactory<GlicSidePanelCoordinatorDesktopAndroid>
       weak_ptr_factory_{this};

@@ -67,10 +67,12 @@ enum class ContextDeterminationStatus {
   kQueryEmbeddingOutputMalformed = 3,
   kNoEligibleTabs = 4,
   kTimedOut = 5,
+  kQueryEmpty = 6,
+  kQueryTooFewWords = 7,
 
   // Keep in sync with ContextualTasksContextDeterminationStatus in
   // contextual_tasks/enums.xml.
-  kMaxValue = kTimedOut,
+  kMaxValue = kQueryTooFewWords,
 };
 
 // Options to regulate tab selection behavior.
@@ -113,7 +115,7 @@ class ContextualTasksContextService
   ~ContextualTasksContextService() override;
 
   // Returns whether smart tab sharing is enabled for `profile`.
-  static bool GetIsSmartTabSharingEnabled(const Profile* profile);
+  static bool GetIsSmartTabSharingEnabled(Profile* profile);
 
   // Returns the relevant tabs for `query`. Will invoke `callback` when done.
   virtual void GetRelevantTabsForQuery(
@@ -188,7 +190,7 @@ class ContextualTasksContextService
       int64_t request_id,
       std::vector<std::string> passages,
       std::vector<passage_embeddings::Embedding> embeddings,
-      passage_embeddings::Embedder::TaskId task_id,
+      uint64_t job_id,
       passage_embeddings::ComputeEmbeddingsStatus status);
 
   // Callback invoked when the request has timed out.

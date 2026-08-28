@@ -19,16 +19,16 @@ BASE_DECLARE_FEATURE(kHorizontalPinnedTabs);
 
 BASE_DECLARE_FEATURE(kInternalPageReaderMode);
 
-BASE_DECLARE_FEATURE(kNoteEditor);
+BASE_DECLARE_FEATURE(kLocalCalculator);
 
-BASE_DECLARE_FEATURE(kRelatedTabs);
+BASE_DECLARE_FEATURE(kNoteEditor);
 
 BASE_DECLARE_FEATURE(kSettings20);
 
+BASE_DECLARE_FEATURE(kToolbarOverflow);
+
 #if BUILDFLAG(IS_IOS)
 // iOS specific feature flags should be delcared within this block.
-
-BASE_DECLARE_FEATURE(kBankIDDigIDLatencyWorkaround);
 
 BASE_DECLARE_FEATURE(kVivaldiIOSCopySanitizedLink);
 bool IsVivaldiIOSCopySanitizedLinkEnabled();

@@ -1093,7 +1093,7 @@ const FFCodec ffwmf_aac_decoder = {
     .init = ffwmf_init_decoder,
     .close = ffwmf_close_decoder,
     FF_CODEC_DECODE_CB(ffwmf_decode_frame),
-    .p.sample_fmts =
+    .sample_fmts =
         (const enum AVSampleFormat[]){AV_SAMPLE_FMT_S32, AV_SAMPLE_FMT_S16,
                                       AV_SAMPLE_FMT_NONE},
     .p.wrapper_name = "wmf",

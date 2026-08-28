@@ -15,8 +15,6 @@
 #include "base/version_info/version_info.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/glic/fre/fre_util.h"
-#include "chrome/browser/glic/fre/glic_fre_page_handler.h"
 #include "chrome/browser/glic/glic_net_log.h"
 #include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/glic/host/auth_controller.h"
@@ -56,6 +54,10 @@
 #if !BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 #include "chrome/grit/guest_view_shared_resources_map.h"  // nogncheck
 #endif  // !BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+
+#if !BUILDFLAG(IS_ANDROID) || BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#include "chrome/browser/ui/webui/theme_source.h"
+#endif
 
 namespace glic {
 
@@ -196,6 +198,10 @@ GlicUI::GlicUI(content::WebUI* web_ui)
   content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
       browser_context, chrome::kChromeUIGlicHost);
 
+#if !BUILDFLAG(IS_ANDROID) || BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+  content::URLDataSource::Add(profile, std::make_unique<ThemeSource>(profile));
+#endif
+
   // Add required resources.
   webui::SetupWebUIDataSource(source, kGlicResources, IDR_GLIC_GLIC_HTML);
 
@@ -258,6 +264,8 @@ GlicUI::GlicUI(content::WebUI* web_ui)
   source->AddBoolean("showErrorAllowed", is_internal_google_account ||
                                              profile->GetPrefs()->GetBoolean(
                                                  prefs::kGlicShowErrorAllowed));
+  const bool completed_fre = GlicEnabling::HasConsentedForProfile(profile);
+  source->AddBoolean("completedFre", completed_fre);
 #if BUILDFLAG(IS_ANDROID)
   const bool is_android_mobile =
       GetGlicFormFactor(ui::GetDeviceFormFactor()) == mojom::FormFactor::kPhone;
@@ -276,8 +284,7 @@ GlicUI::GlicUI(content::WebUI* web_ui)
   // Set up guest URL via cli flag or default to finch param value.
   const GURL guest_url = GetGuestURL();
   source->AddString("glicGuestURL", guest_url.spec());
-  net_log::LogDummyNetworkRequestForTrafficAnnotation(guest_url,
-                                                      net_log::GlicPage::kGlic);
+  net_log::LogDummyNetworkRequestForTrafficAnnotation(guest_url);
   source->AddBoolean("simulateNoConnection", simulate_no_connection_);
 
   source->AddResourcePath("glic_logo.svg", GetResourceID(IDR_GLIC_LOGO));
@@ -348,8 +355,6 @@ GlicUI::GlicUI(content::WebUI* web_ui)
   source->AddString("adminBlockedRedirectPatterns",
                     admin_blocked_redirect_patterns);
 
-  source->AddString("glicFreURL", GetFreURL(profile).spec());
-  source->AddBoolean("shouldShowFre", false);
   source->AddInteger("reloadMaxLoadingTimeMs",
                      features::kGlicReloadMaxLoadingTimeMs.Get());
   source->AddBoolean("caaGuestError", base::FeatureList::IsEnabled(
@@ -357,6 +362,9 @@ GlicUI::GlicUI(content::WebUI* web_ui)
   source->AddBoolean(
       "glicPopupWindowsEnabled",
       base::FeatureList::IsEnabled(features::kGlicPopupWindowsEnabled));
+  source->AddBoolean(
+      "enableStructuredYieldMetadata",
+      base::FeatureList::IsEnabled(features::kGlicStructuredYieldMetadata));
 }
 
 WEB_UI_CONTROLLER_TYPE_IMPL(GlicUI)
@@ -394,11 +402,6 @@ void GlicUI::BindInterface(
   }
 }
 
-void GlicUI::BindInterface(
-    mojo::PendingReceiver<glic::mojom::FrePageHandlerFactory> receiver) {
-  fre_page_factory_receiver_.reset();
-  fre_page_factory_receiver_.Bind(std::move(receiver));
-}
 
 void GlicUI::BindInterface(
     mojo::PendingReceiver<glic::mojom::GlicPreloadHandlerFactory> receiver) {
@@ -451,15 +454,6 @@ void GlicUI::CreateInternalsPageHandler(
       web_ui()->GetWebContents(), std::move(receiver));
 }
 
-void GlicUI::CreatePageHandler(
-    mojo::PendingReceiver<glic::mojom::FrePageHandler> fre_receiver) {
-  if (!IsProfileEligible()) {
-    return;
-  }
-  fre_page_handler_ = std::make_unique<GlicFrePageHandler>(
-      /*is_unified_fre=*/true, web_ui()->GetWebContents(),
-      std::move(fre_receiver));
-}
 
 void GlicUI::CreatePreloadHandler(
     mojo::PendingReceiver<glic::mojom::GlicPreloadHandler> receiver,

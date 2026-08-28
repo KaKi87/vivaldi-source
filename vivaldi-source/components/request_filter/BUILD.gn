@@ -29,6 +29,8 @@ source_set("request_filter") {
     "request_filter_proxying_websocket.h",
     "request_filter_proxying_webtransport.cc",
     "request_filter_proxying_webtransport.h",
+    "request_filter_proxying_webtransport_shutdown_notifier_factory.cc",
+    "request_filter_proxying_webtransport_shutdown_notifier_factory.h",
   ]
 
   deps = [

@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Питай при отваряне на препратки от други приложения в частен режим</translation>
 <translation id="1624481300475123200">Запълване на пароли</translation>
 <translation id="1743244221910283364">Отхвърли промените</translation>
+<translation id="1972589975368876259">Редактирай купа</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Добави раздела към купа}
         other {Добави разделите към купа}}</translation>
@@ -48,7 +49,6 @@
 <translation id="4772190485302020393">Затвори всички раздели и купове</translation>
 <translation id="4802185666270672526">Скрий „Заяви настолна версия“</translation>
 <translation id="4828571836982833289">Разделяне на купа с раздели?</translation>
-<translation id="4838250035189612538">Преименувай купа</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 затворен и записан куп}
             other {{count} затворени и записани купове}}</translation>

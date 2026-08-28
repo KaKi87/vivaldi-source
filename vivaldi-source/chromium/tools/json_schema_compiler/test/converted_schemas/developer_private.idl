@@ -260,6 +260,7 @@ namespace developerPrivate {
     boolean isAffectedByMV2Deprecation;
     boolean didAcknowledgeMV2DeprecationNotice;
     boolean canUploadAsAccountExtension;
+    boolean isManifestV2;
   };
 
   dictionary ProfileInfo {

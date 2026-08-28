@@ -9,6 +9,8 @@ NSString* const kPopupMenuToolsMenuTableViewId =
 NSString* const kPopupMenuToolsMenuActionListId =
     @"kPopupMenuToolsMenuActionListId";
 
+NSString* const kIdentityGroupName = @"identity_actions";
+
 NSString* const kToolsMenuDownloadsId = @"kToolsMenuDownloadsId";
 NSString* const kToolsMenuReload = @"kToolsMenuReload";
 NSString* const kToolsMenuStop = @"kToolsMenuStop";
@@ -40,6 +42,8 @@ NSString* const kToolsMenuTextZoom = @"kToolsMenuTextZoom";
 NSString* const kTextMenuEnterpriseInfo = @"kTextMenuEnterpriseInfo";
 NSString* const kTextMenuFamilyLinkInfo = @"kTextMenuFamilyLinkInfo";
 NSString* const kToolsMenuClearBrowsingData = @"kToolsMenuClearBrowsingData";
+NSString* const kToolsMenuCustomizeHomePageId =
+    @"kToolsMenuCustomizeHomePageId";
 NSString* const kToolsMenuSetTabReminder = @"kToolsMenuSetTabReminder";
 NSString* const kToolsMenuShareChromeId = @"kToolsMenuShareChromeId";
 NSString* const kToolsMenuWhatsNewId = @"kToolsMenuWhatsNewId";
@@ -52,6 +56,10 @@ NSString* const kToolsMenuNewTabGroupId = @"kToolsMenuNewTabGroupId";
 NSString* const kToolsMenuMoveTabToGroupId = @"kToolsMenuMoveTabToGroupId";
 NSString* const kToolsMenuAddTabToGroupId = @"kToolsMenuAddTabToGroupId";
 NSString* const kToolsMenuShareId = @"kToolsMenuShareId";
+NSString* const kToolsMenuIdentityId = @"kToolsMenuIdentityId";
+
+NSString* const kOverflowMenuNTPPreferredHeightDetentId =
+    @"overflow_menu_ntp_preferred_height";
 
 const CGFloat kSelectedItemBackgroundAlpha = 0.05;
 const CGFloat kHighlightAnimationDuration = 0.5;

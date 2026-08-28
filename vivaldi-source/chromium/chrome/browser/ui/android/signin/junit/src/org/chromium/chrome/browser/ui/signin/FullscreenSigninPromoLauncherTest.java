@@ -5,6 +5,7 @@
 package org.chromium.chrome.browser.ui.signin;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -24,10 +25,13 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.ParameterizedRobolectricTestRunner;
+import org.robolectric.ParameterizedRobolectricTestRunner.Parameters;
 
 import org.chromium.base.FakeTimeTestRule;
+import org.chromium.base.FeatureOverrides;
 import org.chromium.base.TimeUtils;
-import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.BaseRobolectricTestRule;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.preferences.Pref;
@@ -48,11 +52,18 @@ import org.chromium.components.signin.test.util.TestAccounts;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.components.user_prefs.UserPrefsJni;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-/** Tests for {@link FullscreenSigninPromoLauncher}. */
-@RunWith(BaseRobolectricTestRunner.class)
+/**
+ * Tests for {@link FullscreenSigninPromoLauncher}.
+ *
+ * <p>TODO(crbug.com/493130564): Revert to regular runner after
+ * MAKE_IDENTITY_MANAGER_SOURCE_OF_ACCOUNTS launch.
+ */
+@RunWith(ParameterizedRobolectricTestRunner.class)
 @DisableFeatures({
     SigninFeatures.FORCE_STARTUP_SIGNIN_PROMO,
     SigninFeatures.SUPPORT_FORCED_SIGNIN_POLICY
@@ -65,6 +76,20 @@ public class FullscreenSigninPromoLauncherTest {
     static final String INTERVAL = ":interval/1";
     private static final long TWO_DAYS_IN_MILLIS = TimeUnit.DAYS.toMillis(2);
     private static final int CURRENT_MAJOR_VERSION = 42;
+
+    @Parameters(name = "{index}_isIdentityMgrMigration={0}")
+    public static Collection parameters() {
+        return Arrays.asList(true, false);
+    }
+
+    public FullscreenSigninPromoLauncherTest(boolean isIdentityManagerMigrationEnabled) {
+        FeatureOverrides.overrideFlag(
+                SigninFeatures.MAKE_IDENTITY_MANAGER_SOURCE_OF_ACCOUNTS,
+                isIdentityManagerMigrationEnabled);
+    }
+
+    @Rule public BaseRobolectricTestRule mBaseRule = new BaseRobolectricTestRule();
+
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     private final FakeAccountManagerFacade mFakeAccountManagerFacade =
@@ -120,6 +145,7 @@ public class FullscreenSigninPromoLauncherTest {
         when(mPrefServiceMock.getString(Pref.GOOGLE_SERVICES_LAST_SYNCING_USERNAME)).thenReturn("");
         mAutomotiveContextWrapperTestRule.setIsAutomotive(false);
         when(mContext.getString(anyInt())).thenReturn("string");
+        when(mSigninManagerMock.isSigninSupported(anyBoolean())).thenReturn(true);
     }
 
     @After
@@ -259,6 +285,16 @@ public class FullscreenSigninPromoLauncherTest {
                 .createFullscreenSigninIntent(any(), any(), any(), anyInt());
         Assert.assertEquals(
                 mTimeInPast, mPrefManager.getSigninPromoLastShownTimeWithRandomOffset());
+    }
+
+    @Test
+    public void whenSigninNotSupportedShouldReturnFalse() {
+        mAccountManagerTestRule.addAccount(TestAccounts.ACCOUNT1);
+        when(mSigninManagerMock.isSigninSupported(true)).thenReturn(false);
+
+        Assert.assertFalse(
+                FullscreenSigninPromoLauncher.launchPromoIfNeeded(
+                        mContext, mProfile, mFullscreenSigninLauncherMock, CURRENT_MAJOR_VERSION));
     }
 
     @Test

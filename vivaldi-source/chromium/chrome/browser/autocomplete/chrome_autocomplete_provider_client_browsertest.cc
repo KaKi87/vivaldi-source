@@ -7,19 +7,24 @@
 #include <memory>
 
 #include "base/functional/bind.h"
+#include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/autocomplete/aim_eligibility_service_factory.h"
+#include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/ui/lens/test_lens_search_controller.h"
 #include "chrome/browser/ui/omnibox/omnibox_controller.h"
+#include "chrome/browser/ui/omnibox/omnibox_edit_model.h"
 #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
+#include "components/omnibox/common/omnibox_features.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_view_views.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/in_process_browser_test.h"
+#include "components/contextual_tasks/public/features.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/lens/lens_overlay_invocation_source.h"
 #include "components/omnibox/browser/autocomplete_controller.h"
@@ -103,7 +108,7 @@ class ChromeAutocompleteProviderClientTest : public InProcessBrowserTest {
   void SetUpOnMainThread() override {
     InProcessBrowserTest::SetUpOnMainThread();
     client_ = std::make_unique<ChromeAutocompleteProviderClient>(
-        browser()->profile());
+        browser()->GetProfile());
     storage_partition_.set_service_worker_context(&service_worker_context_);
     client_->set_storage_partition(&storage_partition_);
   }
@@ -128,12 +133,21 @@ class ChromeAutocompleteProviderClientTest : public InProcessBrowserTest {
         LensSearchController::From(browser()->GetActiveTabInterface()));
   }
 
+  OmniboxEditModel* GetOmniboxEditModel() {
+    return BrowserView::GetBrowserViewForBrowser(browser())
+        ->toolbar()
+        ->location_bar()
+        ->GetOmniboxController()
+        ->edit_model();
+  }
+
   // Replaces the client with one using an incognito profile. Note that this is
   // a one-way operation. Once a TEST_F calls this, all interactions with
   // |client_| will be off the record.
   void GoOffTheRecord() {
     client_ = std::make_unique<ChromeAutocompleteProviderClient>(
-        browser()->profile()->GetPrimaryOTRProfile(/*create_if_needed=*/true));
+        browser()->GetProfile()->GetPrimaryOTRProfile(
+            /*create_if_needed=*/true));
   }
 
   std::unique_ptr<ChromeAutocompleteProviderClient> client_;
@@ -187,8 +201,8 @@ IN_PROC_BROWSER_TEST_F(ChromeAutocompleteProviderClientTest,
                        DontStartServiceWorkerIfSuggestDisabled) {
   GURL destination_url("https://google.com/search?q=puppies");
 
-  browser()->profile()->GetPrefs()->SetBoolean(prefs::kSearchSuggestEnabled,
-                                               false);
+  browser()->GetProfile()->GetPrefs()->SetBoolean(prefs::kSearchSuggestEnabled,
+                                                  false);
   client_->StartServiceWorker(destination_url);
   EXPECT_FALSE(service_worker_context_
                    .start_service_worker_for_navigation_hint_called());
@@ -210,3 +224,140 @@ class ChromeAutocompleteProviderClientWithChipTest
  private:
   base::test::ScopedFeatureList feature_list_;
 };
+
+class ChromeAutocompleteProviderClientAskGCoBrowseTest
+    : public ChromeAutocompleteProviderClientTest {
+ protected:
+  ChromeAutocompleteProviderClientAskGCoBrowseTest() {
+    feature_list_.InitWithFeaturesAndParameters(
+        {{omnibox::kWebUIOmniboxAskGAboutThisPage,
+          {{"Omnibox_AskGCoBrowse", "true"}}},
+         {contextual_tasks::kContextualTasks, {}},
+         {contextual_tasks::kContextualTasksForceEntryPointEligibility, {}}},
+        {});
+  }
+
+  bool IsContextualTasksSidePanelOpen() {
+    auto* controller = contextual_tasks::ContextualTasksPanelController::From(
+        browser()->GetActiveTabInterface()->GetBrowserWindowInterface());
+    return controller && controller->IsPanelOpenForContextualTask();
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+IN_PROC_BROWSER_TEST_F(ChromeAutocompleteProviderClientAskGCoBrowseTest,
+                       OpensSidePanel) {
+  // Ensure the active tab is valid.
+  ASSERT_TRUE(browser()->tab_strip_model()->GetActiveWebContents());
+
+  // Lens should NOT be opened.
+  EXPECT_CALL(*GetLensSearchController(),
+              OpenLensOverlay(testing::_, testing::_))
+      .Times(0);
+  EXPECT_CALL(*GetLensSearchController(), StartContextualization(testing::_))
+      .Times(0);
+
+  GetAutocompleteProviderClient()->OpenCoBrowsePanel();
+
+  // Verify that the side panel is open.
+  ASSERT_TRUE(
+      base::test::RunUntil([&]() { return IsContextualTasksSidePanelOpen(); }));
+}
+
+class ChromeAutocompleteProviderClientAskGCoBrowseWithLensOverlayTest
+    : public ChromeAutocompleteProviderClientTest {
+ protected:
+  ChromeAutocompleteProviderClientAskGCoBrowseWithLensOverlayTest() {
+    feature_list_.InitWithFeaturesAndParameters(
+        {{omnibox::kWebUIOmniboxAskGAboutThisPage,
+          {{"Omnibox_AskGCoBrowseWithVisualSelection", "true"}}},
+         {contextual_tasks::kContextualTasks, {}},
+         {contextual_tasks::kContextualTasksForceEntryPointEligibility, {}}},
+        {});
+  }
+
+  bool IsContextualTasksSidePanelOpen() {
+    auto* controller = contextual_tasks::ContextualTasksPanelController::From(
+        browser()->GetActiveTabInterface()->GetBrowserWindowInterface());
+    return controller && controller->IsPanelOpenForContextualTask();
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+IN_PROC_BROWSER_TEST_F(
+    ChromeAutocompleteProviderClientAskGCoBrowseWithLensOverlayTest,
+    OpensSidePanelAndSetsAutoTrigger) {
+  ASSERT_TRUE(browser()->tab_strip_model()->GetActiveWebContents());
+
+  // Lens overlay should NOT be opened immediately.
+  EXPECT_CALL(*GetLensSearchController(),
+              OpenLensOverlay(testing::_, testing::_))
+      .Times(0);
+
+  // Act: Call the entry point for Scenario B
+  GetAutocompleteProviderClient()->OpenCoBrowsePanel();
+
+  // Assert: Verify that the side panel is open.
+  ASSERT_TRUE(
+      base::test::RunUntil([&]() { return IsContextualTasksSidePanelOpen(); }));
+
+  // Assert: Verify that the invocation source is set to kOmniboxPageAction.
+  EXPECT_EQ(GetLensSearchController()->invocation_source(),
+            lens::LensOverlayInvocationSource::kOmniboxPageAction);
+}
+
+class ChromeAutocompleteProviderClientAskGLensChipRouteTest
+    : public ChromeAutocompleteProviderClientTest {
+ protected:
+  ChromeAutocompleteProviderClientAskGLensChipRouteTest() {
+    feature_list_.InitWithFeaturesAndParameters(
+        {{omnibox::kWebUIOmniboxAskGAboutThisPage,
+          {{"Omnibox_AskGLensChipRoute", "true"}}}},
+        {});
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+IN_PROC_BROWSER_TEST_F(ChromeAutocompleteProviderClientAskGLensChipRouteTest,
+                       OpenLensOverlay_Show_HideCsb) {
+  // When kAskGLensChipRoute is enabled, OpenLensOverlay(true) should pass
+  // false for should_show_csb.
+  EXPECT_CALL(*GetLensSearchController(),
+              OpenLensOverlay(
+                  lens::LensOverlayInvocationSource::kOmniboxPageAction, false))
+      .Times(1);
+  GetAutocompleteProviderClient()->OpenLensOverlay(/*show=*/true);
+}
+
+IN_PROC_BROWSER_TEST_F(ChromeAutocompleteProviderClientAskGLensChipRouteTest,
+                       OmniboxEditModelOpenLensSearch_BypassesAction) {
+  // When kAskGLensChipRoute is enabled, OpenLensSearch should bypass the action
+  // and call OpenLensOverlay directly (which will hide CSB).
+  EXPECT_CALL(*GetLensSearchController(),
+              OpenLensOverlay(
+                  lens::LensOverlayInvocationSource::kOmniboxPageAction, false))
+      .Times(1);
+
+  GetOmniboxEditModel()->OpenLensSearch();
+}
+
+IN_PROC_BROWSER_TEST_F(ChromeAutocompleteProviderClientTest,
+                       OmniboxEditModelOpenLensSearch_RoutesToAction) {
+  // When kAskGLensChipRoute is disabled (default), OpenLensSearch should route
+  // to the action. Since AskG/CoBrowse are disabled by default, it eventually
+  // falls back to OpenLensOverlay (showing CSB).
+  EXPECT_CALL(*GetLensSearchController(),
+              OpenLensOverlay(
+                  lens::LensOverlayInvocationSource::kOmniboxPageAction, true))
+      .Times(1);
+
+  GetOmniboxEditModel()->OpenLensSearch();
+}
+
+

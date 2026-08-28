@@ -3,6 +3,7 @@
 #include <stack>
 #include <string>
 
+#include "importer/import_limits.h"
 #include "importer/viv_opera_reader.h"
 
 #include "base/files/file_util.h"
@@ -30,7 +31,10 @@ bool OperaAdrFileReader::LoadFile(const base::FilePath& file) {
     return false;
   }
   std::string bookmark_data;
-  base::ReadFileToString(file, &bookmark_data);
+  if (!base::ReadFileToStringWithMaxSize(
+          file, &bookmark_data, vivaldi_importer::kMaxImportFileSize)) {
+    return false;
+  }
 
   base::StringTokenizer tokenizer(bookmark_data, "\r\n");
 

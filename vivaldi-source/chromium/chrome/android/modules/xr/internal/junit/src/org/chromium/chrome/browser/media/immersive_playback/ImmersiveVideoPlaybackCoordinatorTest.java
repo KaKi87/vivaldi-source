@@ -6,9 +6,14 @@ package org.chromium.chrome.browser.media.immersive_playback;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,6 +22,10 @@ import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.app.Activity;
 import android.util.SizeF;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.accessibility.AccessibilityEvent;
+import android.widget.FrameLayout;
 
 import androidx.test.annotation.UiThreadTest;
 
@@ -34,13 +43,14 @@ import org.robolectric.shadows.ShadowLooper;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.blink.mojom.ImmersiveProjectionType;
-import org.chromium.blink.mojom.ImmersiveStereoMode;
 import org.chromium.chrome.browser.media.immersive_playback.components.ImmersiveVideoControlAutoHideManager;
 import org.chromium.chrome.browser.media.immersive_playback.components.ImmersiveVideoControlCoordinator;
 import org.chromium.chrome.browser.media.immersive_playback.components.ImmersiveVideoControlView;
 import org.chromium.chrome.browser.media.immersive_playback.components.ImmersiveVideoPlayerCoordinator;
+import org.chromium.chrome.browser.xr.scenecore.XrModuleProviderImpl;
 import org.chromium.components.thinwebview.CompositorView;
+import org.chromium.content_public.browser.ImmersiveProjectionType;
+import org.chromium.content_public.browser.ImmersiveStereoMode;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.xr.scenecore.XrCurvedSurfaceEntityHolder;
 import org.chromium.ui.xr.scenecore.XrInteractableComponent;
@@ -52,7 +62,9 @@ import org.chromium.ui.xr.scenecore.XrSurfaceEntityShape;
 import org.chromium.ui.xr.scenecore.XrSurfaceEntityStereoMode;
 import org.chromium.ui.xr.scenecore.XrSurfaceEntityView;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /** Tests for {@link ImmersiveVideoPlaybackCoordinator}. */
 @RunWith(BaseRobolectricTestRunner.class)
@@ -76,6 +88,7 @@ public class ImmersiveVideoPlaybackCoordinatorTest {
 
     @Before
     public void setUp() throws Exception {
+        XrModuleProviderImpl.initialize();
         MockitoAnnotations.openMocks(this);
         mActivity = Robolectric.buildActivity(Activity.class).create().get();
         mActivity.setTheme(org.chromium.chrome.R.style.Theme_BrowserUI_Light);
@@ -164,16 +177,16 @@ public class ImmersiveVideoPlaybackCoordinatorTest {
         verify(mSurfaceEntityHolder).setSurfacePixelDimensions(width, height);
     }
 
-    /** Tests that updateVideoLayout updates shape and stereo mode. */
+    /** Tests that onFormatSelected updates shape and stereo mode. */
     @Test
     @UiThreadTest
-    public void testUpdateVideoLayout() {
+    public void testVideoLayoutUpdates() {
         clearInvocations(mSurfaceMovableComponent);
         clearInvocations(mControlPanelMovableComponent);
         clearInvocations(mSurfaceEntityHolder);
 
         // Switch to HEMISPHERE and SIDE_BY_SIDE.
-        mCoordinator.updateVideoLayout(
+        mCoordinator.onFormatSelected(
                 ImmersiveStereoMode.SIDE_BY_SIDE, ImmersiveProjectionType.HEMISPHERE);
         ShadowLooper.idleMainLooper();
 
@@ -188,7 +201,7 @@ public class ImmersiveVideoPlaybackCoordinatorTest {
         clearInvocations(mSurfaceEntityHolder);
 
         // Switch to SPHERE and TOP_BOTTOM.
-        mCoordinator.updateVideoLayout(
+        mCoordinator.onFormatSelected(
                 ImmersiveStereoMode.TOP_BOTTOM, ImmersiveProjectionType.SPHERE);
         ShadowLooper.idleMainLooper();
 
@@ -202,7 +215,7 @@ public class ImmersiveVideoPlaybackCoordinatorTest {
         clearInvocations(mSurfaceEntityHolder);
 
         // Switch to QUAD and MONO (default state).
-        mCoordinator.updateVideoLayout(ImmersiveStereoMode.MONO, ImmersiveProjectionType.QUAD);
+        mCoordinator.onFormatSelected(ImmersiveStereoMode.MONO, ImmersiveProjectionType.QUAD);
         ShadowLooper.idleMainLooper();
 
         verify(mSurfaceEntityHolder).setSurfaceShape(XrSurfaceEntityShape.QUAD);
@@ -309,6 +322,184 @@ public class ImmersiveVideoPlaybackCoordinatorTest {
         assertFalse(panel.isFormatButtonSelectedForTesting());
     }
 
+    /**
+     * Tests that all components in the hierarchy are disposed strictly bottom-up (children before
+     * parents).
+     */
+    @Test
+    @UiThreadTest
+    public void testDisposalHierarchyOrder() {
+        XrPanelEntityHolder formatPanelHolder = mock(XrPanelEntityHolder.class);
+        when(formatPanelHolder.getEntitySize()).thenReturn(new SizeF(1f, 1f));
+        when(mXrSceneCoreSessionManager.createPanelEntity(any(), any()))
+                .thenReturn(formatPanelHolder);
+
+        mCoordinator.onFormatClicked();
+
+        Consumer<XrPanelEntityHolder> markAsDisposed =
+                holder ->
+                        doThrow(new IllegalStateException("Entity is already disposed"))
+                                .when(holder)
+                                .setEntityEnabled(anyBoolean());
+
+        // 1. Disposing Player surface entity disposes its children (Control Panel and Format
+        // Panel).
+        doAnswer(
+                        invocation -> {
+                            markAsDisposed.accept(mControlPanelHolder);
+                            markAsDisposed.accept(formatPanelHolder);
+                            return null;
+                        })
+                .when(mSurfaceEntityHolder)
+                .dispose();
+
+        // 2. Disposing Control Panel entity disposes its child (Format Panel).
+        doAnswer(
+                        invocation -> {
+                            markAsDisposed.accept(formatPanelHolder);
+                            return null;
+                        })
+                .when(mControlPanelHolder)
+                .dispose();
+
+        mCoordinator.dispose();
+        verify(formatPanelHolder).dispose();
+        verify(mControlPanelHolder).dispose();
+        verify(mSurfaceEntityHolder).dispose();
+    }
+
+    /** Tests that recommended options are only populated when provided by native. */
+    @Test
+    @UiThreadTest
+    public void testRecommendedOptionOnlyProvidedByNative() {
+        var formatCoordinator = mCoordinator.getFormatCoordinatorForTesting();
+
+        // 1. User selects a format via UI.
+        mCoordinator.onFormatSelected(
+                ImmersiveStereoMode.SIDE_BY_SIDE, ImmersiveProjectionType.HEMISPHERE);
+        assertNull(formatCoordinator.getRecommendedStereoModeForTesting());
+        assertNull(formatCoordinator.getRecommendedProjectionTypeForTesting());
+
+        // 2. Native side sets immersive video options with isRecommended = false.
+        mCoordinator.setImmersiveVideoOptions(
+                ImmersiveStereoMode.TOP_BOTTOM, ImmersiveProjectionType.SPHERE, false);
+        assertNull(formatCoordinator.getRecommendedStereoModeForTesting());
+        assertNull(formatCoordinator.getRecommendedProjectionTypeForTesting());
+
+        // 3. Native side sets immersive video options with isRecommended = true.
+        mCoordinator.setImmersiveVideoOptions(
+                ImmersiveStereoMode.TOP_BOTTOM, ImmersiveProjectionType.SPHERE, true);
+        assertEquals(
+                ImmersiveStereoMode.TOP_BOTTOM,
+                (int) formatCoordinator.getRecommendedStereoModeForTesting());
+        assertEquals(
+                ImmersiveProjectionType.SPHERE,
+                (int) formatCoordinator.getRecommendedProjectionTypeForTesting());
+    }
+
+    /** Tests that seekBar accessibility events are blocked during programmatic updates. */
+    @Test
+    @UiThreadTest
+    public void testSeekBarAccessibilityEventsBlockedDuringPlayback() throws Exception {
+        // 1. Create a visible activity and coordinator to ensure view attachment.
+        Activity visibleActivity =
+                Robolectric.buildActivity(org.chromium.ui.base.TestActivity.class)
+                        .create()
+                        .start()
+                        .resume()
+                        .visible()
+                        .get();
+        visibleActivity.setTheme(org.chromium.chrome.R.style.Theme_BrowserUI_Light);
+
+        ImmersiveVideoPlaybackCoordinator visibleCoordinator =
+                new TestImmersiveVideoPlaybackCoordinator(
+                        visibleActivity,
+                        mWindowAndroid,
+                        mVideoControlDelegate,
+                        mXrSceneCoreSessionManager,
+                        mCompositorView);
+        visibleCoordinator.show();
+
+        ImmersiveVideoControlView panel =
+                assumeNonNull(
+                        visibleCoordinator
+                                .getControlCoordinatorForTesting()
+                                .getControlPanelForTesting());
+        Slider originalSlider = panel.getSeekBarForTesting();
+
+        // 2. Enable accessibility in Robolectric.
+        android.view.accessibility.AccessibilityManager accessibilityManager =
+                (android.view.accessibility.AccessibilityManager)
+                        visibleActivity.getSystemService("accessibility");
+        var shadowManager = org.robolectric.Shadows.shadowOf(accessibilityManager);
+        shadowManager.setEnabled(true);
+        android.accessibilityservice.AccessibilityServiceInfo serviceInfo =
+                new android.accessibilityservice.AccessibilityServiceInfo();
+        serviceInfo.eventTypes = AccessibilityEvent.TYPES_ALL_MASK;
+        shadowManager.setEnabledAccessibilityServiceList(List.of(serviceInfo));
+        assertTrue(accessibilityManager.isEnabled());
+
+        // 3. Remove original slider from panel.
+        ViewGroup originalParent = (ViewGroup) originalSlider.getParent();
+        int index = originalParent.indexOfChild(originalSlider);
+        originalParent.removeView(originalSlider);
+
+        // 4. Create a TestSlider and replace the private field in panel.
+        TestSlider testSlider = new TestSlider(visibleActivity);
+        java.lang.reflect.Field seekBarField =
+                ImmersiveVideoControlView.class.getDeclaredField("mSeekBar");
+        seekBarField.setAccessible(true);
+        seekBarField.set(panel, testSlider);
+
+        // Add testSlider back to panel at the same index.
+        originalParent.addView(testSlider, index);
+
+        // 5. Add panel to a TestFrameLayout parent to monitor events.
+        if (panel.getParent() != null) {
+            ((ViewGroup) panel.getParent()).removeView(panel);
+        }
+        TestFrameLayout testParent = new TestFrameLayout(visibleActivity);
+        testParent.addView(panel);
+        visibleActivity.setContentView(testParent);
+
+        // Allow Robolectric to process layout and attach events so accessibility is initialized.
+        ShadowLooper.idleMainLooper();
+
+        // Verify attachment
+        assertTrue(testSlider.isAttachedToWindow());
+        assertTrue(panel.isAttachedToWindow());
+
+        // 6. Programmatic update during active playback (playing): setProgress and position label
+        // updates should block accessibility events.
+        panel.setPlaybackState(true);
+        panel.setProgress(50);
+        panel.getPositionLabelForTesting()
+                .sendAccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);
+        ShadowLooper.idleMainLooper(1000, java.util.concurrent.TimeUnit.MILLISECONDS);
+        // Verify that parent did NOT receive any accessibility events.
+        assertTrue(testParent.getReceivedEvents().isEmpty());
+
+        // 6b. Programmatic update when paused: setProgress and position label updates should NOT
+        // block accessibility events.
+        panel.setPlaybackState(false);
+        testParent.clearEvents();
+        panel.setProgress(75);
+        panel.getPositionLabelForTesting()
+                .sendAccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);
+        ShadowLooper.idleMainLooper(1000, java.util.concurrent.TimeUnit.MILLISECONDS);
+        // Verify that parent DID receive the accessibility event because playback is paused.
+        assertFalse(testParent.getReceivedEvents().isEmpty());
+
+        // 7. Directly sending accessibility event (simulating user interaction or focus) should
+        // NOT be blocked.
+        testParent.clearEvents();
+        testSlider.sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_SELECTED);
+        ShadowLooper.idleMainLooper();
+        // Verify that parent DID receive the accessibility event.
+        assertEquals(1, testParent.getReceivedEvents().size());
+        assertEquals(panel, testParent.getReceivedChild());
+    }
+
     /** Test subclass that allows injecting mocked dependencies by overriding protected methods. */
     private static class TestImmersiveVideoPlaybackCoordinator
             extends ImmersiveVideoPlaybackCoordinator {
@@ -339,6 +530,46 @@ public class ImmersiveVideoPlaybackCoordinatorTest {
                     return mMockCompositorView;
                 }
             };
+        }
+    }
+
+    private static class TestSlider extends Slider {
+        public TestSlider(android.content.Context context) {
+            super(context);
+        }
+
+        @Override
+        public boolean isShown() {
+            return true;
+        }
+    }
+
+    private static class TestFrameLayout extends FrameLayout {
+        private final List<AccessibilityEvent> mReceivedEvents = new java.util.ArrayList<>();
+        private View mReceivedChild;
+
+        public TestFrameLayout(android.content.Context context) {
+            super(context);
+        }
+
+        @Override
+        public boolean requestSendAccessibilityEvent(View child, AccessibilityEvent event) {
+            mReceivedChild = child;
+            mReceivedEvents.add(AccessibilityEvent.obtain(event));
+            return super.requestSendAccessibilityEvent(child, event);
+        }
+
+        public List<AccessibilityEvent> getReceivedEvents() {
+            return mReceivedEvents;
+        }
+
+        public View getReceivedChild() {
+            return mReceivedChild;
+        }
+
+        public void clearEvents() {
+            mReceivedEvents.clear();
+            mReceivedChild = null;
         }
     }
 }

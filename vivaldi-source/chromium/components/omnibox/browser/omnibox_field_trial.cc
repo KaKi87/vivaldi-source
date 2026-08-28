@@ -30,6 +30,7 @@
 #include "components/omnibox/common/omnibox_feature_configs.h"
 #include "components/omnibox/common/omnibox_features.h"
 #include "components/search/search.h"
+#include "components/search_engines/ai_mode_button_service.h"
 #include "components/variations/active_field_trials.h"
 #include "components/variations/hashing.h"
 #include "components/variations/variations_associated_data.h"
@@ -207,7 +208,7 @@ size_t OmniboxFieldTrial::GetProviderMaxMatches(
 
       if (kv_pair.first == "*") {
         default_max_matches_per_provider = v;
-      } else if (k == provider) {
+      } else if (static_cast<AutocompleteProvider::Type>(k) == provider) {
         return v;
       }
     }
@@ -333,11 +334,27 @@ int OmniboxFieldTrial::MaxNumHQPUrlsIndexedAtStartup() {
   constexpr int kDefaultOnNonLowEndDevices = 20000;
 #endif
 
-  if (base::SysInfo::IsLowEndDeviceOrPartialLowEndModeEnabled()) {
-    return kDefaultOnLowEndDevices;
-  } else {
-    return kDefaultOnNonLowEndDevices;
+  const bool is_low_end =
+      base::SysInfo::IsLowEndDeviceOrPartialLowEndModeEnabled();
+  const int default_value =
+      is_low_end ? kDefaultOnLowEndDevices : kDefaultOnNonLowEndDevices;
+
+  // Allow the startup cap to be overridden via the bundled omnibox field trial,
+  // honoring the kMaxNumHQPUrlsIndexedAtStartupOn{Low,NonLow}EndDevicesParam
+  // parameters (previously declared but never read). Falls back to the
+  // constants above when no valid, positive value is configured, so default
+  // behavior is unchanged. Mirrors the HQPMaxVisitsToScore() pattern below.
+  const char* param_name =
+      is_low_end ? kMaxNumHQPUrlsIndexedAtStartupOnLowEndDevicesParam
+                 : kMaxNumHQPUrlsIndexedAtStartupOnNonLowEndDevicesParam;
+  const std::string param_value = base::GetFieldTrialParamValue(
+      kBundledExperimentFieldTrialName, param_name);
+  int parsed_value = 0;
+  if (!param_value.empty() && base::StringToInt(param_value, &parsed_value) &&
+      parsed_value > 0) {
+    return parsed_value;
   }
+  return default_value;
 }
 
 size_t OmniboxFieldTrial::HQPMaxVisitsToScore() {
@@ -533,8 +550,6 @@ const char
     OmniboxFieldTrial::kMaxNumHQPUrlsIndexedAtStartupOnNonLowEndDevicesParam[] =
         "MaxNumHQPUrlsIndexedAtStartupOnNonLowEndDevices";
 
-const char OmniboxFieldTrial::kMaxZeroSuggestMatchesParam[] =
-    "MaxZeroSuggestMatches";
 const char OmniboxFieldTrial::kUIMaxAutocompleteMatchesByProviderParam[] =
     "UIMaxAutocompleteMatchesByProvider";
 const char OmniboxFieldTrial::kUIMaxAutocompleteMatchesParam[] =
@@ -626,10 +641,31 @@ bool IsHideSuggestionGroupHeadersEnabledInContext(
 }
 
 bool IsAimOmniboxEntrypointEnabled(
-    const AimEligibilityService* aim_eligibility_service) {
+    const AimEligibilityService* aim_eligibility_service,
+    const AiModeButtonService* ai_mode_button_service,
+    const TemplateURLService* template_url_service) {
   // `aim_eligibility_service` can be null in tests.
-  return base::FeatureList::IsEnabled(omnibox::kAiModeOmniboxEntryPoint) &&
-         aim_eligibility_service && aim_eligibility_service->IsAimEligible();
+  if (!aim_eligibility_service) {
+    return false;
+  }
+
+  // Entrypoint can't be shown if it can't be configured.
+  if (!ai_mode_button_service || !ai_mode_button_service->GetCurrentConfig()) {
+    return false;
+  }
+
+  // If the DSE is Google, the entrypoint should respect Google server
+  // eligibility regardless of the 3p feature state.
+  if (search::DefaultSearchProviderIsGoogle(template_url_service)) {
+    return aim_eligibility_service->IsAimEligible();
+  }
+
+  // If DSE is not Google, then entrypoint should ignore Google server
+  // eligibility. Instead, it requires the 3p flag and local checks excluding
+  // DSE.
+  return base::FeatureList::IsEnabled(omnibox::kAim3pEntrypoint) &&
+         aim_eligibility_service->IsAimAllowedByFeatureAndPolicy() &&
+         aim_eligibility_service->IsAimAllowedByThirdPartyPolicy();
 }
 
 bool IsAimStarterPackEnabled(

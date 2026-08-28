@@ -30,7 +30,6 @@
 #include "base/run_loop.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/system/sys_info.h"
@@ -38,6 +37,7 @@
 #include "base/task/thread_pool.h"
 #include "base/test/bind.h"
 #include "base/test/gmock_expected_support.h"
+#include "base/test/gtest_util.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_timeouts.h"
 #include "base/threading/platform_thread.h"
@@ -60,9 +60,12 @@
 #include "chrome/updater/win/test/test_executables.h"
 #include "chrome/updater/win/test/test_strings.h"
 #include "chrome/updater/win/win_constants.h"
+#include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace updater::test {
+
+using ::testing::EndsWith;
 
 namespace {
 
@@ -428,7 +431,7 @@ TEST(WinUtil, ForEachRegistryRunValueWithPrefix) {
   ForEachRegistryRunValueWithPrefix(
       kRunEntryPrefix,
       [&key, &count_entries, kRunEntryPrefix](const std::wstring& run_name) {
-        EXPECT_TRUE(base::StartsWith(run_name, kRunEntryPrefix));
+        EXPECT_TRUE(run_name.starts_with(kRunEntryPrefix));
         ++count_entries;
         EXPECT_EQ(key.DeleteValue(run_name.c_str()), ERROR_SUCCESS);
       });
@@ -475,7 +478,7 @@ TEST(WinUtil, ForEachServiceWithPrefix) {
   ForEachServiceWithPrefix(
       kServiceNamePrefix, kServiceNamePrefix,
       [&count_entries, kServiceNamePrefix](const std::wstring& service_name) {
-        EXPECT_TRUE(base::StartsWith(service_name, kServiceNamePrefix));
+        EXPECT_TRUE(service_name.starts_with(kServiceNamePrefix));
         ++count_entries;
         EXPECT_TRUE(DeleteService(service_name));
       });
@@ -860,6 +863,12 @@ TEST(WinUtil, AddCurrentUserAllowedAce_DenyBeforeAllow) {
   EXPECT_TRUE(::ConvertStringSecurityDescriptorToSecurityDescriptor(
       new_sddl->c_str(), SDDL_REVISION_1, &raw_sd, nullptr));
   base::win::ScopedLocalAlloc sd_holder(raw_sd);
+}
+
+TEST(WinUtil, RegistryKeyHelpersSanitizeInvalidAppIds) {
+  EXPECT_THAT(GetAppClientsKey(L"a\\b"), EndsWith(L"a_b"));
+  EXPECT_THAT(GetAppClientStateKey(L"a\\b"), EndsWith(L"a_b"));
+  EXPECT_THAT(GetAppClientStateMediumKey(L"a\\b"), EndsWith(L"a_b"));
 }
 
 }  // namespace updater::test

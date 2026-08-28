@@ -17,9 +17,9 @@
 #include "components/sync/base/features.h"
 #include "components/sync/base/time.h"
 #include "components/sync/engine/sync_encryption_handler.h"
+#include "components/sync/model/crypto/key_derivation_params.h"
 #include "components/sync/nigori/cross_user_sharing_public_key.h"
 #include "components/sync/nigori/cryptographer_impl.h"
-#include "components/sync/nigori/key_derivation_params.h"
 #include "components/sync/nigori/keystore_keys_cryptographer.h"
 #include "components/sync/protocol/nigori_local_data.pb.h"
 #include "components/sync/protocol/nigori_specifics.pb.h"
@@ -103,7 +103,7 @@ bool IsValidKeyPairState(const NigoriState& state) {
   // Key version existence is guaranteed by NigoriState::CreateFromLocalProto().
   CHECK(state.cross_user_sharing_key_pair_version);
 
-  if (!state.cryptographer->HasKeyPair(
+  if (!state.cryptographer->HasCrossUserSharingKeyPair(
           state.cross_user_sharing_key_pair_version.value())) {
     // The private key does not exist for the current public key version.
     return false;
@@ -133,8 +133,9 @@ NigoriState NigoriState::CreateFromLocalProto(
     const sync_pb::NigoriModel& proto) {
   NigoriState state;
 
-  state.cryptographer =
-      CryptographerImpl::FromLocalProto(proto.cryptographer_data());
+  state.cryptographer = CryptographerImpl::FromLocalProto(
+      proto.cryptographer_data(),
+      /*default_encryption_key_invalidated=*/proto.has_pending_keys());
   CHECK(state.cryptographer);
 
   if (proto.has_pending_keys()) {
@@ -206,10 +207,7 @@ sync_pb::NigoriModel NigoriState::ToLocalProto() const {
   if (pending_keys.has_value()) {
     *proto.mutable_pending_keys() = *pending_keys;
   }
-  if (!keystore_keys_cryptographer->IsEmpty()) {
-    proto.set_current_keystore_key_name(
-        keystore_keys_cryptographer->GetLastKeystoreKeyName());
-  }
+
   proto.set_passphrase_type(passphrase_type);
   if (!keystore_migration_time.is_null()) {
     proto.set_keystore_migration_time(TimeToProtoTime(keystore_migration_time));
@@ -232,9 +230,8 @@ sync_pb::NigoriModel NigoriState::ToLocalProto() const {
         GetSpecificsFieldNumberFromDataType(data_type));
   }
   // TODO(crbug.com/41462727): we currently store keystore keys in proto only to
-  // allow rollback of USS Nigori. Having keybag with all keystore keys and
-  // `current_keystore_key_name` is enough to support all logic. We should
-  // remove them few milestones after USS migration completed.
+  // allow rollback of USS Nigori. We should remove them few milestones after
+  // USS migration completed.
   for (const std::string& keystore_key :
        keystore_keys_cryptographer->keystore_keys()) {
     proto.add_keystore_key(keystore_key);
@@ -341,19 +338,6 @@ NigoriState NigoriState::Clone() const {
   return result;
 }
 
-bool NigoriState::NeedsKeystoreReencryption() const {
-  if (keystore_keys_cryptographer->IsEmpty() ||
-      passphrase_type != sync_pb::NigoriSpecifics::KEYSTORE_PASSPHRASE ||
-      pending_keys.has_value() ||
-      cryptographer->GetDefaultEncryptionKeyName() ==
-          keystore_keys_cryptographer->GetLastKeystoreKeyName()) {
-    return false;
-  }
-  // Either keystore key rotation or full keystore migration should be
-  // triggered, since default encryption key is not the last keystore key, while
-  // it should be.
-  return true;
-}
 
 DataTypeSet NigoriState::GetEncryptedTypes() const {
   if (!encrypt_everything) {

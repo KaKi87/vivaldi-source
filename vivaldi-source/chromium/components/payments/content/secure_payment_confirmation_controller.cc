@@ -130,7 +130,15 @@ void SecurePaymentConfirmationController::OnConfirm() {
                                   SecurePaymentRequestOutcome::kAccept);
 
     is_dialog_showing_ = false;
+    // CloseDialog() -> Widget::Close() can potentially synchronously trigger
+    // activation observers that destroy the payment window's WebContents.
+    // This self weak pointer guard can prevent potential UAF if controller is
+    // synchronously deleted inside CloseDialog().
+    auto weak_this = weak_ptr_factory_.GetWeakPtr();
     CloseDialog();
+    if (!weak_this) {
+      return;
+    }
 
     if (!request_) {
       return;
@@ -163,7 +171,13 @@ void SecurePaymentConfirmationController::OnAnotherWay() {
                                 SecurePaymentRequestOutcome::kAnotherWay);
 
   is_dialog_showing_ = false;
+
+  // CloseDialog() can potentially delete `this`. See OnConfirm() above.
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
   CloseDialog();
+  if (!weak_this) {
+    return;
+  }
 
   if (!request_) {
     return;
@@ -189,7 +203,12 @@ void SecurePaymentConfirmationController::OnCancel() {
   }
 
   is_dialog_showing_ = false;
+  // CloseDialog() can potentially delete `this`. See OnConfirm() above.
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
   CloseDialog();
+  if (!weak_this) {
+    return;
+  }
 
   if (!request_) {
     return;
@@ -209,7 +228,12 @@ void SecurePaymentConfirmationController::OnOptOut() {
   }
 
   is_dialog_showing_ = false;
+  // CloseDialog() can potentially delete `this`. See OnConfirm() above.
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
   CloseDialog();
+  if (!weak_this) {
+    return;
+  }
 
   if (!request_) {
     return;
@@ -349,6 +373,9 @@ void SecurePaymentConfirmationController::
   view_ = SecurePaymentConfirmationView::Create(
       request_->state()->GetPaymentRequestDelegate()->GetPaymentUIObserver());
 
+  // view_->ShowDialog() can potentially trigger observers that destroy the
+  // payment window's WebContents and delete `this`.
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
   view_->ShowDialog(
       request_->web_contents(), model_.GetWeakPtr(),
       base::BindOnce(&SecurePaymentConfirmationController::OnConfirm,
@@ -359,6 +386,9 @@ void SecurePaymentConfirmationController::
                      weak_ptr_factory_.GetWeakPtr()),
       base::BindOnce(&SecurePaymentConfirmationController::OnOptOut,
                      weak_ptr_factory_.GetWeakPtr()));
+  if (!weak_this) {
+    return;
+  }
 
   // For automated testing, SPC can be placed in an 'autoaccept' or
   // 'autoreject' mode, where the dialog should immediately be

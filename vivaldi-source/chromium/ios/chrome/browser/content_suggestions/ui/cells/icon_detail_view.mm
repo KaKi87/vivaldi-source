@@ -67,8 +67,7 @@ UIImageView* CheckmarkIcon() {
 
   config = [config configurationByApplyingConfiguration:colorConfig];
 
-  UIImage* image =
-      DefaultSymbolWithConfiguration(kCheckmarkCircleFillSymbol, config);
+  UIImage* image = SymbolWithConfiguration(SymbolCheckmarkCircleFill, config);
 
   UIImageView* icon = [[UIImageView alloc] initWithImage:image];
 
@@ -252,10 +251,8 @@ UIView* BadgeIconInContainer(UIImageView* icon,
     CHECK(config);
     _config = [config copy];
 
-    if (IsNTPBackgroundCustomizationEnabled()) {
-      [self registerForTraitChanges:@[ NewTabPageTrait.class ]
-                         withAction:@selector(applyBackgroundColors)];
-    }
+    [self registerForTraitChanges:@[ NewTabPageTrait.class ]
+                       withAction:@selector(applyBackgroundColors)];
     [self applyBackgroundColors];
   }
   return self;

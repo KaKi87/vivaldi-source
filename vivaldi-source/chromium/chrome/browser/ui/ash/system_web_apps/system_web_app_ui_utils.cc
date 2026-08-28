@@ -18,10 +18,10 @@
 #include "chrome/browser/ash/browser_delegate/browser_delegate.h"
 #include "chrome/browser/ash/browser_delegate/browser_type.h"
 #include "chrome/browser/ash/browser_delegate/browser_type_conversion.h"
-#include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/ash/system_web_apps/system_web_app_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/ash/multi_user/multi_user_util.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
 #include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
@@ -31,6 +31,8 @@
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
+#include "chromeos/ash/components/browser_context_helper/browser_context_types.h"
+#include "chromeos/ash/experiences/system_web_apps/types/system_web_app_delegate.h"
 #include "components/services/app_service/public/cpp/app_launch_util.h"
 #include "components/user_manager/user.h"
 #include "content/public/browser/web_contents.h"
@@ -52,7 +54,7 @@ Profile* GetProfileForSystemWebAppLaunch(Profile* profile) {
   if (profile->IsSystemProfile()) {
     return nullptr;
   }
-  if (ProfileHelper::IsSigninProfile(profile)) {
+  if (IsSigninBrowserContext(profile)) {
     return nullptr;
   }
 
@@ -265,8 +267,9 @@ BrowserDelegate* LaunchSystemWebAppImpl(Profile* profile,
   //
   // Since users can't configure SWA launch behavior, we don't report these
   // metrics to avoid skewing web app metrics.
-  web_app::UpdateLaunchStats(browser->GetActiveWebContents(), params.app_id,
-                             url);
+  web_app::UpdateLaunchMetricsAndStats(params.app_id, params.container,
+                                       params.launch_source, url,
+                                       browser->GetActiveWebContents());
 
   // LaunchSystemWebAppImpl may be called with a profile associated with an
   // inactive (background) desktop (e.g. when multiple users are logged in).
@@ -277,15 +280,6 @@ BrowserDelegate* LaunchSystemWebAppImpl(Profile* profile,
 
   browser->Show();
   return browser;
-}
-
-Browser* FindSystemWebAppBrowser(Profile* profile,
-                                 SystemWebAppType app_type,
-                                 Browser::Type browser_type,
-                                 const GURL& url) {
-  auto* browser = FindSystemWebAppBrowser(
-      profile, app_type, FromInternalBrowserType(browser_type), url);
-  return browser ? &browser->GetBrowser() : nullptr;
 }
 
 BrowserDelegate* FindSystemWebAppBrowser(Profile* profile,
@@ -334,18 +328,10 @@ int CountSystemWebAppBrowsers(Profile* profile, SystemWebAppType app_type) {
              : 0;
 }
 
-bool IsSystemWebApp(Browser* browser) {
-  DCHECK(browser);
-  return browser->app_controller() && browser->app_controller()->system_app();
-}
-
-bool IsBrowserForSystemWebApp(BrowserWindowInterface* browser,
+bool IsBrowserForSystemWebApp(const BrowserDelegate& browser,
                               SystemWebAppType type) {
-  DCHECK(browser);
-  web_app::AppBrowserController* const app_controller =
-      web_app::AppBrowserController::From(browser);
-  return app_controller && app_controller->system_app() &&
-         app_controller->system_app()->GetType() == type;
+  const auto* const swa_delegate = browser.GetSWADelegate();
+  return swa_delegate && swa_delegate->GetType() == type;
 }
 
 std::optional<SystemWebAppType> GetCapturingSystemAppForURL(Profile* profile,
@@ -353,15 +339,6 @@ std::optional<SystemWebAppType> GetCapturingSystemAppForURL(Profile* profile,
   SystemWebAppManager* swa_manager = SystemWebAppManager::Get(profile);
   return swa_manager ? swa_manager->GetCapturingSystemAppForURL(url)
                      : std::nullopt;
-}
-
-gfx::Size GetSystemWebAppMinimumWindowSize(Browser* browser) {
-  DCHECK(browser);
-  if (browser->app_controller() && browser->app_controller()->system_app()) {
-    return browser->app_controller()->system_app()->GetMinimumWindowSize();
-  }
-
-  return gfx::Size();
 }
 
 }  // namespace ash

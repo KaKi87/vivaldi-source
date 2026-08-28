@@ -35,7 +35,6 @@
 #include "chrome/browser/file_system_access/chrome_file_system_access_permission_context.h"
 #include "chrome/browser/file_system_access/file_system_access_permission_context_factory.h"
 #include "chrome/browser/heavy_ad_intervention/heavy_ad_service_factory.h"
-#include "chrome/browser/k_anonymity_service/k_anonymity_service_factory.h"
 #include "chrome/browser/notifications/platform_notification_service_factory.h"
 #include "chrome/browser/notifications/platform_notification_service_impl.h"
 #include "chrome/browser/origin_trials/origin_trials_factory.h"
@@ -126,8 +125,10 @@ using content::BrowserThread;
 using content::DownloadManagerDelegate;
 using content::HostZoomMap;
 
+#include "chrome/browser/ui/webui/favicon_source.h"
 #include "components/datasource/vivaldi_data_source.h"
 #include "components/datasource/vivaldi_web_source.h"
+#include "components/favicon_base/favicon_url_parser.h"
 
 namespace {
 
@@ -222,6 +223,9 @@ void OffTheRecordProfileImpl::Init() {
                               std::make_unique<VivaldiDataSource>(profile_));
   content::URLDataSource::Add(this,
                               std::make_unique<VivaldiWebSource>(profile_));
+  content::URLDataSource::Add(
+      this, std::make_unique<FaviconSource>(
+                    this, chrome::FaviconUrlFormat::kFavicon2));
   // End Vivaldi
 
   extensions::WebRequestEventRouter::OnOTRBrowserContextCreated(profile_, this);
@@ -704,7 +708,8 @@ OffTheRecordProfileImpl::GetFederatedIdentityAutoReauthnPermissionContext() {
       this);
 }
 
-content::KAnonymityServiceDelegate*
-OffTheRecordProfileImpl::GetKAnonymityServiceDelegate() {
-  return KAnonymityServiceFactory::GetForProfile(this);
+#if BUILDFLAG(IS_WIN)
+void OffTheRecordProfileImpl::AckCrashForTracking() {
+  profile_->AckCrashForTracking();
 }
+#endif

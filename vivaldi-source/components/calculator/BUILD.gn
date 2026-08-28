@@ -1,0 +1,12 @@
+# Copyright (c) 2026 Vivaldi Technologies AS. All rights reserved.
+
+source_set("calculator") {
+  sources = [
+    "calculator.cc",
+    "calculator.h",
+  ]
+
+  deps = [
+    "//base",
+  ]
+}

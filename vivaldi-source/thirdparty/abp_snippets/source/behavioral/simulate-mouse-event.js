@@ -14,10 +14,10 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 
-import {formatArguments} from "../utils/general.js";
+import {formatArguments, sendSnippetHitEvent}
+  from "../utils/general.js";
 import {initQueryAndApply, initQueryAll} from "../utils/dom.js";
 import {getDebugger} from "../introspection/log.js";
 import {profile} from "../introspection/profile.js";
@@ -39,13 +39,19 @@ const VALID_TYPES = ["auxclick", "click", "dblclick",	"gotpointercapture",
                      "pointerup", "pointercancel", "pointerleave"];
 
 /**
- * Simulate a mouse event on the page.
- * @alias module:content/snippets.simulate-mouse-event
+ * @description Simulate a mouse event on the page.
+ * @memberof module:snippets/behavioral
  *
  * @param {string[]} selectors The CSS/Xpath selectors that an HTML element must
  * match for the event to be triggered.
+ * @example
+ * simulate-mouse-event 'css-selector1' 'css-selector2' => Simulates a click
+ * event for css-selector2 only if the css-selector1 is present
+ * in the page. Does not click css-selector1.
  *
- * @since Adblock Plus 3.15.3
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69960691/simulate-mouse-event} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/behavioral-snippets/simulate-mouse-event} for external documentation.
+ * @since Adblock Plus 3.17
  */
 export function simulateMouseEvent(...selectors) {
   const formattedArguments = formatArguments(arguments);
@@ -162,6 +168,11 @@ export function simulateMouseEvent(...selectors) {
                `n\nFILTER: simulate-mouse-event ${formattedArguments}`
       );
     }
+
+    if (!hitEventSent.has(node)) {
+      hitEventSent.add(node);
+      sendSnippetHitEvent("simulate-mouse-event " + formattedArguments);
+    }
   }
   let allFound = false;
   // The event for the last selector should be triggered always.
@@ -169,6 +180,7 @@ export function simulateMouseEvent(...selectors) {
   last.trigger = true;
 
   let dispatchedNodes = new WeakSet();
+  let hitEventSent = new WeakSet();
 
   let observer = new MutationObserver(findNodesAndDispatchEvents);
   observer.observe(document, {childList: true, subtree: true});

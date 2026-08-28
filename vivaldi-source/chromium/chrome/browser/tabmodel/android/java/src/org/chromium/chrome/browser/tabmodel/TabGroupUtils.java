@@ -6,6 +6,8 @@ package org.chromium.chrome.browser.tabmodel;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
 
+import android.content.Context;
+import android.graphics.drawable.GradientDrawable;
 import android.text.TextUtils;
 
 import org.chromium.base.Token;
@@ -20,9 +22,12 @@ import org.chromium.chrome.browser.tab_group_sync.TabGroupSyncServiceFactory;
 import org.chromium.components.tab_group_sync.LocalTabGroupId;
 import org.chromium.components.tab_group_sync.SavedTabGroup;
 import org.chromium.components.tab_group_sync.TabGroupSyncService;
+import org.chromium.components.tab_groups.TabGroupColorId;
+import org.chromium.components.tab_groups.TabGroupColorPickerUtils;
 import org.chromium.content_public.browser.LoadUrlParams;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -333,5 +338,51 @@ public class TabGroupUtils {
             if (tabModel.isTabInTabGroup(tab)) groupedTabs.add(tab);
         }
         return groupedTabs;
+    }
+
+    /**
+     * Creates a circular/oval drawable representing a tab group color.
+     *
+     * @param context The current context.
+     * @param colorId The {@link TabGroupColorId} representing the tab group color.
+     * @param isIncognito Whether the current mode is incognito.
+     * @param circleSize The diameter of the circular drawable in pixels.
+     * @return A {@link GradientDrawable} with the tab group color circle.
+     */
+    public static GradientDrawable createColorDrawableForMenu(
+            Context context, @TabGroupColorId int colorId, boolean isIncognito, int circleSize) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setShape(GradientDrawable.OVAL);
+        drawable.setColor(
+                TabGroupColorPickerUtils.getTabGroupColorPickerItemColor(
+                        context, colorId, isIncognito));
+        drawable.setSize(circleSize, circleSize);
+        return drawable;
+    }
+
+    /**
+     * Returns whether any tab groups exist in the provided model or across all selectors.
+     *
+     * @param tabModel The current {@link TabModel}.
+     * @param selectorsForAllWindows Collection of {@link TabModelSelector}s across windows, or
+     *     null.
+     */
+    public static boolean hasTabGroups(
+            @Nullable TabModel tabModel,
+            @Nullable Collection<TabModelSelector> selectorsForAllWindows) {
+        if (tabModel != null && tabModel.getTabGroupCount() > 0) return true;
+        if (selectorsForAllWindows != null) {
+            boolean isIncognito = tabModel != null && tabModel.isIncognito();
+            for (TabModelSelector selector : selectorsForAllWindows) {
+                if (selector == null) continue;
+                TabModel model = selector.getModel(isIncognito);
+                if (model != null && model.getTabGroupCount() > 0) return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean hasTabGroups(@Nullable TabModel tabModel) {
+        return hasTabGroups(tabModel, /* selectorsForAllWindows= */ null);
     }
 }

@@ -108,7 +108,6 @@ class SecretPortalKeyProvider : public KeyProvider {
   // KeyProvider:
   void GetKey(KeyCallback callback) override;
   bool UseForEncryption() override;
-  bool IsCompatibleWithOsCryptSync() override;
 
   void OnPortalServiceStarted(uint32_t version);
 

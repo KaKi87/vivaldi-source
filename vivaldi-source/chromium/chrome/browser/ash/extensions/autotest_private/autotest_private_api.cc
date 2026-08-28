@@ -211,6 +211,7 @@
 #include "extensions/browser/extension_util.h"
 #include "extensions/common/api/extension_action/action_info.h"
 #include "extensions/common/manifest_handlers/background_info.h"
+#include "extensions/common/manifest_handlers/description_info.h"
 #include "extensions/common/manifest_handlers/options_page_info.h"
 #include "extensions/common/permissions/api_permission_set.h"
 #include "extensions/common/permissions/permission_set.h"
@@ -265,10 +266,8 @@ using chromeos::PrinterClass;
 
 // Features used for testing `isFeatureEnabled`.
 BASE_FEATURE(kEnabledFeatureForTest,
-             "EnabledFeatureForTest",
              base::FEATURE_ENABLED_BY_DEFAULT);
 BASE_FEATURE(kDisabledFeatureForTest,
-             "DisabledFeatureForTest",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 constexpr char kCrostiniNotAvailableForCurrentUserError[] =
@@ -550,7 +549,7 @@ std::string SetAllowedPref(Profile* profile,
     DCHECK(value.is_bool());
   } else if (pref_name == ash::prefs::kAccessibilityVirtualKeyboardEnabled) {
     DCHECK(value.is_bool());
-  } else if (pref_name == prefs::kDocumentScanAPITrustedExtensions) {
+  } else if (pref_name == ash::prefs::kDocumentScanAPITrustedExtensions) {
     DCHECK(value.is_list());
   } else if (pref_name == ash::prefs::kEnableAutoScreenLock) {
     DCHECK(value.is_bool());
@@ -1573,7 +1572,7 @@ AutotestPrivateGetExtensionsInfoFunction::Run() {
             .Set("version", extension->VersionString())
             .Set("name", extension->name())
             .Set("publicKey", extension->public_key())
-            .Set("description", extension->description())
+            .Set("description", DescriptionInfo::GetDescription(*extension))
             .Set("backgroundUrl",
                  BackgroundInfo::GetBackgroundURL(extension).spec())
             .Set("optionsUrl",
@@ -4337,8 +4336,8 @@ class AutotestPrivateInstallPWAForCurrentURLFunction::PWAInstallManagerObserver
 AutotestPrivateInstallPWAForCurrentURLFunction::
     AutotestPrivateInstallPWAForCurrentURLFunction()
     : auto_accept_pwa_install_confirmation_(
-          &web_app::test::g_auto_accept_all_install_dialogs_for_testing,
-          true) {}
+          web_app::SetPwaInstallationAutoRespondForTesting(  // IN-TEST
+              web_app::InstallDialogTestResponse::kAcceptAndLaunch)) {}
 AutotestPrivateInstallPWAForCurrentURLFunction::
     ~AutotestPrivateInstallPWAForCurrentURLFunction() = default;
 
@@ -5692,11 +5691,19 @@ AutotestPrivateGetLoginEventRecorderLoginEventsFunction::Run() {
       ash::LoginEventRecorder::Get()
           ->GetCollectedLoginEventsForTesting();  // IN-TEST
   std::vector<api::autotest_private::LoginEventRecorderData> result_data;
+  // Sample both clocks once, back-to-back, so every event is mapped through
+  // the same wall-clock/TimeTicks anchor and the (sub-microsecond) skew
+  // between the two Now() reads is shared rather than re-incurred per event.
+  const base::Time wall_now = base::Time::Now();
+  const base::TimeTicks ticks_now = base::TimeTicks::Now();
   for (const auto& data : collected_data) {
     api::autotest_private::LoginEventRecorderData event_data;
     event_data.name = data.name();
+    // Map the TimeTicks event time onto wall-clock time by anchoring both
+    // clocks to the current instant.
     event_data.microsecnods_since_unix_epoch =
-        (data.time() - base::TimeTicks::UnixEpoch()).InMicroseconds();
+        (wall_now - (ticks_now - data.time()) - base::Time::UnixEpoch())
+            .InMicroseconds();
     result_data.emplace_back(std::move(event_data));
   }
 

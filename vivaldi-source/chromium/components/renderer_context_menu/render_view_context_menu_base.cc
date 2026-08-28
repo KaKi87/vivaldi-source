@@ -476,8 +476,7 @@ void RenderViewContextMenuBase::MenuClosed(ui::SimpleMenuModel* source) {
     return;
 
   source_web_contents_->SetShowingContextMenu(false);
-  source_web_contents_->NotifyContextMenuClosed(params_.link_followed,
-                                                params_.impression);
+  source_web_contents_->NotifyContextMenuClosed(params_.link_followed);
   for (auto& observer : observers_) {
     observer.OnMenuClosed();
   }
@@ -552,9 +551,6 @@ RenderViewContextMenuBase::GetOpenURLParamsWithExtraHeaders(
   open_url_params.initiator_origin = initiator;
 
   open_url_params.source_site_instance = site_instance_;
-
-  if (disposition != WindowOpenDisposition::OFF_THE_RECORD)
-    open_url_params.impression = params_.impression;
 
   // Vivaldi specific; set site instance to lookup |Browser| to make sure the
   // correct Profile is used in incognito mode. See disposition new_window in

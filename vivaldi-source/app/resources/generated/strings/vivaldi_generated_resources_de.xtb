@@ -39,7 +39,6 @@
 <translation id="1601560923496285236">Übernehmen</translation>
 <translation id="1603914832182249871">(Privat)</translation>
 <translation id="1627276047960621195">Dateideskriptoren</translation>
-<translation id="1654713139320245449">Keine Übertragungs- bzw. Streaming Ziele gefunden. Benötigen Sie Hilfe?</translation>
 <translation id="166278006618318542">Algorithmus für öffentlichen Schlüssel des Antragstellers</translation>
 <translation id="1682548588986054654">Neues privates Fenster</translation>
 <translation id="1708338024780164500">(Inaktiv)</translation>
@@ -60,7 +59,6 @@
 <translation id="1906488504371069394">Weitere Erweiterungen und Designs entdecken im <ph name="BEGIN_LINK" />Chrome Web Store<ph name="END_LINK" /></translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">Benutzerdefinierte Webadresse eingeben</translation>
-<translation id="1932098463447129402">Nicht vor</translation>
 <translation id="1936157145127842922">Im Ordner anzeigen</translation>
 <translation id="1936931585862840749">Geben Sie eine Zahl ein, um die Anzahl der zu druckenden Exemplare festzulegen (1 bis <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">&amp;Audio in neuem Tab öffnen</translation>
@@ -102,7 +100,6 @@
 <translation id="253557089021624350">Keepalive-Zahl</translation>
 <translation id="2550212893339833758">Swap-Speicher</translation>
 <translation id="2553440850688409052">Dieses Plug-in ausblenden</translation>
-<translation id="2607101320794533334">Informationen zum öffentlichen Schlüssel des Antragstellers</translation>
 <translation id="261305050785128654">Teilen Sie Websites mit, welche Sprachen Sie sprechen. Wenn möglich, werden Inhalte in diesen Sprachen angezeigt.</translation>
 <translation id="26224892172169984">Verarbeitung von Protokollen für keine Website zulassen</translation>
 <translation id="2653275834716714682">Text ersetzen</translation>
@@ -112,7 +109,6 @@
 <translation id="2719936478972253983">Die folgenden Cookies wurden blockiert</translation>
 <translation id="2721037002783622288">Mit <ph name="SEARCH_ENGINE" /> nach Bild &amp;suchen</translation>
 <translation id="2722547199758472013">ID: <ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">Nicht nach</translation>
 <translation id="2749881179542288782">Grammatik und Rechtschreibung überprüfen</translation>
 <translation id="2785873697295365461">Dateideskriptoren</translation>
 <translation id="2825758591930162672">Öffentlicher Schlüssel des Antragstellers</translation>
@@ -163,7 +159,6 @@
 <translation id="3387614642886316601">Vorschläge von Google</translation>
 <translation id="3390013585654699824">App–Details</translation>
 <translation id="345693547134384690">Bil&amp;d in neuem Tab öffnen</translation>
-<translation id="3493881266323043047">Gültigkeit</translation>
 <translation id="3511307672085573050">Adr&amp;esse des Links kopieren</translation>
 <translation id="354068948465830244">Kann Websitedaten lesen und ändern</translation>
 <translation id="3555812735919707620">Erweiterung entfernen</translation>
@@ -179,7 +174,6 @@
 <translation id="3760460896538743390">&amp;Hintergrundseite prüfen</translation>
 <translation id="3786224729726357296">Websitedaten und Berechtigungen für <ph name="SITE" /> löschen</translation>
 <translation id="3797900183766075808">Mit <ph name="SEARCH_ENGINE" /> nach "<ph name="SEARCH_TERMS" />" &amp;suchen</translation>
-<translation id="3798449238516105146">Version</translation>
 <translation id="3810973564298564668">Verwalten</translation>
 <translation id="3838085852053358637">Fehler beim Laden der Erweiterung</translation>
 <translation id="383891835335927981">Keine Websites wurden vergrößert oder verkleinert</translation>
@@ -266,12 +260,10 @@
 <translation id="5063480226653192405">Verwendung</translation>
 <translation id="5116628073786783676">Audio &amp;speichern unter...</translation>
 <translation id="5154108062446123722">Erweiterte Einstellungen für <ph name="PRINTING_DESTINATION" /></translation>
-<translation id="5154702632169343078">Betreff</translation>
 <translation id="5170568018924773124">Im Ordner anzeigen</translation>
 <translation id="5171343362375269016">Swap-Speicher</translation>
 <translation id="5233231016133573565">Prozess-ID</translation>
 <translation id="5233736638227740678">&amp;Einfügen</translation>
-<translation id="5244466461749935369">Vorerst behalten</translation>
 <translation id="5256861893479663409">Auf allen Websites</translation>
 <translation id="5260334392110301220">Intelligente Anführungszeichen</translation>
 <translation id="5269977353971873915">Fehler beim Drucken</translation>
@@ -310,7 +302,6 @@
 <translation id="5780973441651030252">Prozesspriorität</translation>
 <translation id="5804241973901381774">Berechtigungen</translation>
 <translation id="5828633471261496623">Wird gedruckt…</translation>
-<translation id="5851868085455377790">Aussteller</translation>
 <translation id="5860491529813859533">Aktivieren</translation>
 <translation id="5910363049092958439">Bi&amp;ld speichern unter...</translation>
 <translation id="5914724413750400082">Modulo (<ph name="MODULUS_NUM_BITS" /> Bits):
@@ -459,12 +450,11 @@ Speichern Sie Ihre Schlüsseldatei an einem sicheren Ort. Sie benötigen die Dat
 <translation id="862750493060684461">CSS-Cache</translation>
 <translation id="8661290697478713397">Link in Inko&amp;gnito-Fenster öffnen</translation>
 <translation id="8664389313780386848">&amp;Seitenquelltext anzeigen</translation>
-<translation id="8705331520020532516">Seriennummer</translation>
 <translation id="8708000541097332489">Beim Beenden löschen</translation>
 <translation id="8714838604780058252">Hintergrundgrafiken</translation>
 <translation id="8725066075913043281">Erneut versuchen</translation>
 <translation id="8770406935328356739">Stammverzeichnis der Erweiterung</translation>
-<translation id="8773535891252326047">Link zur Hervorhebung wurde kopiert</translation>
+<translation id="8773535891252326047">Link zur Markierung kopiert</translation>
 <translation id="8774934320277480003">Oberer Rand</translation>
 <translation id="8798099450830957504">Standardeinstellung</translation>
 <translation id="8808478386290700967">Web Store</translation>

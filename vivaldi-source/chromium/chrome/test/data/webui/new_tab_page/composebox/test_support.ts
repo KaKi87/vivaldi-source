@@ -2,12 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {ComposeboxElement, ComposeboxProxyImpl, NtpComposeboxElement} from 'chrome://new-tab-page/lazy_load.js';
+import {ComposeboxProxyImpl, NtpComposeboxElement} from 'chrome://new-tab-page/lazy_load.js';
+import type {ComposeboxElement} from 'chrome://new-tab-page/lazy_load.js';
 import {$$} from 'chrome://new-tab-page/new_tab_page.js';
 import type {ComposeboxFile} from 'chrome://resources/cr_components/composebox/common.js';
 
 export type ComposeboxUnionElement = ComposeboxElement|NtpComposeboxElement;
-import {PageCallbackRouter, PageHandlerRemote} from 'chrome://resources/cr_components/composebox/composebox.mojom-webui.js';
+import {PageHandlerRemote} from 'chrome://resources/cr_components/composebox/composebox.mojom-webui.js';
 import {ContextUploadStatus, InputType} from 'chrome://resources/cr_components/composebox/composebox_query.mojom-webui.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {PageCallbackRouter as SearchboxPageCallbackRouter, PageHandlerRemote as SearchboxPageHandlerRemote} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
@@ -75,13 +76,25 @@ setupComposeboxTest<T extends ComposeboxUnionElement = ComposeboxElement>():
   const testProxy = {} as ComposeboxTestElement<T>;
 
   setup(() => {
+    class MockSpeechRecognition {
+      onend: (() => void)|null = null;
+      start() {}
+      stop() {}
+      abort() {
+        if (this.onend) {
+          this.onend();
+        }
+      }
+    }
+    Object.assign(window, {webkitSpeechRecognition: MockSpeechRecognition});
+
     loadTimeData.overrideValues({
-      'useNtpComposeboxFork': false,
       'composeboxImageFileTypes':
           'image/avif,image/bmp,image/jpeg,image/png,image/webp,image/heif,image/heic',
       'composeboxAttachmentFileTypes': '.pdf,application/pdf',
       'contextualMenuUsePecApi': false,
       'composeboxSmartTabSharingVisible': false,
+      'contextManagementInComposeboxEnabled': false,
       'searchboxComposePlaceholder': 'Placeholder',
       'lensSendRawFileMediaTypesEnabled': false,
     });
@@ -90,12 +103,14 @@ setupComposeboxTest<T extends ComposeboxUnionElement = ComposeboxElement>():
     const handler = installMock(
         PageHandlerRemote,
         mock => ComposeboxProxyImpl.setInstance(new ComposeboxProxyImpl(
-            mock, new PageCallbackRouter(), new SearchboxPageHandlerRemote(),
+            mock, new SearchboxPageHandlerRemote(),
             new SearchboxPageCallbackRouter())));
     const searchboxHandler = installMock(
         SearchboxPageHandlerRemote,
         mock => ComposeboxProxyImpl.getInstance().searchboxHandler = mock);
     searchboxHandler.setPromiseResolveFor('getRecentTabs', {tabs: []});
+    searchboxHandler.setPromiseResolveFor(
+        'getSmartTabSharingActive', {active: false});
     searchboxHandler.setPromiseResolveFor('getInputState', {
       state: new MockInputState({
         toolConfigs: [],
@@ -123,13 +138,13 @@ setupComposeboxTest<T extends ComposeboxUnionElement = ComposeboxElement>():
 export function
 createComposeboxElement<T extends ComposeboxUnionElement = ComposeboxElement>(
     testProxy: ComposeboxTestElement<T>, properties: Partial<T> = {}) {
-  const useForked = loadTimeData.getBoolean('useNtpComposeboxFork');
-  testProxy.element = (useForked ? new NtpComposeboxElement() :
-                                   new ComposeboxElement()) as unknown as T;
+  testProxy.element = new NtpComposeboxElement() as unknown as T;
   Object.assign(testProxy.element, {
     usePecApi: loadTimeData.getBoolean('contextualMenuUsePecApi'),
     smartTabSharingVisible:
         loadTimeData.getBoolean('composeboxSmartTabSharingVisible'),
+    contextManagementInComposeboxEnabled:
+        loadTimeData.getBoolean('contextManagementInComposeboxEnabled'),
     ...properties,
   });
   document.body.appendChild(testProxy.element);

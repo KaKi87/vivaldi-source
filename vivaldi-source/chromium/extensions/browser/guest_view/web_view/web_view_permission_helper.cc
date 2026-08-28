@@ -35,7 +35,7 @@
 #include "chrome/common/extensions/extension_constants.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings_pattern.h"
-#include "extensions/api/tabs/tabs_private_api.h"
+#include "extensions/api/tabs_private/tabs_private_api.h"
 #include "extensions/browser/guest_view/mime_handler_view/mime_handler_view_guest.h"
 #include "extensions/helper/vivaldi_app_helper.h"
 #include "extensions/vivaldi_browser_component_wrapper.h"
@@ -505,6 +505,15 @@ void WebViewPermissionHelper::RequestPointerLockPermission(
     base::OnceCallback<void(bool)> callback) {
   web_view_permission_helper_delegate_->RequestPointerLockPermission(
       user_gesture, last_unlocked_by_target, std::move(callback));
+}
+
+void WebViewPermissionHelper::RequestMediaPermission(
+    ContentSettingsType type,
+    const GURL& requesting_frame_origin,
+    bool user_gesture,
+    base::OnceCallback<void(bool)> callback) {
+  web_view_permission_helper_delegate_->RequestMediaPermission(
+      type, requesting_frame_origin, user_gesture, std::move(callback));
 }
 
 void WebViewPermissionHelper::RequestGeolocationPermission(

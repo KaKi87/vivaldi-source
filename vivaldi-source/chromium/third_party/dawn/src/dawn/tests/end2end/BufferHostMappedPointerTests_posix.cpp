@@ -62,10 +62,10 @@ class MMapBackend : public BufferHostMappedPointerTestBackend {
         // Write the initial data.
         std::vector<char> initialData(size);
         Populate(initialData.data());
-        EXPECT_EQ(write(fd, initialData.data(), size), (signed)size);
+        EXPECT_EQ(write(fd, initialData.data(), size), static_cast<ssize_t>(size));
 
         // Memory map the file.
-        void* ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+        void* ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
 
         auto UnmapMemory = [=]() {
             munmap(ptr, size);

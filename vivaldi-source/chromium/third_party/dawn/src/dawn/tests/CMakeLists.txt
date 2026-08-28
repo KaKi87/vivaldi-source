@@ -43,6 +43,9 @@ add_library(dawn_test_infra OBJECT
 )
 common_compile_options(dawn_test_infra)
 target_link_libraries(dawn_test_infra PRIVATE
+    dawn_crash_handler
+    absl::stacktrace
+    absl::symbolize
     dawn_native
     dawn_wgpu_utils
     dawncpp
@@ -368,6 +371,7 @@ if (DAWN_ENABLE_OPENGLES)
     list(APPEND whitebox_conditional_private_platform_depends dawn_khronos_platform)
     list(APPEND whitebox_sources
         "white_box/EGLImageWrappingTests.cpp"
+        "white_box/GLFramebufferCompletenessTests.cpp"
         "white_box/GLTextureWrappingTests.cpp"
     )
 endif()

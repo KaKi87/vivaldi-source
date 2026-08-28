@@ -15,16 +15,15 @@
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 import {snippets} from "./isolated-full.js";
 
 import {hideIfMatchesXPath3Dependency} from
 "../source/conditional-hiding/hide-if-matches-xpath3-dependency.js";
 
-// {"snippet-name": {...}} dependencies to optionally injext before snippets
-// get executed, particularly useful for machine learning or snippets with
-// huge external dependencies that should not be evaluated each time.
-// The value should be an object with fields wable as serializable functions.
+// {"snippet-name": {...}} dependencies to optionally inject before snippets
+// get executed, particularly useful for snippets with huge external
+// dependencies that should not be evaluated each time.
+// The value should be an object with fields as serializable functions.
 // https://developer.chrome.com/docs/extensions/reference/scripting/#injected-code
 const dependencies = {
   "hide-if-matches-xpath3": hideIfMatchesXPath3Dependency

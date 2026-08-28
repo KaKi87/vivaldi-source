@@ -209,6 +209,7 @@ SET(MICROKERNEL_GEMM_UNIT_TESTS
     pf16-f16-igemm-minmax
     pf32-gemm-minmax
     pqs8-qc8w-gemm-minmax
+    qd8-bf16-qb4w-gemm-minmax
     qd8-f16-qb4w-gemm-minmax
     qd8-f16-qc4w-gemm-minmax
     qd8-f16-qc8w-gemm-minmax
@@ -342,6 +343,7 @@ ENDFOREACH()
 SET(MICROKERNEL_VCVT_TESTS
     bf16-f32-vcvt
     bf16-qs8-vcvt
+    bf16-qu8-vcvt
     f16-f32-vcvt
     f16-qs8-vcvt
     f16-qu8-vcvt
@@ -388,6 +390,7 @@ SET(MICROKERNEL_VUNARY_TESTS
     f16-vexp
     f16-vgelu
     f16-vhswish
+    f16-vlog
     f16-vlrelu
     f16-vneg
     f16-vrndd

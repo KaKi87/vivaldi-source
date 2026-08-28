@@ -43,8 +43,8 @@ class AccountSelectionViewBase;
 //  * tabs::TabInterface, which represents the tab in which the UI is shown.
 // If either goes away, then this class should be destroyed. This class is owned
 // as a unique_ptr by IdentityDialogController which ensures that the lifetime
-// is scoped to that of RequestService. However, the lifetime must be
-// manually scoped to the tabs::TabInterface. This is done by:
+// is scoped to that of content::webid::Request. However, the lifetime
+// must be manually scoped to the tabs::TabInterface. This is done by:
 //  * Registering callbacks on tabs::TabInterface for relevant changes.
 //  * If the tab goes away, Close() is called.
 //  * All methods to show UI early exit if the tab no longer exists.
@@ -364,20 +364,6 @@ class FedCmAccountSelectionView : public AccountSelectionView,
     // are being fetched.
     LOADING,
   };
-
-  // This enum describes the outcome of the mismatch dialog and is used for
-  // histograms. Do not remove or modify existing values, but you may add new
-  // values at the end.
-  // LINT.IfChange(MismatchDialogResult)
-
-  enum class MismatchDialogResult {
-    kContinued = 0,
-    kDismissedByCloseIcon = 1,
-    kDismissedForOtherReasons = 2,
-    kMaxValue = kDismissedForOtherReasons
-  };
-
-  // LINT.ThenChange(//tools/metrics/histograms/metadata/blink/enums.xml:FedCmMismatchDialogResult)
 
   // This enum describes the outcome of the pop-up window and is used for
   // histograms. Do not remove or modify existing values, but you may add new

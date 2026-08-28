@@ -8,6 +8,7 @@
 #include <variant>
 
 #include "base/check.h"
+#include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/browser_process.h"
@@ -35,6 +36,7 @@
 #include "services/metrics/public/cpp/metrics_utils.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "services/metrics/public/cpp/ukm_recorder.h"
+#include "services/network/public/cpp/constants.h"
 #include "url/gurl.h"
 
 namespace glic {
@@ -65,14 +67,12 @@ void LogNudgeInteractionUKM(ukm::SourceId source_id,
       .Record(ukm_recorder->Get());
 }
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 bool IsGlicTabContextEnabled(PrefService* pref_service) {
   if (base::FeatureList::IsEnabled(features::kGlicDefaultTabContextSetting)) {
     return true;
   }
   return pref_service->GetBoolean(glic::prefs::kGlicTabContextEnabled);
 }
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 void OnSuggestionsReceived(bool is_fre,
                            base::TimeTicks fetch_begin_time,
@@ -339,7 +339,10 @@ void ContextualCueingService::PrepareToFetchContextualGlicZeroStateSuggestions(
     return;
   }
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  if (!optimization_guide_keyed_service_) {
+    return;
+  }
+
   if (!IsPageTypeEligibleForContextualSuggestions(
           web_contents->GetLastCommittedURL())) {
     return;
@@ -348,7 +351,6 @@ void ContextualCueingService::PrepareToFetchContextualGlicZeroStateSuggestions(
   if (!IsGlicTabContextEnabled(pref_service_)) {
     return;
   }
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   // This call preflights grabbing the page content.
   ZeroStateSuggestionsPageData::CreateForPage(web_contents->GetPrimaryPage());
@@ -358,13 +360,14 @@ void ContextualCueingService::PrepareToFetchContextualGlicZeroStateSuggestions(
         net::NetworkAnonymizationKey::CreateSameSite(
             net::SchemefulSite(mes_url_));
     loading_predictor_->PreconnectURLIfAllowed(
-        mes_url_, /*allow_credentials=*/true, anonymization_key);
+        mes_url_, /*allow_credentials=*/true, anonymization_key,
+        network::GetNoOpNetworkRestrictionsId());
   }
 }
 
 std::unique_ptr<ZeroStateSuggestionsRequest>
 ContextualCueingService::MakeZeroStateSuggestionsRequest(
-    const std::vector<content::WebContents*>& web_contents_list,
+    const std::vector<raw_ptr<content::WebContents>>& web_contents_list,
     bool is_fre,
     std::optional<std::vector<std::string>> supported_tools,
     const content::WebContents* focused_tab) {
@@ -402,6 +405,11 @@ void ContextualCueingService::
     return;
   }
 
+  if (!optimization_guide_keyed_service_) {
+    std::move(callback).Run({});
+    return;
+  }
+
   bool page_type_eligible = IsPageTypeEligibleForContextualSuggestions(
       web_contents->GetLastCommittedURL());
   base::UmaHistogramBoolean(
@@ -412,12 +420,10 @@ void ContextualCueingService::
     return;
   }
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (!IsGlicTabContextEnabled(pref_service_)) {
     std::move(callback).Run({});
     return;
   }
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   // Add callback to new request or existing one if already have one for
   // the page associated with `web_contents`.
@@ -435,7 +441,7 @@ void ContextualCueingService::
                                               std::move(callback)));
 }
 
-std::optional<std::vector<content::WebContents*>>
+std::optional<std::vector<raw_ptr<content::WebContents>>>
 ContextualCueingService::GetOutstandingPinnedTabsContents() {
   if (!pinned_tabs_zero_state_suggestions_request_) {
     return std::nullopt;
@@ -445,7 +451,7 @@ ContextualCueingService::GetOutstandingPinnedTabsContents() {
 
 bool ContextualCueingService::
     GetContextualGlicZeroStateSuggestionsForPinnedTabs(
-        std::vector<content::WebContents*> pinned_web_contents,
+        std::vector<raw_ptr<content::WebContents>> pinned_web_contents,
         bool is_fre,
         std::optional<std::vector<std::string>> supported_tools,
         const content::WebContents* focused_tab,
@@ -456,8 +462,13 @@ bool ContextualCueingService::
     return false;
   }
 
+  if (!optimization_guide_keyed_service_) {
+    std::move(callback).Run({});
+    return false;
+  }
+
   // Remove all ineligible pages from list.
-  std::erase_if(pinned_web_contents, [&](const auto* web_contents) {
+  std::erase_if(pinned_web_contents, [&](content::WebContents* web_contents) {
     return !IsPageTypeEligibleForContextualSuggestions(
         web_contents->GetLastCommittedURL());
   });
@@ -469,7 +480,6 @@ bool ContextualCueingService::
     return false;
   }
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   // Initiate request for suggestions for pinned tabs.
   pinned_tabs_zero_state_suggestions_request_ = MakeZeroStateSuggestionsRequest(
       pinned_web_contents, is_fre, supported_tools, focused_tab);
@@ -478,7 +488,6 @@ bool ContextualCueingService::
       weak_ptr_factory_.GetWeakPtr(), is_fre, base::TimeTicks::Now(),
       pinned_tabs_zero_state_suggestions_request_->AsWeakPtr(),
       std::move(callback)));
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   return true;
 }
 
@@ -488,10 +497,8 @@ void ContextualCueingService::OnPinnedTabsSuggestionsReceived(
     base::WeakPtr<ZeroStateSuggestionsRequest> pinned_tabs_request,
     GlicSuggestionsCallback callback,
     std::vector<std::string> suggestions) {
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   OnSuggestionsReceived(is_fre, fetch_begin_time, std::move(callback),
                         std::move(suggestions));
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   // Only destroy the outstanding pinned tabs request if it is the same.
   if (pinned_tabs_request &&

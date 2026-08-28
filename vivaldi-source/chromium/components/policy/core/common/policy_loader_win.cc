@@ -39,7 +39,6 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/threading/scoped_thread_priority.h"
 #include "base/values.h"
-#include "base/win/shlwapi.h"  // For PathIsUNC()
 #include "base/win/win_util.h"
 #include "base/win/windows_version.h"
 #include "components/policy/core/common/async_policy_loader.h"
@@ -173,6 +172,10 @@ void CollectEnterpriseUMAs() {
 
   base::UmaHistogramBoolean("EnterpriseCheck.IsManagedOrEnterpriseDevice",
                             base::IsManagedOrEnterpriseDevice());
+  const bool is_enterprise_device2 =
+      base::win::IsEnrolledToDomain() || base::win::IsDeviceJoinedToAzureAD();
+  base::UmaHistogramBoolean("EnterpriseCheck.IsManagedOrEnterpriseDevice2",
+                            base::IsManagedDevice() || is_enterprise_device2);
   base::UmaHistogramBoolean("EnterpriseCheck.IsDomainJoined", IsDomainJoined());
   base::UmaHistogramBoolean("EnterpriseCheck.InDomain",
                             base::win::IsEnrolledToDomain());
@@ -180,8 +183,12 @@ void CollectEnterpriseUMAs() {
                             base::win::IsDeviceRegisteredWithManagement());
   base::UmaHistogramBoolean("EnterpriseCheck.IsEnterpriseUser",
                             base::IsEnterpriseDevice());
+  base::UmaHistogramBoolean("EnterpriseCheck.IsEnterpriseUser2",
+                            is_enterprise_device2);
   base::UmaHistogramBoolean("EnterpriseCheck.IsJoinedToAzureAD",
                             base::win::IsJoinedToAzureAD());
+  base::UmaHistogramBoolean("EnterpriseCheck.IsJoinedToAzureAD2",
+                            base::win::IsDeviceJoinedToAzureAD());
 
   {
     WindowsProfileType profile_type = kApiFailure;

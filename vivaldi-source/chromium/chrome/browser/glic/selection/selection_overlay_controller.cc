@@ -6,13 +6,16 @@
 
 #include "base/strings/to_string.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
+#include "chrome/browser/glic/host/context/glic_tab_data.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/glic/public/context/glic_sharing_manager.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
 #include "chrome/browser/page_content_annotations/multi_source_page_context_fetcher.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/webui/webui_embedding_context.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/webui_url_constants.h"
@@ -118,20 +121,32 @@ SelectionOverlayController::SelectionOverlayController(
     PrefService* pref_service)
     : OverlayBaseController(tab, pref_service),
       scoped_unowned_user_data_(tab->GetUnownedUserDataHost(), *this) {
-  tab_subscriptions_.push_back(tab_->RegisterDidActivate(
-      base::BindRepeating(&SelectionOverlayController::TabForegrounded,
-                          weak_factory_.GetWeakPtr())));
-  tab_subscriptions_.push_back(tab_->RegisterWillDeactivate(
-      base::BindRepeating(&SelectionOverlayController::TabDeactivated,
-                          weak_factory_.GetWeakPtr())));
   tab_subscriptions_.push_back(tab_->RegisterWillDiscardContents(
       base::BindRepeating(&SelectionOverlayController::WillDiscardContents,
                           weak_factory_.GetWeakPtr())));
   tab_subscriptions_.push_back(tab_->RegisterWillDetach(base::BindRepeating(
       &SelectionOverlayController::WillDetach, weak_factory_.GetWeakPtr())));
+  GlicKeyedService* service = GlicKeyedService::Get(tab_->GetProfile());
+  CHECK(service);
+  tab_subscriptions_.push_back(
+      service->active_instance_sharing_manager().AddFocusedTabChangedCallback(
+          base::BindRepeating(&SelectionOverlayController::OnFocusedTabChanged,
+                              weak_factory_.GetWeakPtr())));
+  BrowserWindowInterface* window = tab_->GetBrowserWindowInterface();
+  CHECK(window);
+  TabStripModel* tab_strip_model = window->GetTabStripModel();
+  CHECK(tab_strip_model);
+  tab_strip_model->AddObserver(this);
 }
 
-SelectionOverlayController::~SelectionOverlayController() = default;
+SelectionOverlayController::~SelectionOverlayController() {
+  if (tab_ && tab_->GetBrowserWindowInterface()) {
+    if (auto* tab_strip_model =
+            tab_->GetBrowserWindowInterface()->GetTabStripModel()) {
+      tab_strip_model->RemoveObserver(this);
+    }
+  }
+}
 
 void SelectionOverlayController::WillDiscardContents(
     tabs::TabInterface* tab,
@@ -150,6 +165,7 @@ void SelectionOverlayController::TabDeactivated(tabs::TabInterface* tab) {
   if (state() == State::kBackground) {
     return;
   }
+  ClosePreselectionBubbleImpl();
   TabWillEnterBackground(tab);
 }
 
@@ -211,9 +227,9 @@ void SelectionOverlayController::BindCaptureRegionObserver(
 // static
 void SelectionOverlayController::CaptureRegion(
     tabs::TabInterface* tab,
-    GlicSharingManager& sharing_manager,
+    GlicSharingManagerInternal& sharing_manager,
     mojo::PendingRemote<mojom::CaptureRegionObserver> observer,
-    mojom::GetTabContextOptionsPtr options) {
+    mojom::TabContextOptionsPtr options) {
   content::WebContents* web_contents = tab ? tab->GetContents() : nullptr;
   if (!web_contents) {
     mojo::Remote<mojom::CaptureRegionObserver> remote(std::move(observer));
@@ -269,13 +285,39 @@ void SelectionOverlayController::CaptureRegion(
   selection_overlay_controller->Show(std::move(options));
 }
 
-void SelectionOverlayController::Show(mojom::GetTabContextOptionsPtr options) {
+void SelectionOverlayController::Show(mojom::TabContextOptionsPtr options) {
   options_ = std::move(options);
   ShowModalUI();
 }
 
 void SelectionOverlayController::Close() {
   CloseUI();
+}
+
+void SelectionOverlayController::OnFocusedTabChanged(
+    const FocusedTabData& tab_data) {
+  if (tab_->IsVisible()) {
+    TabForegrounded(tab_);
+  } else if (!tab_->IsActivated()) {
+    TabDeactivated(tab_);
+  }
+}
+
+void SelectionOverlayController::OnSplitTabChanged(
+    const SplitTabChange& change) {
+  if (!tab_->IsSplit()) {
+    return;
+  }
+  if (tab_->GetSplit() != change.split_id) {
+    return;
+  }
+  // Not all split view changes require re-parenting. Only reparent the overlay
+  // view if the overlay view's parent is different from the container view that
+  // the current WebContents is inside.
+  if (overlay_view_ && overlay_view_->parent() != GetHostView()) {
+    TabDeactivated(tab_);
+    TabForegrounded(tab_);
+  }
 }
 
 void SelectionOverlayController::CloseUI() {
@@ -324,9 +366,9 @@ bool SelectionOverlayController::HandleKeyboardEvent(
 }
 
 void SelectionOverlayController::StartScreenshotFlow() {
-  auto fallback_options = mojom::GetTabContextOptions::New();
-  fallback_options->include_viewport_screenshot = true;
-  fallback_options->include_annotated_page_content = true;
+  auto fallback_options = mojom::TabContextOptions::New();
+  fallback_options->viewport_screenshot = true;
+  fallback_options->annotated_page_content = true;
 
   const auto& options = options_ ? *options_ : *fallback_options;
 
@@ -404,7 +446,7 @@ bool SelectionOverlayController::ShouldCloseSidePanel() {
 }
 
 bool SelectionOverlayController::ShouldShowPreselectionBubble() {
-  return true;
+  return IsOverlayActive() && selected_regions_.empty();
 }
 
 bool SelectionOverlayController::UseOverlayBlur() {
@@ -438,6 +480,26 @@ bool SelectionOverlayController::IsOverlayViewShared() const {
   // which cannot be shared across multiple tabs. It also means glic's selection
   // overlay respects the split view.
   return false;
+}
+
+void SelectionOverlayController::ShowPreselectionBubble() {
+  if (!ShouldShowPreselectionBubble()) {
+    return;
+  }
+  OverlayBaseController::ShowPreselectionBubble();
+}
+
+void SelectionOverlayController::TabForegrounded(tabs::TabInterface* tab) {
+  OverlayBaseController::TabForegrounded(tab);
+  // Layout can be happening as a result of
+  // `OverlayBaseController::TabForegrounded()`, which means
+  // `preselection_widget_anchor_` (from the base class) might not return the
+  // correct coord in the screen. Post a task to let the layout finish then
+  // reshow the bubble.
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE,
+      base::BindOnce(&SelectionOverlayController::ShowPreselectionBubble,
+                     weak_factory_.GetWeakPtr()));
 }
 
 void SelectionOverlayController::DismissOverlay(
@@ -566,7 +628,11 @@ void SelectionOverlayController::RenderRegions(bool should_focus_panel) {
     instance->SendAdditionalContext(std::move(additional_context));
     // If the event that triggered this was initiated via keyboard, do not
     // focus the panel to avoid stealing focus away from the selection pane.
-    if (should_focus_panel) {
+    // Also, if line selection is enabled, keep focus
+    // on the selection pane to allow subsequent keyboard interactions.
+    bool line_selection_enabled =
+        base::FeatureList::IsEnabled(features::kGlicRegionSelectionLine);
+    if (should_focus_panel && !line_selection_enabled) {
       instance->FocusIfActive();
     }
   }
@@ -578,7 +644,7 @@ SelectionOverlayController::CreateAdditionalContext(
                           glic::mojom::CapturedRegionPtr>> regions) {
   auto context = glic::mojom::AdditionalContext::New();
   std::vector<glic::mojom::AdditionalContextPartPtr> parts;
-  mojom::TabContextPtr tab_context = tab_context_.Clone();
+  mojom::TabContextResultPtr tab_context = tab_context_.Clone();
   parts.push_back(glic::mojom::AdditionalContextPart::NewTabContext(
       std::move(tab_context)));
   for (auto& region : regions) {

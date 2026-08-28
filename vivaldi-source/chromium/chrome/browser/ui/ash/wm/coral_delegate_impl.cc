@@ -171,11 +171,14 @@ ash::BrowserDelegate* FindTabOnDeskAtIndex(const GURL& url,
           return ash::BrowserController::kContinueIteration;
         }
 
-        for (size_t idx = 0; idx < browser.GetWebContentsCount(); idx++) {
-          if (browser.GetWebContentsAt(idx)->GetVisibleURL() == url) {
+        int idx = 0;
+        for (tabs::TabInterface* tab : *browser.GetBrowser().GetTabStripModel()) {
+          if (tab->GetContents()->GetVisibleURL() == url) {
             out_tab_index = idx;
             found_browser = &browser;
+            break;
           }
+          idx++;
         }
         return found_browser ? ash::BrowserController::kBreakIteration
                              : ash::BrowserController::kContinueIteration;
@@ -307,9 +310,9 @@ void CoralDelegateImpl::CheckGenAIAgeAvailability(
   }
   const AccountInfo extended_account_info =
       identity_manager->FindExtendedAccountInfoByAccountId(account_id);
-  std::move(callback).Run(
-      extended_account_info.capabilities.can_use_chromeos_generative_ai() ==
-      signin::Tribool::kTrue);
+  std::move(callback).Run(extended_account_info.GetAccountCapabilities()
+                              .can_use_chromeos_generative_ai() ==
+                          signin::Tribool::kTrue);
   return;
 }
 

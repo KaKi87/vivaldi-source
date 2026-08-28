@@ -8,7 +8,7 @@
     "namespace": "historyPrivate",
     "description": "Use the <code>vivaldi.historyPrivate</code> API to interact with the browser's record of visited pages. You can query for URLs and visits in the browser's history. To override the history page with your own version, see <a href='override'>Override Pages</a>.",
     "compiler_options": {
-      "implemented_in": "extensions/api/history/history_private_api.h"
+      "implemented_in": "extensions/api/history_private/history_private_api.h"
     },
     "types": [
       {

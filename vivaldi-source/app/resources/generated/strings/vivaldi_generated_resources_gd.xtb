@@ -38,7 +38,6 @@
 <translation id="1601560923496285236">Cuir an gnìomh</translation>
 <translation id="1603914832182249871">(Incognito)</translation>
 <translation id="1627276047960621195">Tuairisgeulaichean an fhaidhle</translation>
-<translation id="1654713139320245449">Cha deach ceann-uidhe castaidh a lorg. A bheil cobhair a dhìth ort?</translation>
 <translation id="166278006618318542">Fiosrachadh air iuchair phoblach na h-algairim</translation>
 <translation id="1682548588986054654">Uinneag incognito ùr</translation>
 <translation id="1708338024780164500">(Neo-ghnìomhach)</translation>
@@ -59,7 +58,6 @@
 <translation id="1906488504371069394">Faigh lorg air barrachd leudachan is ùrlar sa <ph name="BEGIN_LINK" />Chrome Web Store<ph name="END_LINK" /></translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">Cuir a-steach seòladh-lìn gnàthaichte</translation>
-<translation id="1932098463447129402">Chan ann ron</translation>
 <translation id="1936931585862840749">Cuir àireamh ann airson uiread sin a lethbhreacan a chlò-bhualadh (eadar 1 is <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">F&amp;osgail an fhuaim ann an taba ùr</translation>
 <translation id="2050339315714019657">Portraid</translation>
@@ -96,7 +94,6 @@
 <translation id="253557089021624350">Cunntas Keepalive</translation>
 <translation id="2550212893339833758">Cuimhne suaipte</translation>
 <translation id="2553440850688409052">Falaich am plugan seo</translation>
-<translation id="2607101320794533334">Fiosrachadh air iuchair phoblach a’ chuspair</translation>
 <translation id="26224892172169984">Na leig le làrach sam bith pròtacalan a làimhseachadh</translation>
 <translation id="2653275834716714682">Cur an àite teacsa</translation>
 <translation id="265390580714150011">Luach an raoin</translation>
@@ -105,7 +102,6 @@
 <translation id="2719936478972253983">Chaidh na briosgaidean a leanas a bhacadh</translation>
 <translation id="2721037002783622288">&amp;Lorg an dealbh le <ph name="SEARCH_ENGINE" /></translation>
 <translation id="2722547199758472013">ID: <ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">Chan ann an dèidh</translation>
 <translation id="2749881179542288782">Dearbh an gràmar còmhla ris an litreachadh</translation>
 <translation id="2785873697295365461">Tuairisgeulaichean an fhaidhle</translation>
 <translation id="2825758591930162672">Iuchair phoblach a’ chuspair</translation>
@@ -152,7 +148,6 @@
 <translation id="3387614642886316601">Cleachd an dearbhadh-litreachaidh leasaichte</translation>
 <translation id="3390013585654699824">Mion-fhiosrachadh mun aplacaid</translation>
 <translation id="345693547134384690">F&amp;osgail an dealbh ann an taba ùr</translation>
-<translation id="3493881266323043047">Dligheachas</translation>
 <translation id="3511307672085573050">Dèan l&amp;ethbhreac de sheòladh a’ cheangail</translation>
 <translation id="354068948465830244">Tha cead aige dàta na làraich a leughadh is atharrachadh</translation>
 <translation id="3560034655160545939">&amp;Dearbhadh-litreachaidh</translation>
@@ -166,7 +161,6 @@
 <translation id="3760460896538743390">Sgrùd duilleag a’ chùlai&amp;bh</translation>
 <translation id="3786224729726357296">Sguab às dàta agus ceadan na làraich airson <ph name="SITE" /></translation>
 <translation id="3797900183766075808">&amp;Lorg “<ph name="SEARCH_TERMS" />” le <ph name="SEARCH_ENGINE" /></translation>
-<translation id="3798449238516105146">Tionndadh</translation>
 <translation id="3810973564298564668">Stiùirich</translation>
 <translation id="3838085852053358637">Dh’fhàillig luchdadh an leudachain</translation>
 <translation id="383891835335927981">Cha deach sùmadh a-steach no a-mach air làrach sam bith</translation>
@@ -247,7 +241,6 @@
 <translation id="5063480226653192405">Cleachdadh</translation>
 <translation id="5116628073786783676">Sà&amp;bhail an fhuaim mar…</translation>
 <translation id="5154108062446123722">Roghainnean adhartach airson <ph name="PRINTING_DESTINATION" /></translation>
-<translation id="5154702632169343078">Cuspair</translation>
 <translation id="5171343362375269016">Cuimhne suaipte</translation>
 <translation id="5233231016133573565">ID a’ phròiseis</translation>
 <translation id="5233736638227740678">Cuir a&amp;nn</translation>
@@ -288,7 +281,6 @@
 <translation id="5780973441651030252">Prìomhachas a’ phròiseis</translation>
 <translation id="5804241973901381774">Ceadan</translation>
 <translation id="5828633471261496623">’Ga chlò-bhualadh...</translation>
-<translation id="5851868085455377790">Foillsichear</translation>
 <translation id="5860491529813859533">Cuir air</translation>
 <translation id="5910363049092958439">Sàbhail an d&amp;ealbh mar…</translation>
 <translation id="5914724413750400082">Modulus (<ph name="MODULUS_NUM_BITS" /> biod):
@@ -431,7 +423,6 @@ Cum am faidhle iuchrach agad ann an àite sàbhailte. Bi agad ri tionndadh ùr a
 <translation id="862750493060684461">Tasgadan CSS</translation>
 <translation id="8661290697478713397">Fosgail an ceangal ann an uinneag inco&amp;gnito</translation>
 <translation id="8664389313780386848">Seall còd &amp;tùsail na duilleige</translation>
-<translation id="8705331520020532516">An àireamh shreathach</translation>
 <translation id="8708000541097332489">Falamhaich aig àm fàgail</translation>
 <translation id="8714838604780058252">Grafaigean cùlaibh</translation>
 <translation id="8725066075913043281">Feuch ris a-rithist</translation>

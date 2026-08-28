@@ -308,6 +308,7 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
     }
 
     private void updateBrowserControlsHeight(boolean animate) {
+        if (BuildConfig.IS_VIVALDI) return; // Controls height is set in |VivaldiTopToolbarCoordinator|.
         if (animate) {
             mBrowserControlsSizer.setAnimateBrowserControlsHeightChanges(true);
         }
@@ -656,6 +657,7 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
 
     /** Recalculate the browser controls height based on layer sizes. */
     private void recalculateLayerSizes() {
+        mLayerHasMinHeight.clear();
         int height = 0;
         int minHeight = 0;
         boolean hasNeverScrollOffLayer = false;
@@ -726,6 +728,7 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
     }
 
     private void recalculateLayerRestingOffsets() {
+        mLayerRestingOffsets.clear();
         int cumulativeHeight = 0;
         for (int i = STACK_ORDER.length - 1; i >= 0; i--) {
             int type = STACK_ORDER[i];
@@ -836,12 +839,10 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
     private static void dumpStatsForLayerForTesting(BottomControlsLayer layer, int layerYOffset) {
         Log.d(
                 TAG,
-                "Layer: "
-                        + layer.getType()
-                        + " Height "
-                        + layer.getHeight()
-                        + " YOffset "
-                        + layerYOffset);
+                "Layer: %d Height: %d YOffset: %d",
+                layer.getType(),
+                layer.getHeight(),
+                layerYOffset);
     }
 
     @Override

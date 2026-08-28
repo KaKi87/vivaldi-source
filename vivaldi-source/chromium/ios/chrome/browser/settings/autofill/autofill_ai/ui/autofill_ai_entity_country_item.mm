@@ -30,9 +30,8 @@ constexpr NSInteger kTrailingSymbolImagePointSize = 18;
   return self;
 }
 
-- (void)configureCell:(LegacyTableViewCell*)cell
-           withStyler:(ChromeTableViewStyler*)styler {
-  [super configureCell:cell withStyler:styler];
+- (void)configureCell:(LegacyTableViewCell*)cell {
+  [super configureCell:cell];
 
   TableViewCellContentConfiguration* contentConfig =
       base::apple::ObjCCast<TableViewCellContentConfiguration>(
@@ -62,9 +61,9 @@ constexpr NSInteger kTrailingSymbolImagePointSize = 18;
   NSMutableAttributedString* attributedText =
       [[NSMutableAttributedString alloc] initWithString:text];
 
-  UIImage* image = [DefaultSymbolWithPointSize(kErrorCircleFillSymbol,
-                                               kTrailingSymbolImagePointSize)
-      imageWithTintColor:[UIColor colorNamed:kRedColor]];
+  UIImage* image =
+      [SymbolWithPointSize(SymbolErrorCircleFill, kTrailingSymbolImagePointSize)
+          imageWithTintColor:[UIColor colorNamed:kRedColor]];
 
   UIFont* font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
   CGFloat yOffset = (font.capHeight - image.size.height) / 2.0;

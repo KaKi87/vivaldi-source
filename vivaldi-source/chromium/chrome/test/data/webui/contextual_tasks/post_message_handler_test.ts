@@ -7,10 +7,10 @@ import {PostMessageHandler} from 'chrome://contextual-tasks/post_message_handler
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {assertDeepEquals, assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {MockTimer} from 'chrome://webui-test/mock_timer.js';
-import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
+import {microtasksFinished} from 'chrome://webui-test/test_util.js';
 
 import {TestContextualTasksBrowserProxy} from './test_contextual_tasks_browser_proxy.js';
-import {HANDSHAKE_REQUEST_MESSAGE_BASE64, HANDSHAKE_RESPONSE_BYTES} from './test_utils.js';
+import {HANDSHAKE_REQUEST_MESSAGE_BASE64, HANDSHAKE_RESPONSE_BYTES} from './contextual_tasks_test_utils.js';
 
 const HANDSHAKE_INTERVAL_MS = 10;
 const TARGET_ORIGIN = 'https://local.test';
@@ -98,7 +98,7 @@ suite('PostMessageHandlerTest', () => {
     simulateLoadCommit();
 
     simulateMessage(new ArrayBuffer(8), 'https://wrong.origin');
-    await flushTasks();
+    await microtasksFinished();
 
     assertEquals(
         0, browserProxy.handler.getCallCount('onWebviewMessage'),
@@ -112,11 +112,16 @@ suite('PostMessageHandlerTest', () => {
     let callbackCalled = false;
     let receivedRect: any = null;
     let receivedOccluders: any = null;
-    postMessageHandler.setInputPlateBoundsUpdateCallback((rect, occluders) => {
-      callbackCalled = true;
-      receivedRect = rect;
-      receivedOccluders = occluders;
-    });
+    let receivedViewportWidth: number|undefined;
+    let receivedViewportHeight: number|undefined;
+    postMessageHandler.setInputPlateBoundsUpdateCallback(
+        (rect, occluders, viewportWidth, viewportHeight) => {
+          callbackCalled = true;
+          receivedRect = rect;
+          receivedOccluders = occluders;
+          receivedViewportWidth = viewportWidth;
+          receivedViewportHeight = viewportHeight;
+        });
 
     const rect = {
       top: 10,
@@ -131,14 +136,250 @@ suite('PostMessageHandlerTest', () => {
       'type': 'input-plate-bounds-update',
       'bounds-rect': rect,
       'occluders': occluders,
+      'viewportWidth': 800,
+      'viewportHeight': 600,
     };
 
     simulateMessage(message, TARGET_ORIGIN);
-    await flushTasks();
+    await microtasksFinished();
 
     assertTrue(callbackCalled, 'Callback should be called');
     assertDeepEquals(rect, receivedRect, 'Rect should match');
     assertDeepEquals(occluders, receivedOccluders, 'Occluders should match');
+    assertEquals(800, receivedViewportWidth, 'Viewport width should match');
+    assertEquals(600, receivedViewportHeight, 'Viewport height should match');
+  });
+
+  test('handles input state update message', async function() {
+    simulateLoadStart();
+    simulateLoadCommit();
+
+    let callbackCalled = false;
+    let receivedToolMode: number|undefined;
+    let receivedModelMode: number|undefined;
+    postMessageHandler.setInputStateUpdateCallback(
+        (toolMode?: number, modelMode?: number) => {
+          callbackCalled = true;
+          receivedToolMode = toolMode;
+          receivedModelMode = modelMode;
+        });
+
+    const message = {
+      'type': 'input-state-update',
+      'requiresCapability': 'input state update',
+      'toolMode': 1,
+      'modelMode': 2,
+    };
+
+    simulateMessage(message, TARGET_ORIGIN);
+    await microtasksFinished();
+
+    assertTrue(callbackCalled, 'Callback should be called');
+    assertEquals(1, receivedToolMode, 'ToolMode should match');
+    assertEquals(2, receivedModelMode, 'ModelMode should match');
+  });
+
+  test(
+      'handles input state update message with requiresCapability',
+      async function() {
+        simulateLoadStart();
+        simulateLoadCommit();
+
+        let callbackCalled = false;
+        let receivedToolMode: number|undefined;
+        let receivedModelMode: number|undefined;
+        postMessageHandler.setInputStateUpdateCallback(
+            (toolMode?: number, modelMode?: number) => {
+              callbackCalled = true;
+              receivedToolMode = toolMode;
+              receivedModelMode = modelMode;
+            });
+
+        const message = {
+          'type': 'input-state-update',
+          'requiresCapability': 'input state update',
+          'toolMode': 5,
+          'modelMode': 6,
+        };
+
+        simulateMessage(message, TARGET_ORIGIN);
+        await microtasksFinished();
+
+        assertTrue(callbackCalled, 'Callback should be called');
+        assertEquals(5, receivedToolMode, 'ToolMode should match');
+        assertEquals(6, receivedModelMode, 'ModelMode should match');
+      });
+
+  // Default is camelCase. See if it supports kebab-case.
+  test('handles input-state-update with kebab-case fields', async function() {
+    simulateLoadStart();
+    simulateLoadCommit();
+
+    let callbackCalled = false;
+    let receivedToolMode: number|undefined;
+    let receivedModelMode: number|undefined;
+    postMessageHandler.setInputStateUpdateCallback(
+        (toolMode?: number, modelMode?: number) => {
+          callbackCalled = true;
+          receivedToolMode = toolMode;
+          receivedModelMode = modelMode;
+        });
+
+    const message = {
+      'type': 'input-state-update',
+      'requiresCapability': 'input state update',
+      'tool-mode': 3,
+      'model-mode': 4,
+    };
+
+    simulateMessage(message, TARGET_ORIGIN);
+    await microtasksFinished();
+
+    assertTrue(callbackCalled, 'Callback should be called');
+    assertEquals(3, receivedToolMode, 'ToolMode should match');
+    assertEquals(4, receivedModelMode, 'ModelMode should match');
+  });
+
+  // Default is camelCase. See if it supports underscores.
+  test('handles input-state-update with snake_case fields', async function() {
+    simulateLoadStart();
+    simulateLoadCommit();
+
+    let callbackCalled = false;
+    let receivedToolMode: number|undefined;
+    let receivedModelMode: number|undefined;
+    postMessageHandler.setInputStateUpdateCallback(
+        (toolMode?: number, modelMode?: number) => {
+          callbackCalled = true;
+          receivedToolMode = toolMode;
+          receivedModelMode = modelMode;
+        });
+
+    const message = {
+      'type': 'input-state-update',
+      'requiresCapability': 'input state update',
+      'tool_mode': 2,
+      'model_mode': 1,
+    };
+
+    simulateMessage(message, TARGET_ORIGIN);
+    await microtasksFinished();
+
+    assertTrue(callbackCalled, 'Callback should be called');
+    assertEquals(2, receivedToolMode, 'ToolMode should match');
+    assertEquals(1, receivedModelMode, 'ModelMode should match');
+  });
+
+  test(
+      'handles input-state-update with undefined, null, or missing fields',
+      async function() {
+        simulateLoadStart();
+        simulateLoadCommit();
+
+        let callbackCalled = false;
+        let receivedToolMode: number|undefined|null;
+        let receivedModelMode: number|undefined|null;
+        postMessageHandler.setInputStateUpdateCallback(
+            (toolMode?: number, modelMode?: number) => {
+              callbackCalled = true;
+              receivedToolMode = toolMode;
+              receivedModelMode = modelMode;
+            });
+
+        // Omitted / undefined fields.
+        let message: Record<string, unknown> = {
+          'type': 'input-state-update',
+          'requiresCapability': 'input state update',
+        };
+        simulateMessage(message, TARGET_ORIGIN);
+        await microtasksFinished();
+        assertTrue(callbackCalled);
+        assertEquals(undefined, receivedToolMode);
+        assertEquals(undefined, receivedModelMode);
+
+        // Tool mode specified, model mode missing.
+        callbackCalled = false;
+        message = {
+          'type': 'input-state-update',
+          'requiresCapability': 'input state update',
+          'toolMode': 1,
+        };
+        simulateMessage(message, TARGET_ORIGIN);
+        await microtasksFinished();
+        assertTrue(callbackCalled);
+        assertEquals(1, receivedToolMode);
+        assertEquals(undefined, receivedModelMode);
+
+        // Model mode specified, tool mode missing.
+        callbackCalled = false;
+        message = {
+          'type': 'input-state-update',
+          'requiresCapability': 'input state update',
+          'modelMode': 2,
+        };
+        simulateMessage(message, TARGET_ORIGIN);
+        await microtasksFinished();
+        assertTrue(callbackCalled);
+        assertEquals(undefined, receivedToolMode);
+        assertEquals(2, receivedModelMode);
+
+        // Null fields.
+        callbackCalled = false;
+        message = {
+          'type': 'input-state-update',
+          'requiresCapability': 'input state update',
+          'toolMode': null,
+          'modelMode': null,
+        };
+        simulateMessage(message, TARGET_ORIGIN);
+        await microtasksFinished();
+        assertTrue(callbackCalled);
+        assertEquals(null, receivedToolMode);
+        assertEquals(null, receivedModelMode);
+      });
+
+  test('ignores unhandled message types', async function() {
+    simulateLoadStart();
+    simulateLoadCommit();
+
+    let callbackCalled = false;
+    postMessageHandler.setInputStateUpdateCallback(() => {
+      callbackCalled = true;
+    });
+
+    const message = {
+      'type': 'other-unrelated-event',
+      'requiresCapability': 'input state update',
+      'toolMode': 1,
+    };
+
+    simulateMessage(message, TARGET_ORIGIN);
+    await microtasksFinished();
+
+    assertFalse(
+        callbackCalled, 'Callback should not be called for unrelated message');
+  });
+
+  test('ignores message with wrong requiresCapability', async function() {
+    simulateLoadStart();
+    simulateLoadCommit();
+
+    let callbackCalled = false;
+    postMessageHandler.setInputStateUpdateCallback(() => {
+      callbackCalled = true;
+    });
+
+    const message = {
+      'type': 'input-state-update',
+      'requiresCapability': 'wrong capability',
+      'toolMode': 1,
+    };
+
+    simulateMessage(message, TARGET_ORIGIN);
+    await microtasksFinished();
+
+    assertFalse(
+        callbackCalled, 'Callback should not be called for wrong capability');
   });
 });
 

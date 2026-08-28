@@ -24,6 +24,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -40,6 +41,7 @@ import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.RobolectricUtil;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.chrome.browser.RecentlyClosedEntriesManager;
 import org.chromium.chrome.browser.RecentlyClosedEntriesManagerTrackerFactory;
@@ -52,6 +54,7 @@ import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.CloseWindowA
 import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.NewWindowAppSource;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
 import org.chromium.chrome.browser.ntp.RecentlyClosedEntry;
+import org.chromium.chrome.browser.ntp.RecentlyClosedTab;
 import org.chromium.chrome.browser.ntp.RecentlyClosedTabManager;
 import org.chromium.chrome.browser.ntp.RecentlyClosedWindow;
 import org.chromium.chrome.browser.ntp.SessionRecentlyClosedEntry;
@@ -59,13 +62,19 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
 import org.chromium.chrome.browser.tabmodel.NextTabPolicy.NextTabPolicySupplier;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
+import org.chromium.chrome.browser.tabmodel.TabList;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
+import org.chromium.chrome.browser.tabpersistence.TabMetadataFileManager;
+import org.chromium.chrome.browser.tabpersistence.TabMetadataFileManager.TabModelSelectorMetadata;
+import org.chromium.chrome.browser.tabpersistence.TabStateDirectory;
 import org.chromium.chrome.browser.tabwindow.TabModelSelectorFactory;
 import org.chromium.chrome.browser.tabwindow.TabWindowManager;
 import org.chromium.chrome.browser.tabwindow.WindowId;
 import org.chromium.ui.modaldialog.ModalDialogManager;
+import org.chromium.url.JUnitTestGURLs;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -78,6 +87,7 @@ import java.util.concurrent.TimeUnit;
 public class RecentlyClosedEntriesManagerUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Rule public FakeTimeTestRule mFakeTimeTestRule = new FakeTimeTestRule();
+    @Rule public TemporaryFolder mTemporaryFolder = new TemporaryFolder();
 
     private static final int RECENTLY_CLOSED_MAX_ENTRY_COUNT_WITH_WINDOW = 25;
     @Mock MultiInstanceManager mMultiInstanceManager;
@@ -142,8 +152,8 @@ public class RecentlyClosedEntriesManagerUnitTest {
             if (i > 0) {
                 assertThat(
                         "The entries should be sorted by timestamp",
-                        entries.get(i - 1).getDate().getTime(),
-                        greaterThan(entry.getDate().getTime()));
+                        entries.get(i - 1).getTimestamp(),
+                        greaterThan(entry.getTimestamp()));
             }
         }
     }
@@ -174,8 +184,8 @@ public class RecentlyClosedEntriesManagerUnitTest {
             if (i > 0) {
                 assertThat(
                         "The entries should be sorted by timestamp",
-                        entries.get(i - 1).getDate().getTime(),
-                        greaterThan(entry.getDate().getTime()));
+                        entries.get(i - 1).getTimestamp(),
+                        greaterThan(entry.getTimestamp()));
             }
         }
     }
@@ -251,8 +261,8 @@ public class RecentlyClosedEntriesManagerUnitTest {
             if (i > 0) {
                 assertThat(
                         "The entries should be sorted by timestamp",
-                        entries.get(i - 1).getDate().getTime(),
-                        greaterThan(entry.getDate().getTime()));
+                        entries.get(i - 1).getTimestamp(),
+                        greaterThan(entry.getTimestamp()));
             }
         }
     }
@@ -283,8 +293,8 @@ public class RecentlyClosedEntriesManagerUnitTest {
             if (i > 0) {
                 assertThat(
                         "The entries should be sorted by timestamp",
-                        entries.get(i - 1).getDate().getTime(),
-                        greaterThan(entry.getDate().getTime()));
+                        entries.get(i - 1).getTimestamp(),
+                        greaterThan(entry.getTimestamp()));
             }
         }
     }
@@ -315,8 +325,8 @@ public class RecentlyClosedEntriesManagerUnitTest {
             if (i > 0) {
                 assertThat(
                         "The entries should be sorted by timestamp",
-                        entries.get(i - 1).getDate().getTime(),
-                        greaterThan(entry.getDate().getTime()));
+                        entries.get(i - 1).getTimestamp(),
+                        greaterThan(entry.getTimestamp()));
             }
         }
     }
@@ -355,8 +365,8 @@ public class RecentlyClosedEntriesManagerUnitTest {
             if (i > 0) {
                 assertThat(
                         "The entries should be sorted by timestamp",
-                        entries.get(i - 1).getDate().getTime(),
-                        greaterThan(entry.getDate().getTime()));
+                        entries.get(i - 1).getTimestamp(),
+                        greaterThan(entry.getTimestamp()));
             }
         }
     }
@@ -395,8 +405,8 @@ public class RecentlyClosedEntriesManagerUnitTest {
             if (i > 0) {
                 assertThat(
                         "The entries should be sorted by timestamp",
-                        entries.get(i - 1).getDate().getTime(),
-                        greaterThan(entry.getDate().getTime()));
+                        entries.get(i - 1).getTimestamp(),
+                        greaterThan(entry.getTimestamp()));
             }
         }
     }
@@ -437,8 +447,8 @@ public class RecentlyClosedEntriesManagerUnitTest {
             if (i > 0) {
                 assertThat(
                         "The entries should be sorted by timestamp",
-                        entries.get(i - 1).getDate().getTime(),
-                        greaterThan(entry.getDate().getTime()));
+                        entries.get(i - 1).getTimestamp(),
+                        greaterThan(entry.getTimestamp()));
             }
         }
 
@@ -995,7 +1005,7 @@ public class RecentlyClosedEntriesManagerUnitTest {
         assertEquals(2, entries.size());
         assertTrue(
                 "Window entries are not sorted by most recent closure time.",
-                entries.get(0).getDate().getTime() > entries.get(1).getDate().getTime());
+                entries.get(0).getTimestamp() > entries.get(1).getTimestamp());
     }
 
     @Test
@@ -1049,9 +1059,9 @@ public class RecentlyClosedEntriesManagerUnitTest {
                 mRecentlyClosedEntriesManager.getRecentlyClosedEntries();
 
         assertEquals(3, entries.size());
-        assertEquals(3, entries.get(0).getDate().getTime());
-        assertEquals(2, entries.get(1).getDate().getTime());
-        assertEquals(1, entries.get(2).getDate().getTime());
+        assertEquals(3, entries.get(0).getTimestamp());
+        assertEquals(2, entries.get(1).getTimestamp());
+        assertEquals(1, entries.get(2).getTimestamp());
     }
 
     @Test
@@ -1063,7 +1073,7 @@ public class RecentlyClosedEntriesManagerUnitTest {
         // Get the timestamp for the closed window entry.
         RecentlyClosedEntry entry = mRecentlyClosedEntriesManager.getRecentlyClosedEntries().get(0);
         RecentlyClosedWindow window = (RecentlyClosedWindow) entry;
-        long timestamp = window.getDate().getTime();
+        long timestamp = window.getTimestamp();
         int instanceId = window.getInstanceId();
 
         // Mock out our dependencies. Always return mTabModelSelector.
@@ -1223,7 +1233,189 @@ public class RecentlyClosedEntriesManagerUnitTest {
         when(mMultiInstanceManager.getRecentlyClosedInstances()).thenReturn(instanceInfoList);
     }
 
+    @Test
+    public void testFindRecentlyClosedEntry_BySessionId() {
+        int sessionId = 42;
+        RecentlyClosedTab tab =
+                new RecentlyClosedTab(
+                        sessionId,
+                        /* timestamp= */ 0,
+                        "Title",
+                        JUnitTestGURLs.URL_1,
+                        /* tabGroupId= */ null);
+
+        // We need to make sure the manager has this tab in its list.
+        when(mRecentlyClosedTabManager.getRecentlyClosedEntries(anyInt())).thenReturn(List.of(tab));
+
+        // Update entries so they are loaded into mRecentlyClosedEntries.
+        mRecentlyClosedEntriesManager.updateRecentlyClosedEntries();
+
+        RecentlyClosedEntry result =
+                mRecentlyClosedEntriesManager.findRecentlyClosedEntry(
+                        sessionId, /* isInstanceId= */ false);
+
+        assertEquals("Expected to find the correct entry", tab, result);
+    }
+
+    @Test
+    public void testFindRecentlyClosedWindow_ByInstanceId() {
+        int instanceId = 42;
+        RecentlyClosedWindow window =
+                new RecentlyClosedWindow(
+                        /* timestamp= */ 0,
+                        instanceId,
+                        JUnitTestGURLs.URL_1.getSpec(),
+                        "Title",
+                        "Active Tab",
+                        /* tabCount= */ 1);
+
+        // We need to make sure the manager has this window in its list.
+        List<InstanceInfo> instanceInfoList = new ArrayList<>();
+        instanceInfoList.add(
+                new InstanceInfo(
+                        instanceId,
+                        /* taskId= */ 0,
+                        InstanceInfo.Type.OTHER,
+                        JUnitTestGURLs.URL_1.getSpec(),
+                        "Active Tab",
+                        "Title",
+                        /* tabCount= */ 1,
+                        /* incognitoTabCount= */ 0,
+                        /* isIncognitoSelected= */ false,
+                        /* lastAccessedTime= */ 0,
+                        /* closureTime= */ 1));
+        when(mMultiInstanceManager.getRecentlyClosedInstances()).thenReturn(instanceInfoList);
+
+        // Update entries so they are loaded into mRecentlyClosedEntries.
+        mRecentlyClosedEntriesManager.updateRecentlyClosedEntries();
+
+        RecentlyClosedEntry result =
+                mRecentlyClosedEntriesManager.findRecentlyClosedEntry(
+                        instanceId, /* isInstanceId= */ true);
+
+        assertTrue(
+                "Expected result to be RecentlyClosedWindow",
+                result instanceof RecentlyClosedWindow);
+        RecentlyClosedWindow resultWindow = (RecentlyClosedWindow) result;
+        assertEquals(window.getInstanceId(), resultWindow.getInstanceId());
+        assertEquals(window.getTabCount(), resultWindow.getTabCount());
+        assertEquals(window.getTitle(), resultWindow.getTitle());
+        assertEquals(window.getActiveTabTitle(), resultWindow.getActiveTabTitle());
+        assertEquals(window.getUrl(), resultWindow.getUrl());
+    }
+
     private static long getDaysAgoMillis(int numDaysAgo) {
         return TimeUtils.currentTimeMillis() - TimeUnit.DAYS.toMillis(numDaysAgo);
+    }
+
+    @Test
+    public void testGetTabsForClosedWindow() throws Exception {
+        TabStateDirectory.setBaseStateDirectoryForTests(mTemporaryFolder.getRoot());
+        TabStateDirectory.resetTabbedModeStateDirectoryForTesting();
+
+        int instanceId = 42;
+        TabModelSelectorMetadata metadata =
+                new TabModelSelectorMetadata(
+                        new TabMetadataFileManager.TabModelMetadata(/* selectedIndex= */ 1),
+                        new TabMetadataFileManager.TabModelMetadata(
+                                /* selectedIndex= */ TabList.INVALID_TAB_INDEX));
+
+        // Normal tabs.
+        metadata.normalModelMetadata.ids.add(10);
+        metadata.normalModelMetadata.urls.add("https://normal1.com");
+        metadata.normalModelMetadata.ids.add(20);
+        metadata.normalModelMetadata.urls.add("https://normal2.com");
+
+        // Write file to the tabbed mode directory.
+        File dir = TabStateDirectory.getOrCreateTabbedModeStateDirectory();
+        File file =
+                new File(
+                        dir,
+                        TabMetadataFileManager.getMetadataFileName(Integer.toString(instanceId)));
+        TabMetadataFileManager.saveListToFile(file, metadata);
+
+        RecentlyClosedWindow window =
+                new RecentlyClosedWindow(
+                        /* timestamp= */ 1000L,
+                        instanceId,
+                        /* url= */ "https://normal2.com",
+                        /* title= */ "Window Title",
+                        /* activeTabTitle= */ "Active Tab Title",
+                        /* tabCount= */ 2);
+
+        // Trigger pre-fetch.
+        mRecentlyClosedEntriesManager.preFetchTabsForWindow(window);
+
+        // Run background tasks.
+        RobolectricUtil.runAllBackgroundAndUi();
+
+        // Query tabs from the manager.
+        List<RecentlyClosedTab> tabs = mRecentlyClosedEntriesManager.getTabsForClosedWindow(window);
+
+        // Verify mapping.
+        assertEquals(2, tabs.size());
+
+        // First tab (non-active):
+        assertEquals(10, tabs.get(0).getSessionId());
+        assertEquals("https://normal1.com/", tabs.get(0).getUrl().getSpec());
+        assertEquals("normal1.com", tabs.get(0).getTitle());
+
+        // Second tab (active):
+        assertEquals(20, tabs.get(1).getSessionId());
+        assertEquals("https://normal2.com/", tabs.get(1).getUrl().getSpec());
+        assertEquals("Active Tab Title", tabs.get(1).getTitle());
+    }
+
+    @Test
+    public void testGetTabsForClosedWindowSyncFallback() throws Exception {
+        TabStateDirectory.setBaseStateDirectoryForTests(mTemporaryFolder.getRoot());
+        TabStateDirectory.resetTabbedModeStateDirectoryForTesting();
+
+        int instanceId = 42;
+        TabModelSelectorMetadata metadata =
+                new TabModelSelectorMetadata(
+                        new TabMetadataFileManager.TabModelMetadata(/* selectedIndex= */ 1),
+                        new TabMetadataFileManager.TabModelMetadata(
+                                /* selectedIndex= */ TabList.INVALID_TAB_INDEX));
+
+        // Normal tabs.
+        metadata.normalModelMetadata.ids.add(10);
+        metadata.normalModelMetadata.urls.add("https://normal1.com");
+        metadata.normalModelMetadata.ids.add(20);
+        metadata.normalModelMetadata.urls.add("https://normal2.com");
+
+        // Write file to the tabbed mode directory.
+        File dir = TabStateDirectory.getOrCreateTabbedModeStateDirectory();
+        File file =
+                new File(
+                        dir,
+                        TabMetadataFileManager.getMetadataFileName(Integer.toString(instanceId)));
+        TabMetadataFileManager.saveListToFile(file, metadata);
+
+        RecentlyClosedWindow window =
+                new RecentlyClosedWindow(
+                        /* timestamp= */ 1000L,
+                        instanceId,
+                        /* url= */ "https://normal2.com",
+                        /* title= */ "Window Title",
+                        /* activeTabTitle= */ "Active Tab Title",
+                        /* tabCount= */ 2);
+
+        // Query tabs from the manager WITHOUT pre-fetching or flushing background tasks.
+        // This should trigger the sync fallback.
+        List<RecentlyClosedTab> tabs = mRecentlyClosedEntriesManager.getTabsForClosedWindow(window);
+
+        // Verify mapping.
+        assertEquals(2, tabs.size());
+
+        // First tab (non-active):
+        assertEquals(10, tabs.get(0).getSessionId());
+        assertEquals("https://normal1.com/", tabs.get(0).getUrl().getSpec());
+        assertEquals("normal1.com", tabs.get(0).getTitle());
+
+        // Second tab (active):
+        assertEquals(20, tabs.get(1).getSessionId());
+        assertEquals("https://normal2.com/", tabs.get(1).getUrl().getSpec());
+        assertEquals("Active Tab Title", tabs.get(1).getTitle());
     }
 }

@@ -671,6 +671,9 @@ TEST_P(OcclusionQueryTests, ResolveToBufferWithOffset) {
 
 // Test that resolving with firstQuery != 0 works as expected.
 TEST_P(OcclusionQueryTests, ResolveWithFirstQuery) {
+    // TODO(crbug.com/523134900): Produces incorrect result on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && (IsVulkan() || IsOpenGLES()));
+
     // Create a query set for 2 queries, the second of which will be resolved in the buffer.
     constexpr uint32_t kQueryCount = 2;
     wgpu::QuerySet querySet = CreateOcclusionQuerySet(kQueryCount);
@@ -695,6 +698,19 @@ TEST_P(OcclusionQueryTests, ResolveWithFirstQuery) {
 
     EXPECT_BUFFER(destination, 0, sizeof(uint64_t),
                   new OcclusionExpectation(OcclusionExpectation::Result::NonZero));
+}
+
+// Regression test for https://crbug.com/536641544 where the Vulkan backend does a vkCmdFillBuffer
+// of size 0 (which is not allowed) when 0 queries are resolved.
+TEST_P(OcclusionQueryTests, ResolveZeroQueries) {
+    wgpu::QuerySet querySet = CreateOcclusionQuerySet(1);
+    wgpu::Buffer destination = CreateResolveBuffer(sizeof(uint64_t));
+
+    wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+    encoder.ResolveQuerySet(querySet, 0, 0, destination, 0);
+
+    wgpu::CommandBuffer commands = encoder.Finish();
+    queue.Submit(1, &commands);
 }
 
 class TimestampExpectation : public detail::Expectation {
@@ -965,6 +981,9 @@ TEST_P(TimestampQueryTests, QuerySetCreation) {
 
 // Test calling timestamp query from command encoder
 TEST_P(TimestampQueryTests, TimestampOnCommandEncoder) {
+    // TODO (530541262): Investigate failure on macOS 26 M2.
+    DAWN_SUPPRESS_TEST_IF(IsMetal() && IsApple());
+
     constexpr uint32_t kQueryCount = 2;
 
     // Write timestamp with different query indexes
@@ -1138,6 +1157,9 @@ TEST_P(TimestampQueryTests, ResolveFromAnotherEncoder) {
 
 // Test resolving timestamp query correctly if the queries are written sparsely
 TEST_P(TimestampQueryTests, ResolveSparseQueries) {
+    // TODO (530541262): Investigate failure on macOS 26 M2.
+    DAWN_SUPPRESS_TEST_IF(IsMetal() && IsApple());
+
     constexpr uint32_t kQueryCount = 4;
 
     wgpu::QuerySet querySet = CreateQuerySetForTimestamp(kQueryCount);
@@ -1218,6 +1240,9 @@ TEST_P(TimestampQueryTests, UnsubmittedEncoderMarksQueryAvailable) {
 
 // Test resolving timestamp query to one slot in the buffer
 TEST_P(TimestampQueryTests, ResolveToBufferWithOffset) {
+    // TODO (530541262): Investigate failure on macOS 26 M2.
+    DAWN_SUPPRESS_TEST_IF(IsMetal() && IsApple());
+
     constexpr uint32_t kQueryCount = 2;
     constexpr uint64_t kBufferSize = kQueryCount * sizeof(uint64_t) + kMinDestinationOffset;
     constexpr uint64_t kCount = kQueryCount + kMinCount;
@@ -1262,6 +1287,9 @@ TEST_P(TimestampQueryTests, ResolveToBufferWithOffset) {
 
 // Test that resolving with firstQuery != 0 works as expected.
 TEST_P(TimestampQueryTests, ResolveWithFirstQuery) {
+    // TODO (530541262): Investigate failure on macOS 26 M2.
+    DAWN_SUPPRESS_TEST_IF(IsMetal() && IsApple());
+
     // Create a query set for 2 queries, the second of which will be resolved in the buffer.
     constexpr uint32_t kQueryCount = 2;
     wgpu::QuerySet querySet = CreateQuerySetForTimestamp(kQueryCount);
@@ -1283,6 +1311,8 @@ TEST_P(TimestampQueryTests, ResolveWithFirstQuery) {
 // Test resolving a query set twice into the same destination buffer with potentially overlapping
 // ranges
 TEST_P(TimestampQueryTests, ResolveTwiceToSameBuffer) {
+    // TODO (530541262): Investigate failure on macOS 26 M2.
+    DAWN_SUPPRESS_TEST_IF(IsMetal() && IsApple());
     constexpr uint32_t kQueryCount = kMinCount + 2;
 
     wgpu::QuerySet querySet = CreateQuerySetForTimestamp(kQueryCount);
@@ -1466,6 +1496,7 @@ DAWN_INSTANTIATE_TEST(OcclusionQueryTests,
                       OpenGLBackend(),
                       OpenGLESBackend(),
                       VulkanBackend(),
+                      VulkanBackend({"clear_buffer_before_resolve_queries"}),
                       WebGPUBackend());
 DAWN_INSTANTIATE_TEST(TimestampQueryTests,
                       D3D11Backend(),

@@ -28,10 +28,6 @@ set_path_map([
 import("//chromium/.gn")
 buildconfig = "//vivaldi/gn/config/BUILDCONFIG.gn"
 
-# We normally build the component build
-# The autobuilders builds statically linked builds
-default_args.is_component_build = true
-
 # Static feature overrides, don't change
 # Features we either always want enable or don't want at all
 # Cannot depend on platform settings
@@ -42,7 +38,6 @@ default_args.angle_enable_commit_id = false
 default_args.devtools_skip_typecheck = false
 default_args.use_dummy_lastchange = false
 default_args.enable_glic = false
-default_args.enable_dice_support = false
 default_args.enable_reporting = false  # Reporting API
 default_args.optimize_webui = true
 default_args.webnn_install_runtime_in_chrome_installer =
@@ -53,6 +48,8 @@ default_args.enable_pdf_save_to_drive =
     false  # VB-127868 Do not want Google Drive save icon
 default_args.enable_hangout_services_extension =
     false  # We no longer need it, apparently
+default_args.enable_screen_ai_browsertests = false
+default_args.v8_enable_generated_code_validator = false
 
 # We don't need the Chrome field trials
 default_args.disable_fieldtrial_testing_config = true

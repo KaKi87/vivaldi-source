@@ -21,6 +21,7 @@
 <translation id="1728677426644403582">Преглеждате изходния код на страница</translation>
 <translation id="1734878702283171397">Опитайте да се свържете със системния администратор.</translation>
 <translation id="1768211456781949159"><ph name="BEGIN_LINK" />Опитайте да изпълните Диагностика на мрежата на Windows<ph name="END_LINK" />.</translation>
+<translation id="1932098463447129402">Не по-рано от</translation>
 <translation id="1974060860693918893">Разширени</translation>
 <translation id="2032962459168915086"><ph name="BEGIN_LINK" />Да проверите посредника и защитната стена<ph name="END_LINK" /></translation>
 <translation id="2048261947532620704">Превод на страницата</translation>
@@ -39,11 +40,12 @@
 <translation id="2467694685043708798"><ph name="BEGIN_LINK" />Да изпълните Диагностика на мрежата<ph name="END_LINK" /></translation>
 <translation id="2491414235131909199">Страницата се блокира от разширение</translation>
 <translation id="255002559098805027"><ph name="HOST_NAME" /> изпрати недействителен отговор.</translation>
+<translation id="2607101320794533334">Данни за публичния ключ на лицето</translation>
 <translation id="2634124572758952069">Намиране на адрес IP на сървъра <ph name="HOST_NAME" /> е невъзможно.</translation>
-<translation id="2649204054376361687"><ph name="CITY" /> <ph name="COUNTRY" /></translation>
 <translation id="2650446666397867134">Отказан достъп до файла</translation>
 <translation id="2705137772291741111">Прочитане на записано (кеширано) копие на сайта е невъзможно.</translation>
 <translation id="2730326759066348565"><ph name="BEGIN_LINK" />Да изпълните Диагностика на съединението<ph name="END_LINK" /></translation>
+<translation id="2738771556149464852">Не по-късно от</translation>
 <translation id="2784949926578158345">Съединението е нулирано.</translation>
 <translation id="2826760142808435982">Съединението се шифрова и удостоверява чрез <ph name="CIPHER" /> и ползва <ph name="KX" /> като механизъм за обмен на ключове.</translation>
 <translation id="290376772003165898">Страницата не е на <ph name="LANGUAGE" />?</translation>
@@ -69,8 +71,8 @@
 <translation id="3447884698081792621">Показване на удостоверението (Издадено от <ph name="ISSUER" />)</translation>
 <translation id="3462200631372590220">Скрий подробностите</translation>
 <translation id="3484560055331845446">Възможно е да изгубите достъп до профила в Google. Vivaldi препоръчва да промените паролата си сега. Ще получите подкана за вписване.</translation>
+<translation id="3493881266323043047">Валидност</translation>
 <translation id="3566021033012934673">Неповерително съединение</translation>
-<translation id="3574305903863751447"><ph name="CITY" /> <ph name="STATE" /> <ph name="COUNTRY" /></translation>
 <translation id="3586931643579894722">Скрий подробностите</translation>
 <translation id="3614001939154393113">Злоумишленици може да опитат да откраднат вашите данни от <ph name="BEGIN_BOLD" /><ph name="SITE" /><ph name="END_BOLD" /> (например пароли, съобщения или номера на кредитни карти). <ph name="BEGIN_LEARN_MORE_LINK" />Повече за предупреждението<ph name="END_LEARN_MORE_LINK" /></translation>
 <translation id="3630155396527302611">Ако вече е в списъка с програми с позволен достъп до мрежата,
@@ -78,18 +80,17 @@
 <translation id="3658742229777143148">Работно разклонение</translation>
 <translation id="3681007416295224113">Сведения за удостоверението</translation>
 <translation id="3717027428350673159"><ph name="BEGIN_LINK" />Да проверите конфигурацията на посредника, защитната стена и DNS<ph name="END_LINK" /></translation>
+<translation id="3798449238516105146">Версия</translation>
 <translation id="382518646247711829">В случай че ползвате сървър посредник…</translation>
 <translation id="3950820424414687140">Вписване</translation>
 <translation id="3973234410852337861">Блокиран <ph name="HOST_NAME" /></translation>
 <translation id="3987940399970879459">Под 1 МБ</translation>
 <translation id="4075123085690634698">Отворете страницата в нов частен прозорец (⇧⌘N)</translation>
 <translation id="4075732493274867456">Клиентът и сървърът не поддържат общодостъпна версия или шифровъчен комплект от протокола SSL.</translation>
-<translation id="4116663294526079822">Позволи винаги в сайта</translation>
 <translation id="4130226655945681476">Да проверите мрежовите кабели, модема и маршрутизатора</translation>
 <translation id="4165986682804962316">Настройки на сайта</translation>
 <translation id="4203896806696719780"><ph name="BEGIN_LINK" />Да проверите конфигурациите на защитната стена и антивирусния софтуер<ph name="END_LINK" /></translation>
 <translation id="4226937834893929579"><ph name="BEGIN_LINK" />Опитайте да изпълните Диагностика на мрежата<ph name="END_LINK" />.</translation>
-<translation id="4235360514405112390">Действително</translation>
 <translation id="4241830393007970744">Злоумишленици, използващи сайта, който опитахте да посетите, може да ви подмамят да инсталирате софтуер или да разкриете неща като пароли, телефони или номера на кредитни карти.</translation>
 <translation id="4250431568374086873">Съединението е защитено непълно</translation>
 <translation id="4265872034478892965">Позволено от администратора</translation>
@@ -112,11 +113,11 @@
 <translation id="5023310440958281426">Проверете правилата на администратора</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Да проверите адреса на посредника<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-битова)</translation>
+<translation id="5154702632169343078">Лице</translation>
 <translation id="5216942107514965959">Последно посетена днес</translation>
 <translation id="5355557959165512791">Посещаване на <ph name="SITE" /> е невъзможно в момента, защото удостоверението е оттеглено. Мрежовите сривове и атаки обикновено са временно явление, така че по всяка вероятност по-късно страницата ще заработи отново.</translation>
 <translation id="5386426401304769735">Удостоверителната верига на сайта съдържа удостоверение, подписано чрез SHA-1.</translation>
 <translation id="5452270690849572955">Няма такава страница в <ph name="HOST_NAME" /></translation>
-<translation id="5457113250005438886">Недействително</translation>
 <translation id="5492298309214877701">Сайтът в интранета на фирмата, организацията или училището има същия адрес като външния сайт.
 <ph name="LINE_BREAK" />
 Опитайте да се свържете със системния администратор.</translation>
@@ -129,6 +130,7 @@
 <translation id="5799902971440853357">Посещаване на <ph name="SITE" /> е невъзможно в момента, защото сайтът изпрати зашифровани вписващи данни, които Vivaldi не е в състояние да обработи. Грешки в мрежата и атаки обикновено са временно явление, така че по всяка вероятност по-късно страницата ще заработи отново.</translation>
 <translation id="5810442152076338065">Съединението към <ph name="DOMAIN" /> се шифрова чрез остарял пакет за шифроване.</translation>
 <translation id="5838278095973806738">Не въвеждайте чувствителни данни като пароли или номера на кредитни карти, защото рискувате да бъдат откраднати от злоумишленици.</translation>
+<translation id="5851868085455377790">Издател</translation>
 <translation id="5863515189965725638">Редактиране на IBAN</translation>
 <translation id="5869405914158311789">Няма достъп до сайта</translation>
 <translation id="5932224571077948991">Сайтът показва натрапчиви или подвеждащи реклами</translation>
@@ -160,20 +162,16 @@
 <translation id="6957624206566198865">Отворете страницата в нов частен раздел</translation>
 <translation id="7096937462164235847">Самоличността на сайта не е потвърдена.</translation>
 <translation id="7108819624672055576">Позволено от разширение</translation>
-<translation id="7111012039238467737">(действително)</translation>
 <translation id="7126644664682723998">Постави и търси</translation>
 <translation id="7210863904660874423"><ph name="HOST_NAME" /> не се придържа към стандартите за защита.</translation>
 <translation id="7219179957768738017">Съединението ползва <ph name="SSL_VERSION" />.</translation>
 <translation id="7221855153210829124">Показвай известяване</translation>
 <translation id="7353601530677266744">Команден ред</translation>
 <translation id="7419106976560586862">Път към профила</translation>
-<translation id="7455133967321480974">Ползвай фабрично всеобщо (блокирай)</translation>
 <translation id="7518003948725431193">Няма намерена страница на адрес: <ph name="URL" /></translation>
 <translation id="7549584377607005141">За правилно показване страницата изисква данните, въведени от вас по-рано. Може да изпратите данните отново, но ще се наложи да повторите всяко действие изпълнено в нея досега.</translation>
 <translation id="759889825892636187"><ph name="HOST_NAME" /> не е в състояние да обработи заявката в момента.</translation>
 <translation id="7662298039739062396">Контролирано от разширение</translation>
-<translation id="7663736086183791259">Удостоверение <ph name="CERTIFICATE_VALIDITY" /></translation>
-<translation id="7714464543167945231">Удостоверение</translation>
 <translation id="7716147886133743102">Блокирано от администратора</translation>
 <translation id="7716424297397655342">Невъзможно зареждане на сайта от кеша</translation>
 <translation id="773466115871691567">Превеждай винаги от <ph name="SOURCE_LANGUAGE" /></translation>
@@ -183,15 +181,12 @@
 <translation id="7878562273885520351">Вероятно паролата е компрометирана</translation>
 <translation id="7951415247503192394">(32-битова)</translation>
 <translation id="7953236668995583915">Презаредете страницата, за да приложите обновените настройки към сайта.</translation>
-<translation id="8041940743680923270">Ползвай фабрично всеобщо (питай)</translation>
 <translation id="8076492880354921740">раздели</translation>
 <translation id="808894953321890993">Промени паролата</translation>
 <translation id="8149426793427495338">Компютърът премина в режим на заспиване.</translation>
 <translation id="8150722005171944719">Прочитане на файла от <ph name="URL" /> е невъзможно. Вероятно е премахнат, преместен или е с разрешения, препятстващи достъп.</translation>
-<translation id="8184538546369750125">Ползвай фабрично всеобщо (позволи)</translation>
 <translation id="8211406090763984747">Съединението е защитено</translation>
 <translation id="8241707690549784388">Търсената страница ползва въведени от вас данни. Връщането към нея може да изисква повторение на вече извършено от вас действие. Продължаване?</translation>
-<translation id="8241712895048303527">Блокирай в сайта</translation>
 <translation id="8286036467436129157">Впиши ме</translation>
 <translation id="8288807391153049143">Показване на удостоверението</translation>
 <translation id="8289355894181816810">Свържете се с мрежовия администратор, ако не сте сигурен какво означава.</translation>
@@ -200,19 +195,18 @@
 <translation id="8498891568109133222"><ph name="HOST_NAME" /> отговаря след твърде дълго време.</translation>
 <translation id="8503813439785031346">Потребител</translation>
 <translation id="8703575177326907206">Съединението към <ph name="DOMAIN" /> не се шифрова.</translation>
+<translation id="8705331520020532516">Сериен номер</translation>
 <translation id="8740359287975076522">Намиране на &lt;abbr id="dnsDefinition"&gt;адрес DNS&lt;/abbr&gt; на <ph name="HOST_NAME" /> е невъзможно. Диагностициране в ход…</translation>
 <translation id="8820817407110198400">Отметки</translation>
 <translation id="8963117664422609631">Преход към настройки на сайта</translation>
 <translation id="8975012916872825179">Информация като номера на телефони, адреси за е-поща и адреси за доставка.</translation>
 <translation id="9001074447101275817">Посредникът <ph name="DOMAIN" /> изисква потребител и парола.</translation>
 <translation id="9008201768610948239">Пропусни</translation>
-<translation id="9025348182339809926">(недействително)</translation>
 <translation id="9039213469156557790">Впрочем страницата включва други ресурси, които не са защитени. Същите могат да бъдат гледани от трети лица при предаването им или променени от злоумишленик, така че да изменят поведението на страницата.</translation>
 <translation id="9062620674789239642">Възможно е преместен, редактиран или изтрит.</translation>
 <translation id="9069693763241529744">Блокирано от разширение</translation>
 <translation id="9073799351042754113">Избрахте да изключите предупрежденията за защита за сайта.</translation>
 <translation id="9168814207360376865">Допуск сайтовете да проверят дали има записани начини на плащане.</translation>
-<translation id="9169664750068251925">Блокирай винаги в сайта</translation>
 <translation id="9183425211371246419"><ph name="HOST_NAME" /> ползва неподдържан протокол.</translation>
 <translation id="936602727769022409">Възможно е да изгубите достъп до профила в Google. Препоръчва се да промените паролата си сега. Ще получите подкана за вписване.</translation>
 <translation id="969892804517981540">Официална компилация</translation>

@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Be att få öppna länkar från andra appar privat</translation>
 <translation id="1624481300475123200">Autofyll lösenord</translation>
 <translation id="1743244221910283364">Radera ändringar</translation>
+<translation id="1972589975368876259">Redigera stapel</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Lägg till flik i stapeln}
         other {Lägg till flikar i stapeln}}</translation>
@@ -48,7 +49,6 @@
 <translation id="4772190485302020393">Stäng alla flikar och staplar</translation>
 <translation id="4802185666270672526">Dölj Begär webbplats för dator</translation>
 <translation id="4828571836982833289">Avstapla flikstapeln?</translation>
-<translation id="4838250035189612538">Byt namn på stapeln</translation>
 <translation id="4873540827942947151">{count, plural,
               =1 {1 flikstapel stängd och sparad}
               other {{count} flikstaplar stängda och sparade}}</translation>

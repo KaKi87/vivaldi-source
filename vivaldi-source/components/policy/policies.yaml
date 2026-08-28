@@ -1,7 +1,8 @@
 # Mirrors chromium/components/policy/resources/templates/policies.yaml
 # Start with big enough ID to not conflict with chromium.
 policies:
-# Noting yet, start with at least 10000 ID
+  10000: VivaldiVPNEnabled
+  10001: VivaldiDirectMatchEnabled
 
 atomic_groups:
 # Noting yet, start with at least 1000 ID

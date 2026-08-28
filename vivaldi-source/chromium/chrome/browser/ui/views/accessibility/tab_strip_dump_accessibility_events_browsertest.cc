@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 #include "base/test/run_until.h"
-#include "build/build_config.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
@@ -69,6 +68,9 @@ class TabStripDumpAccessibilityEventsTest
   }
 };
 
+class TabStripDumpAccessibilityEventsViewsAXTest
+    : public TabStripDumpAccessibilityEventsTest {};
+
 IN_PROC_BROWSER_TEST_P(TabStripDumpAccessibilityEventsTest,
                        BrowserRootViewClassNameGuard) {
   views::View* root = GetBrowserWidget()->GetRootView();
@@ -82,6 +84,8 @@ IN_PROC_BROWSER_TEST_P(TabStripDumpAccessibilityEventsTest,
                        WindowActivationFiresSelectionForJaws) {
   ui::AXPlatform::GetInstance().NotifyAssistiveTechChanged(
       ui::AssistiveTech::kJaws);
+  // Simulate an older JAWS that still relies on the synthetic selection event.
+  ui::AXPlatform::GetInstance().SetJawsNeedsTabSelectionEvent(true);
 
   WaitForBrowserSerialization();
 
@@ -101,10 +105,8 @@ IN_PROC_BROWSER_TEST_P(TabStripDumpAccessibilityEventsTest,
   WaitForBrowserSerialization();
 }
 
-IN_PROC_BROWSER_TEST_P(TabStripDumpAccessibilityEventsTest,
+IN_PROC_BROWSER_TEST_P(TabStripDumpAccessibilityEventsViewsAXTest,
                        WindowActivationNoSelectionWithoutJaws) {
-  SKIP_IF_VIEWS_AX_DISABLED();
-
   ui::AXPlatform::GetInstance().NotifyAssistiveTechChanged(
       ui::AssistiveTech::kNone);
 
@@ -122,6 +124,8 @@ IN_PROC_BROWSER_TEST_P(TabStripDumpAccessibilityEventsTest,
                        WindowActivationFiresSelectionOnNewTab) {
   ui::AXPlatform::GetInstance().NotifyAssistiveTechChanged(
       ui::AssistiveTech::kJaws);
+  // Simulate an older JAWS that still relies on the synthetic selection event.
+  ui::AXPlatform::GetInstance().SetJawsNeedsTabSelectionEvent(true);
 
   chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
   WaitForBrowserSerialization();
@@ -141,10 +145,17 @@ IN_PROC_BROWSER_TEST_P(TabStripDumpAccessibilityEventsTest,
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    All,
+    WinIA2,
     TabStripDumpAccessibilityEventsTest,
-    ::testing::ValuesIn(
-        DumpAccessibilityEventsViewsTestBase::EventTestPasses()),
+    ::testing::Values(ViewsEventTestParams{ui::AXApiType::kWinIA2, false},
+                      ViewsEventTestParams{ui::AXApiType::kWinIA2, true}),
+    EventTestPassToString());
+
+INSTANTIATE_TEST_SUITE_P(
+    WinIA2ViewsAXEnabled,
+    TabStripDumpAccessibilityEventsViewsAXTest,
+    ::testing::Values(
+        ViewsEventTestParams{ui::AXApiType::kWinIA2, true}),
     EventTestPassToString());
 
 }  // namespace

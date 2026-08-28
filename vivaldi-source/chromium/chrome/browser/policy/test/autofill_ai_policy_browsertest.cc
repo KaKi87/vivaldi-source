@@ -54,7 +54,8 @@ class AutofillAiPolicyTest
   AutofillAiPolicyTest() {
     std::vector<base::test::FeatureRef> enabled_features{
         autofill::features::kAutofillAiWithDataSchema,
-        autofill::features::kAutofillAiIgnoreGeoIp};
+        autofill::features::kAutofillAiIgnoreGeoIp,
+        autofill::features::kAutofillAmbientAutofill};
     std::vector<base::test::FeatureRef> disabled_features;
 
     if (is_your_saved_info_settings_page_enabled()) {
@@ -80,7 +81,7 @@ class AutofillAiPolicyTest
 
     identity_test_env_adaptor_ =
         std::make_unique<IdentityTestEnvironmentProfileAdaptor>(
-            browser()->profile());
+            browser()->GetProfile());
 
     EnableSignin();
 
@@ -123,7 +124,7 @@ class AutofillAiPolicyTest
         identity_test_env_adaptor_->identity_test_env()
             ->MakePrimaryAccountAvailable("user@gmail.com",
                                           signin::ConsentLevel::kSignin);
-    AccountCapabilitiesTestMutator mutator(&account_info.capabilities);
+    AccountCapabilitiesTestMutator mutator(&account_info);
     mutator.set_can_use_model_execution_features(true);
     identity_test_env_adaptor_->identity_test_env()
         ->UpdateAccountInfoForAccount(account_info);
@@ -156,6 +157,7 @@ IN_PROC_BROWSER_TEST_P(AutofillAiPolicyTest, SettingsNotDisabledByPolicy) {
   if (is_your_saved_info_settings_page_enabled()) {
     VerifySettingsUrlIsReachable(chrome::kIdentityDocsSubPage);
     VerifySettingsUrlIsReachable(chrome::kTravelSubPage);
+    VerifySettingsUrlIsReachable(chrome::kShoppingSubPage);
   } else {
     VerifySettingsUrlIsReachable(chrome::kAutofillAiSubPage);
   }

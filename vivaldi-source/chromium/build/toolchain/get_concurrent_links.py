@@ -193,7 +193,7 @@ def _GetDefaultConcurrentLinks(per_link_gb, reserve_gb, thin_lto_type,
 
 def main():
   parser = argparse.ArgumentParser()
-  parser.add_argument('--mem_per_link_gb', type=int, default=8)
+  parser.add_argument('--mem_per_link_gb', type=int, default=20)
   parser.add_argument('--reserve_mem_gb', type=int, default=0)
   parser.add_argument('--secondary_mem_per_link', type=int, default=0)
   parser.add_argument('--override-ram-in-gb-for-testing', type=float, default=0)

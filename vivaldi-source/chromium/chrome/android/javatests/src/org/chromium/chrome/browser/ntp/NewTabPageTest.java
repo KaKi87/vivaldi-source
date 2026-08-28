@@ -135,10 +135,13 @@ import java.util.concurrent.TimeUnit;
     ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE,
     "disable-features=IPH_FeedHeaderMenu"
 })
+@EnableFeatures(
+        ChromeFeatureList.HOME_BUTTON_REMOVAL
+                + ":set_default_to_false_on_homepage_on_desktop/false")
 public class NewTabPageTest {
     private static final int ARTICLE_SECTION_HEADER_POSITION = 1;
 
-    private static final int RENDER_TEST_REVISION = 8;
+    private static final int RENDER_TEST_REVISION = 9;
 
     private static final String HISTOGRAM_NTP_MODULE_CLICK = "NewTabPage.Module.Click";
     private static final String HISTOGRAM_NTP_MODULE_LONGCLICK = "NewTabPage.Module.LongClick";
@@ -190,7 +193,6 @@ public class NewTabPageTest {
         ComposeplateUtils.setIsEnabledForTesting(true);
         ComposeboxQueryControllerBridgeJni.setInstanceForTesting(mComposeboxBridgeJni);
         when(mComposeboxBridgeJni.isFuseboxEligibleForProfile(any())).thenReturn(true);
-        OmniboxFeatures.sCompactFusebox.setForTesting(true);
         mActivityTestRule.startOnBlankPage();
         TemplateUrlService originalService =
                 ThreadUtils.runOnUiThreadBlocking(
@@ -235,7 +237,7 @@ public class NewTabPageTest {
         onView(withId(R.id.search_box)).perform(click());
         View view = mNtp.getView().findViewById(R.id.search_box);
         ChromeRenderTestRule.sanitize(view);
-        mRenderTestRule.render(view, "focus_fake_box_v3");
+        mRenderTestRule.render(view, "focus_fake_box_v4");
         scrimManager.disableAnimationForTesting(false);
     }
 
@@ -253,7 +255,7 @@ public class NewTabPageTest {
         onView(withId(R.id.search_box)).perform(click());
         View view = mNtp.getView().findViewById(R.id.search_box);
         ChromeRenderTestRule.sanitize(view);
-        mRenderTestRule.render(view, "focus_fake_box_with_plus_button");
+        mRenderTestRule.render(view, "focus_fake_box_with_plus_button_v2");
         scrimManager.disableAnimationForTesting(false);
     }
 
@@ -266,6 +268,7 @@ public class NewTabPageTest {
     @MediumTest
     @Restriction(DeviceFormFactor.PHONE)
     @Feature({"NewTabPage"})
+    @DisableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR)
     public void testToolBar_Phone() {
         ViewGroup toolBar = mActivityTestRule.getActivity().findViewById(R.id.toolbar);
         int[] toolbarContentIds =
@@ -293,6 +296,7 @@ public class NewTabPageTest {
     @Feature({"NewTabPage", "FeedNewTabPage"})
     @DisableIf.Build(sdk_equals = Build.VERSION_CODES.R, message = "http://crbug.com/40664848")
     @DisableIf.Device(DeviceFormFactor.DESKTOP) // Failing on desktop http://crbug.com/40664848
+    @DisabledTest(message = "b/524422264")
     public void testFocusFakebox() {
         int initialFakeboxTop = getFakeboxTop(mNtp);
 
@@ -305,6 +309,7 @@ public class NewTabPageTest {
             Assert.assertTrue(afterFocusFakeboxTop < initialFakeboxTop);
         }
 
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
         mOmnibox.clearFocus();
         waitForFakeboxTopPosition(mNtp, initialFakeboxTop);
     }
@@ -832,6 +837,7 @@ public class NewTabPageTest {
     @Test
     @SmallTest
     @DisableIf.Build(sdk_equals = Build.VERSION_CODES.S_V2, message = "crbug.com/40901674")
+    @DisableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR)
     public void testRecordHistogramHomeButtonClick_Ntp() {
         HistogramWatcher histogramWatcher = expectHomeButtonRecordForNtpModuleClick();
         onView(withId(R.id.home_button)).perform(click());
@@ -901,6 +907,7 @@ public class NewTabPageTest {
      */
     @Test
     @SmallTest
+    @DisableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR)
     public void testRecordHistogramMenuButtonClick_Ntp() {
         HistogramWatcher histogramWatcher =
                 HistogramWatcher.newSingleRecordWatcher(
@@ -974,6 +981,7 @@ public class NewTabPageTest {
     public void testAiModeButton_fusebox() {
         if (mActivityTestRule.getActivity().isTablet()) return;
 
+        OmniboxFeatures.sRedirectComposeplateButton.setForTesting(true);
         mActivityTestRule.skipWindowAndTabStateCleanup();
 
         View ntpLayout = mNtp.getLayout();
@@ -992,7 +1000,6 @@ public class NewTabPageTest {
     public void testAiModeButton_fuseboxWithoutRedirect() {
         if (mActivityTestRule.getActivity().isTablet()) return;
 
-        OmniboxFeatures.sRedirectComposeplateButton.setForTesting(false);
         mActivityTestRule.skipWindowAndTabStateCleanup();
 
         View ntpLayout = mNtp.getLayout();
@@ -1034,10 +1041,29 @@ public class NewTabPageTest {
                 "The right margin of the most visited tiles container is wrong.",
                 expectedMvtLateralMargin,
                 ((MarginLayoutParams) mvTilesContainer.getLayoutParams()).rightMargin);
-        Assert.assertEquals(
-                "The width of the most visited tiles container is wrong.",
-                expectedMvtLateralMargin * 2L,
-                ntpLayout.getWidth() - mvTilesContainer.getWidth());
+
+        CriteriaHelper.pollUiThread(
+                () -> {
+                    // Fetch the true layout-derived lateral margins requested by the fake search
+                    // box.
+                    int searchBoxTwoSideMargin =
+                            mNtp.getNewTabPageCoordinator().getSearchBoxTwoSideMarginForTesting();
+                    int maxSearchBoxWidth =
+                            res.getDimensionPixelSize(R.dimen.ntp_search_box_max_width);
+
+                    // The MVT container inherits the Fakebox's exact width constraint logic.
+                    // This mathematically resolves what the container slack should be for ANY
+                    // form factor or rotation state.
+                    int expectedContainerSlack =
+                            Math.max(
+                                    searchBoxTwoSideMargin,
+                                    ntpLayout.getWidth() - maxSearchBoxWidth);
+
+                    Criteria.checkThat(
+                            "The width of the most visited tiles container is wrong.",
+                            ntpLayout.getWidth() - mvTilesContainer.getWidth(),
+                            Matchers.is(expectedContainerSlack));
+                });
 
         int expectedMvtTopMargin = res.getDimensionPixelSize(R.dimen.ntp_section_top_margin);
         int expectedMvtBottomMargin = res.getDimensionPixelSize(R.dimen.ntp_section_bottom_margin);

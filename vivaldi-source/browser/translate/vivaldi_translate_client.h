@@ -100,6 +100,9 @@ class VivaldiTranslateClient
                        bool triggered_from_menu) override;
   bool IsTranslatableURL(const GURL& url) override;
 
+  void CheckIfPdfIsTranslatable(
+      base::OnceCallback<void(bool)> callback) override;
+
   // TranslateDriver::LanguageDetectionObserver implementation.
   void OnLanguageDetermined(
       const translate::LanguageDetectionDetails& details) override;

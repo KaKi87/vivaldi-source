@@ -43,6 +43,7 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabCreationState;
 import org.chromium.chrome.browser.tab.TabState;
 import org.chromium.chrome.browser.tab.TabStateAttributes;
+import org.chromium.chrome.browser.tab.TabStateAttributesRegistry;
 import org.chromium.chrome.browser.tab.TabStateStorageService;
 import org.chromium.chrome.browser.tab.TabStateStorageServiceFactory;
 import org.chromium.chrome.browser.tab.WebContentsState;
@@ -113,6 +114,8 @@ public class TabStateStoreUnitTest {
 
         when(mTabModelSelector.getModel(false)).thenReturn(mRegularTabModel);
         when(mTabModelSelector.getModel(true)).thenReturn(mIncognitoTabModel);
+        when(mTabModelSelector.getCurrentTabModelSupplier())
+                .thenReturn(ObservableSuppliers.createMonotonic(mRegularTabModel));
         when(mRegularTabModel.getProfile()).thenReturn(mProfile);
         when(mProfile.getOriginalProfile()).thenReturn(mProfile);
 
@@ -313,7 +316,8 @@ public class TabStateStoreUnitTest {
         mTabStateStore.onNativeLibraryReady();
         Tab tab = createMockTabWithParentCollection(1, mProfile);
 
-        TabStateAttributes.createForTab(tab, TabCreationState.LIVE_IN_FOREGROUND);
+        TabStateAttributesRegistry.createAttributesForTab(
+                tab, TabStateStore.class, TabCreationState.LIVE_IN_FOREGROUND);
 
         // Force dirtiness update.
         tab.setIsPinned(true);
@@ -328,10 +332,33 @@ public class TabStateStoreUnitTest {
     }
 
     @Test
+    public void testOnTabStateDirtinessChanged_UntidyDoesNotSave_DirtySaves() {
+        mTabStateStore.onNativeLibraryReady();
+        Tab tab = createMockTabWithParentCollection(1, mProfile);
+
+        TabStateAttributesRegistry.createAttributesForTab(
+                tab, TabStateStore.class, TabCreationState.LIVE_IN_FOREGROUND);
+        mTabStateStore.onTabRegistered(tab);
+        reset(mModelTrackingOrchestrator);
+
+        TabStateAttributes attributes =
+                TabStateAttributesRegistry.getAttributesFor(tab, TabStateStore.class);
+
+        // Transition to UNTIDY.
+        attributes.updateIsDirty(TabStateAttributes.DirtinessState.UNTIDY);
+        verify(mModelTrackingOrchestrator, never()).saveTab(tab);
+
+        // Transition to DIRTY.
+        attributes.updateIsDirty(TabStateAttributes.DirtinessState.DIRTY);
+        verify(mModelTrackingOrchestrator).saveTab(tab);
+    }
+
+    @Test
     public void testSaveState_DoesNotSaveCleanTab() {
         mTabStateStore.onNativeLibraryReady();
         Tab tab = MockTab.createAndInitialize(1, mProfile);
-        TabStateAttributes.createForTab(tab, TabCreationState.LIVE_IN_FOREGROUND);
+        TabStateAttributesRegistry.createAttributesForTab(
+                tab, TabStateStore.class, TabCreationState.LIVE_IN_FOREGROUND);
         mRegularTabSupplier.set(tab);
         mIncognitoTabSupplier.set(null);
 
@@ -642,7 +669,8 @@ public class TabStateStoreUnitTest {
         mTabStateStore.onNativeLibraryReady();
 
         Tab tab = createMockTabWithParentCollection(1, mProfile);
-        TabStateAttributes.createForTab(tab, TabCreationState.FROZEN_ON_RESTORE);
+        TabStateAttributesRegistry.createAttributesForTab(
+                tab, TabStateStore.class, TabCreationState.FROZEN_ON_RESTORE);
 
         mTabStateStore.onTabRegistered(tab);
 
@@ -669,7 +697,8 @@ public class TabStateStoreUnitTest {
         mTabStateStore.onNativeLibraryReady();
 
         Tab tab = createMockTabWithParentCollection(1, mProfile);
-        TabStateAttributes.createForTab(tab, TabCreationState.FROZEN_ON_RESTORE);
+        TabStateAttributesRegistry.createAttributesForTab(
+                tab, TabStateStore.class, TabCreationState.FROZEN_ON_RESTORE);
 
         mTabStateStore.onTabRegistered(tab);
 

@@ -15,7 +15,6 @@ import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.bookmarks.R;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.prefs.PrefChangeRegistrar.PrefObserver;
@@ -169,8 +168,7 @@ public class BookmarkBarUtils {
         if (sDeviceBookmarkBarCompatibleForTesting != null) {
             return sDeviceBookmarkBarCompatibleForTesting;
         }
-        return ChromeFeatureList.sAndroidBookmarkBar.isEnabled()
-                && DeviceFormFactor.isNonMultiDisplayContextOnTablet(context);
+        return DeviceFormFactor.isNonMultiDisplayContextOnTablet(context);
     }
 
     /**
@@ -215,6 +213,21 @@ public class BookmarkBarUtils {
         return DeviceInfo.isDesktop()
                 ? isUserPrefsShowBookmarksBarEnabled(profile)
                 : isDevicePrefShowBookmarksBarEnabled(profile);
+    }
+
+    /**
+     * Toggles the visibility of the bookmarks bar, automatically choosing between UserPrefs
+     * (Desktop) and Device preferences (Tablet) based on the device type.
+     *
+     * @param profile The profile for which the bookmarks bar visibility should be toggled.
+     * @param fromKeyboardShortcut True if the change was triggered by a keyboard shortcut.
+     */
+    public static void toggleShowBookmarksBar(Profile profile, boolean fromKeyboardShortcut) {
+        if (DeviceInfo.isDesktop()) {
+            toggleUserPrefsShowBookmarksBar(profile, fromKeyboardShortcut);
+        } else {
+            toggleDevicePrefShowBookmarksBar(profile, fromKeyboardShortcut);
+        }
     }
 
     /**
@@ -315,7 +328,7 @@ public class BookmarkBarUtils {
      *
      * @param profile The profile for which the UserPref should be toggled.
      */
-    public static void toggleUserPrefsShowBookmarksBar(
+    private static void toggleUserPrefsShowBookmarksBar(
             Profile profile, boolean fromKeyboardShortcut) {
         setUserPrefsShowBookmarksBar(
                 profile,
@@ -364,11 +377,10 @@ public class BookmarkBarUtils {
         // we respect the user's local choice.
         // If a user has set the show bookmarks bar setting explicitly, then we will use that value.
         // If the user has never set the preference, then we will return a default, which is
-        // currently controlled with a FeatureParam.
+        // currently false.
         return hasUserSetDevicePrefShowBookmarksBar()
-                ? ContextUtils.getAppSharedPreferences()
-                        .getBoolean(BookmarkBarConstants.BOOKMARK_BAR_SHOW_BOOKMARK_BAR, false)
-                : ChromeFeatureList.sAndroidBookmarkBarShowBookmarkBar.getValue();
+                && ContextUtils.getAppSharedPreferences()
+                        .getBoolean(BookmarkBarConstants.BOOKMARK_BAR_SHOW_BOOKMARK_BAR, false);
     }
 
     /**
@@ -413,7 +425,7 @@ public class BookmarkBarUtils {
      * Toggles the value of the show bookmarks bar device preference, this is stored locally and
      * only used on tablets, correctly interacting with enterprise policies.
      */
-    public static void toggleDevicePrefShowBookmarksBar(
+    private static void toggleDevicePrefShowBookmarksBar(
             Profile profile, boolean fromKeyboardShortcut) {
         setDevicePrefShowBookmarksBar(
                 profile, !isDevicePrefShowBookmarksBarEnabled(profile), fromKeyboardShortcut);

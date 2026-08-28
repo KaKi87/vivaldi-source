@@ -1,6 +1,6 @@
 # Please see owners expectations for this set of owners at
-# /docs/webapps/owners_expectations.md, and general owners expectations at
-# /docs/code_reviews.md#expectations-of-owners
+# //chrome/browser/web_applications/docs/owners_expectations.md, and general
+# owners expectations at //docs/code_reviews.md#expectations-of-owners
 
 # Note: Unless you want a specific reviewer's expertise, please send CLs to
 # chromium-webapps-reviews@google.com rather than to specific
@@ -27,6 +27,8 @@ mek@chromium.org       #{LAST_RESORT_SUGGESTION}
 per-file web_app_default_offline*=finnur@chromium.org
 
 per-file BUILD.gn=file://chrome/browser/web_applications/isolated_web_apps/OWNERS
+
+per-file web_app_isolation_delegate*=file://chrome/browser/web_applications/isolated_web_apps/OWNERS
 
 # For large-scale Sync-related changes, refactorings, etc.
 per-file *sync*=file://components/sync/OWNERS

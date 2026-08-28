@@ -37,7 +37,6 @@
 <translation id="1601560923496285236">Aplicar</translation>
 <translation id="1603914832182249871">(Incógnito)</translation>
 <translation id="1627276047960621195">Descriptores de archivos</translation>
-<translation id="1654713139320245449">No se encontraron destinos de transmisión. ¿Necesitas ayuda?</translation>
 <translation id="166278006618318542">Algoritmo de clave pública del sujeto</translation>
 <translation id="1682548588986054654">Nueva ventana de incógnito</translation>
 <translation id="1708338024780164500">(Inactiva)</translation>
@@ -55,7 +54,6 @@
 <translation id="1901303067676059328">Seleccionar &amp;todo</translation>
 <translation id="1921584744613111023"><ph name="DPI" /> ppp</translation>
 <translation id="1925021887439448749">Ingresa una dirección web personalizada</translation>
-<translation id="1932098463447129402">No antes</translation>
 <translation id="1936931585862840749">Usa un número para indicar la cantidad de copias que deseas imprimir (1 a <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">Abrir audi&amp;o en una nueva pestaña</translation>
 <translation id="2050339315714019657">Vertical</translation>
@@ -91,7 +89,6 @@
 <translation id="253557089021624350">Número de Keepalive</translation>
 <translation id="2550212893339833758">Memoria en el espacio de intercambio</translation>
 <translation id="2553440850688409052">Ocultar este complemento</translation>
-<translation id="2607101320794533334">Información sobre la clave pública del sujeto</translation>
 <translation id="26224892172169984">No permitir procesar protocolos a ningún sitio web</translation>
 <translation id="2653275834716714682">Reemplazo del texto</translation>
 <translation id="265390580714150011">Valor de campo</translation>
@@ -99,7 +96,6 @@
 <translation id="2678063897982469759">Permitir nuevamente</translation>
 <translation id="2719936478972253983">Se bloquearon las siguientes cookies</translation>
 <translation id="2721037002783622288">Bu&amp;scar imagen en <ph name="SEARCH_ENGINE" /></translation>
-<translation id="2738771556149464852">No después</translation>
 <translation id="2749881179542288782">Comprobar la gramática con la ortografía</translation>
 <translation id="2785873697295365461">Descriptores de archivo</translation>
 <translation id="2825758591930162672">Clave pública del sujeto</translation>
@@ -146,7 +142,6 @@
 <translation id="3387614642886316601">Usar el corrector ortográfico mejorado</translation>
 <translation id="3390013585654699824">Detalles de la aplicación</translation>
 <translation id="345693547134384690">Abrir &amp;imagen en una nueva pestaña</translation>
-<translation id="3493881266323043047">Validez</translation>
 <translation id="3511307672085573050">Copiar la &amp;dirección del vínculo</translation>
 <translation id="354068948465830244">Esta extensión puede leer y cambiar los datos del sitio</translation>
 <translation id="3560034655160545939">&amp;Corrección ortográfica</translation>
@@ -160,7 +155,6 @@
 <translation id="3760460896538743390">Inspeccionar página de &amp;fondo</translation>
 <translation id="3786224729726357296">Borrar los datos del sitio y permisos de <ph name="SITE" /></translation>
 <translation id="3797900183766075808">&amp;Buscar "<ph name="SEARCH_TERMS" />" en <ph name="SEARCH_ENGINE" /></translation>
-<translation id="3798449238516105146">Versión</translation>
 <translation id="3810973564298564668">Administrar</translation>
 <translation id="3838085852053358637">No se pudo cargar la extensión</translation>
 <translation id="383891835335927981">No se configuró el zoom para ningún sitio</translation>
@@ -241,7 +235,6 @@
 <translation id="5063480226653192405">Uso</translation>
 <translation id="5116628073786783676">Gu&amp;ardar audio como...</translation>
 <translation id="5154108062446123722">Configuración avanzada para <ph name="PRINTING_DESTINATION" /></translation>
-<translation id="5154702632169343078">Asunto</translation>
 <translation id="5171343362375269016">Memoria en el espacio de intercambio</translation>
 <translation id="5233231016133573565">ID de proceso</translation>
 <translation id="5233736638227740678">&amp;Pegar</translation>
@@ -282,7 +275,6 @@
 <translation id="5780973441651030252">Prioridad del proceso</translation>
 <translation id="5804241973901381774">Permisos</translation>
 <translation id="5828633471261496623">Imprimiendo...</translation>
-<translation id="5851868085455377790">Emisor</translation>
 <translation id="5860491529813859533">Activar</translation>
 <translation id="5910363049092958439">Gu&amp;ardar imagen como...</translation>
 <translation id="5914724413750400082">Módulo (<ph name="MODULUS_NUM_BITS" /> bits):
@@ -422,7 +414,6 @@ Mantén el archivo de clave en un lugar seguro. Debes crear las nuevas versiones
 <translation id="862750493060684461">Caché CSS</translation>
 <translation id="8661290697478713397">Abrir el vínculo en una ventana de incó&amp;gnito</translation>
 <translation id="8664389313780386848">&amp;Ver código fuente de página</translation>
-<translation id="8705331520020532516">Número de serie</translation>
 <translation id="8708000541097332489">Borrar al salir</translation>
 <translation id="8714838604780058252">Gráficos de fondo</translation>
 <translation id="8725066075913043281">Volver a intentarlo</translation>

@@ -7,20 +7,13 @@
 #include <memory>
 #include <string>
 
-#include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
-#include "base/test/task_environment.h"
-#include "base/timer/timer.h"
-#include "chrome/browser/ui/browser_window/test/mock_browser_window_interface.h"
 #include "chrome/browser/ui/layout_constants.h"
-#include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/tab_data.h"
 #include "chrome/browser/ui/tabs/tab_style.h"
-#include "chrome/browser/ui/ui_features.h"
-#include "chrome/browser/ui/views/frame/browser_root_view.h"
 #include "chrome/browser/ui/views/tabs/fake_base_tab_strip_controller.h"
 #include "chrome/browser/ui/views/tabs/hovercard/tab_hover_card_controller.h"
 #include "chrome/browser/ui/views/tabs/shared/tab_strip_observer.h"
@@ -34,22 +27,19 @@
 #include "chrome/browser/ui/views/tabs/tab_group_views.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_controller.h"
 #include "chrome/browser/ui/views/tabs/tab_style_views.h"
-#include "chrome/test/base/testing_profile.h"
 #include "chrome/test/views/chrome_views_test_base.h"
-#include "components/data_sharing/public/features.h"
-#include "components/saved_tab_groups/public/features.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "ui/accessibility/platform/assistive_tech.h"
+#include "ui/accessibility/platform/ax_platform.h"
 #include "ui/base/pointer/touch_ui_controller.h"
-#include "ui/base/ui_base_features.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/gfx/animation/animation_test_api.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 #include "ui/gfx/geometry/skia_conversions.h"
 #include "ui/views/accessibility/view_accessibility.h"
-#include "ui/views/controls/label.h"
 #include "ui/views/layout/flex_layout.h"
 #include "ui/views/test/ax_event_counter.h"
 #include "ui/views/test/views_test_utils.h"
@@ -247,6 +237,11 @@ TEST_P(TabStripTest, GetModelCount) {
 }
 
 TEST_P(TabStripTest, AccessibilityEvents) {
+  // By default no assistive technology needs the synthetic selection event that
+  // is fired on window activation, so make sure none is active.
+  ui::AXPlatform::GetInstance().NotifyAssistiveTechChanged(
+      ui::AssistiveTech::kNone);
+
   views::test::AXEventCounter ax_counter(views::AXUpdateNotifier::Get());
 
   controller_->AddTab(0, TabActive::kInactive);
@@ -272,12 +267,61 @@ TEST_P(TabStripTest, AccessibilityEvents) {
   EXPECT_TRUE(node_data.GetBoolAttribute(ax::mojom::BoolAttribute::kSelected));
   EXPECT_EQ(2, ax_counter.GetCount(ax::mojom::Event::kSelection));
 
-  // When activating widget, refire selection event on tab.
+  // Without an assistive technology that needs it, activating the widget does
+  // not refire a selection event on the active tab. See crbug.com/505781387.
   widget_->OnNativeWidgetActivationChanged(true);
   node_data = ui::AXNodeData();
   tab->GetViewAccessibility().GetAccessibleNodeData(&node_data);
   EXPECT_TRUE(node_data.GetBoolAttribute(ax::mojom::BoolAttribute::kSelected));
-  EXPECT_EQ(3, ax_counter.GetCount(ax::mojom::Event::kSelection));
+  EXPECT_EQ(2, ax_counter.GetCount(ax::mojom::Event::kSelection));
+}
+
+TEST_P(TabStripTest, WindowActivationRefiresSelectionForOldJaws) {
+  // Simulate an older JAWS that still relies on the synthetic selection event
+  // fired on window activation to restore per-tab settings. See
+  // crbug.com/505781387.
+  ui::AXPlatform::GetInstance().NotifyAssistiveTechChanged(
+      ui::AssistiveTech::kJaws);
+  ui::AXPlatform::GetInstance().SetJawsNeedsTabSelectionEvent(true);
+
+  views::test::AXEventCounter ax_counter(views::AXUpdateNotifier::Get());
+  controller_->AddTab(0, TabActive::kInactive);
+  controller_->AddTab(1, TabActive::kActive);
+  EXPECT_EQ(1, ax_counter.GetCount(ax::mojom::Event::kSelection));
+
+  // The widget must be deactivated before it can be reactivated.
+  widget_->OnNativeWidgetActivationChanged(false);
+  EXPECT_EQ(1, ax_counter.GetCount(ax::mojom::Event::kSelection));
+
+  // Reactivating the widget refires a selection event on the active tab.
+  widget_->OnNativeWidgetActivationChanged(true);
+  EXPECT_EQ(2, ax_counter.GetCount(ax::mojom::Event::kSelection));
+
+  ui::AXPlatform::GetInstance().NotifyAssistiveTechChanged(
+      ui::AssistiveTech::kNone);
+  ui::AXPlatform::GetInstance().SetJawsNeedsTabSelectionEvent(false);
+}
+
+TEST_P(TabStripTest, WindowActivationDoesNotRefireSelectionForNewJaws) {
+  // Newer JAWS versions detect the active tab on their own, so no synthetic
+  // selection event should be fired on window activation. See
+  // crbug.com/505781387.
+  ui::AXPlatform::GetInstance().NotifyAssistiveTechChanged(
+      ui::AssistiveTech::kJaws);
+  ui::AXPlatform::GetInstance().SetJawsNeedsTabSelectionEvent(false);
+
+  views::test::AXEventCounter ax_counter(views::AXUpdateNotifier::Get());
+  controller_->AddTab(0, TabActive::kInactive);
+  controller_->AddTab(1, TabActive::kActive);
+  EXPECT_EQ(1, ax_counter.GetCount(ax::mojom::Event::kSelection));
+
+  widget_->OnNativeWidgetActivationChanged(false);
+  widget_->OnNativeWidgetActivationChanged(true);
+  EXPECT_EQ(1, ax_counter.GetCount(ax::mojom::Event::kSelection));
+
+  ui::AXPlatform::GetInstance().NotifyAssistiveTechChanged(
+      ui::AssistiveTech::kNone);
+  ui::AXPlatform::GetInstance().SetJawsNeedsTabSelectionEvent(false);
 }
 
 TEST_P(TabStripTest, IsValidModelIndex) {
@@ -363,7 +407,7 @@ TEST_P(TabStripTest, TabCloseButtonVisibility) {
 
   // Shrink the tab sizes by adding more tabs.
   // An inactive tab added to the tabstrip, now each tab size is not
-  // big enough to accomodate 3 icons, so it should not show its
+  // big enough to accommodate 3 icons, so it should not show its
   // tab close button.
   controller_->AddTab(3, TabActive::kInactive);
   Tab* tab3 = tab_strip_->tab_at(3);

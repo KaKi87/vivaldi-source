@@ -254,6 +254,7 @@ dictionary ExtensionInfo {
   boolean pinnedToToolbar;
   required boolean isAffectedByMV2Deprecation;
   required boolean canUploadAsAccountExtension;
+  required boolean isManifestV2;
 };
 
 dictionary ProfileInfo {
@@ -263,6 +264,7 @@ dictionary ProfileInfo {
   required boolean isIncognitoAvailable;
   required boolean isChildAccount;
   required boolean isMv2DeprecationNoticeDismissed;
+  required boolean extensionsPinnedByDefault;
 };
 
 dictionary GetExtensionsInfoOptions {
@@ -286,6 +288,7 @@ dictionary ExtensionConfigurationUpdate {
 dictionary ProfileConfigurationUpdate {
   boolean inDeveloperMode;
   boolean isMv2DeprecationNoticeDismissed;
+  boolean extensionsPinnedByDefault;
 };
 
 dictionary ExtensionCommandUpdate {

@@ -133,15 +133,8 @@ class SigninManagerImpl implements SigninManager, AccountsChangeObserver {
         mAccountManagerFacade = AccountManagerFacadeProvider.getInstance();
         mAccountManagerFacade.addObserver(this);
         var accountsPromise = mAccountManagerFacade.getAccounts();
-        if (SigninFeatureMap.isEnabled(SigninFeatures.SIGNIN_MANAGER_SEEDING_FIX)) {
-            if (accountsPromise.isFulfilled()) {
-                onCoreAccountInfosChanged();
-            }
-        } else if (accountsPromise.isFulfilled()
-                && (didAccountsFetchSucceed() || !accountsPromise.getResult().isEmpty())) {
-            seedThenReloadAllAccountsFromSystem(
-                    mAccountManagerFacade.getAccounts().getResult(),
-                    CoreAccountInfo.getIdFrom(identityManager.getPrimaryAccountInfo()));
+        if (accountsPromise.isFulfilled()) {
+            onAccountsChanged();
         }
         mPrefChangeRegistrar = new PrefChangeRegistrar(mPrefService);
         mPrefChangeRegistrar.addObserver(Pref.SIGNIN_ALLOWED, this::notifySignInAllowedChanged);
@@ -161,7 +154,7 @@ class SigninManagerImpl implements SigninManager, AccountsChangeObserver {
 
     /** Implements {@link AccountsChangeObserver}. */
     @Override
-    public void onCoreAccountInfosChanged() {
+    public void onAccountsChanged() {
         var accountsPromise = mAccountManagerFacade.getAccounts();
         assert accountsPromise.isFulfilled();
         List<AccountInfo> accounts = accountsPromise.getResult();
@@ -171,21 +164,23 @@ class SigninManagerImpl implements SigninManager, AccountsChangeObserver {
             return;
         }
 
-        @Nullable CoreAccountInfo primaryAccountInfo = mIdentityManager.getPrimaryAccountInfo();
+        @Nullable AccountInfo primaryAccountInfo = mIdentityManager.getPrimaryAccountInfo();
         if (primaryAccountInfo == null) {
             seedThenReloadAllAccountsFromSystem(accounts, null);
             return;
         }
         if (AccountUtils.findAccountByGaiaId(accounts, primaryAccountInfo.getGaiaId()) != null) {
             // The primary account is still on the device, reseed accounts.
-            seedThenReloadAllAccountsFromSystem(
-                    accounts, CoreAccountInfo.getIdFrom(primaryAccountInfo));
+            seedThenReloadAllAccountsFromSystem(accounts, primaryAccountInfo.getId());
             return;
         }
         if (isOperationInProgress()) {
             // Re-check whether there's still a primary account after the current operation.
-            runAfterOperationInProgress(this::onCoreAccountInfosChanged);
+            runAfterOperationInProgress(this::onAccountsChanged);
         } else {
+            // When the account is removed from the device, we should also uninstall its extensions.
+            setUninstallAccountExtensionsOnSignout(true);
+
             // Sign out if the current primary account is no longer on the device.
             // {@link #signOut} will trigger the re-seeding in this case.
             signOut(SignoutReason.ACCOUNT_REMOVED_FROM_DEVICE);
@@ -198,14 +193,14 @@ class SigninManagerImpl implements SigninManager, AccountsChangeObserver {
      * to null in case the user is signed out.
      */
     private void maybeUpdateLegacyPrimaryAccountEmail() {
-        CoreAccountInfo accountInfo = mIdentityManager.getPrimaryAccountInfo();
+        AccountInfo accountInfo = mIdentityManager.getPrimaryAccountInfo();
         if (Objects.equals(
-                CoreAccountInfo.getEmailFrom(accountInfo),
+                AccountInfo.getEmailFrom(accountInfo),
                 SigninPreferencesManager.getInstance().getLegacyPrimaryAccountEmail())) {
             return;
         }
         SigninPreferencesManager.getInstance()
-                .setLegacyPrimaryAccountEmail(CoreAccountInfo.getEmailFrom(accountInfo));
+                .setLegacyPrimaryAccountEmail(AccountInfo.getEmailFrom(accountInfo));
     }
 
     @Override
@@ -297,7 +292,7 @@ class SigninManagerImpl implements SigninManager, AccountsChangeObserver {
     @Override
     public void turnOnSyncForTesting(
             CoreAccountInfo coreAccountInfo, @SigninAccessPoint int accessPoint) {
-        CoreAccountInfo primaryAccountInfo = mIdentityManager.getPrimaryAccountInfo();
+        AccountInfo primaryAccountInfo = mIdentityManager.getPrimaryAccountInfo();
         assert primaryAccountInfo != null && primaryAccountInfo.equals(coreAccountInfo)
                 : "Must be signed-in to turn on sync ";
         @PrimaryAccountError
@@ -446,6 +441,17 @@ class SigninManagerImpl implements SigninManager, AccountsChangeObserver {
     }
 
     @Override
+    public void setUninstallAccountExtensionsOnSignout(boolean uninstall) {
+        SigninManagerImplJni.get()
+                .setUninstallAccountExtensionsOnSignout(mNativeSigninManagerAndroid, uninstall);
+    }
+
+    @Override
+    public boolean hasSignedInAccountExtensions() {
+        return SigninManagerImplJni.get().hasSignedInAccountExtensions(mNativeSigninManagerAndroid);
+    }
+
+    @Override
     public void signOut(@SignoutReason int signoutSource, Runnable signOutCallback) {
         // Only one signOut at a time!
         assert mSignOutCallback == null;
@@ -455,13 +461,11 @@ class SigninManagerImpl implements SigninManager, AccountsChangeObserver {
 
         mIdentityMutator.removePrimaryAccountButKeepTokens(signoutSource);
 
-        if (SigninFeatureMap.isEnabled(SigninFeatures.SIGNIN_MANAGER_SEEDING_FIX)) {
-            var accountsPromise = mAccountManagerFacade.getAccounts();
-            if (accountsPromise.isFulfilled()) {
-                // If accounts are already available - we might need to re-seed them. If the primary
-                // account disappears - we trigger a sign-out instead of re-seeding immediately.
-                seedThenReloadAllAccountsFromSystem(accountsPromise.getResult(), null);
-            }
+        var accountsPromise = mAccountManagerFacade.getAccounts();
+        if (accountsPromise.isFulfilled()) {
+            // If accounts are already available - we might need to re-seed them. If the primary
+            // account disappears - we trigger a sign-out instead of re-seeding immediately.
+            seedThenReloadAllAccountsFromSystem(accountsPromise.getResult(), null);
         }
 
         notifySignOutAllowedChanged();
@@ -663,6 +667,11 @@ class SigninManagerImpl implements SigninManager, AccountsChangeObserver {
         void wipeGoogleServiceWorkerCaches(
                 long nativeSigninManagerAndroid,
                 @JniType("base::RepeatingClosure") Runnable callback);
+
+        void setUninstallAccountExtensionsOnSignout(
+                long nativeSigninManagerAndroid, boolean uninstall);
+
+        boolean hasSignedInAccountExtensions(long nativeSigninManagerAndroid);
 
         void setUserAcceptedAccountManagement(
                 long nativeSigninManagerAndroid, boolean acceptedAccountManagement);

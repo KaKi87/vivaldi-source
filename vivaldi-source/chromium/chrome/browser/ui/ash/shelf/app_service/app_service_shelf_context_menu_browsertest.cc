@@ -129,7 +129,7 @@ class AppServiceShelfContextMenuWebAppBrowserTest
 
 IN_PROC_BROWSER_TEST_P(AppServiceShelfContextMenuWebAppBrowserTest,
                        WindowCommandCheckedForMinimalUi) {
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
   base::UserActionTester user_action_tester;
 
   auto web_app_install_info =
@@ -174,7 +174,7 @@ IN_PROC_BROWSER_TEST_P(AppServiceShelfContextMenuWebAppBrowserTest,
     GTEST_SKIP();
   }
 
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
   base::UserActionTester user_action_tester;
 
   auto web_app_install_info =
@@ -198,7 +198,8 @@ IN_PROC_BROWSER_TEST_P(AppServiceShelfContextMenuWebAppBrowserTest,
 
   // App window should have tab strip.
   Browser* app_browser = web_app::LaunchWebAppBrowser(profile, app_id);
-  EXPECT_TRUE(app_browser->app_controller()->has_tab_strip());
+  EXPECT_TRUE(
+      web_app::AppBrowserController::From(app_browser)->has_tab_strip());
 }
 
 IN_PROC_BROWSER_TEST_P(AppServiceShelfContextMenuWebAppBrowserTest,
@@ -208,7 +209,7 @@ IN_PROC_BROWSER_TEST_P(AppServiceShelfContextMenuWebAppBrowserTest,
   if (IsShortstandEnabled()) {
     GTEST_SKIP();
   }
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
   base::UserActionTester user_action_tester;
 
   auto web_app_install_info =
@@ -239,7 +240,7 @@ IN_PROC_BROWSER_TEST_P(AppServiceShelfContextMenuWebAppBrowserTest,
     GTEST_SKIP();
   }
 
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
   auto web_app_install_info =
       web_app::WebAppInstallInfo::CreateWithStartUrlForTesting(
           GURL("https://example.org"));
@@ -296,7 +297,7 @@ class AppServiceShelfContextMenuTabbedWebAppBrowserTest
 
 IN_PROC_BROWSER_TEST_F(AppServiceShelfContextMenuTabbedWebAppBrowserTest,
                        SetOpenInWindow) {
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
   base::UserActionTester user_action_tester;
 
   auto web_app_install_info =
@@ -323,7 +324,8 @@ IN_PROC_BROWSER_TEST_F(AppServiceShelfContextMenuTabbedWebAppBrowserTest,
 
   // App window should have tab strip.
   Browser* app_browser = web_app::LaunchWebAppBrowser(profile, app_id);
-  EXPECT_TRUE(app_browser->app_controller()->has_tab_strip());
+  EXPECT_TRUE(
+      web_app::AppBrowserController::From(app_browser)->has_tab_strip());
 }
 
 class AppServiceShelfContextMenuNonTabbedWebAppBrowserTest
@@ -342,7 +344,7 @@ class AppServiceShelfContextMenuNonTabbedWebAppBrowserTest
 
 IN_PROC_BROWSER_TEST_F(AppServiceShelfContextMenuNonTabbedWebAppBrowserTest,
                        SetOpenInWindow) {
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
   base::UserActionTester user_action_tester;
 
   auto web_app_install_info =
@@ -369,7 +371,8 @@ IN_PROC_BROWSER_TEST_F(AppServiceShelfContextMenuNonTabbedWebAppBrowserTest,
 
   // App window should not have a tab strip since the flag is disabled.
   Browser* app_browser = web_app::LaunchWebAppBrowser(profile, app_id);
-  EXPECT_FALSE(app_browser->app_controller()->has_tab_strip());
+  EXPECT_FALSE(
+      web_app::AppBrowserController::From(app_browser)->has_tab_strip());
 }
 
 class AppServiceShelfContextMenuCrostiniAppBrowserTest
@@ -385,7 +388,8 @@ class AppServiceShelfContextMenuCrostiniAppBrowserTest
     *crostini_list.add_apps() = crostini::CrostiniTestHelper::BasicApp(
         "app-service-context-menu-test-app");
 
-    guest_os::GuestOsRegistryServiceFactory::GetForProfile(browser()->profile())
+    guest_os::GuestOsRegistryServiceFactory::GetForProfile(
+        browser()->GetProfile())
         ->UpdateApplicationList(crostini_list);
 
     return crostini::CrostiniTestHelper::GenerateAppId(
@@ -420,14 +424,14 @@ IN_PROC_BROWSER_TEST_F(AppServiceShelfContextMenuCrostiniAppBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(AppServiceShelfContextMenuCrostiniAppBrowserTest,
                        ShutDownGuestOs) {
-  ash::SystemWebAppManager::Get(browser()->profile())
+  ash::SystemWebAppManager::Get(browser()->GetProfile())
       ->InstallSystemAppsForTesting();
   auto menu_section = GetContextMenuSectionForAppCommand(
       guest_os::kTerminalSystemAppId, ash::SHUTDOWN_GUEST_OS);
   ASSERT_FALSE(menu_section);
 
   auto* crostini_manager =
-      crostini::CrostiniManager::GetForProfile(browser()->profile());
+      crostini::CrostiniManager::GetForProfile(browser()->GetProfile());
   crostini_manager->AddRunningVmForTesting(crostini::kCrostiniDefaultVmName);
   base::RunLoop run_loop;
   run_loop.RunUntilIdle();
@@ -449,7 +453,7 @@ IN_PROC_BROWSER_TEST_F(AppServiceShelfContextMenuCrostiniAppBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(AppServiceShelfContextMenuCrostiniAppBrowserTest,
                        ShutDownBruschettaOs) {
-  ash::SystemWebAppManager::Get(browser()->profile())
+  ash::SystemWebAppManager::Get(browser()->GetProfile())
       ->InstallSystemAppsForTesting();
   auto menu_section = GetContextMenuSectionForAppCommand(
       guest_os::kTerminalSystemAppId, ash::SHUTDOWN_BRUSCHETTA_OS);
@@ -457,11 +461,12 @@ IN_PROC_BROWSER_TEST_F(AppServiceShelfContextMenuCrostiniAppBrowserTest,
 
   guest_os::GuestId id(guest_os::VmType::BRUSCHETTA,
                        bruschetta::kBruschettaVmName, "");
-  guest_os::GuestOsSessionTrackerFactory::GetForProfile(browser()->profile())
+  guest_os::GuestOsSessionTrackerFactory::GetForProfile(browser()->GetProfile())
       ->AddGuestForTesting(id, guest_os::GuestInfo{id, 0, {}, {}, {}, {}});
 
   auto* bruschetta_service =
-      bruschetta::BruschettaServiceFactory::GetForProfile(browser()->profile());
+      bruschetta::BruschettaServiceFactory::GetForProfile(
+          browser()->GetProfile());
   bruschetta_service->RegisterVmLaunch(bruschetta::kBruschettaVmName,
                                        bruschetta::RunningVmPolicy{false});
   base::RunLoop run_loop;

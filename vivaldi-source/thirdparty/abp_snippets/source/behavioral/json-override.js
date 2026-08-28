@@ -14,26 +14,36 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 import {apply, proxy} from "proxy-pants/function";
 import {hasOwnProperty} from "proxy-pants/object";
 
 import {getDebugger} from "../introspection/log.js";
 import {profile} from "../introspection/profile.js";
-import {formatArguments, toRegExp} from "../utils/general.js";
+import {
+  formatArguments, sendSnippetHitEvent, toRegExp
+} from "../utils/general.js";
 import {findOwner, overrideValue} from "../utils/execution.js";
+import {JSONPath} from "../utils/jsonpath.js";
+import {proxyToStringCalls} from "../utils/toString.js";
 
 const {Array, Error, JSON, Map, Object, Response} = $(window);
 
 // will be a Map of all paths, once the snippet is used at least once
 let paths = null;
+const hitFilters = new Set();
+function sendHitOnce(filter) {
+  if (!hitFilters.has(filter)) {
+    hitFilters.add(filter);
+    sendSnippetHitEvent(filter);
+  }
+}
 
 /**
- * Traps calls to JSON.parse, and if the result of the parsing is an Object, it
- * will replace specified properties from the result before returning to the
- * caller.
- * @alias module:content/snippets.json-override
+ * @description Traps calls to JSON.parse, and if the result of the
+ * parsing is an Object, it will replace specified properties from
+ * the result before returning to the caller.
+ * @memberof module:snippets/behavioral
  *
  * @param {string} rawOverridePaths A list of space-separated properties
  * to replace. Can include placeholders {} and [] to iterate over nested
@@ -59,7 +69,13 @@ let paths = null;
  * If no match is found no further search is done on the resulting object.
  * If the string begins and ends with a slash (/),
  * the text in between is treated as a regular expression.
+ * @example
+ * json-override 'children text' '' => Replaces all children and text
+ * property values (if existent) with an empty string from
+ * every object that is parsed with JSON.parse.
  *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69960214/json-override} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/behavioral-snippets/json-override} for external documentation.
  * @since Adblock Plus 3.11.2
  */
 export function jsonOverride(rawOverridePaths, value,
@@ -70,14 +86,18 @@ export function jsonOverride(rawOverridePaths, value,
   if (typeof value == "undefined")
     throw new Error("[json-override snippet]: No value to override with.");
 
-  if (!paths) {
-    let debugLog = getDebugger("json-override");
-    const {mark, end} = profile("json-override");
-    mark();
+  let debugLog = getDebugger("json-override");
+  const {mark, end} = profile("json-override");
 
+  if (!paths) {
+    mark();
     function overrideObject(obj, str) {
-      // eslint-disable-next-line max-len
-      for (let {formattedArgs, prune, needle, filter: flt, value: val} of paths.values()) {
+      for (let {formattedArgs,
+                prune,
+                jsonPathObjects,
+                needle,
+                filter: flt,
+                value: val} of paths.values()) {
         if (flt && !flt.test(str))
           continue;
 
@@ -85,10 +105,26 @@ export function jsonOverride(rawOverridePaths, value,
           return obj;
 
         for (let path of prune) {
-          if (path.includes("{}") || path.includes("[]"))
+          if (path.startsWith("jsonpath(")) {
+            try {
+              const engine = jsonPathObjects.get(path);
+              const matches = engine.evaluate(obj);
+              matches.forEach(({parent, key}) => {
+                debugLog("success", `JSONPath match found at [${key}], replaced with ${val}`, `\nFILTER: json-override ${formattedArgs}`);
+                sendHitOnce("json-override " + formattedArgs);
+                parent[key] = overrideValue(val);
+              });
+            }
+            catch (e) {
+              debugLog("error", `JSONPath evaluation failed for: ${path}. Error: ${e.message}`);
+            }
+          }
+          else if (path.includes("{}") || path.includes("[]")) {
             overridePathWithPlaceholders(obj, path, val, formattedArgs);
-          else
+          }
+          else {
             overridePathSimple(obj, path, val, formattedArgs);
+          }
         }
       }
       return obj;
@@ -137,6 +173,7 @@ export function jsonOverride(rawOverridePaths, value,
           // Standard property replacement case
           if (i === pathParts.length - 1) {
             debugLog("success", `Found ${path}, replaced it with ${newValue}`, `\nFILTER: json-override ${formattedArgs}`);
+            sendHitOnce("json-override " + formattedArgs);
             currentObj[part] = overrideValue(newValue);
           }
           else {
@@ -153,6 +190,7 @@ export function jsonOverride(rawOverridePaths, value,
       let details = findOwner(obj, path);
       if (typeof details != "undefined") {
         debugLog("success", `Found ${path}, replaced it with ${newValue}`, `\nFILTER: json-override ${formattedArgs}`);
+        sendHitOnce("json-override " + formattedArgs);
         details[0][details[1]] = overrideValue(newValue);
       }
     }
@@ -161,11 +199,13 @@ export function jsonOverride(rawOverridePaths, value,
     let {parse} = JSON;
     paths = new Map();
 
+    let wrappedParse = proxy(parse, function(str) {
+      let result = apply(parse, this, arguments);
+      return overrideObject(result, str);
+    });
+    proxyToStringCalls(wrappedParse, parse);
     Object.defineProperty(window.JSON, "parse", {
-      value: proxy(parse, function(str) {
-        let result = apply(parse, this, arguments);
-        return overrideObject(result, str);
-      })
+      value: wrappedParse
     });
     debugLog("info", "Wrapped JSON.parse for override");
 
@@ -183,9 +223,24 @@ export function jsonOverride(rawOverridePaths, value,
   const formattedArgsToLog = formatArguments(arguments);
   // allow a single unique rawOverridePaths definition per domain
   // TBD: should we throw an error if it was already set?
+
+  const pruneList = $(rawOverridePaths).split(/ +/);
+  const jsonPathObjects = new Map();
+  for (const p of pruneList) {
+    if (p.startsWith("jsonpath(")) {
+      try {
+        jsonPathObjects.set(p, new JSONPath(p.slice(9, -1)));
+      }
+      catch (e) {
+        debugLog("error", `Invalid JSONPath query: ${p}. Error: ${e.message}`);
+      }
+    }
+  }
+
   paths.set(rawOverridePaths, {
     formattedArgs: formattedArgsToLog,
-    prune: $(rawOverridePaths).split(/ +/),
+    prune: pruneList,
+    jsonPathObjects,
     needle: rawNeedlePaths.length ? $(rawNeedlePaths).split(/ +/) : [],
     filter: filter ? toRegExp(filter) : null,
     value

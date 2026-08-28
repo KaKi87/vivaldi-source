@@ -24,6 +24,7 @@
 #include "chrome/browser/actor/execution_engine.h"
 #include "chrome/browser/actor/tab_observation_strategy.h"
 #include "chrome/browser/actor/ui/event_dispatcher.h"
+#include "chrome/browser/glic/public/glic_actuation_tracker.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/actor.mojom-forward.h"
 #include "chrome/common/actor/action_result.h"
@@ -32,6 +33,7 @@
 #include "components/actor/core/actor_features.h"
 #include "components/actor/core/journal_details_builder.h"
 #include "components/actor/public/mojom/actor_types.mojom.h"
+#include "components/performance_manager/public/decorators/page_live_state_decorator.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/page.h"
 #include "content/public/browser/render_frame_host.h"
@@ -137,14 +139,19 @@ void ActorTask::ActorControlledTabState::OnVisibilityChanged(
   task->RecomputeHasVisibleTab();
 }
 
-ActorTask::ActorTask(base::PassKey<ActorKeyedService, ActorTask>,
-                     ActorKeyedService& service,
-                     TaskId id,
-                     std::unique_ptr<ui::UiEventDispatcher> ui_event_dispatcher,
-                     webui::mojom::TaskOptionsPtr options,
-                     const TaskSourceInfo& source_info,
-                     const EnterprisePolicyChecker* policy_checker,
-                     base::WeakPtr<ActorTaskDelegate> delegate)
+ActorTask::ActorTask(
+    base::PassKey<ActorKeyedService, ActorTask>,
+    ActorKeyedService& service,
+    TaskId id,
+    std::unique_ptr<ui::UiEventDispatcher> ui_event_dispatcher,
+    webui::mojom::TaskOptionsPtr options,
+    const TaskSourceInfo& source_info,
+    const EnterprisePolicyChecker* policy_checker,
+    base::WeakPtr<ActorTaskDelegate> delegate//,
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    std::optional<glic::mojom::InvocationSource> initial_invocation_source
+#endif // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+)
     : service_(service),
       id_(id),
       source_info_(source_info),
@@ -162,6 +169,9 @@ ActorTask::ActorTask(base::PassKey<ActorKeyedService, ActorTask>,
       feature_mode_(options && options->feature_mode.has_value()
                         ? options->feature_mode.value()
                         : glic::mojom::FeatureMode::kUnspecified),
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+      initial_invocation_source_(initial_invocation_source),
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
       policy_checker_(*policy_checker),
       delegate_(std::move(delegate)),
       ui_weak_ptr_factory_(ui_event_dispatcher_.get()) {
@@ -184,10 +194,15 @@ std::unique_ptr<ActorTask> ActorTask::CreateForTesting(
     webui::mojom::TaskOptionsPtr options,
     const TaskSourceInfo& source_info,
     const EnterprisePolicyChecker* policy_checker,
-    base::WeakPtr<ActorTaskDelegate> delegate) {
+    base::WeakPtr<ActorTaskDelegate> delegate //,
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    std::optional<glic::mojom::InvocationSource> initial_invocation_source
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+) {
   return std::make_unique<ActorTask>(
       base::PassKey<ActorTask>(), service, id, std::move(ui_event_dispatcher),
-      std::move(options), source_info, policy_checker, std::move(delegate));
+      std::move(options), source_info, policy_checker, std::move(delegate) /*,
+      initial_invocation_source */);
 }
 
 ExecutionEngine& ActorTask::GetExecutionEngine() const {
@@ -310,7 +325,7 @@ void ActorTask::SetState(State new_state) {
     RecordActorTaskCompletion(
         stopped_reason_.value(), base::TimeTicks::Now() - create_time_,
         total_actor_controlled_active_time_, total_number_of_interruptions_,
-        total_number_of_actions_);
+        total_number_of_actions_ /*, initial_invocation_source_ */);
   }
 }
 
@@ -617,14 +632,10 @@ void ActorTask::AddTab(tabs::TabHandle tab_handle,
     return;
   }
 
-  auto emplace_result = controlled_tabs_.emplace(
+  controlled_tabs_.emplace(
       tab_handle,
       std::make_unique<ActorControlledTabState>(this, stop_task_on_detach));
-  if (tabs::TabInterface* tab = tab_handle.Get()) {
-    emplace_result.first->second->will_detach_subscription =
-        tab->RegisterWillDetach(base::BindRepeating(
-            &ActorTask::OnTabWillDetach, weak_ptr_factory_.GetWeakPtr()));
-  }
+
   DidTabEnterActorControl(tab_handle);
 
   // Notify the UI of the new tab.
@@ -713,25 +724,22 @@ void ActorTask::ObserveTabOnce(tabs::TabHandle tab_handle) {
                  .first;
   ActorControlledTabState* state = itr->second.get();
 
-  state->will_detach_subscription = tab->RegisterWillDetach(base::BindRepeating(
-      &ActorTask::OnTabWillDetach, weak_ptr_factory_.GetWeakPtr()));
   DidContentsEnterActorControl(state, tab->GetContents());
 }
 
-void ActorTask::OnTabWillDetach(tabs::TabInterface* tab,
-                                tabs::TabInterface::DetachReason reason) {
-  if (reason != tabs::TabInterface::DetachReason::kDelete) {
+void ActorTask::OnTabWillDetach(tabs::TabHandle handle) {
+  to_observe_tabs_.erase(handle);
+
+  // If the removed tab is only being observed, we can just remove it without
+  // disrupting the task. If the task hasn't gotten the observation it wanted
+  // for this tab, then won't be able to get it and will need to do something
+  // else.
+  if (!HasTab(handle)) {
     return;
   }
-  if (to_observe_tabs_.contains(tab->GetHandle())) {
-    // If the removed tab is only being observed, we can just remove it without
-    // disrupting the task. If the task hasn't gotten the observation it wanted
-    // for this tab, then won't be able to get it and will need to do something
-    // else.
-    to_observe_tabs_.erase(tab->GetHandle());
-  }
+
   const auto* controlled_tab_state =
-      base::FindPtrOrNull(controlled_tabs_, tab->GetHandle());
+      base::FindPtrOrNull(controlled_tabs_, handle);
   if (!controlled_tab_state || !controlled_tab_state->stop_task_on_detach) {
     return;
   }
@@ -739,10 +747,9 @@ void ActorTask::OnTabWillDetach(tabs::TabInterface* tab,
   // TODO(mcnee): This will also stop a task that's paused. Should we leave
   // paused tasks as is?
 
-  journal_->Log(GURL(), id(), "Acting Tab Deleted",
-                JournalDetailsBuilder()
-                    .Add("tab_id", tab->GetHandle().raw_value())
-                    .Build());
+  journal_->Log(
+      GURL(), id(), "Acting Tab Deleted",
+      JournalDetailsBuilder().Add("tab_id", handle.raw_value()).Build());
 
   service_->StopTask(id(), StoppedReason::kTabDetached);
 }
@@ -794,7 +801,13 @@ void ActorTask::RecomputeHasVisibleTab() {
     }
   }
 
+  if (has_visible_tab_ == has_any_visible_tab) {
+    return;
+  }
   has_visible_tab_ = has_any_visible_tab;
+  if (delegate_) {
+    delegate_->OnTaskTabsVisibilityChanged(id_, has_visible_tab_);
+  }
 }
 
 void ActorTask::ResetToObserveTabsSet() {
@@ -881,11 +894,19 @@ void ActorTask::DidContentsEnterActorControl(
                                        /*stay_hidden=*/false,
                                        /*stay_awake=*/true,
                                        /*is_activity=*/true);
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  // Notify the tracker that the tab is getting actuated on to influence the
+  // prioritization of the renderer process. This will prevent the priority of
+  // the tab from dropping to BestEffort when it's not visible. When it is
+  // visible, the tab's priority is already boosted.
+  glic::GlicActuationTracker::GetInstance()->NotifyActuatingChanged(
+      contents, glic::GlicActuationState::kActuatingOnBackgroundTab);
 #if BUILDFLAG(IS_MAC) && BUILDFLAG(USE_EXTERNAL_POPUP_MENU)
   if (base::FeatureList::IsEnabled(features::kGlicActorInternalPopups)) {
     state->reenable_external_popups = contents->ForbidExternalPopupMenus();
   }
 #endif  // BUILDFLAG(IS_MAC) && BUILDFLAG(USE_EXTERNAL_POPUP_MENU)
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 }
 
 void ActorTask::DidTabExitActorControl(tabs::TabHandle handle) {
@@ -913,6 +934,10 @@ void ActorTask::DidTabExitActorControl(tabs::TabHandle handle) {
 void ActorTask::DidContentsExitActorControl(
     ActorTask::ActorControlledTabState* state,
     content::WebContents* contents) {
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  glic::GlicActuationTracker::GetInstance()->NotifyActuatingChanged(
+      contents, glic::GlicActuationState::kNone);
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   SetFocusState(contents, std::nullopt);
   state->SetContents(nullptr);
   // Triggers the ScopedClosureRunner's destructor (via std::optional's
@@ -942,7 +967,9 @@ bool ActorTask::CheckCrossProfileAndLog(tabs::TabInterface* tab,
 void ActorTask::AddAdditionalTabObservations(
     std::vector<optimization_guide::proto::TabObservation> tab_observations) {
   // This is currently only used by the load and extract content tool.
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   CHECK(base::FeatureList::IsEnabled(kGlicActorLoadAndExtractContentTool));
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   CHECK(additional_tab_observations_.empty());
 
   additional_tab_observations_ = std::move(tab_observations);
@@ -987,6 +1014,7 @@ ActorTask::State ActorTask::GetTaskStateFromStoppedReason(
     case StoppedReason::kUserNavigatedAway:
     case StoppedReason::kTabDetached:
     case StoppedReason::kShutdown:
+    case StoppedReason::kTimeout:
       final_state = State::kCancelled;
       break;
     case StoppedReason::kTaskComplete:

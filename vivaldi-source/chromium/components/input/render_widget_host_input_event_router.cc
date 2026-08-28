@@ -188,10 +188,18 @@ void TouchEventAckQueue::ProcessAckedTouchEvents() {
   if (ack_queue_.empty())
     return;
 
+  base::WeakPtr<RenderWidgetHostInputEventRouter> weak_client =
+      client_->GetWeakPtr();
   TouchEmulator* touch_emulator =
       client_->GetTouchEmulator(/*create_if_necessary=*/false);
+  base::WeakPtr<TouchEmulator> weak_touch_emulator =
+      touch_emulator ? touch_emulator->GetWeakPtr() : nullptr;
+
   while (!ack_queue_.empty() && ack_queue_.front().touch_event_ack_status ==
                                     TouchEventAckStatus::TouchEventAcked) {
+    if (!weak_client) {
+      return;
+    }
     // Extract values and bare pointers to avoid holding raw_ptrs on the stack
     // across synchronous view destruction boundaries.
     TouchEventWithLatencyInfo touch_event = ack_queue_.front().touch_event;
@@ -200,12 +208,18 @@ void TouchEventAckQueue::ProcessAckedTouchEvents() {
     RenderWidgetHostViewInput* root_view = ack_queue_.front().root_view;
     ack_queue_.pop_front();
 
-    if ((!touch_emulator ||
-         !touch_emulator->HandleTouchEventAck(touch_event.event, ack_result)) &&
-        (client_->IsViewInMap(root_view) || client_->ViewMapIsEmpty())) {
-      // Forward acked event and result to the root view associated with the
-      // event. The view map is only empty for AndroidWebView.
-      root_view->ProcessAckedTouchEvent(touch_event, ack_result);
+    bool handled_by_emulator = false;
+    if (weak_touch_emulator) {
+      handled_by_emulator = weak_touch_emulator->HandleTouchEventAck(
+          touch_event.event, ack_result);
+    }
+
+    if (!handled_by_emulator && weak_client) {
+      if (client_->IsViewInMap(root_view) || client_->ViewMapIsEmpty()) {
+        // Forward acked event and result to the root view associated with the
+        // event. The view map is only empty for AndroidWebView.
+        root_view->ProcessAckedTouchEvent(touch_event, ack_result);
+      }
     }
   }
 }
@@ -739,7 +753,7 @@ void RenderWidgetHostInputEventRouter::DispatchMouseEvent(
 
   if (root_view_receive_additional_mouse_up_ && target != root_view &&
       mouse_event.GetType() == blink::WebInputEvent::Type::kMouseUp) {
-    root_view->ProcessMouseEvent(event, latency);
+    root_view->ProcessMouseEvent(mouse_event, latency);
   }
 }
 
@@ -2141,6 +2155,11 @@ TouchEmulator* RenderWidgetHostInputEventRouter::GetTouchEmulator(
   return delegate_->GetTouchEmulator(create_if_necessary);
 }
 
+base::WeakPtr<RenderWidgetHostInputEventRouter>
+RenderWidgetHostInputEventRouter::GetWeakPtr() {
+  return weak_ptr_factory_.GetWeakPtr();
+}
+
 void RenderWidgetHostInputEventRouter::ForwardEmulatedGestureEvent(
     const blink::WebGestureEvent& event) {
   TRACE_EVENT0("input",
@@ -2161,13 +2180,10 @@ void RenderWidgetHostInputEventRouter::ForwardEmulatedTouchEvent(
     RenderWidgetHostViewInput* target) {
   TRACE_EVENT0("input",
                "RenderWidgetHostInputEventRouter::ForwardEmulatedTouchEvent");
-  // Here we re-use the last root view we saw for a mouse move event, or fall
-  // back to using |target| as the root_view if we haven't seen a mouse event;
-  // this latter case only happens for injected touch events.
-  // TODO(wjmaclean): Why doesn't this class just track its root view?
-  DCHECK(IsViewInMap(target));
-  last_emulated_event_root_view_ =
-      last_mouse_move_root_view_ ? last_mouse_move_root_view_.get() : target;
+  CHECK(IsViewInMap(target));
+  // Emulated touch and gesture coordinates are relative to this root view.
+  RenderWidgetHostViewInput* root_view = target->GetRootView();
+  last_emulated_event_root_view_ = root_view ? root_view : target;
 
   if (event.GetType() == blink::WebInputEvent::Type::kTouchStart)
     active_touches_ += CountChangedTouchPoints(event);

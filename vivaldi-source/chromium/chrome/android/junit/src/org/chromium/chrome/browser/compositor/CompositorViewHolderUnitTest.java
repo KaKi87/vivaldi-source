@@ -14,6 +14,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -28,7 +29,9 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.Size;
 import android.view.ContextThemeWrapper;
 import android.view.InputDevice;
@@ -56,6 +59,7 @@ import org.robolectric.annotation.Config;
 
 import org.chromium.base.ActivityState;
 import org.chromium.base.ApplicationStatus;
+import org.chromium.base.BaseFeatures;
 import org.chromium.base.InputHintChecker;
 import org.chromium.base.InputHintCheckerJni;
 import org.chromium.base.UserDataHost;
@@ -98,7 +102,9 @@ import org.chromium.components.prefs.PrefService;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.KeyboardVisibilityDelegate;
 import org.chromium.ui.base.ApplicationViewportInsetTracker;
+import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.LocalizationUtils;
+import org.chromium.ui.base.ViewAndroidDelegate;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.insets.InsetObserver;
 import org.chromium.ui.mojom.VirtualKeyboardMode;
@@ -106,13 +112,10 @@ import org.chromium.ui.resources.ResourceManager;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
 
 import java.lang.ref.WeakReference;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /** Unit tests for {@link CompositorViewHolder}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@EnableFeatures({ChromeFeatureList.SUPPRESS_TOOLBAR_CAPTURES_AT_GESTURE_END})
 @DisableFeatures({
     ChromeFeatureList.FULLSCREEN_INSETS_API_MIGRATION,
     ChromeFeatureList.FULLSCREEN_INSETS_API_MIGRATION_ON_AUTOMOTIVE
@@ -168,13 +171,6 @@ public class CompositorViewHolderUnitTest {
                         0,
                         InputDevice.SOURCE_CLASS_POINTER,
                         0);
-    }
-
-    private static final class EventSource {
-        static final int IN_MOTION = 0;
-        static final int TOUCH_EVENT_OBSERVER = 1;
-
-        private EventSource() {}
     }
 
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
@@ -281,7 +277,23 @@ public class CompositorViewHolderUnitTest {
         when(mCompositorView.getResourceManager()).thenReturn(mResourceManager);
         when(mResourceManager.getDynamicResourceLoader()).thenReturn(mDynamicResourceLoader);
 
-        mCompositorViewHolder = spy(new CompositorViewHolder(mContext, null));
+        mCompositorViewHolder =
+                org.mockito.Mockito.mock(
+                        CompositorViewHolder.class,
+                        org.mockito.Mockito.withSettings()
+                                .useConstructor(mContext, null)
+                                .defaultAnswer(org.mockito.Mockito.CALLS_REAL_METHODS));
+
+        // mCompositorViewHolder is a _mock_, so we need to forward any posted Runnable to the main
+        // thread so that RobolectricUtil.runAllBackgroundAndUi() can drain and run the posted
+        // tasks.
+        doAnswer(
+                        invocation -> {
+                            new Handler(Looper.getMainLooper()).post(invocation.getArgument(0));
+                            return true;
+                        })
+                .when(mCompositorViewHolder)
+                .post(any(Runnable.class));
 
         mCompositorViewHolder.setToolbarThemeColorProvider(mToolbarThemeColorProvider);
         mCompositorViewHolder.setLayoutManager(mLayoutManager);
@@ -307,35 +319,13 @@ public class CompositorViewHolderUnitTest {
         IBinder windowToken = mock(IBinder.class);
         when(mContainerView.getWindowToken()).thenReturn(windowToken);
         when(mContentView.getWindowToken()).thenReturn(windowToken);
+        ViewAndroidDelegate viewDelegate = ViewAndroidDelegate.createBasicDelegate(mContentView);
+        when(mWebContents.getViewAndroidDelegate()).thenReturn(viewDelegate);
     }
 
     @After
     public void tearDown() {
         LocalizationUtils.setRtlForTesting(false);
-    }
-
-    private List<Integer> observeTouchAndMotionEvents() {
-        List<Integer> eventSequence = new ArrayList<>();
-        mCompositorViewHolder
-                .getInMotionSupplier()
-                .addSyncObserverAndPostIfNonNull(
-                        (inMotion) -> eventSequence.add(EventSource.IN_MOTION));
-        // This touch observer is used as a proxy for when ViewGroup#dispatchTouchEvent is called,
-        // which is when the touch is propagated to children.
-        mCompositorViewHolder.addTouchEventObserver(
-                new TouchEventObserver() {
-                    @Override
-                    public boolean onInterceptTouchEvent(MotionEvent e) {
-                        return false;
-                    }
-
-                    @Override
-                    public boolean dispatchTouchEvent(MotionEvent e) {
-                        eventSequence.add(EventSource.TOUCH_EVENT_OBSERVER);
-                        return false;
-                    }
-                });
-        return eventSequence;
     }
 
     // controlsResizeView tests ---
@@ -717,7 +707,7 @@ public class CompositorViewHolderUnitTest {
 
     // Keyboard resize tests for geometrychange event fired to JS.
     @Test
-    public void testWebContentResizeTriggeredDueToKeyboardShow() {
+    public void testResizeNotificationsDueToKeyboardShow_OSKeyboardResize() {
         mCompositorViewHolder.updateVirtualKeyboardMode(VirtualKeyboardMode.OVERLAYS_CONTENT);
         reset(mWebContents);
 
@@ -735,15 +725,18 @@ public class CompositorViewHolderUnitTest {
         when(mCompositorViewHolder.getWidth()).thenReturn(fullViewportWidth);
         when(mCompositorViewHolder.getHeight()).thenReturn(adjustedHeight);
 
+        // This triggers handleWindowInsetChanged automatically.
         mKeyboardInsetSupplier.set(KEYBOARD_HEIGHT);
-        mCompositorViewHolder.updateWebContentsSize(mTab);
 
-        // Expect fullViewportHeight since in OVERLAYS_CONTENT the keyboard doesn't cause a resize
-        // to the WebContents.
-        verify(mWebContents, times(1)).setSize(fullViewportWidth, fullViewportHeight);
+        // The webcontents weren't resized, so no `setSize` should come through.
+        verify(mWebContents, never()).setSize(anyInt(), anyInt());
         verify(mCompositorViewHolder, times(1))
                 .notifyVirtualKeyboardOverlayRect(
-                        mWebContents, 0, 0, fullViewportWidth, KEYBOARD_HEIGHT);
+                        mWebContents,
+                        0,
+                        0, // Expected y is 0 when View is resized to 200 and keyboard is 741
+                        fullViewportWidth,
+                        KEYBOARD_HEIGHT);
 
         reset(mWebContents);
 
@@ -752,10 +745,10 @@ public class CompositorViewHolderUnitTest {
         when(mMockKeyboard.calculateTotalKeyboardHeight(any())).thenReturn(0);
         when(mCompositorViewHolder.getWidth()).thenReturn(fullViewportWidth);
         when(mCompositorViewHolder.getHeight()).thenReturn(fullViewportHeight);
+        // This triggers handleWindowInsetChanged automatically.
         mKeyboardInsetSupplier.set(0);
-        mCompositorViewHolder.updateWebContentsSize(mTab);
 
-        verify(mWebContents, times(1)).setSize(fullViewportWidth, fullViewportHeight);
+        verify(mWebContents, never()).setSize(anyInt(), anyInt());
         verify(mCompositorViewHolder, times(1))
                 .notifyVirtualKeyboardOverlayRect(mWebContents, 0, 0, 0, 0);
     }
@@ -916,9 +909,43 @@ public class CompositorViewHolderUnitTest {
                 .setSize(fullViewportWidth, fullViewportHeight + KEYBOARD_HEIGHT);
     }
 
+    @Test
+    @DisableFeatures(BaseFeatures.VIRTUAL_KEYBOARD_GEOMETRY_AND_INSET_FIXES)
+    public void testWebContentResizeTriggeredDueToKeyboardShow_withKillSwitch_usesLegacyOrigin() {
+        mCompositorViewHolder.updateVirtualKeyboardMode(VirtualKeyboardMode.OVERLAYS_CONTENT);
+        reset(mWebContents);
+
+        int fullViewportHeight = 941;
+        int fullViewportWidth = 1080;
+        int adjustedHeight = fullViewportHeight - KEYBOARD_HEIGHT;
+
+        View rootView = mock(View.class);
+        when(mCompositorViewHolder.getRootView()).thenReturn(rootView);
+        doAnswer(
+                        invocation -> {
+                            Rect appRect = invocation.getArgument(0);
+                            appRect.set(17, 23, 17 + fullViewportWidth, 23 + fullViewportHeight);
+                            return null;
+                        })
+                .when(rootView)
+                .getWindowVisibleDisplayFrame(any(Rect.class));
+
+        when(mMockKeyboard.isKeyboardShowing(any())).thenReturn(true);
+        when(mMockKeyboard.calculateTotalKeyboardHeight(any())).thenReturn(KEYBOARD_HEIGHT);
+        when(mCompositorViewHolder.getWidth()).thenReturn(fullViewportWidth);
+        when(mCompositorViewHolder.getHeight()).thenReturn(adjustedHeight);
+
+        mKeyboardInsetSupplier.set(KEYBOARD_HEIGHT);
+        mCompositorViewHolder.updateWebContentsSize(mTab);
+
+        verify(mCompositorViewHolder, times(1))
+                .notifyVirtualKeyboardOverlayRect(
+                        mWebContents, 17, 23, fullViewportWidth, KEYBOARD_HEIGHT);
+    }
+
     // Keyboard resize tests for geometrychange event fired to JS.
     @Test
-    public void testWebContentResizeTriggeredDueToKeyboardShow_keyboardInOverlayMode() {
+    public void testResizeNotificationsDueToKeyboardShow_OSKeyboardOverlay() {
         mCompositorViewHolder.updateVirtualKeyboardMode(VirtualKeyboardMode.OVERLAYS_CONTENT);
         reset(mWebContents);
 
@@ -939,15 +966,18 @@ public class CompositorViewHolderUnitTest {
         when(mCompositorViewHolder.getHeight()).thenReturn(fullViewportHeight);
         when(mInsetObserver.isKeyboardInOverlayMode()).thenReturn(true);
 
+        // This triggers handleWindowInsetChanged automatically.
         mKeyboardInsetSupplier.set(KEYBOARD_HEIGHT);
-        mCompositorViewHolder.updateWebContentsSize(mTab);
 
-        // Expect fullViewportHeight since in OVERLAYS_CONTENT the keyboard doesn't cause a resize
-        // to the WebContents.
-        verify(mWebContents, times(1)).setSize(fullViewportWidth, fullViewportHeight);
+        // The webcontents weren't resized, so no `setSize` should come through.
+        verify(mWebContents, never()).setSize(anyInt(), anyInt());
         verify(mCompositorViewHolder, times(1))
                 .notifyVirtualKeyboardOverlayRect(
-                        mWebContents, 0, 0, fullViewportWidth, KEYBOARD_HEIGHT);
+                        mWebContents,
+                        0,
+                        fullViewportHeight - KEYBOARD_HEIGHT,
+                        fullViewportWidth,
+                        KEYBOARD_HEIGHT);
 
         reset(mWebContents);
 
@@ -957,10 +987,10 @@ public class CompositorViewHolderUnitTest {
         when(mCompositorViewHolder.getWidth()).thenReturn(fullViewportWidth);
         when(mCompositorViewHolder.getHeight()).thenReturn(fullViewportHeight);
         when(mInsetObserver.isKeyboardInOverlayMode()).thenReturn(true);
+        // This triggers handleWindowInsetChanged automatically.
         mKeyboardInsetSupplier.set(0);
-        mCompositorViewHolder.updateWebContentsSize(mTab);
 
-        verify(mWebContents, times(1)).setSize(fullViewportWidth, fullViewportHeight);
+        verify(mWebContents, never()).setSize(anyInt(), anyInt());
         verify(mCompositorViewHolder, times(1))
                 .notifyVirtualKeyboardOverlayRect(mWebContents, 0, 0, 0, 0);
     }
@@ -1119,50 +1149,6 @@ public class CompositorViewHolderUnitTest {
     }
 
     @Test
-    @DisableFeatures({
-        ChromeFeatureList.SUPPRESS_TOOLBAR_CAPTURES_AT_GESTURE_END,
-        ChromeFeatureList.TOOLBAR_STALE_CAPTURE_BUG_FIX
-    })
-    public void testInMotionSupplier() {
-        mCompositorViewHolder.dispatchTouchEvent(MOTION_EVENT_DOWN);
-        mCompositorViewHolder.onInterceptTouchEvent(MOTION_EVENT_DOWN);
-        Assert.assertTrue(mCompositorViewHolder.getInMotionSupplier().get());
-
-        mCompositorViewHolder.dispatchTouchEvent(MOTION_EVENT_UP);
-        mCompositorViewHolder.onInterceptTouchEvent(MOTION_EVENT_UP);
-        Assert.assertFalse(mCompositorViewHolder.getInMotionSupplier().get());
-
-        mCompositorViewHolder.dispatchTouchEvent(MOTION_EVENT_DOWN);
-        mCompositorViewHolder.onInterceptTouchEvent(MOTION_EVENT_DOWN);
-        Assert.assertTrue(mCompositorViewHolder.getInMotionSupplier().get());
-
-        // Simulate a child handling a scroll, where they call requestDisallowInterceptTouchEvent
-        // and then we no longer get onInterceptTouchEvent. The dispatchTouchEvent alone should
-        // still cause our motion status to correctly update.
-        mCompositorViewHolder.requestDisallowInterceptTouchEvent(true);
-        mCompositorViewHolder.dispatchTouchEvent(MOTION_EVENT_UP);
-        Assert.assertFalse(mCompositorViewHolder.getInMotionSupplier().get());
-    }
-
-    @Test
-    @DisableFeatures(ChromeFeatureList.TOOLBAR_STALE_CAPTURE_BUG_FIX)
-    public void testGestureBeginEndInMotionSupplier() {
-        when(mWindowAndroid.getActivity()).thenReturn(new WeakReference<>(mActivity));
-        mCompositorViewHolder.onNativeLibraryReady(
-                mWindowAndroid, /* tabContentManager= */ null, mPrefService);
-
-        mCompositorViewHolder.onContentChanged();
-        verify(mTab, atLeast(1)).addObserver(mTabObserverCaptor.capture());
-
-        mTabObserverCaptor.getAllValues().forEach((obs) -> obs.onGestureBegin());
-        Assert.assertTrue(mCompositorViewHolder.getInMotionSupplier().get());
-
-        mTabObserverCaptor.getAllValues().forEach((obs) -> obs.onGestureEnd());
-        Assert.assertFalse(mCompositorViewHolder.getInMotionSupplier().get());
-    }
-
-    @Test
-    @EnableFeatures(ChromeFeatureList.TOOLBAR_STALE_CAPTURE_BUG_FIX)
     public void testInMotionSupplier_OnTouch() {
         when(mWindowAndroid.getActivity()).thenReturn(new WeakReference<>(mActivity));
         mCompositorViewHolder.onNativeLibraryReady(
@@ -1218,21 +1204,6 @@ public class CompositorViewHolderUnitTest {
     }
 
     @Test
-    @DisableFeatures({
-        ChromeFeatureList.TOOLBAR_STALE_CAPTURE_BUG_FIX,
-        ChromeFeatureList.SUPPRESS_TOOLBAR_CAPTURES_AT_GESTURE_END
-    })
-    public void testInMotionOrdering() {
-        // With the 'defer in motion' experiment enabled, touch events are routed to android UI
-        // after being sent to native/web content.
-        List<Integer> eventSequence = observeTouchAndMotionEvents();
-        mCompositorViewHolder.dispatchTouchEvent(MOTION_EVENT_DOWN);
-        assertEquals(
-                Arrays.asList(EventSource.TOUCH_EVENT_OBSERVER, EventSource.IN_MOTION),
-                eventSequence);
-    }
-
-    @Test
     @Config(qualifiers = "sw600dp")
     public void testSetBackgroundRunnable() {
         // Trigger a compositor layout. Verify the background has not yet been removed.
@@ -1268,7 +1239,6 @@ public class CompositorViewHolderUnitTest {
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.TOOLBAR_STALE_CAPTURE_BUG_FIX)
     public void testOnControlsOffsetChanged_NoRequestRenderIfScrolling() {
         mCompositorViewHolder.dispatchTouchEvent(MOTION_EVENT_DOWN);
         mCompositorViewHolder.onControlsOffsetChanged(0, 0, false, 0, 0, false, true, false);
@@ -1421,8 +1391,10 @@ public class CompositorViewHolderUnitTest {
     @Test
     @EnableFeatures(ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL)
     public void testSetSideUiStateProviderSupplier() {
-        when(mSideUiStateProvider.getCurrentSideUiSpecs())
-                .thenReturn(SideUiSpecs.EMPTY_SIDE_UI_SPECS);
+        SideUiSpecs emptySideUiSpecs =
+                new SideUiSpecs(/* leftContainerWidth= */ 0, /* rightContainerWidth= */ 0);
+
+        when(mSideUiStateProvider.getCurrentSideUiSpecs()).thenReturn(emptySideUiSpecs);
         mSideUiStateProviderSupplier.set(mSideUiStateProvider);
         runCurrentTasks();
 
@@ -1446,14 +1418,47 @@ public class CompositorViewHolderUnitTest {
         int endContainerWidth = 200;
         SideUiSpecs currentSideUiSpecs = new SideUiSpecs(startContainerWidth, endContainerWidth);
         when(mSideUiStateProvider.getCurrentSideUiSpecs()).thenReturn(currentSideUiSpecs);
+
+        // Act: Make SideUiStateProvider available.
+        //
+        // Note that onSideUiSpecsChanged() is expected to be called as soon as SideUiStateProvider
+        // is available, so we don't need to explicitly call onSideUiSpecsChanged() here.
         mSideUiStateProviderSupplier.set(mSideUiStateProvider);
         runCurrentTasks();
 
-        // Act.
-        mCompositorViewHolder.onSideUiSpecsChanged(currentSideUiSpecs);
-
         // Verify.
-        verify(mWebContents)
+        verify(mWebContents, atLeastOnce())
+                .setSize(viewportWidth - (startContainerWidth + endContainerWidth), viewportHeight);
+    }
+
+    @Test
+    @DisableFeatures(ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL)
+    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
+    @Config(qualifiers = "sw600dp")
+    public void testOnSideUiSpecsChanged_updateWebContentsSize_verticalTabs() {
+        when(mResources.getInteger(R.integer.min_screen_width_bucket))
+                .thenReturn(DeviceFormFactor.SCREEN_BUCKET_TABLET);
+        when(mWindowAndroid.getActivity()).thenReturn(new WeakReference<>(mActivity));
+        mCompositorViewHolder.onNativeLibraryReady(
+                mWindowAndroid, /* tabContentManager= */ null, mPrefService);
+        reset(mWebContents);
+
+        int viewportHeight = 941;
+        int viewportWidth = 1080;
+        when(mCompositorViewHolder.getWidth()).thenReturn(viewportWidth);
+        when(mCompositorViewHolder.getHeight()).thenReturn(viewportHeight);
+
+        int startContainerWidth = 100;
+        int endContainerWidth = 200;
+        SideUiSpecs currentSideUiSpecs = new SideUiSpecs(startContainerWidth, endContainerWidth);
+        when(mSideUiStateProvider.getCurrentSideUiSpecs()).thenReturn(currentSideUiSpecs);
+
+        // Make SideUiStateProvider available.
+        mSideUiStateProviderSupplier.set(mSideUiStateProvider);
+        runCurrentTasks();
+
+        // Verify that web contents width is updated when vertical tabs is enabled on tablet.
+        verify(mWebContents, atLeastOnce())
                 .setSize(viewportWidth - (startContainerWidth + endContainerWidth), viewportHeight);
     }
 
@@ -1473,21 +1478,26 @@ public class CompositorViewHolderUnitTest {
         // Setup.
         LocalizationUtils.setRtlForTesting(shouldBeRtl);
         reset(mWebContents);
+        ViewAndroidDelegate viewDelegate = ViewAndroidDelegate.createBasicDelegate(mContentView);
+        when(mWebContents.getViewAndroidDelegate()).thenReturn(viewDelegate);
 
         // Arbitrary Side UI width.
         int leftContainerWidth = 50;
         int rightContainerWidth = 150;
         SideUiSpecs currentSideUiSpecs = new SideUiSpecs(leftContainerWidth, rightContainerWidth);
         when(mSideUiStateProvider.getCurrentSideUiSpecs()).thenReturn(currentSideUiSpecs);
+
+        // Act: Make SideUiStateProvider available.
+        //
+        // Note that onSideUiSpecsChanged() is expected to be called as soon as SideUiStateProvider
+        // is available, so we don't need to explicitly call onSideUiSpecsChanged() here.
         mSideUiStateProviderSupplier.set(mSideUiStateProvider);
         runCurrentTasks();
-
-        // Act.
-        mCompositorViewHolder.onSideUiSpecsChanged(currentSideUiSpecs);
 
         // Verify that RTL does not affect the offset (i.e. always contentOffsetx == left)
         int expectedContentOffsetX = leftContainerWidth;
         verify(mLayoutManager).setContentOffsetX(expectedContentOffsetX);
+        verify(mContentView, atLeastOnce()).setContentOffsetXPix(expectedContentOffsetX);
     }
 
     @Test
@@ -1611,5 +1621,84 @@ public class CompositorViewHolderUnitTest {
         // Background non-captured tab is NOT updated
         verify(mCompositorView, never())
                 .onPhysicalBackingSizeChanged(eq(bgWebContents), anyInt(), anyInt());
+    }
+
+    @Test
+    public void testKeepScreenOnDeferred_TabSwitchResetsState() throws Exception {
+        when(mWindowAndroid.getActivity()).thenReturn(new WeakReference<>(mActivity));
+        mCompositorViewHolder.onNativeLibraryReady(
+                mWindowAndroid, /* tabContentManager= */ null, mPrefService);
+        mCompositorViewHolder.onContentChanged();
+
+        // Capture the tab observer on the first tab
+        verify(mTab, atLeast(1)).addObserver(mTabObserverCaptor.capture());
+        TabObserver initialTabObserver = mTabObserverCaptor.getValue();
+
+        // Simulate scroll start on the first tab
+        initialTabObserver.onContentViewScrollingStateChanged(true);
+        assertTrue(mCompositorViewHolder.getInMotionSupplier().get());
+
+        // 2. Add a new tab and switch to it.
+        Tab newTab = mTabModelSelector.addMockTab();
+        ContentView newContentView = mock(ContentView.class);
+        WebContents newWebContents = mock(WebContents.class);
+        when(newTab.getWebContents()).thenReturn(newWebContents);
+        when(newTab.getContentView()).thenReturn(newContentView);
+        when(newTab.getView()).thenReturn(newContentView);
+
+        when(mCompositorViewHolder.getCurrentTab()).thenReturn(newTab);
+
+        // Reset the captor before trigger tab switch to capture the new observer
+        mTabObserverCaptor = ArgumentCaptor.forClass(TabObserver.class);
+
+        // Trigger tab switch in the model selector.
+        mTabModelSelector.getModel(false).setIndex(1, TabSelectionType.FROM_USER);
+        mCompositorViewHolder.onContentChanged();
+
+        // With our fix, the stale scroll state should be cleared immediately upon tab switch.
+        assertFalse(mCompositorViewHolder.getInMotionSupplier().get());
+
+        // Capture the observer on the new tab
+        verify(newTab, atLeast(1)).addObserver(mTabObserverCaptor.capture());
+        TabObserver newTabObserver = mTabObserverCaptor.getValue();
+
+        // Now, the new tab is active.
+        // 3. Simulate user interaction on the new tab (touch down).
+        newTabObserver.onTouchDown();
+
+        // It should call setDeferKeepScreenOnChanges(true) for the new touch sequence.
+        verify(newContentView).setDeferKeepScreenOnChanges(true);
+        reset(newContentView);
+
+        // 4. Simulate user interaction ending on the new tab (touch up).
+        newTabObserver.onTouchUp();
+
+        // It should correctly release the deferral now.
+        verify(newContentView).setDeferKeepScreenOnChanges(false);
+        assertFalse(mCompositorViewHolder.getInMotionSupplier().get());
+    }
+
+    @Test
+    public void testKeepScreenOnDeferred_TabHideResetsState() throws Exception {
+        when(mWindowAndroid.getActivity()).thenReturn(new WeakReference<>(mActivity));
+        mCompositorViewHolder.onNativeLibraryReady(
+                mWindowAndroid, /* tabContentManager= */ null, mPrefService);
+        mCompositorViewHolder.onContentChanged();
+
+        // Capture the tab observer on the active tab
+        verify(mTab, atLeast(1)).addObserver(mTabObserverCaptor.capture());
+        TabObserver tabObserver = mTabObserverCaptor.getValue();
+
+        // 1. Simulate scroll and touch on the active tab
+        tabObserver.onContentViewScrollingStateChanged(true);
+        tabObserver.onTouchDown();
+
+        assertTrue(mCompositorViewHolder.getInMotionSupplier().get());
+
+        // 2. Call onHidden on the observer.
+        tabObserver.onHidden(mTab, org.chromium.chrome.browser.tab.TabHidingType.ACTIVITY_HIDDEN);
+
+        // 3. Verify that the compositor is no longer in motion.
+        assertFalse(mCompositorViewHolder.getInMotionSupplier().get());
     }
 }

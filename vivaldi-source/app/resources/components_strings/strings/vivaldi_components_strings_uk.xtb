@@ -21,6 +21,7 @@
 <translation id="1728677426644403582">Ви переглядаєте код веб-сторінки</translation>
 <translation id="1734878702283171397">Зверніться до системного адміністратора.</translation>
 <translation id="1768211456781949159"><ph name="BEGIN_LINK" />Спробуйте запустити засоби діагностики мережі Windows<ph name="END_LINK" />.</translation>
+<translation id="1932098463447129402">Не раніше</translation>
 <translation id="1974060860693918893">Детальніше</translation>
 <translation id="2032962459168915086"><ph name="BEGIN_LINK" />Перевірити проксі-сервер і брандмауер<ph name="END_LINK" /></translation>
 <translation id="2048261947532620704">Переклад сторінки</translation>
@@ -39,11 +40,12 @@
 <translation id="2467694685043708798"><ph name="BEGIN_LINK" />Виконати діагностику мережі<ph name="END_LINK" /></translation>
 <translation id="2491414235131909199">Розширення заблокувало цю сторінку</translation>
 <translation id="255002559098805027">Хост <ph name="HOST_NAME" /> надіслав недійсну відповідь.</translation>
+<translation id="2607101320794533334">Інформація про відкритий ключ суб'єкта</translation>
 <translation id="2634124572758952069">IP-адресу сервера <ph name="HOST_NAME" /> не знайдено.</translation>
-<translation id="2649204054376361687"><ph name="CITY" />, <ph name="COUNTRY" /></translation>
 <translation id="2650446666397867134">У доступі до файлу відмовлено</translation>
 <translation id="2705137772291741111">Не вдається прочитати збережену (кешовану) копію цього сайту.</translation>
 <translation id="2730326759066348565"><ph name="BEGIN_LINK" />Виконайте діагностику з’єднання<ph name="END_LINK" /></translation>
+<translation id="2738771556149464852">Не пізніше</translation>
 <translation id="2784949926578158345">З’єднання було скинуто.</translation>
 <translation id="2826760142808435982">З’єднання зашифровано й автентифіковано з використанням шифру <ph name="CIPHER" /> і використовує механізм обміну ключами <ph name="KX" />.</translation>
 <translation id="290376772003165898">Ця сторінка не такою мовою: <ph name="LANGUAGE" />?</translation>
@@ -69,8 +71,8 @@
 <translation id="3447884698081792621">Показати сертифікат (видавець: <ph name="ISSUER" />)</translation>
 <translation id="3462200631372590220">Сховати деталі</translation>
 <translation id="3484560055331845446">Ви можете втратити доступ до облікового запису Google. Chrome радить змінити пароль. Вам буде запропоновано ввійти в обліковий запис.</translation>
+<translation id="3493881266323043047">Чинність</translation>
 <translation id="3566021033012934673">Ваше з’єднання не захищене</translation>
-<translation id="3574305903863751447"><ph name="CITY" />, <ph name="STATE" />, <ph name="COUNTRY" /></translation>
 <translation id="3586931643579894722">Сховати докладні дані</translation>
 <translation id="3614001939154393113">Зловмисники можуть намагатися викрасти вашу інформацію з <ph name="BEGIN_BOLD" /><ph name="SITE" /><ph name="END_BOLD" /> (наприклад, паролі, повідомлення чи дані кредитних карток). <ph name="BEGIN_LEARN_MORE_LINK" />Докладніше про це попередження<ph name="END_LEARN_MORE_LINK" /></translation>
 <translation id="3630155396527302611">Якщо цій програмі вже надано доступ до мережі, спробуйте
@@ -78,18 +80,17 @@
 <translation id="3658742229777143148">Редакція</translation>
 <translation id="3681007416295224113">Інформація про сертифікат</translation>
 <translation id="3717027428350673159"><ph name="BEGIN_LINK" />Перевірити конфігурацію проксі-сервера, брандмауера та DNS-сервера<ph name="END_LINK" /></translation>
+<translation id="3798449238516105146">Версія</translation>
 <translation id="382518646247711829">Якщо ви використовуєте проксі-сервер…</translation>
 <translation id="3950820424414687140">Увійти</translation>
 <translation id="3973234410852337861">Хост <ph name="HOST_NAME" /> заблокований</translation>
 <translation id="3987940399970879459">Менше 1 Мб</translation>
 <translation id="4075123085690634698">Відкрити сторінку у новому приватному вікні (⇧⌘N)</translation>
 <translation id="4075732493274867456">Клієнт і сервер підтримують різні версії протоколу SSL або набору шифрів.</translation>
-<translation id="4116663294526079822">Завжди дозволяти на цьому сайті</translation>
 <translation id="4130226655945681476">Перевірити мережевий кабель, модем і маршрутизатор</translation>
 <translation id="4165986682804962316">Налаштування сайту</translation>
 <translation id="4203896806696719780"><ph name="BEGIN_LINK" />Перевірити конфігурацію брандмауера і антивіруса<ph name="END_LINK" /></translation>
 <translation id="4226937834893929579"><ph name="BEGIN_LINK" />Спробуйте виконати діагностику мережі<ph name="END_LINK" />.</translation>
-<translation id="4235360514405112390">Дійсний</translation>
 <translation id="4241830393007970744">На сайті, який ви намагалися відвідати, зловмисники можуть обманом змусити вас установити програмне забезпечення або розкрити вашу інформацію, зокрема паролі, номер телефону чи кредитної картки.</translation>
 <translation id="4250431568374086873">Ваше з’єднання з цим сайтом не повністю захищене</translation>
 <translation id="4265872034478892965">Дозволено вашим адміністратором</translation>
@@ -112,11 +113,11 @@
 <translation id="5023310440958281426">Перегляньте правила свого адміністратора</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Перевірити адресу проксі-сервера<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-розрядна версія)</translation>
+<translation id="5154702632169343078">Тема</translation>
 <translation id="5216942107514965959">Востаннє відвідане сьогодні</translation>
 <translation id="5355557959165512791">Зараз не можна перейти на сторінку <ph name="SITE" />, оскільки цей сертифікат відкликано. Помилки мережі й атаки зазвичай тимчасові, тому ця сторінка, скоріш за все, запрацює пізніше.</translation>
 <translation id="5386426401304769735">Ланцюжок сертифіката цього сайту містить сертифікат, підписаний за допомогою SHA-1.</translation>
 <translation id="5452270690849572955">Сторінку хосту <ph name="HOST_NAME" /> не знайдено</translation>
-<translation id="5457113250005438886">Недійсні дані</translation>
 <translation id="5492298309214877701">URL-адреса цього сайту в інтранеті компанії, організації чи навчального закладу збігається з адресою зовнішнього веб-сайту.
     <ph name="LINE_BREAK" />
     Зв’яжіться зі своїм системним адміністратором.</translation>
@@ -129,6 +130,7 @@
 <translation id="5799902971440853357">Зараз не можна перейти на сторінку <ph name="SITE" />, оскільки веб-сайт надіслав зашифровані облікові дані, які Vivaldi не може обробити. Помилки мережі й атаки зазвичай є тимчасовими, тому ця сторінка може запрацювати пізніше.</translation>
 <translation id="5810442152076338065">З’єднання з доменом <ph name="DOMAIN" /> шифрується за допомогою застарілого набору шифрів.</translation>
 <translation id="5838278095973806738">Не вводьте конфіденційну інформацію на цьому сайті (наприклад, паролі й дані кредитних карток). Зловмисники можуть викрасти її.</translation>
+<translation id="5851868085455377790">Видавець</translation>
 <translation id="5863515189965725638">Редагувати IBAN</translation>
 <translation id="5869405914158311789">Немає зв’язку із сайтом</translation>
 <translation id="5932224571077948991">Сайт показує нав'язливі чи оманливі оголошення</translation>
@@ -160,20 +162,16 @@
 <translation id="6957624206566198865">Відкрити сторінку у новій приватній вкладці</translation>
 <translation id="7096937462164235847">Ідентифікаційні дані цього веб-сайту не підтверджено.</translation>
 <translation id="7108819624672055576">Дозволено розширенням</translation>
-<translation id="7111012039238467737">(Дійсний)</translation>
 <translation id="7126644664682723998">Вставити та шукати</translation>
 <translation id="7210863904660874423">Хост <ph name="HOST_NAME" /> не відповідає стандартам безпеки.</translation>
 <translation id="7219179957768738017">З'єднання використовує версію <ph name="SSL_VERSION" />.</translation>
 <translation id="7221855153210829124">Показувати сповіщення</translation>
 <translation id="7353601530677266744">Командний рядок</translation>
 <translation id="7419106976560586862">Шлях до профілю</translation>
-<translation id="7455133967321480974">Використовувати глобальне налаштування за умовчанням (Блокувати)</translation>
 <translation id="7518003948725431193">Не знайдено веб-сторінок для веб-адреси <ph name="URL" /></translation>
 <translation id="7549584377607005141">Для належного відображення цій веб-сторінці потрібні введені вами раніше дані. Можна ще раз надіслати дані, однак зробивши це, ви повторите всі дії, які ця сторінка виконувала раніше.</translation>
 <translation id="759889825892636187">Хост <ph name="HOST_NAME" /> зараз не може обробити цей запит.</translation>
 <translation id="7662298039739062396">Налаштуванням керує розширення</translation>
-<translation id="7663736086183791259">Сертифікат <ph name="CERTIFICATE_VALIDITY" /></translation>
-<translation id="7714464543167945231">Сертифікат</translation>
 <translation id="7716147886133743102">Заблоковано вашим адміністратором</translation>
 <translation id="7716424297397655342">Не вдається завантажити цей сайт із кешу</translation>
 <translation id="773466115871691567">Завжди перекладати сторінки такою мовою: <ph name="SOURCE_LANGUAGE" /></translation>
@@ -183,15 +181,12 @@
 <translation id="7878562273885520351">Ваш пароль можуть зламати</translation>
 <translation id="7951415247503192394">(32-розрядна версія)</translation>
 <translation id="7953236668995583915">Щоб застосувати оновлені налаштування на цьому сайті, оновіть сторінку</translation>
-<translation id="8041940743680923270">Використовувати глобальне налаштування за умовчанням (Запитувати)</translation>
 <translation id="8076492880354921740">Вкладки</translation>
 <translation id="808894953321890993">Змінити пароль</translation>
 <translation id="8149426793427495338">Ваш комп'ютер перейшов у режим сну.</translation>
 <translation id="8150722005171944719">Файл за адресою <ph name="URL" /> не читається. Можливо, його видалено, переміщено або доступ заборонено дозволами файлу.</translation>
-<translation id="8184538546369750125">Використовувати глобальне налаштування за умовчанням (Дозволяти)</translation>
 <translation id="8211406090763984747">З'єднання безпечне</translation>
 <translation id="8241707690549784388">Сторінка, яку ви шукаєте, використовувала інформацію, введену вами. Повернення до такої сторінки може призвести до повторення ваших попередніх дій. Ви дійсно бажаєте продовжити?</translation>
-<translation id="8241712895048303527">Блокувати на цьому сайті</translation>
 <translation id="8286036467436129157">Вхід</translation>
 <translation id="8288807391153049143">Показати сертифікат</translation>
 <translation id="8289355894181816810">Зверніться до адміністратора своєї мережі, якщо ви не знаєте, що це означає.</translation>
@@ -200,19 +195,18 @@
 <translation id="8498891568109133222">Хост <ph name="HOST_NAME" /> довго не відповідає.</translation>
 <translation id="8503813439785031346">Ім'я користувача</translation>
 <translation id="8703575177326907206">Ваше з’єднання з <ph name="DOMAIN" /> не зашифровано.</translation>
+<translation id="8705331520020532516">Серійний номер</translation>
 <translation id="8740359287975076522">Неможливо знайти &lt;abbr id="dnsDefinition"&gt;DNS-адресу&lt;/abbr&gt; сайту <ph name="HOST_NAME" />. Виконується діагностика.</translation>
 <translation id="8820817407110198400">Закладки</translation>
 <translation id="8963117664422609631">Перейти до налаштувань сайту</translation>
 <translation id="8975012916872825179">Включає таку інформацію як номери телефонів, електронні адреси, адреси доставки</translation>
 <translation id="9001074447101275817">Для проксі <ph name="DOMAIN" /> потрібно ім’я користувача та пароль.</translation>
 <translation id="9008201768610948239">Ігнорувати</translation>
-<translation id="9025348182339809926">(Недійсний)</translation>
 <translation id="9039213469156557790">Окрім цього, сторінка містить незахищені ресурси. Інші особи можуть переглядати їх під час передавання даних, а зловмисники можуть змінювати роботу сторінки.</translation>
 <translation id="9062620674789239642">Можливо, його було переміщено, змінено або видалено.</translation>
 <translation id="9069693763241529744">Заблоковано розширенням</translation>
 <translation id="9073799351042754113">Ви вимкнули попередження про небезпеку для цього сайту.</translation>
 <translation id="9168814207360376865">Дозволити сайтам перевіряти, чи у вас є збережені способи оплати</translation>
-<translation id="9169664750068251925">Завжди блокувати на цьому сайті</translation>
 <translation id="9183425211371246419">Протокол, який використовує хост <ph name="HOST_NAME" />, не підтримується.</translation>
 <translation id="936602727769022409">Ви можете втратити доступ до облікового запису Google. Chromium радить змінити пароль. Вам буде запропоновано ввійти в обліковий запис.</translation>
 <translation id="969892804517981540">Офіційна збірка</translation>

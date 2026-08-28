@@ -1,20 +1,27 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="zh-TW">
+<translation id="1062777154504442433">新增分頁堆疊</translation>
 <translation id="1204037785786432551">下載連結</translation>
 <translation id="1206892813135768548">複製連結文字</translation>
+<translation id="1223158186497001208">已分享的 <ph name="GROUP_TITLE" /> 分頁堆疊有新活動</translation>
+<translation id="1328749518742029305"><ph name="TAB_GROUP_TITLE" /> 分頁堆疊已關閉並儲存</translation>
 <translation id="1397811292916898096">透過 <ph name="PRODUCT_NAME" /> 搜尋</translation>
 <translation id="1435593198351412143">自動開啟 PDF</translation>
 <translation id="1456207338570705181">觸控搜尋功能需要在 Vivaldi 中把 Google 設定為預設搜尋引擎。這個功能會傳送詞彙周圍的文字至 Google 搜尋。您可以在<ph name="BEGIN_LINK" />設定<ph name="END_LINK" />關閉這項功能。</translation>
 <translation id="1598449788754183301">切換一般／私密分頁</translation>
+<translation id="1626105448931436644">了解共享分頁堆疊</translation>
 <translation id="1644574205037202324">瀏覽紀錄</translation>
 <translation id="1829244130665387512">在頁面中搜尋</translation>
 <translation id="1925021887439448749">輸入自訂網頁網址</translation>
 <translation id="2038563949887743358">開啟要求電腦版網站</translation>
+<translation id="2067565353468675023">加入 <ph name="OWNER_FIRST_NAME" /> 的分頁堆疊</translation>
 <translation id="208033313373016095">頁面的閱讀模式</translation>
 <translation id="2149973817440762519">編輯書籤</translation>
 <translation id="2306442503286132111">書籤儲存於<ph name="FOLDER_NAME" />資料夾</translation>
 <translation id="2433507940547922241">外觀</translation>
+<translation id="2495373685671077949">搜尋您的分頁與堆疊</translation>
+<translation id="2500281581698062897">您將立即失去對「<ph name="GROUP_NAME" />」分頁堆疊的存取權限，而 <ph name="BLOCKED_MEMBER_FULL_NAME" />（<ph name="BLOCKED_MEMBER_EMAIL" />）也將無法再透過 Google 服務與您互動。</translation>
 <translation id="2546283357679194313">Cookie 和網站資料</translation>
 <translation id="2633278372998075009">私密分頁</translation>
 <translation id="2650751991977523696">要再次下載檔案嗎？</translation>
@@ -24,6 +31,7 @@
 <translation id="2871733351037274014">預先載入網頁</translation>
 <translation id="2904300462646366554">自動使用裝置上其中一款 PDF 檢視器開啟下載的 PDF 檔案</translation>
 <translation id="2951071800649516099">將頁面新增至閱讀清單以供日後閱讀</translation>
+<translation id="3020023775880428664">將分頁移至堆疊</translation>
 <translation id="3029276696788198026">不使用預先載入模式</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> 個書籤}
@@ -33,6 +41,8 @@
 <translation id="3232293466644486101">刪除瀏覽資料…</translation>
 <translation id="3234355010754616171">新增私密分頁</translation>
 <translation id="3237087289225714896">標準預先載入模式：</translation>
+<translation id="3298614730029636660">離開堆疊</translation>
+<translation id="3359462099791810823">保留此堆疊以便之後加入分頁，若不再需要，也可以將其刪除。</translation>
 <translation id="3478414204555961127">閱讀模式</translation>
 <translation id="3504699618187058974">分頁堆疊</translation>
 <translation id="3518985090088779359">接受並繼續</translation>
@@ -41,8 +51,11 @@
 <translation id="3700829948786686853">歡迎使用 Vivaldi</translation>
 <translation id="3719826155360621982">首頁</translation>
 <translation id="3738139272394829648">輕觸搜尋</translation>
+<translation id="3900825170941000696">將色彩為 <ph name="COLOR_NAME" /> 的分頁堆疊 <ph name="TITLE_OF_GROUP" />，還原為新的背景分頁堆疊。</translation>
+<translation id="395421286877117532">自訂分頁堆疊後點擊完成</translation>
 <translation id="3987993985790029246">複製連結</translation>
 <translation id="399014816462153200">閱讀文章：</translation>
+<translation id="4048089913902125176">開啟 <ph name="TITLE_OF_GROUP" /> 分頁堆疊，色彩為 <ph name="COLOR_NAME" />，包含網站 <ph name="URL_LIST" />。</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> 個分頁}
           other {<ph name="TAB_COUNT_MANY" /> 個分頁，<ph name="TAB_COUNT_INCOGNITO" /> 個私密分頁}}</translation>
@@ -51,23 +64,36 @@
 <translation id="4137746084635924146">目前裝置語言</translation>
 <translation id="4167670741834902166">新增私密分頁</translation>
 <translation id="4195643157523330669">在新分頁中開啟</translation>
+<translation id="4219031106525503429">分享「<ph name="GROUP_NAME" />」分頁堆疊</translation>
 <translation id="4225895483398857530">工具列快速鍵</translation>
 <translation id="4243710787042215766">在私密分頁中開啟</translation>
 <translation id="4269820728363426813">複製連結網址</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />在 Android 設定中開啟螢幕鎖定功能<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">密碼管理工具</translation>
+<translation id="4393275721087307686">{NUMBER_OF_TABS, plural,
+          =1 {在已分享的分頁堆疊中有 <ph name="TABS_COUNT_ONE" /> 個標準分頁出現新活動}
+          other {在已分享的分頁堆疊中有 <ph name="TABS_COUNT_MANY" /> 個標準分頁出現新活動}
+        }</translation>
+<translation id="4445802392779002787">將分頁加入堆疊</translation>
 <translation id="451872707440238414">搜尋您的書籤</translation>
 <translation id="4526803704855831732">私密分頁</translation>
 <translation id="4532845899244822526">選擇資料夾</translation>
+<translation id="454284936014822050"><ph name="GROUP_TITLE" /> 分頁堆疊</translation>
+<translation id="4614713783237504866">未使用或重複的分頁與堆疊</translation>
+<translation id="463284870544181537">保留此堆疊以便之後加入分頁，若不再需要存取，也可以選擇離開</translation>
+<translation id="4638726726741656531">您現在可以在這裡更輕鬆地將分頁加入堆疊</translation>
 <translation id="4699172675775169585">快取圖片和檔案</translation>
 <translation id="4719086422742491124">選取網頁上的單字或詞彙並搜尋，讓您不用離開頁面就能了解更多資訊。
 
 觸控搜尋功能需要在 Vivaldi 中把 Google 設定為預設搜尋引擎。</translation>
 <translation id="4759238208242260848">下載</translation>
+<translation id="4771820744342013314">要刪除分頁堆疊嗎？</translation>
 <translation id="4850886885716139402">檢視</translation>
 <translation id="4883379392681899581">離開私密模式</translation>
+<translation id="4887248255051238988">要離開堆疊嗎？</translation>
 <translation id="4943872375798546930">無結果</translation>
 <translation id="49576331685473090">內容攔截器</translation>
+<translation id="4964059453543967592">重新開啟已關閉的堆疊</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> 個私密分頁}
           other {<ph name="TAB_COUNT_NORMAL" /> 個私密分頁}}</translation>
@@ -78,19 +104,26 @@
 <translation id="5206168361184759344">{FILE_COUNT, plural,
             =1 {正在下載檔案…}
             other {正在下載 # 個檔案…}}</translation>
+<translation id="5210689723585747462"><ph name="TAB_GROUP_TITLE" /> 分頁堆疊已關閉</translation>
 <translation id="5233638681132016545">新增分頁</translation>
 <translation id="5375131951310889874">不用離開頁面就能了解更多頁面上的資訊，這個觸控搜尋功能需要在 Vivaldi 中把 Google 設定為預設搜尋引擎。這個功能會傳送詞彙周圍的文字至 Google 搜尋，並返回定義、圖片、搜尋結果以及其它詳細訊息。
 
 要調整您的搜尋關鍵字，請長按以選取。要改善搜尋，請將面板向上滑動並點選搜尋框。</translation>
+<translation id="5570837353202786816">所有人將立即失去對「<ph name="GROUP_NAME" />&gt;」分頁堆疊的存取權，所有邀請連結也會停用</translation>
+<translation id="5614794348925178470">已分享的 <ph name="GROUP_TITLE" /> 分頁堆疊</translation>
 <translation id="572328651809341494">最近開啟的分頁</translation>
 <translation id="5833984609253377421">分享連結</translation>
+<translation id="6129507335719227488">堆疊中的分頁</translation>
 <translation id="6150320133806434356">已儲存書籤</translation>
 <translation id="6193448654517602979">選取分頁</translation>
+<translation id="6221225660285238685">將堆疊移至其它視窗</translation>
+<translation id="6277377952699614191">分頁堆疊</translation>
 <translation id="6336451774241870485">新增私密分頁</translation>
 <translation id="6337323516034698937">若要將此分頁傳送到其它裝置，請在兩個裝置上登入 Vivaldi 資料同步。如有必要，請輸入加密密碼。</translation>
 <translation id="6341580099087024258">詢問檔案儲存位置</translation>
 <translation id="6364438453358674297">要從瀏覽紀錄中移除建議嗎？</translation>
 <translation id="6404511346730675251">編輯書籤</translation>
+<translation id="6453011654157908292">分頁堆疊詳細資訊</translation>
 <translation id="650224091954855786">{FILE_COUNT, plural,
           =1 {已下載檔案}
           other {已完成 # 項下載作業}}</translation>
@@ -99,11 +132,13 @@
 <translation id="6593061639179217415">電腦版網站</translation>
 <translation id="6610147964972079463">關閉私密分頁</translation>
 <translation id="6627583120233659107">編輯資料夾</translation>
+<translation id="6785740335511995065">要保留堆疊嗎？</translation>
 <translation id="6865313869410766144">自動填入表單資料</translation>
 <translation id="6909589135458168665">預先載入網頁</translation>
 <translation id="7029995644714925509">當網站要求在其頁面上私下預先載入連結時，Vivaldi 會透過 Google 伺服器加密和預先載入頁面，而不使用 Cookie。這會在預先載入的網站中隱藏您的身份。</translation>
 <translation id="706339621163631076">瀏覽器隱私權政策</translation>
 <translation id="7100573672995171864">自訂和控制 Vivaldi</translation>
+<translation id="7133879160432070247">封鎖並離開堆疊？</translation>
 <translation id="732145680195464316">書籤儲存於 <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">傳送「Do Not Track」要求</translation>
 <translation id="7359002509206457351">存取付款方式</translation>
@@ -112,24 +147,34 @@
 <translation id="7456774706094330779">延伸預先載入模式</translation>
 <translation id="7465104139234185284">關閉全部私密分頁</translation>
 <translation id="7481312909269577407">下一頁</translation>
+<translation id="759273611317559136"><ph name="TAB_GROUP_TITLE" /> 分頁堆疊已刪除</translation>
+<translation id="7630413501995820846">保留堆疊</translation>
+<translation id="7640137753339219124">刪除堆疊</translation>
 <translation id="7764225426217299476">新增地址</translation>
+<translation id="7910753230807645596">重複的分頁與堆疊，或未使用達 <ph name="DAYS_INACTIVE" /> 天的項目，會移到此處 <ph name="AUTODELETE_SECTION" />。您可隨時在 <ph name="DECLUTTER_SETTINGS_TITLE" /> 中變更設定。</translation>
 <translation id="7968014550143838305">已加入至閱讀清單</translation>
 <translation id="804786196054284061">終端使用者授權合約</translation>
 <translation id="8062594758852531064">延伸預先載入模式：</translation>
 <translation id="8073388330009372546">在新分頁開啟圖片</translation>
 <translation id="8127542551745560481">編輯首頁</translation>
+<translation id="8149776854955817519">在此處查看您的	未活動分頁與堆疊</translation>
 <translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
          =1 {（1）個不活動的分頁}
          other {（#）個不活動的分頁}}</translation>
 <translation id="8266862848225348053">下載位置</translation>
 <translation id="8348430946834215779">盡可能使用 HTTPS，並在載入不支援此通訊協定的網站前收到警告</translation>
+<translation id="8480628728881718381">在堆疊中以新分頁開啟</translation>
+<translation id="8543049482641423692">將分頁加入新堆疊</translation>
 <translation id="8560602726703398413">在書籤中搜尋您的閱讀清單</translation>
 <translation id="85991616550051997">前往首頁</translation>
+<translation id="8680308397617585416">您將立即失去對「<ph name="GROUP_NAME" />」分頁堆疊的存取權限，且它會從您所有的裝置中刪除</translation>
 <translation id="8738163682604285902">檢視閱讀模式？</translation>
 <translation id="8820817407110198400">書籤</translation>
 <translation id="9042893549633094279">隱私和安全性</translation>
 <translation id="9063523880881406963">關閉要求電腦版網站</translation>
 <translation id="9080642952018487277">進入私密模式</translation>
+<translation id="9099398755190923267">所有人將立即失去對「<ph name="GROUP_NAME" />」分頁堆疊的存取權，且該堆疊會從所有裝置中刪除</translation>
 <translation id="930124987204876019">刪除瀏覽紀錄、Cookie、網站資料、快取…</translation>
 <translation id="961856697154696964">刪除瀏覽資料</translation>
+<translation id="992223576089545146">搜尋您的私密分頁</translation>
 </translationbundle>

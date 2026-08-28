@@ -5,13 +5,30 @@
 #include "extensions/vivaldi_standard_management_policy_provider.h"
 
 #include "app/vivaldi_apptools.h"
+#include "base/functional/bind.h"
+#include "chrome/browser/profiles/profile.h"
+#include "components/prefs/pref_service.h"
+#include "extensions/browser/extensions_browser_client.h"
+#include "extensions/common/extension.h"
+#include "vivaldi/prefs/vivaldi_gen_prefs.h"
 
 namespace extensions {
+
+namespace {
+constexpr char kProtonVpnId[] = "jplgfhpmjnbigmhklmmbgecoobifkmpa";
+}  // namespace
 
 VivaldiStandardManagementPolicyProvider::
     VivaldiStandardManagementPolicyProvider(ExtensionManagement* settings,
                                             Profile* profile)
-    : StandardManagementPolicyProvider(settings, profile) {}
+    : StandardManagementPolicyProvider(settings, profile), profile_(profile) {
+  pref_change_registrar_.Init(profile->GetPrefs());
+  pref_change_registrar_.Add(
+      vivaldiprefs::kPolicyVpnEnabled,
+      base::BindRepeating(
+          &VivaldiStandardManagementPolicyProvider::OnVpnPolicyChanged,
+          base::Unretained(this)));
+}
 
 VivaldiStandardManagementPolicyProvider::
     ~VivaldiStandardManagementPolicyProvider() {}
@@ -33,6 +50,9 @@ bool VivaldiStandardManagementPolicyProvider::UserMayModifySettings(
     const Extension* extension,
     std::u16string* error) const {
   if (vivaldi::IsVivaldiApp(extension->id())) {
+    return false;
+  }
+  if (IsVpnBlockedByPolicy(extension)) {
     return false;
   }
   return StandardManagementPolicyProvider::UserMayModifySettings(extension,
@@ -62,6 +82,12 @@ bool VivaldiStandardManagementPolicyProvider::MustRemainEnabled(
 bool VivaldiStandardManagementPolicyProvider::MustRemainDisabled(
     const Extension* extension,
     disable_reason::DisableReason* reason) const {
+  if (IsVpnBlockedByPolicy(extension)) {
+    if (reason) {
+      *reason = disable_reason::DISABLE_BLOCKED_BY_POLICY;
+    }
+    return true;
+  }
   return StandardManagementPolicyProvider::MustRemainDisabled(extension,
                                                               reason);
 }
@@ -81,6 +107,18 @@ bool VivaldiStandardManagementPolicyProvider::ShouldForceUninstall(
     std::u16string* error) const {
   return StandardManagementPolicyProvider::ShouldForceUninstall(extension,
                                                                 error);
+}
+
+bool VivaldiStandardManagementPolicyProvider::IsVpnBlockedByPolicy(
+    const Extension* extension) const {
+  if (!extension || extension->id() != kProtonVpnId) {
+    return false;
+  }
+  return !profile_->GetPrefs()->GetBoolean(vivaldiprefs::kPolicyVpnEnabled);
+}
+
+void VivaldiStandardManagementPolicyProvider::OnVpnPolicyChanged() {
+  ExtensionsBrowserClient::Get()->CheckManagementPolicy(profile_);
 }
 
 }  // namespace extensions

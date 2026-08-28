@@ -120,6 +120,9 @@ static_library("browser_prefs") {
     "//components/prefs",
     "//skia",
   ]
+  if (is_mac) {
+    deps += [ ":appkit_settings_observer" ]
+  }
   if (!is_android && !is_ios) {
     deps += [ "//vivaldi/extensions/schema" ]
   }
@@ -128,5 +131,19 @@ static_library("browser_prefs") {
       "//chrome/common:buildflags",
       "//content/public/browser",
     ]
+  }
+}
+
+if (is_mac) {
+  component("appkit_settings_observer") {
+    sources = [
+      "appkit_settings_observer.h",
+      "appkit_settings_observer.mm",
+      "appkit_settings_types.h",
+    ]
+
+    defines = [ "IS_APPKIT_SETTINGS_OBSERVER_IMPL" ]
+
+    frameworks = [ "Cocoa.framework" ]
   }
 }

@@ -22,6 +22,7 @@
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
+#include "base/message_loop/message_pump_wakeup_counter.h"
 #include "base/metrics/field_trial.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/user_metrics.h"
@@ -35,6 +36,7 @@
 #include "base/scoped_observation.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
+#include "base/synchronization/lock_metrics_recorder.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/system/system_monitor.h"
 #include "base/task/current_thread.h"
@@ -67,7 +69,6 @@
 #include "components/viz/host/host_frame_sink_manager.h"
 #include "content/browser/accessibility/browser_accessibility_state_impl.h"
 #include "content/browser/browser_thread_impl.h"
-#include "content/browser/child_process_security_policy_impl.h"
 #include "content/browser/compositor/viz_process_transport_factory.h"
 #include "content/browser/cpu_performance/cpu_performance.h"
 #include "content/browser/download/save_file_manager.h"
@@ -91,6 +92,7 @@
 #include "content/browser/scheduler/responsiveness/watcher.h"
 #include "content/browser/screenlock_monitor/screenlock_monitor.h"
 #include "content/browser/screenlock_monitor/screenlock_monitor_device_source.h"
+#include "content/browser/security/cpsp/child_process_security_policy_impl.h"
 #include "content/browser/service_host/utility_process_host.h"
 #include "content/browser/sms/sms_provider.h"
 #include "content/browser/speech/speech_recognition_manager_impl.h"
@@ -146,7 +148,9 @@
 #include "services/audio/service.h"
 #include "services/data_decoder/public/cpp/service_provider.h"
 #include "services/data_decoder/public/mojom/data_decoder_service.mojom.h"
+#include "services/network/public/cpp/features.h"
 #include "services/network/public/cpp/network_switches.h"
+#include "services/network/public/cpp/simple_url_loader.h"
 #include "services/network/public/mojom/network_service.mojom.h"
 #include "services/network/transitional_url_loader_factory_owner.h"
 #include "services/tracing/public/cpp/background_tracing/background_tracing_manager.h"
@@ -185,6 +189,7 @@
 #include "media/base/android/media_drm_bridge_client.h"
 #include "ui/android/screen_android.h"
 #include "ui/display/screen.h"
+#include "ui/events/devices/input_device_observer_android.h"
 #include "ui/gl/gl_surface.h"
 #endif
 
@@ -564,7 +569,7 @@ int BrowserMainLoop::EarlyInitialization() {
   // SetCurrentThreadType relies on CurrentUIThread on some platforms. The
   // MessagePumpForUI needs to be bound to the main thread by this point.
   DCHECK(base::CurrentUIThread::IsSet());
-  base::PlatformThread::SetCurrentThreadType(base::ThreadType::kPresentation);
+  base::PlatformThread::SetDefaultThreadType(base::ThreadType::kPresentation);
 
 #if BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || \
     BUILDFLAG(IS_ANDROID)
@@ -644,10 +649,15 @@ void BrowserMainLoop::CreateMainMessageLoop() {
 void BrowserMainLoop::PostCreateMainMessageLoop() {
   TRACE_EVENT0("startup", "BrowserMainLoop::PostCreateMainMessageLoop");
   mojo::InterfaceEndpointClient::SetThreadNameSuffixForMetrics("BrowserMain");
+  base::LockMetricsRecorder::EnableRecordingOnCurrentThread("CrBrowserMain");
+
+  base::MessagePumpWakeupCounter::InitializeForCurrentThread("BrowserMain");
   GetIOThreadTaskRunner({})->PostTask(
       FROM_HERE, base::BindOnce([]() {
         mojo::InterfaceEndpointClient::SetThreadNameSuffixForMetrics(
             "BrowserIO");
+        base::MessagePumpWakeupCounter::InitializeForCurrentThread("BrowserIO");
+        base::LockMetricsRecorder::EnableRecordingOnCurrentThread("BrowserIO");
       }));
   {
     TRACE_EVENT0("startup", "BrowserMainLoop::Subsystem:SystemMonitor");
@@ -824,6 +834,24 @@ int BrowserMainLoop::PreCreateThreads() {
   if (parsed_command_line_->HasSwitch(switches::kSingleProcess))
     RenderProcessHost::SetRunRendererInProcess(true);
 #endif
+
+  // Set up the callbacks used by the network layer to track and validate
+  // file access for browser-initiated uploads.
+  if (base::FeatureList::IsEnabled(
+          network::features::kBrowserInitiatedFileUploadValidation)) {
+    network::SimpleURLLoader::FileUploadEventCallbacks callbacks;
+    callbacks.register_callback = base::BindRepeating(
+        [](const base::UnguessableToken& token, const base::FilePath& path) {
+          ChildProcessSecurityPolicyImpl::GetInstance()
+              ->GrantFileForBrowserUpload(token, path);
+        });
+    callbacks.revoke_callback =
+        base::BindRepeating([](const base::UnguessableToken& token) {
+          ChildProcessSecurityPolicyImpl::GetInstance()
+              ->RevokeFileForBrowserUpload(token);
+        });
+    network::SimpleURLLoader::SetFileUploadEventCallbacks(callbacks);
+  }
 
   // Initialize origins that require process isolation.  Must be done
   // after base::FeatureList is initialized, but before any navigations can
@@ -1263,6 +1291,14 @@ void BrowserMainLoop::ShutdownThreadsAndCleanUp() {
     TRACE_EVENT0("shutdown", "BrowserMainLoop::Subsystem:GamepadService");
     device::GamepadService::GetInstance()->Terminate();
   }
+
+#if BUILDFLAG(IS_ANDROID)
+  {
+    TRACE_EVENT0("shutdown",
+                 "BrowserMainLoop::Subsystem:InputDeviceObserverAndroid");
+    ui::InputDeviceObserverAndroid::GetInstance()->Shutdown();
+  }
+#endif
   {
     TRACE_EVENT0("shutdown", "BrowserMainLoop::Subsystem:DeleteDataSources");
     URLDataManager::DeleteDataSources();
@@ -1517,6 +1553,10 @@ bool BrowserMainLoop::InitializeToolkit() {
     return false;
 #endif  // defined(USE_AURA)
 
+#if BUILDFLAG(IS_ANDROID)
+  ui::InputDeviceObserverAndroid::GetInstance()->Initialize();
+#endif
+
   if (parts_)
     parts_->ToolkitInitialized();
 
@@ -1585,15 +1625,6 @@ void BrowserMainLoop::InitializeAudio() {
 #endif
     audio::Service::GetInProcessTaskRunner()->StartWithTaskRunner(
         audio_manager_->GetTaskRunner());
-  }
-
-  if (base::FeatureList::IsEnabled(features::kAudioServiceLaunchOnStartup)) {
-    // Schedule the audio service startup on the main thread.
-    GetUIThreadTaskRunner({base::TaskPriority::BEST_EFFORT})
-        ->PostTask(FROM_HERE, base::BindOnce([]() {
-                     TRACE_EVENT0("audio", "Starting audio service");
-                     GetAudioService();
-                   }));
   }
 
   audio_system_ = CreateAudioSystemForAudioService();

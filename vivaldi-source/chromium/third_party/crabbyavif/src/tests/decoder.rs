@@ -589,7 +589,7 @@ fn gainmap_oriented() {
         ("gainmap_oriented.avif", 34),
         ("color_grid_gainmap_different_grid.avif", 600)
     ],
-    [ImageContentType::ColorAndAlpha, ImageContentType::GainMap, ImageContentType::All]
+    [ImageContentType::Color, ImageContentType::ColorAndAlpha, ImageContentType::GainMap, ImageContentType::ColorAndGainMap, ImageContentType::All]
 )]
 fn decoded_row_count(
     filename_and_row_count: (&str, u32),
@@ -1187,7 +1187,7 @@ fn white_2x2() -> AvifResult<()> {
 fn white_2x2_mdat_size0() -> AvifResult<()> {
     // Edit the file to simulate an 'mdat' box with size 0 (meaning it ends at EOF).
     let mut file_bytes = std::fs::read(get_test_file("white_2x2.avif")).unwrap();
-    let mdat = [b'm', b'd', b'a', b't'];
+    let mdat = *b"mdat";
     let mdat_size_pos = file_bytes.windows(4).position(|w| w == mdat).unwrap() - 4;
     file_bytes[mdat_size_pos + 3] = b'\0';
 
@@ -1202,7 +1202,7 @@ fn white_2x2_mdat_size0() -> AvifResult<()> {
 fn white_2x2_meta_size0() -> AvifResult<()> {
     // Edit the file to simulate a 'meta' box with size 0 (invalid).
     let mut file_bytes = std::fs::read(get_test_file("white_2x2.avif")).unwrap();
-    let meta = [b'm', b'e', b't', b'a'];
+    let meta = *b"meta";
     let meta_size_pos = file_bytes.windows(4).position(|w| w == meta).unwrap() - 4;
     file_bytes[meta_size_pos + 3] = b'\0';
 
@@ -1326,6 +1326,7 @@ fn heic_peek() {
 #[test_case("heic/blue_alpha.heic", 320, 240)]
 #[test_case("heic/blue_gh_issue_692.heic", 320, 240)]
 #[test_case("heic/blue_grid_alpha.heic", 320, 240)]
+#[test_case("heic/b_506659035_hvcc_nal_zero_length.heic", 16, 16)]
 #[test_case("heic/nokiatech/autumn_1440x960.heic", 1440, 960)]
 #[test_case("heic/nokiatech/bothie_1440x960.heic", 1440, 960)]
 #[test_case("heic/nokiatech/cheers_1440x960.heic", 1440, 960)]
@@ -1354,7 +1355,8 @@ fn heic(filename: &str, expected_width: u32, expected_height: u32) {
         assert_eq!(image.width, expected_width);
         assert_eq!(image.height, expected_height);
         assert_eq!(decoder.compression_format(), CompressionFormat::Heic);
-        if cfg!(feature = "android_mediacodec") {
+        if cfg!(feature = "android_mediacodec") && image.yuv_format == PixelFormat::Yuv420 {
+            // Ensure that decoding succeeds if Android MediaCodec can decode it.
             assert!(decoder.next_image().is_ok());
         }
     } else {
@@ -1699,4 +1701,25 @@ fn identity_derivation_invalid(filename: &str) -> AvifResult<()> {
     let mut decoder = get_decoder(filename);
     assert!(decoder.parse().is_err());
     Ok(())
+}
+
+#[test]
+fn multiple_iloc_entries_for_same_item() {
+    let mut decoder = get_decoder("white_2x2_multiple_iloc_entries_for_same_item.avif");
+    // By default, non-strict files are refused.
+    assert!(matches!(
+        decoder.settings.strictness,
+        decoder::Strictness::All
+    ));
+    let res = decoder.parse();
+    assert!(matches!(res, Err(AvifError::BmffParseFailed(_))));
+    // Allow this kind of file specifically.
+    decoder.settings.strictness = decoder::Strictness::SpecificExclude(vec![
+        decoder::StrictnessFlag::MultipleIlocEntriesForSameItemDisallowed,
+    ]);
+    assert!(decoder.parse().is_ok());
+    if !HAS_DECODER {
+        return;
+    }
+    assert!(decoder.next_image().is_ok());
 }

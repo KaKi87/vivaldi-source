@@ -12,6 +12,7 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/mock_callback.h"
 #include "base/test/protobuf_matchers.h"
+#include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_future.h"
@@ -38,6 +39,7 @@
 #include "services/on_device_model/public/cpp/features.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/blink/public/common/features_generated.h"
 #include "third_party/blink/public/mojom/ai/ai_manager.mojom.h"
 #include "third_party/blink/public/mojom/ai/model_streaming_responder.mojom.h"
 
@@ -163,6 +165,11 @@ CreateRewriterConfig() {
 }
 
 class AIRewriterTest : public AITestUtils::AITestBase {
+ public:
+  AIRewriterTest() {
+    scoped_feature_list_.InitAndEnableFeature(blink::features::kAIRewriterAPI);
+  }
+
  protected:
   optimization_guide::proto::OnDeviceModelExecutionFeatureConfig CreateConfig()
       override {
@@ -225,6 +232,9 @@ class AIRewriterTest : public AITestUtils::AITestBase {
     auto result = rewriter_client.result().Take();
     EXPECT_OK(result);
   }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 TEST_F(AIRewriterTest, CreateRewriterNoService) {
@@ -793,7 +803,8 @@ class AIRewriterManifestTest : public AITestUtils::AITestManifestBase {
  public:
   AIRewriterManifestTest() {
     scoped_feature_list_.InitWithFeatures(
-        {optimization_guide::kOptimizationGuideManifestBroker,
+        {blink::features::kAIRewriterAPI,
+         optimization_guide::kOptimizationGuideManifestBroker,
          on_device_model::features::kOnDeviceModelLitertLmBackend},
         {});
   }
@@ -870,14 +881,12 @@ TEST_F(AIRewriterManifestTest, CanCreateAndCreateWithManifestGemma4) {
       kAIApiFoundationalModel, {{"model_version", "v4"}});
 
   fake_manifest_broker_->client().RequestAssetsFor("rewriter_gemma4");
-
-  // Verify CanCreateRewriter check passes successfully for default options
-  // mapping to gemma4. We requested assets only for rewriter_gemma4,
-  // so receiving kAvailable implicitly verifies the correct use case mapping.
-  base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
-  ai_manager_->CanCreateRewriter(GetDefaultOptions(), future.GetCallback());
-  EXPECT_EQ(future.Get(),
-            blink::mojom::ModelAvailabilityCheckResult::kAvailable);
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
+    ai_manager_->CanCreateRewriter(GetDefaultOptions(), future.GetCallback());
+    return future.Get() ==
+           blink::mojom::ModelAvailabilityCheckResult::kAvailable;
+  }));
 
   // Verify CreateRewriter can retrieve the model successfully.
   TestCreateRewriterClient create_rewriter_client;

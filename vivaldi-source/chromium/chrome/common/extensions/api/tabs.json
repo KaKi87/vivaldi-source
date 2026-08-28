@@ -162,7 +162,7 @@
         "description": "Vivaldi: how the tab was created",
         "enum": [
           "mainStrip", "subStrip", "keyboard", "accordion", "tabBarButton",
-          "emailUi", "bookmarks", "speedDial", "command"
+          "emailUi", "bookmarks", "speedDial", "command", "vivaldiUi"
         ]
       }
     ],

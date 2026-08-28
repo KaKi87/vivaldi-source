@@ -34,6 +34,7 @@
 #import "ios/chrome/browser/signin/model/fake_system_identity_manager.h"
 #import "ios/chrome/browser/sync/model/mock_sync_service_utils.h"
 #import "ios/chrome/browser/sync/model/sync_service_factory.h"
+#import "ios/chrome/browser/sync/model/test_sync_service_utils.h"
 #import "ios/chrome/test/app/uikit_test_util.h"
 #import "ios/chrome/test/ios_chrome_scoped_testing_local_state.h"
 #import "ios/web/public/test/web_task_environment.h"
@@ -47,21 +48,15 @@ class TwoScreensSigninCoordinatorTest : public PlatformTest {
  public:
   TwoScreensSigninCoordinatorTest() {
     TestProfileIOS::Builder builder;
-    // The profile state will receive UI blocker request. They are not tested
-    // here, so it’s a non-strict mock.
-    profile_state_ = OCMClassMock([ProfileState class]);
-    scene_state_ = [[SceneState alloc] initWithAppState:nil];
+    profile_state_ = [[ProfileState alloc] initWithAppState:nil];
+    scene_state_ = [[SceneState alloc] init];
     scene_state_.profileState = profile_state_;
     builder.AddTestingFactory(
         AuthenticationServiceFactory::GetInstance(),
         AuthenticationServiceFactory::GetFactoryWithDelegate(
             std::make_unique<FakeAuthenticationServiceDelegate>()));
-    builder.AddTestingFactory(
-        SyncServiceFactory::GetInstance(),
-        base::BindRepeating(
-            [](ProfileIOS* profile) -> std::unique_ptr<KeyedService> {
-              return std::make_unique<syncer::TestSyncService>();
-            }));
+    builder.AddTestingFactory(SyncServiceFactory::GetInstance(),
+                              base::BindRepeating(&CreateTestSyncService));
     profile_ = std::move(builder).Build();
     browser_ = std::make_unique<TestBrowser>(profile_.get(), scene_state_);
 
@@ -86,7 +81,6 @@ class TwoScreensSigninCoordinatorTest : public PlatformTest {
   }
 
   ~TwoScreensSigninCoordinatorTest() override {
-    EXPECT_OCMOCK_VERIFY((id)profile_state_);
     EXPECT_OCMOCK_VERIFY((id)fullscreen_signin_screen_coordinator_mock_);
     EXPECT_OCMOCK_VERIFY((id)history_sync_coordinator_mock_);
   }
@@ -244,13 +238,10 @@ class TwoScreensSigninCoordinatorTest : public PlatformTest {
   base::UserActionTester user_actions_;
   UIWindow* window_;
   FakeSystemIdentity* fake_identity_ = nil;
+  ProfileState* profile_state_;
   SceneState* scene_state_;
   FullscreenSigninScreenCoordinator* fullscreen_signin_screen_coordinator_mock_;
   HistorySyncCoordinator* history_sync_coordinator_mock_;
-
- private:
-  // Required for UI blocker.
-  ProfileState* profile_state_;
 };
 
 #pragma mark - Tests

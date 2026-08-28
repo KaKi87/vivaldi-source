@@ -6,10 +6,11 @@ package org.chromium.chrome.browser.media.immersive_playback.components;
 
 import android.util.SizeF;
 
-import org.chromium.blink.mojom.ImmersiveProjectionType;
-import org.chromium.blink.mojom.ImmersiveStereoMode;
 import org.chromium.build.annotations.NullMarked;
-import org.chromium.chrome.browser.media.immersive_playback.ImmersiveVideoFormatRadioGroup;
+import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.media.immersive_playback.ImmersiveVideoFormatRadioGroup.FormatOption;
+import org.chromium.content_public.browser.ImmersiveProjectionType;
+import org.chromium.content_public.browser.ImmersiveStereoMode;
 import org.chromium.ui.modelutil.PropertyModel;
 
 /** Mediator for the format selection panel in immersive video playback. */
@@ -44,9 +45,10 @@ public class ImmersiveVideoFormatMediator {
     /**
      * Called when a format is selected in the UI.
      *
-     * @param option The {@link ImmersiveVideoFormatRadioGroup.FormatOption} that was selected.
+     * @param option The {@link FormatOption} that was selected.
      */
-    public void onFormatSelected(ImmersiveVideoFormatRadioGroup.FormatOption option) {
+    public void onFormatSelected(@Nullable FormatOption option) {
+        if (option == null) return;
         mModel.set(ImmersiveVideoFormatProperties.SELECTED_STEREO_MODE, option.stereoMode);
         mModel.set(ImmersiveVideoFormatProperties.SELECTED_PROJECTION_TYPE, option.projectionType);
         mFormatListener.onFormatSelected(option.stereoMode, option.projectionType);
@@ -60,9 +62,13 @@ public class ImmersiveVideoFormatMediator {
 
     /** Sets the selected format options in the model. */
     public void setSelectedFormat(
-            @ImmersiveStereoMode.EnumType int stereoMode,
-            @ImmersiveProjectionType.EnumType int projectionType) {
+            @ImmersiveStereoMode int stereoMode, @ImmersiveProjectionType int projectionType) {
         mModel.set(ImmersiveVideoFormatProperties.SELECTED_STEREO_MODE, stereoMode);
         mModel.set(ImmersiveVideoFormatProperties.SELECTED_PROJECTION_TYPE, projectionType);
+    }
+
+    /** Sets the spatial height of the format panel in the model. */
+    public void setSpatialHeight(float height) {
+        mModel.set(ImmersiveVideoFormatProperties.SPATIAL_HEIGHT, height);
     }
 }

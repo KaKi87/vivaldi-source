@@ -22,6 +22,7 @@
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
+#include "base/memory/weak_ptr.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/scoped_observation.h"
@@ -93,8 +94,8 @@
 #include "services/network/public/mojom/cookie_manager.mojom.h"
 #include "third_party/blink/public/common/chrome_debug_urls.h"
 #include "ui/gfx/geometry/rect.h"
+#include "ui/views/test/views_test_utils.h"
 #include "ui/views/test/widget_activation_waiter.h"
-#include "ui/views/widget/widget_interactive_uitest_utils.h"
 
 #if BUILDFLAG(IS_WIN)
 #include <windows.h>
@@ -126,12 +127,20 @@ namespace ui_test_utils {
 namespace {
 
 BrowserWindowInterface* WaitForBrowserNotInSet(
-    std::set<BrowserWindowInterface*> excluded_browsers) {
-  BrowserWindowInterface* new_browser = GetBrowserNotInSet(excluded_browsers);
+    std::set<SessionID> excluded_browsers) {
+  BrowserWindowInterface* new_browser = nullptr;
+  GlobalBrowserCollection::GetInstance()->ForEach(
+      [&](BrowserWindowInterface* browser) {
+        if (!excluded_browsers.contains(browser->GetSessionID())) {
+          new_browser = browser;
+          return false;  // Stop iterating.
+        }
+        return true;  // Continue iterating.
+      });
   if (!new_browser) {
     new_browser = WaitForBrowserToOpen();
     // The new browser should never be in |excluded_browsers|.
-    DCHECK(!excluded_browsers.contains(new_browser));
+    DCHECK(!excluded_browsers.contains(new_browser->GetSessionID()));
   }
   return new_browser;
 }
@@ -333,10 +342,10 @@ NavigateToURLWithDispositionBlockUntilNavigationsComplete(
   if (!blink::IsRendererDebugURL(url))
     same_tab_observer.set_expected_initial_url(url);
 
-  std::set<BrowserWindowInterface*> initial_browsers;
+  std::set<SessionID> initial_browsers;
   ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
       [&](BrowserWindowInterface* initial_browser) {
-        initial_browsers.insert(initial_browser);
+        initial_browsers.insert(initial_browser->GetSessionID());
         return true;  // Continue iterating.
       });
 
@@ -383,7 +392,16 @@ NavigateToURLWithDispositionBlockUntilNavigationsComplete(
     EXPECT_EQ(web_contents, tab_strip->GetActiveWebContents());
   }
   if (disposition == WindowOpenDisposition::CURRENT_TAB) {
+    // Waiting for the navigation may destroy `web_contents` (e.g. navigating
+    // to a resource that closes its own tab, such as a corrupted extension
+    // page that gets disabled mid-navigation under enforced content
+    // verification). Guard against use-after-free before touching it again.
+    base::WeakPtr<content::WebContents> weak_web_contents =
+        web_contents->GetWeakPtr();
     same_tab_observer.Wait();
+    if (!weak_web_contents) {
+      return nullptr;
+    }
     content::SimulateEndOfPaintHoldingOnPrimaryMainFrame(web_contents);
     return web_contents->GetPrimaryMainFrame();
   } else if (web_contents) {
@@ -393,7 +411,13 @@ NavigateToURLWithDispositionBlockUntilNavigationsComplete(
         /*ignore_uncommitted_navigations=*/false);
     if (!blink::IsRendererDebugURL(url))
       observer.set_expected_initial_url(url);
+    // See the comment above: the navigation may destroy `web_contents`.
+    base::WeakPtr<content::WebContents> weak_web_contents =
+        web_contents->GetWeakPtr();
     observer.Wait();
+    if (!weak_web_contents) {
+      return nullptr;
+    }
     content::SimulateEndOfPaintHoldingOnPrimaryMainFrame(web_contents);
     return web_contents->GetPrimaryMainFrame();
   }
@@ -528,8 +552,7 @@ void DownloadURL(BrowserWindowInterface* browser, const GURL& download_url) {
 }
 
 void WaitForAutocompleteDone(BrowserWindowInterface* browser) {
-  auto* controller = browser->GetBrowserForMigrationOnly()
-                         ->window()
+  auto* controller = BrowserWindow::FromBrowser(browser)
                          ->GetLocationBar()
                          ->GetOmniboxController()
                          ->autocomplete_controller();
@@ -736,7 +759,7 @@ void SendToOmniboxAndSubmit(BrowserWindowInterface* browser,
                             base::TimeTicks match_selection_timestamp,
                             bool wait_for_autocomplete_done) {
   LocationBar* location_bar =
-      browser->GetBrowserForMigrationOnly()->window()->GetLocationBar();
+      BrowserWindow::FromBrowser(browser)->GetLocationBar();
   OmniboxView* omnibox = location_bar->GetOmniboxView();
   location_bar->GetOmniboxController()->edit_model()->OnSetFocus(
       /*control_down=*/false);

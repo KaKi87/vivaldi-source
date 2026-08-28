@@ -1,0 +1,151 @@
+// Copyright (c) 2026 Vivaldi Technologies AS. All rights reserved
+
+[
+  {
+    "namespace": "pwa",
+    "description": "Observe PWA installability state changes for tabs.",
+    "compiler_options": {
+      "implemented_in": "extensions/api/pwa/pwa_api.h"
+    },
+    "types": [
+      {
+        "id": "InstallabilityStatus",
+        "type": "string",
+        "enum": [
+          "unknown",
+          "checking",
+          "not_installable",
+          "installable"
+        ]
+      },
+      {
+        "id": "InstallabilityInfo",
+        "type": "object",
+        "description": "Track when tabs become installable as PWAs.",
+        "properties": {
+          "status": {
+            "$ref": "InstallabilityStatus",
+            "description": "The PWA install status of the page."
+          },
+          "pageUrl": {
+            "type": "string",
+            "description": "URL of the page that was checked."
+          },
+          "manifestUrl": {
+            "type": "string",
+            "optional": true,
+            "description": "URL of the web app manifest, if found."
+          },
+          "startUrl": {
+            "type": "string",
+            "optional": true,
+            "description": "The start_url from the manifest."
+          },
+          "scope": {
+            "type": "string",
+            "optional": true,
+            "description": "The scope from the manifest."
+          },
+          "name": {
+            "type": "string",
+            "optional": true,
+            "description": "The name from the manifest."
+          },
+          "shortName": {
+            "type": "string",
+            "optional": true,
+            "description": "The short_name from the manifest."
+          },
+          "primaryIconUrl": {
+            "type": "string",
+            "optional": true,
+            "description": "URL of the primary icon."
+          },
+          "hasMaskableIcon": {
+            "type": "boolean",
+            "optional": true,
+            "description": "Whether the primary icon is maskable."
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "optional": true,
+            "description": "Human-readable installability warning messages."
+          },
+          "isInstalled": {
+            "type": "boolean",
+            "optional": true,
+            "description": "Whether a PWA is already installed for this page."
+          }
+        }
+      }
+    ],
+    "functions": [
+      {
+        "name": "install",
+        "type": "function",
+        "description": "Trigger installation of the PWA for the given tab.",
+        "parameters": [
+          {
+            "name": "tabId",
+            "type": "integer",
+            "description": "The ID of the tab to install the PWA from."
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "success",
+              "type": "boolean",
+              "description": "Whether the installation was successful."
+            }
+          ]
+        }
+      },
+      {
+        "name": "launch",
+        "type": "function",
+        "description": "Launch the installed PWA for the given tab.",
+        "parameters": [
+          {
+            "name": "tabId",
+            "type": "integer",
+            "description": "The ID of the tab whose PWA to launch."
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "success",
+              "type": "boolean",
+              "description": "Whether the launch was successful."
+            }
+          ]
+        }
+      }
+    ],
+    "events": [
+      {
+        "name": "onInstallabilityChanged",
+        "type": "function",
+        "description": "Fired when PWA installability status of a tab changes.",
+        "parameters": [
+          {
+            "name": "tabId",
+            "type": "integer",
+            "description": "The ID of the tab whose installability changed."
+          },
+          {
+            "name": "info",
+            "$ref": "InstallabilityInfo",
+            "description": "PWA installability information."
+          }
+        ]
+      }
+    ]
+  }
+]

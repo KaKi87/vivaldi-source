@@ -120,6 +120,9 @@ class MockNavigationHandle : public NavigationHandle {
     return handle->IsPrerenderedPageActivation() ||
            handle->IsServedFromBackForwardCache();
   }
+  bool IsBlockedByConnectionAllowlist() const override {
+    return is_blocked_by_connection_allowlist_;
+  }
   MOCK_CONST_METHOD0(IsNavigatingFromInitialEmptyDocument, bool());
   RenderFrameHost* GetParentFrame() override {
     return render_frame_host_ ? render_frame_host_->GetParent() : nullptr;
@@ -220,20 +223,22 @@ class MockNavigationHandle : public NavigationHandle {
   bool WasResponseCached() override { return was_response_cached_; }
   bool NetworkAccessed() override { return network_accessed_; }
   const std::string& GetHrefTranslate() override { return href_translate_; }
-  const std::optional<blink::Impression>& GetImpression() override {
-    return impression_;
-  }
   const std::optional<blink::LocalFrameToken>& GetInitiatorFrameToken()
       override {
     return initiator_frame_token_;
   }
-  int GetInitiatorProcessId() override { return initiator_process_id_; }
+  ChildProcessId GetInitiatorProcessId() override {
+    return initiator_process_id_;
+  }
   const std::optional<url::Origin>& GetInitiatorOrigin() override {
     return initiator_origin_;
   }
   const std::optional<GURL>& GetInitiatorBaseUrl() override {
     return initiator_base_url_;
   }
+  MOCK_METHOD(scoped_refptr<InitiatorNavigationState>,
+              GetInitiatorNavigationState,
+              ());
   const std::vector<std::string>& GetDnsAliases() override {
     static const base::NoDestructor<std::vector<std::string>>
         emptyvector_result;
@@ -274,7 +279,6 @@ class MockNavigationHandle : public NavigationHandle {
               GetNavigationDiscardReason,
               ());
   MOCK_METHOD(bool, NeedsUrlLoader, ());
-  MOCK_METHOD(bool, IsInitialWebUISyncNavigation, ());
   MOCK_METHOD(bool, IsInitialWebUINavigation, ());
 
   MOCK_METHOD(bool, VivaldiIsFromTrustedEvent, ());
@@ -368,6 +372,9 @@ class MockNavigationHandle : public NavigationHandle {
   }
   void set_has_committed(bool has_committed) { has_committed_ = has_committed; }
   void set_is_error_page(bool is_error_page) { is_error_page_ = is_error_page; }
+  void set_is_blocked_by_connection_allowlist(bool value) {
+    is_blocked_by_connection_allowlist_ = value;
+  }
   void set_request_headers(const net::HttpRequestHeaders& request_headers) {
     request_headers_ = request_headers;
   }
@@ -385,14 +392,11 @@ class MockNavigationHandle : public NavigationHandle {
   void set_was_response_cached(bool was_response_cached) {
     was_response_cached_ = was_response_cached;
   }
-  void set_impression(const blink::Impression& impression) {
-    impression_ = impression;
-  }
   void set_initiator_frame_token(
       const blink::LocalFrameToken* initiator_frame_token) {
     initiator_frame_token_ = base::OptionalFromPtr(initiator_frame_token);
   }
-  void set_initiator_process_id(int process_id) {
+  void set_initiator_process_id(ChildProcessId process_id) {
     initiator_process_id_ = process_id;
   }
   void set_initiator_origin(const url::Origin& initiator_origin) {
@@ -433,6 +437,7 @@ class MockNavigationHandle : public NavigationHandle {
   std::vector<GURL> redirect_chain_;
   bool has_committed_ = false;
   bool is_error_page_ = false;
+  bool is_blocked_by_connection_allowlist_ = false;
   net::HttpRequestHeaders request_headers_;
   scoped_refptr<net::HttpResponseHeaders> response_headers_;
   std::optional<net::SSLInfo> ssl_info_;
@@ -446,9 +451,8 @@ class MockNavigationHandle : public NavigationHandle {
   std::optional<GURL> initiator_base_url_;
   ReloadType reload_type_ = content::ReloadType::NONE;
   std::string href_translate_;
-  std::optional<blink::Impression> impression_;
   std::optional<blink::LocalFrameToken> initiator_frame_token_;
-  int initiator_process_id_ = ChildProcessHost::kInvalidUniqueID;
+  ChildProcessId initiator_process_id_;
   bool was_started_from_context_menu_ = false;
   blink::RuntimeFeatureStateContext runtime_feature_state_context_;
   ProcessSelectionUserData process_selection_user_data_;

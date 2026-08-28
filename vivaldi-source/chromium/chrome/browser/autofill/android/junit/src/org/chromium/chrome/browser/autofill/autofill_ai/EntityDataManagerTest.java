@@ -23,8 +23,6 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.autofill.autofill_ai.AutofillAiOptInStatus;
 import org.chromium.components.autofill.autofill_ai.EntityInstance;
@@ -41,7 +39,6 @@ import java.util.List;
 
 /** Unit tests for {@link EntityDataManager}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@EnableFeatures({ChromeFeatureList.AUTOFILL_AI_CREATE_ENTITY_DATA_MANAGER})
 public class EntityDataManagerTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -282,6 +279,35 @@ public class EntityDataManagerTest {
                         NATIVE_PTR, EntityTypeName.PASSPORT))
                 .thenReturn(true);
         assertTrue(mEntityDataManager.canEnableOrDisableAutofillAiForType(EntityTypeName.PASSPORT));
+    }
+
+    @Test
+    public void testIsPersonalContextPreferenceVisible() {
+        when(mEntityDataManagerJniMock.isPersonalContextPreferenceVisible(NATIVE_PTR))
+                .thenReturn(true);
+        assertTrue(mEntityDataManager.isPersonalContextPreferenceVisible());
+        verify(mEntityDataManagerJniMock).isPersonalContextPreferenceVisible(NATIVE_PTR);
+    }
+
+    @Test
+    public void testIsPersonalContextEnabled() {
+        when(mEntityDataManagerJniMock.isPersonalContextEnabled(NATIVE_PTR)).thenReturn(true);
+        assertTrue(mEntityDataManager.isPersonalContextEnabled());
+        verify(mEntityDataManagerJniMock).isPersonalContextEnabled(NATIVE_PTR);
+    }
+
+    @Test
+    public void testIsPersonalContextDisabledByEnterprisePolicy() {
+        when(mEntityDataManagerJniMock.isPersonalContextDisabledByEnterprisePolicy(NATIVE_PTR))
+                .thenReturn(true);
+        assertTrue(mEntityDataManager.isPersonalContextDisabledByEnterprisePolicy());
+        verify(mEntityDataManagerJniMock).isPersonalContextDisabledByEnterprisePolicy(NATIVE_PTR);
+    }
+
+    @Test
+    public void testSetPersonalContextEnabled() {
+        mEntityDataManager.setPersonalContextEnabled(true);
+        verify(mEntityDataManagerJniMock).setPersonalContextEnabled(NATIVE_PTR, true);
     }
 
     @Test

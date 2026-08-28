@@ -50,7 +50,7 @@
 #include "app/vivaldi_apptools.h"
 // Vivaldi: For editor frames...
 #if !BUILDFLAG(IS_ANDROID)
-#include "extensions/api/guest_view/vivaldi_guest_view_utils.h"
+#include "extensions/api/web_view_private/vivaldi_guest_view_utils.h"
 #endif  // !BUILDFLAG(IS_ANDROID)
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -143,6 +143,9 @@ void PageSpecificContentSettingsDelegate::OnCapturingStateChanged(
 }
 
 void PageSpecificContentSettingsDelegate::UpdateLocationBar() {
+  if (!web_contents()) {
+    return;
+  }
   content_settings::UpdateLocationBarUiForWebContents(web_contents());
 
   PageSpecificContentSettings* pscs = PageSpecificContentSettings::GetForFrame(

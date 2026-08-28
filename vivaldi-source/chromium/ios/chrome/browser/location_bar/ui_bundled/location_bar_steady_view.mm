@@ -29,6 +29,7 @@
 #import "app/vivaldi_apptools.h"
 #import "ios/chrome/browser/popup_menu/public/popup_menu_constants.h"
 #import "ios/chrome/browser/ui/location_bar/location_bar_constants+vivaldi.h"
+#import "ios/chrome/browser/ui/location_bar/vivaldi_location_bar_steady_view_container.h"
 #import "ios/ui/ad_tracker_blocker/vivaldi_atb_constants.h"
 #import "ios/ui/helpers/vivaldi_global_helpers.h"
 #import "ios/ui/ntp/vivaldi_ntp_constants.h"
@@ -264,6 +265,12 @@ const CGFloat kCustomLeadingViewAnimationDuration = 0.3;
 
 - (void)updateCustomLeadingViewVisibility:(BOOL)visible
                                  animated:(BOOL)animated {
+  CGFloat targetAlpha = visible ? 1.0 : 0.0;
+  if (_customLeadingView.hidden == !visible &&
+      _customLeadingView.alpha == targetAlpha) {
+    return;
+  }
+
   CGFloat priorSpacing =
       [self shouldShowIncognitoBadge] ? kIncognitoImageToLocationSpacing : 0.0;
   CGFloat targetWidth = visible ? _customLeadingViewTargetWidth : 0.0;
@@ -272,7 +279,6 @@ const CGFloat kCustomLeadingViewAnimationDuration = 0.3;
   CGAffineTransform targetTransform =
       visible ? CGAffineTransformIdentity
               : CGAffineTransformMakeScale(0.01, 0.01);
-  CGFloat targetAlpha = visible ? 1.0 : 0.0;
 
   if (!animated) {
     _customLeadingView.hidden = !visible;
@@ -331,6 +337,7 @@ const CGFloat kCustomLeadingViewAnimationDuration = 0.3;
   // Setup trailing button.
   _trailingButton =
       [ExtendedTouchTargetButton buttonWithType:UIButtonTypeSystem];
+  _trailingButton.hidden = IsChromeNextIaEnabled();
   _trailingButton.translatesAutoresizingMaskIntoConstraints = NO;
   _trailingButton.pointerInteractionEnabled = YES;
   // Make the pointer shape fit the location bar's semi-circle end shape.
@@ -426,6 +433,8 @@ const CGFloat kCustomLeadingViewAnimationDuration = 0.3;
       _leadingButton.accessibilityIdentifier =
           kToolsMenuSiteInformation;
       [_locationContainerView addSubview:_leadingButton];
+      AttachVivaldiLocationBarLeadingButtonContainer(_locationButton,
+                                                     _leadingButton);
 
       _locationContainerView.userInteractionEnabled = YES;
 
@@ -844,13 +853,7 @@ const CGFloat kCustomLeadingViewAnimationDuration = 0.3;
 
 - (void)setLocationLabelPlaceholderText:(NSString*)string {
   _isShowingPlaceholder = YES;
-
-  if (IsVivaldiRunning()) {
-    // For NTP placeholder should be clipped at the end, for webpage URL clip
-    // is at the beginning for security reasons.
-    self.locationLabel.lineBreakMode = NSLineBreakByTruncatingTail;
-  } // End Vivaldi
-
+  self.locationLabel.lineBreakMode = NSLineBreakByTruncatingTail;
   self.locationLabel.textColor = self.colorScheme.placeholderColor;
   self.locationLabel.text = string;
   [self updateContainerConstraints];
@@ -942,6 +945,13 @@ const CGFloat kCustomLeadingViewAnimationDuration = 0.3;
 - (void)enableTrailingButton:(BOOL)enabled {
   self.trailingButton.enabled = enabled;
   [self updateAccessibility];
+}
+
+- (void)setTrailingButtonHidden:(BOOL)hidden {
+  self.trailingButton.hidden = hidden;
+  if (IsChromeNextIaEnabled()) {
+    [self updateAccessibility];
+  }
 }
 
 - (void)setCentered:(BOOL)centered {
@@ -1064,7 +1074,9 @@ const CGFloat kCustomLeadingViewAnimationDuration = 0.3;
       addObjectsFromArray:self.badgesContainerView.accessibilityElements];
 
   if (self.trailingButton && self.trailingButton.enabled) {
-    [self.accessibleElements addObject:self.trailingButton];
+    if (!IsChromeNextIaEnabled() || !self.trailingButton.hidden) {
+      [self.accessibleElements addObject:self.trailingButton];
+    }
   }
 
   // Vivaldi
@@ -1098,7 +1110,7 @@ const CGFloat kCustomLeadingViewAnimationDuration = 0.3;
                             weight:UIImageSymbolWeightBold
                              scale:UIImageSymbolScaleMedium];
     _incognitoImageView.image =
-        CustomSymbolWithConfiguration(kIncognitoSymbol, configuration);
+        SymbolWithConfiguration(SymbolIncognito, configuration);
     _incognitoImageView.tintColor = self.colorScheme.fontColor;
   }
 

@@ -71,6 +71,7 @@
 
 #if BUILDFLAG(IS_CHROMEOS)
 #include "chromeos/constants/chromeos_features.h"
+#include "components/sync/base/features.h"
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace glic::test {
@@ -85,6 +86,10 @@ enum class TargetWebContents {
 
 std::ostream& operator<<(std::ostream& os, const TargetWebContents& value);
 
+// =============================================================================
+// DEPRECATED: Do not use this test fixture for new code.
+// Please use `chrome/browser/glic/test_support/glic_browser_test.h` instead.
+// =============================================================================
 // Mixin class that adds a mock glic to the current browser.
 // If all you need is the combination of this + interactive browser test, use
 // `InteractiveGlicTest` (defined below) instead.
@@ -139,6 +144,7 @@ class InteractiveGlicTestMixin : public T {
          // it.
          {features::kGlicLiveMode, {}},
 #if BUILDFLAG(IS_CHROMEOS)
+         {syncer::kReplaceSyncPromosWithSignInPromos, {}},
          { chromeos::features::kFeatureManagementGlic,
            {} }
 #endif  // BUILDFLAG(IS_CHROMEOS)
@@ -506,7 +512,7 @@ class InteractiveGlicTestMixin : public T {
     return Api::Do([this]() {
       auto* host = GetHost();
       CHECK(host);
-      host->DetachPanel(host->GetPrimaryPageHandlerForTesting());
+      host->DetachPanel();
     });
   }
 
@@ -602,20 +608,20 @@ class InteractiveGlicTestMixin : public T {
           WaitForGlicOpen(), WaitForWebUIState(mojom::WebUiState::kReady),
           WaitUntil(
               [this]() -> std::string {
-                auto* handler = GetHost()->GetPrimaryPageHandlerForTesting();
-                if (!handler) {
-                  return "no page handler";
+                auto* host = GetHost();
+                if (!host) {
+                  return "no host";
                 }
-                if (!handler->GetGuestMainFrame()) {
+                if (!host->GetGuestMainFrame()) {
                   return "no guest frame";
                 }
                 return "ok";
               },
               "ok"),
           Api::Do([this, where = where]() {
-            auto* handler = GetHost()->GetPrimaryPageHandlerForTesting();
-            CHECK(handler) << "No page handler";
-            auto* frame = handler->GetGuestMainFrame();
+            auto* host = GetHost();
+            CHECK(host) << "No host";
+            auto* frame = host->GetGuestMainFrame();
             CHECK(frame) << "No guest frame";
             CHECK(content::ExecJs(frame, "()=>document.querySelector(\"" +
                                              where[0] + "\").click()"));
@@ -772,15 +778,7 @@ class InteractiveGlicTestMixin : public T {
 
   content::RenderFrameHost* FindGlicGuestMainFrame() {
     Host* host = GetHost();
-    if (!host) {
-      return nullptr;
-    }
-    for (GlicPageHandler* handler : GetHost()->GetPageHandlersForTesting()) {
-      if (handler->GetGuestMainFrame()) {
-        return handler->GetGuestMainFrame();
-      }
-    }
-    return nullptr;
+    return host ? host->GetGuestMainFrame() : nullptr;
   }
 
   content::WebContents* FindGlicWebUIContents() {
@@ -900,7 +898,7 @@ class InteractiveGlicTestMixin : public T {
   }
 
   Host* GetHost() {
-    GlicInstance* instance = GetGlicInstance();
+    GlicInstanceImpl* instance = GetGlicInstanceImpl();
     if (!instance) {
       return nullptr;
     }
@@ -951,9 +949,6 @@ class InteractiveGlicTestMixin : public T {
 
   GURL GetGuestURL() { return glic_test_environment_.GetGuestURL(); }
 
-  void SetGlicFreUrlOverride(const GURL& url) {
-    glic_test_environment_.SetGlicFreUrlOverride(url);
-  }
 
   // `InteractiveGlicTestMixin` is configured to operate a single browser, but
   // it can change which browser it operates. This changes the browser to be

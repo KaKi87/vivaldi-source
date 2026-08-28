@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2025 The Chromium Authors. All rights reserved.
+# Copyright 2025 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -21,7 +21,8 @@ _VULN_PREFIXES = [
 
 _PATTERN_PREFIX = "|".join(_VULN_PREFIXES)
 PATTERN_VULN_ID = re.compile(
-    rf"({_PATTERN_PREFIX})-[a-zA-Z0-9]{{4}}-[a-zA-Z0-9:-]+")
+    rf"({_PATTERN_PREFIX})-[a-zA-Z0-9]{{4}}-[a-zA-Z0-9:-]+"
+)
 PATTERN_VULN_ID_WITH_ANCHORS = re.compile(f"^{PATTERN_VULN_ID.pattern}$")
 
 
@@ -72,8 +73,8 @@ class MitigatedField(field_types.SingleLineTextField):
                 reason=f"{self._name} contains invalid vulnerability IDs.",
                 additional=[
                     f"Invalid Vulnerability IDs: {util.quoted(invalid_vuln_ids)}",
-                    "The following identifiers are supported: " +
-                    ", ".join(_VULN_PREFIXES),
+                    "The following identifiers are supported: "
+                    + ", ".join(_VULN_PREFIXES),
                 ],
             )
 

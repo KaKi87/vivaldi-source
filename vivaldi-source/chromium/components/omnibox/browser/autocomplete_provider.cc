@@ -106,6 +106,8 @@ const char* AutocompleteProvider::TypeToString(Type type) {
       return "DirectMatch";
     case TYPE_RECENT_TYPED_HISTORY:
       return "RecentTypedHistory";
+    case TYPE_VIVALDI_CALCULATOR:
+      return "LocalCalculator";
 
     default:
       DUMP_WILL_BE_NOTREACHED()
@@ -230,6 +232,8 @@ AutocompleteProvider::AsOmniboxEventProviderType() const {
       return metrics::OmniboxEventProto::DIRECT_MATCH;
     case TYPE_RECENT_TYPED_HISTORY:
       return metrics::OmniboxEventProto::RECENT_TYPED_HISTORY;
+    case TYPE_VIVALDI_CALCULATOR:
+      return metrics::OmniboxEventProto::VIVALDI_CALCULATOR;
     // End Vivaldi
 
     default:
@@ -273,7 +277,7 @@ AutocompleteProvider::AdjustedInputAndStarterPackKeyword
 AutocompleteProvider::AdjustInputForStarterPackKeyword(
     const AutocompleteInput& input,
     const TemplateURLService* turl_service) {
-  if (input.prefer_keyword()) {
+  if (input.in_keyword_mode()) {
     AutocompleteInput keyword_input = input;
     const TemplateURL* template_url =
         AutocompleteInput::GetSubstitutingTemplateURLForInput(turl_service,

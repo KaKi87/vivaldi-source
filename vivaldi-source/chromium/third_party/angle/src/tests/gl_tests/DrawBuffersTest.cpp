@@ -250,16 +250,8 @@ TEST_P(DrawBuffersTest, VerifyD3DLimits)
 
     glGetIntegerv(GL_MAX_DRAW_BUFFERS, &mMaxDrawBuffers);
 
-    if (platform.majorVersion == 9 && platform.minorVersion == 3)
-    {
-        // D3D11 Feature Level 9_3 supports 4 draw buffers
-        ASSERT_EQ(mMaxDrawBuffers, 4);
-    }
-    else
-    {
-        // D3D11 Feature Level 10_0+ supports 8 draw buffers
-        ASSERT_EQ(mMaxDrawBuffers, 8);
-    }
+    // D3D11 Feature Level 10_0+ supports 8 draw buffers
+    ASSERT_EQ(mMaxDrawBuffers, 8);
 }
 
 TEST_P(DrawBuffersTest, Gaps)
@@ -287,9 +279,6 @@ TEST_P(DrawBuffersTest, Gaps)
 TEST_P(DrawBuffersTest, BlendWithGaps)
 {
     ANGLE_SKIP_TEST_IF(!setupTest());
-
-    // http://anglebug.com/42263715
-    ANGLE_SKIP_TEST_IF(IsMac() && IsIntel() && IsDesktopOpenGL());
 
     glBindTexture(GL_TEXTURE_2D, mTextures[0]);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, mTextures[0], 0);
@@ -1294,9 +1283,6 @@ TEST_P(DrawBuffersTestES3, CubeMapArrayTextures)
 TEST_P(DrawBuffersTestES3, BlendWithDrawBufferAndFramebufferChanges)
 {
     ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_OES_draw_buffers_indexed"));
-
-    // http://anglebug.com/42263715
-    ANGLE_SKIP_TEST_IF(IsMac() && IsIntel() && IsDesktopOpenGL());
 
     // Create two framebuffers, one with 3 attachments (fbo3), one with 4 (fbo4).  The test issues
     // draw calls on fbo3 with different attachments enabled, then switches to fbo4 (without

@@ -107,7 +107,7 @@ void SendEventToUI(VivaldiBrowserWindow* window,
   // the window id embedded into the event. Find a way to send this only to
   // Vivaldi JS in a specific window.
   ::vivaldi::BroadcastEvent(eventname, std::move(args),
-                            window->browser()->profile());
+                            window->browser()->GetProfile());
 }
 
 bool IsLoneAltKeyPressed(int modifiers) {
@@ -149,7 +149,7 @@ void VivaldiUIEvents::StartMouseGestureDetection(
   VivaldiBrowserWindow* window = FindMouseEventWindowFromView(root_view);
   if (!window)
     return;
-  Profile* profile = window->browser()->profile();
+  Profile* profile = window->browser()->GetProfile();
   if (with_alt) {
     if (!profile->GetPrefs()->GetBoolean(
             vivaldiprefs::kMouseGesturesAltGesturesEnabled))
@@ -368,7 +368,7 @@ bool VivaldiUIEvents::CheckRockerGesture(
       VivaldiBrowserWindow* window = FindMouseEventWindowFromView(root_view);
       if (!window)
         return eat_event;
-      Profile* profile = window->browser()->profile();
+      Profile* profile = window->browser()->GetProfile();
       if (profile->GetPrefs()->GetBoolean(
               vivaldiprefs::kMouseGesturesRockerGesturesEnabled)) {
         // We got a rocker gesture. Follow Opera's implementation and consume
@@ -590,7 +590,7 @@ bool VivaldiUIEvents::DoHandleWheelEvent(
   if (!window)
     return false;
 
-  Profile* profile = window->browser()->profile();
+  Profile* profile = window->browser()->GetProfile();
   if (!profile->GetPrefs()->GetBoolean(vivaldiprefs::kMouseWheelTabSwitch))
     return false;
 
@@ -651,7 +651,7 @@ bool VivaldiUIEvents::DoHandleWheelEventAfterChild(
   if (!window)
     return false;
 
-  Profile* profile = window->browser()->profile();
+  Profile* profile = window->browser()->GetProfile();
   if (!profile->GetPrefs()->GetBoolean(vivaldiprefs::kMouseWheelPageZoom)) {
     return false;
   }
@@ -747,7 +747,8 @@ void VivaldiUIEvents::DoHandleDragEnd(content::WebContents* web_contents,
   }
 #endif
 
-  if (target_window && target_window->browser()->profile() != source_profile) {
+  if (target_window &&
+      target_window->browser()->GetProfile() != source_profile) {
     // Found a window from a different profile - treat as drop outside windows
     target_window = nullptr;
   }

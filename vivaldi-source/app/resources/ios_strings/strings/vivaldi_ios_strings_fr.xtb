@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Demander avant d’ouvrir des liens d’autres applications en navigation privée</translation>
 <translation id="1624481300475123200">Remplissage automatique des mots de passe</translation>
 <translation id="1743244221910283364">Supprimer les modifications</translation>
+<translation id="1972589975368876259">Modifier la pile d’onglets</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Ajouter l’onglet à la pile}
         other {Ajouter les onglets à la pile}}</translation>
@@ -48,7 +49,6 @@
 <translation id="4772190485302020393">Fermer tous les onglets et piles d’onglets</translation>
 <translation id="4802185666270672526">Masquer « Demander la version pour ordinateur »</translation>
 <translation id="4828571836982833289">Défaire la pile d’onglets ?</translation>
-<translation id="4838250035189612538">Renommer la pile d’onglets</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 pile d’onglets fermée et enregistrée}
             other {{count} piles d’onglets fermées et enregistrées}}</translation>

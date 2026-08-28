@@ -12,7 +12,6 @@ import static org.chromium.content.browser.accessibility.AccessibilityContentShe
 import static org.chromium.content.browser.accessibility.AccessibilityContentShellTestUtils.sClassNameMatcher;
 import static org.chromium.content.browser.accessibility.AccessibilityContentShellTestUtils.sContentShellDelegate;
 import static org.chromium.ui.accessibility.AccessibilityState.EVENT_TYPE_MASK_ALL;
-import static org.chromium.ui.accessibility.AccessibilityState.StateIdentifierForTesting.EVENT_TYPE_MASK;
 
 import android.annotation.SuppressLint;
 import android.os.Bundle;
@@ -26,6 +25,8 @@ import androidx.core.view.accessibility.AccessibilityNodeProviderCompat;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 import org.mockito.Mockito;
 
 import org.chromium.base.ThreadUtils;
@@ -35,6 +36,7 @@ import org.chromium.base.test.util.UrlUtils;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.content_public.browser.test.util.TestCallbackHelperContainer;
 import org.chromium.content_shell_apk.ContentShellActivityTestRule;
+import org.chromium.net.test.EmbeddedTestServerRule;
 import org.chromium.ui.accessibility.AccessibilityState;
 
 import java.io.File;
@@ -79,8 +81,15 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
 
     private @Nullable CountDownLatch mEventLatch;
 
+    private final EmbeddedTestServerRule mTestServerRule = new EmbeddedTestServerRule();
+
     public AccessibilityContentShellActivityTestRule() {
         super();
+    }
+
+    @Override
+    public Statement apply(final Statement base, final Description description) {
+        return super.apply(mTestServerRule.apply(base, description), description);
     }
 
     /** Wait until the event tracked by prepareToWaitForNextEvent() has been received. */
@@ -113,7 +122,11 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
     /* @Before */
     protected void setupTestFromFile(String file) {
         // Default behavior: ignore trivial TYPE_WINDOW_CONTENT_CHANGED events.
-        setupTestFromFile(file, /* shouldFilterTrivialEvents= */ true);
+        setupTestFromFile(
+                file,
+                /* shouldFilterTrivialEvents= */ true,
+                /* testServer= */ false,
+                /* sendReadyForTestSignal= */ true);
     }
 
     /**
@@ -122,23 +135,52 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
      * <p>This method replaces the usual setUp() method annotated with @Before because we wish to
      * load different data with each test, but the process is the same for all tests.
      *
-     * @param file                          Test file URL, including path and name
-     * @param shouldFilterTrivialEvents     Flag to filter out TYPE_WINDOW_CONTENT_CHANGED event
+     * @param file Test file URL, including path and name
+     * @param shouldFilterTrivialEvents Flag to filter out TYPE_WINDOW_CONTENT_CHANGED event
+     * @param testServer Whether to use a test server to load the file
+     * @param sendReadyForTestSignal Flag to indicate that once the environment is loaded, a ready
+     *     for test signal should be fired.
      */
     /* @Before */
-    protected void setupTestFromFile(String file, boolean shouldFilterTrivialEvents) {
+    protected void setupTestFromFile(
+            String file,
+            boolean shouldFilterTrivialEvents,
+            boolean testServer,
+            boolean sendReadyForTestSignal) {
         // Verify file exists before beginning the test.
         verifyInputFile(file);
 
-        launchContentShellWithUrl(UrlUtils.getIsolatedTestFileUrl(file));
+        // 1. Launch content shell with a simple HTML page first to bring up the container view
+        launchContentShellWithUrl(UrlUtils.encodeHtmlDataUri("<html></html>"));
         waitForActiveShellToBeDoneLoading();
+
+        // 2. Setup the test framework and register the tracker early
         setupTestFramework(shouldFilterTrivialEvents);
         setAccessibilityDelegate();
 
         // To prevent flakes, do not disable accessibility mid tests.
         mWcax.setIsAutoDisableAccessibilityCandidateForTesting(false);
 
-        sendReadyForTestSignal();
+        // 3. Load the actual target test file URL now that the tracker is active and listening
+        String targetUrl;
+        if (testServer) {
+            targetUrl = mTestServerRule.getServer().getURL("/" + file);
+        } else {
+            targetUrl = UrlUtils.getIsolatedTestFileUrl(file);
+        }
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    getActivity().getActiveShell().loadUrl(targetUrl);
+                });
+
+        waitForActiveShellToBeDoneLoading();
+
+        // Wait for the new page's native BrowserAccessibilityManager to be connected!
+        mNodeProvider = getAccessibilityNodeProvider();
+
+        if (sendReadyForTestSignal) {
+            sendReadyForTestSignal();
+        }
     }
 
     /**
@@ -167,7 +209,7 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
                 () -> {
                     AccessibilityState.setIsAnyAccessibilityServiceEnabledForTesting(true);
                     AccessibilityState.setIsKnownScreenReaderEnabledForTesting(true);
-                    AccessibilityState.setStateMaskForTesting(EVENT_TYPE_MASK, EVENT_TYPE_MASK_ALL);
+                    AccessibilityState.setEventMaskForTesting(EVENT_TYPE_MASK_ALL);
                 });
 
         mWcax = getWebContentsAccessibility();
@@ -176,11 +218,9 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
         Map<Integer, Integer> testingThrottleDelays = new HashMap<>();
         mWcax.setThrottleDelayForTesting(testingThrottleDelays);
 
-        mNodeProvider = getAccessibilityNodeProvider();
-
         mTracker = new AccessibilityActionAndEventTracker(shouldFilterTrivialEvents);
         mWcax.setAccessibilityTrackerForTesting(mTracker);
-
+        mNodeProvider = getAccessibilityNodeProvider();
     }
 
     public void setupTestFrameworkForBasicMode(boolean includeEventMaskByDefault) {
@@ -190,17 +230,15 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
                 () -> {
                     AccessibilityState.setIsAnyAccessibilityServiceEnabledForTesting(true);
                     if (includeEventMaskByDefault) {
-                        AccessibilityState.setStateMaskForTesting(
-                                EVENT_TYPE_MASK, EVENT_TYPE_MASK_ALL);
+                        AccessibilityState.setEventMaskForTesting(EVENT_TYPE_MASK_ALL);
                     }
                 });
 
         mWcax = getWebContentsAccessibility();
-        mNodeProvider = getAccessibilityNodeProvider();
 
         mTracker = new AccessibilityActionAndEventTracker();
         mWcax.setAccessibilityTrackerForTesting(mTracker);
-
+        mNodeProvider = getAccessibilityNodeProvider();
     }
 
     public void setupTestFrameworkForFormControlsMode(boolean includeEventMaskByDefault) {
@@ -211,17 +249,15 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
                     AccessibilityState.setIsAnyAccessibilityServiceEnabledForTesting(true);
                     AccessibilityState.setIsOnlyPasswordManagersEnabledForTesting(true);
                     if (includeEventMaskByDefault) {
-                        AccessibilityState.setStateMaskForTesting(
-                                EVENT_TYPE_MASK, EVENT_TYPE_MASK_ALL);
+                        AccessibilityState.setEventMaskForTesting(EVENT_TYPE_MASK_ALL);
                     }
                 });
 
         mWcax = getWebContentsAccessibility();
-        mNodeProvider = getAccessibilityNodeProvider();
 
         mTracker = new AccessibilityActionAndEventTracker();
         mWcax.setAccessibilityTrackerForTesting(mTracker);
-
+        mNodeProvider = getAccessibilityNodeProvider();
     }
 
     public void setupTestFrameworkForCompleteMode(boolean includeEventMaskByDefault) {
@@ -232,17 +268,15 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
                     AccessibilityState.setIsAnyAccessibilityServiceEnabledForTesting(true);
                     AccessibilityState.setIsComplexUserInteractionServiceEnabledForTesting(true);
                     if (includeEventMaskByDefault) {
-                        AccessibilityState.setStateMaskForTesting(
-                                EVENT_TYPE_MASK, EVENT_TYPE_MASK_ALL);
+                        AccessibilityState.setEventMaskForTesting(EVENT_TYPE_MASK_ALL);
                     }
                 });
 
         mWcax = getWebContentsAccessibility();
-        mNodeProvider = getAccessibilityNodeProvider();
 
         mTracker = new AccessibilityActionAndEventTracker();
         mWcax.setAccessibilityTrackerForTesting(mTracker);
-
+        mNodeProvider = getAccessibilityNodeProvider();
     }
 
     public void mockWebContentsAccessibilityImpl() {
@@ -272,6 +306,10 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
         // Always reset our max events for good measure.
         if (mWcax != null) {
             mWcax.setMaxContentChangedEventsToFireForTesting(-1);
+            if (Mockito.mockingDetails(mWcax).isMock()) {
+                Mockito.reset(mWcax);
+            }
+            mWcax = null;
         }
 
         AccessibilityContentShellTestData.resetData();
@@ -396,22 +434,41 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
     }
 
     /**
-     * Helper method to perform an action on the UI, then poll for a given criteria to verify
-     * the action was completed.
+     * Helper method to perform an action on the UI, then poll for a given criteria to verify the
+     * action was completed.
      *
-     * @param viewId int                   virtualViewId of the given node
-     * @param action int                   desired AccessibilityNodeInfo action
-     * @param args Bundle                  action bundle
-     * @param criteria Callable<Boolean>   criteria to poll against to verify completion
-     * @return boolean                     return value of performAction
-     * @throws ExecutionException          Error
-     * @throws Throwable                   Error
+     * @param viewId int virtualViewId of the given node
+     * @param action int desired AccessibilityNodeInfo action
+     * @param args Bundle action bundle
+     * @param criteria Callable<Boolean> criteria to poll against to verify completion
+     * @return boolean return value of performAction
+     * @throws ExecutionException Error
+     * @throws Throwable Error
      */
     public boolean performActionOnUiThread(
             int viewId, int action, Bundle args, Callable<Boolean> criteria)
             throws ExecutionException, Throwable {
+        return performActionOnUiThread(viewId, action, args, criteria, NODE_TIMEOUT_ERROR);
+    }
+
+    /**
+     * Helper method to perform an action on the UI, then poll for a given criteria to verify the
+     * action was completed.
+     *
+     * @param viewId int virtualViewId of the given node
+     * @param action int desired AccessibilityNodeInfo action
+     * @param args Bundle action bundle
+     * @param criteria Callable<Boolean> criteria to poll against to verify completion
+     * @param exceptionMsg message to output if criteria is not satisfied within timeout
+     * @return boolean return value of performAction
+     * @throws ExecutionException Error
+     * @throws Throwable Error
+     */
+    public boolean performActionOnUiThread(
+            int viewId, int action, Bundle args, Callable<Boolean> criteria, String exceptionMsg)
+            throws ExecutionException, Throwable {
         boolean returnValue = performActionOnUiThread(viewId, action, args);
-        CriteriaHelper.pollUiThread(criteria, NODE_TIMEOUT_ERROR);
+        CriteriaHelper.pollUiThread(criteria, exceptionMsg);
         return returnValue;
     }
 
@@ -426,7 +483,13 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
      * @return boolean return value of setting selection.
      */
     public boolean setSelectionOnUiThread(
-            int viewId, int startNodeId, int startNodeOffset, int endNodeId, int endNodeOffset)
+            int viewId,
+            int startNodeId,
+            int startNodeOffset,
+            int startOffsetType,
+            int endNodeId,
+            int endNodeOffset,
+            int endOffsetType)
             throws ExecutionException {
         return ThreadUtils.runOnUiThreadBlocking(
                 () ->
@@ -436,8 +499,10 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
                                         viewId,
                                         startNodeId,
                                         startNodeOffset,
+                                        startOffsetType,
                                         endNodeId,
-                                        endNodeOffset));
+                                        endNodeOffset,
+                                        endOffsetType));
     }
 
     /**
@@ -491,9 +556,10 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
 
         CriteriaHelper.pollUiThread(
                 () -> {
-                    return mNodeProvider
-                            .createAccessibilityNodeInfo(virtualViewId)
-                            .isAccessibilityFocused();
+                    AccessibilityNodeInfoCompat node =
+                            mNodeProvider.createAccessibilityNodeInfo(virtualViewId);
+                    return node.isAccessibilityFocused()
+                            && (!node.isFocusable() || node.isFocused());
                 },
                 NODE_TIMEOUT_ERROR);
     }
@@ -525,6 +591,11 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
     public void sendEndOfTestSignal() {
         ThreadUtils.runOnUiThreadBlocking(() -> mWcax.signalEndOfTestForTesting());
         CriteriaHelper.pollUiThread(() -> mTracker.testComplete(), END_OF_TEST_ERROR);
+    }
+
+    /** Add a custom comment or annotation to the tracker's events list. */
+    public void addCommentToTracker(String comment) {
+        mTracker.addComment(comment);
     }
 
     /**

@@ -6,16 +6,13 @@
 
 #include "base/i18n/number_formatting.h"
 #include "base/i18n/rtl.h"
-#include "base/notreached.h"
 #include "base/numerics/safe_conversions.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/views/frame/multi_contents_view.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/split_tabs/split_tab_visual_data.h"
-#include "ui/accessibility/mojom/ax_node_data.mojom.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/color/color_provider.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_type.h"
 #include "ui/gfx/geometry/size.h"
@@ -28,8 +25,6 @@
 namespace {
 constexpr int kHandleCornerRadius = 2;
 constexpr int kHandleOffAxisSize = 24;
-constexpr int kHandleResizeAxisPadding = 6;
-constexpr int kHandleResizeAxisSize = 4;
 constexpr int kResizeIncrement = 50;
 }  // namespace
 
@@ -144,12 +139,15 @@ bool MultiContentsResizeArea::OnKeyPressed(const ui::KeyEvent& event) {
     const int end_percent = 100 - start_percent;
 
     auto [start_label_id, end_label_id] = GetAccessibleAlertStringIds();
-    GetViewAccessibility().AnnounceText(
-        l10n_util::GetStringFUTF16(IDS_SPLIT_VIEW_RESIZE_ACCESSIBLE_ALERT,
-                                   l10n_util::GetStringUTF16(start_label_id),
-                                   base::FormatPercent(start_percent),
-                                   l10n_util::GetStringUTF16(end_label_id),
-                                   base::FormatPercent(end_percent)));
+    const int alert_string_id =
+        axis() == Axis::kHorizontal
+            ? IDS_SPLIT_VIEW_RESIZE_ACCESSIBLE_ALERT
+            : IDS_SPLIT_VIEW_RESIZE_ACCESSIBLE_ALERT_STACKED;
+    GetViewAccessibility().AnnounceText(l10n_util::GetStringFUTF16(
+        alert_string_id, l10n_util::GetStringUTF16(start_label_id),
+        base::FormatPercent(start_percent),
+        l10n_util::GetStringUTF16(end_label_id),
+        base::FormatPercent(end_percent)));
   }
   return true;
 }

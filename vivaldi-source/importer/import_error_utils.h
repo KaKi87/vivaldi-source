@@ -5,17 +5,20 @@
 
 #include "base/files/file_path.h"
 #include "base/values.h"
+#include "importer/import_limits.h"
 #include "importer/viv_import_result.h"
 #include "sql/database.h"
 
 // Centralized file operations with consistent error handling
 class ImportFileOperations {
  public:
-  // Safe file reading with proper error mapping
+  // Safe file reading with proper error mapping. Reads at most `max_size`
+  // bytes.
   static ImportValue<std::string> ReadFileToString(
       const base::FilePath& file_path,
       int not_found_error_id,
-      int read_failed_error_id);
+      int read_failed_error_id,
+      size_t max_size = vivaldi_importer::kMaxImportFileSize);
 
   // Check file existence with appropriate error message
   static ImportResult CheckFileExists(const base::FilePath& file_path,

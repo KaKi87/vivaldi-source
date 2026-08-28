@@ -111,12 +111,6 @@ class TemplateURLService final : public WebDataServiceConsumer,
   using OwnedTemplateURLDataVector =
       EnterpriseSearchManager::OwnedTemplateURLDataVector;
 
-  static constexpr char kSearchPolicyConflictCountHistogramName[] =
-      "Search.SearchPolicyConflict.NumberOfSearchEngines";
-  static constexpr char kSearchPolicyHasConflictWithFeaturedHistogramName[] =
-      "Search.SearchPolicyConflict.HasConflictWith.WithFeatured";
-  static constexpr char kSearchPolicyHasConflictWithNonFeaturedHistogramName[] =
-      "Search.SearchPolicyConflict.HasConflictWith.WithNonFeatured";
   static constexpr char kKeywordCountHistogramName[] = "Omnibox.KeywordCount";
   static constexpr char kLensOverlaySuggestPathPlaceholder[] =
       "lensoverlayplaceholder";
@@ -188,15 +182,6 @@ class TemplateURLService final : public WebDataServiceConsumer,
   // search engines created by policy and search engines the user manually
   // edited. Keep in sync with `SearchPolicyConflictType` in
   // tools/metrics/histograms/enums.xml.
-
-  // LINT.IfChange(SearchPolicyConflictType)
-  enum class SearchPolicyConflictType {
-    kNone = 0,
-    kWithFeatured = 1,
-    kWithNonFeatured = 2,
-    kMaxValue = kWithNonFeatured,
-  };
-  // LINT.ThenChange(//tools/metrics/histograms/metadata/search/enums.xml:SearchPolicyConflictType)
 
   enum DefaultSearchType {
     kDefaultSearchMain,
@@ -772,7 +757,7 @@ class TemplateURLService final : public WebDataServiceConsumer,
       TemplateURLServiceSyncTestWithSeparateLocalAndAccountSearchEngines,
       MergeInSyncTemplateURL);
   FRIEND_TEST_ALL_PREFIXES(
-      TemplateURLServiceSyncTestWithAvoidFaviconOnlyCommits,
+      TemplateURLServiceSyncTestWithSeparateLocalAndAccountSearchEngines,
       ShouldNotCommitFaviconOnlyChanges);
 
   friend class InstantUnitTestBase;
@@ -1008,11 +993,6 @@ class TemplateURLService final : public WebDataServiceConsumer,
   // Calls `EnterpriseSearchManager::AddOverriddenKeyword` and adds the keyword
   // of the `template_url` to the overridden keyword pref list.
   void AddOverriddenKeywordForTemplateURL(const TemplateURL* template_url);
-
-  // Logs a histogram to track keyword conflicts between search engines created
-  // by policy and search engines the user manually edited.
-  void LogSearchPolicyConflict(
-      const OwnedTemplateURLVector& policy_search_engines);
 
   const std::optional<regional_capabilities::CountryIdHolder>&
   initial_keywords_database_country() {

@@ -20,7 +20,7 @@ namespace {
 
 using TestNode = ui::TreeNodeWithValue<int>;
 
-class TreeViewDumpAccessibilityEventsTest
+class TreeViewDumpAccessibilityEventsTestBase
     : public DumpAccessibilityEventsViewsTestBase {
  public:
   std::vector<ui::AXPropertyFilter> DefaultFilters() const override {
@@ -80,6 +80,21 @@ class TreeViewDumpAccessibilityEventsTest
   std::unique_ptr<ui::TreeNodeModel<TestNode>> model_;
 };
 
+class TreeViewDumpAccessibilityEventsTest
+    : public TreeViewDumpAccessibilityEventsTestBase {};
+
+class TreeViewSelectDumpAccessibilityEventsTest
+    : public TreeViewDumpAccessibilityEventsTestBase {};
+
+std::vector<ViewsEventTestParams> ExpandCollapseEventTestPasses() {
+#if BUILDFLAG(IS_WIN)
+  return {{ui::AXApiType::kWinUIA, false},
+          {ui::AXApiType::kWinUIA, true}};
+#else
+  return DumpAccessibilityEventsViewsTestBase::EventTestPasses();
+#endif
+}
+
 IN_PROC_BROWSER_TEST_P(TreeViewDumpAccessibilityEventsTest, ExpandNode) {
 #if BUILDFLAG(IS_LINUX)
   if (IsViewsAXEnabled()) {
@@ -107,7 +122,7 @@ IN_PROC_BROWSER_TEST_P(TreeViewDumpAccessibilityEventsTest, CollapseNode) {
 // Verifies that selecting a tree node fires the appropriate platform selection
 // events. TreeView::SetSelectedNode() calls SetIsSelected(true) on the node's
 // AXVirtualView, which fires Event::kSelection through ViewAccessibility.
-IN_PROC_BROWSER_TEST_P(TreeViewDumpAccessibilityEventsTest, SelectNode) {
+IN_PROC_BROWSER_TEST_P(TreeViewSelectDumpAccessibilityEventsTest, SelectNode) {
   SetFilters(R"(
 @WIN-ALLOW:EVENT_OBJECT_SELECTION on*
 @UIA-WIN-ALLOW:SelectionItem_ElementSelected*
@@ -125,6 +140,12 @@ IN_PROC_BROWSER_TEST_P(TreeViewDumpAccessibilityEventsTest, SelectNode) {
 INSTANTIATE_TEST_SUITE_P(
     All,
     TreeViewDumpAccessibilityEventsTest,
+    ::testing::ValuesIn(ExpandCollapseEventTestPasses()),
+    EventTestPassToString());
+
+INSTANTIATE_TEST_SUITE_P(
+    All,
+    TreeViewSelectDumpAccessibilityEventsTest,
     ::testing::ValuesIn(
         DumpAccessibilityEventsViewsTestBase::EventTestPasses()),
     EventTestPassToString());

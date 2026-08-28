@@ -44,9 +44,9 @@ jobs:
     name: Build in a Solaris VM
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
-    - uses: vmactions/solaris-vm@c20562b2c69737b06be9e828915761703e487373  # v1.3.3
+    - uses: vmactions/solaris-vm@d30dd6c228c8661ade859e36ead7660b9a62efcc  # v1.3.7
       with:
         release: "11.4-gcc"  # with GCC 14 as of 2026-01-11
         usesh: true

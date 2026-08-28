@@ -29,7 +29,9 @@
 #include <fontconfig/fontconfig.h>
 
 #include <json.h>
+#include <locale.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 struct _FcConfig {
@@ -45,6 +47,19 @@ struct _FcConfig {
     FcFontSet *rejectPatterns;
     FcFontSet *fonts[FcSetApplication + 1];
 };
+
+#ifdef _WIN32
+int
+setenv (const char *name, const char *value, int overwrite)
+{
+    if (!overwrite) {
+	char *s = getenv (name);
+	if (s)
+	    return 0;
+    }
+    return _putenv_s (name, value);
+}
+#endif
 
 static void
 apply_config (FcConfig *config, json_object *obj)
@@ -63,6 +78,96 @@ apply_config (FcConfig *config, json_object *obj)
 	    fprintf (stderr, "W: unknown object in config: %s\n", iter.key);
 	}
     }
+}
+
+static FcBool
+build_env (FcConfig *config, json_object *root)
+{
+    json_object     *env;
+    json_object_iter iter;
+
+    if (json_object_object_get_ex (root, "env", &env)) {
+	if (json_object_get_type (env) != json_type_object) {
+	    fprintf (stderr, "W: Invalid env defined\n");
+	    return FcFalse;
+	}
+	json_object_object_foreachC (env, iter)
+	{
+	    const char *v;
+
+	    if (json_object_get_type (iter.val) != json_type_string) {
+		fprintf (stderr, "E: key and value must be a string\n");
+		return FcFalse;
+	    }
+	    v = json_object_get_string (iter.val);
+	    if (strcmp (iter.key, "locale") == 0) {
+		setlocale (LC_ALL, v);
+	    } else {
+		setenv (iter.key, v, 1);
+	    }
+	}
+    }
+    return FcTrue;
+}
+
+static FcBool
+build_config (FcConfig *config, json_object *obj)
+{
+    int    n, i;
+    FcBool ret = FcTrue;
+
+    n = json_object_array_length (obj);
+    for (i = 0; i < n; i++) {
+	json_object   *o = json_object_array_get_idx (obj, i);
+	char          *allocated = NULL;
+	const char    *s;
+	const FcChar8 *m;
+
+	if (json_object_get_type (o) != json_type_string) {
+	    fprintf (stderr, "W: Invalid config item\n");
+	    continue;
+	}
+	s = json_object_get_string (o);
+	if ((m = FcStrStr ((const FcChar8 *)s, (const FcChar8 *)"%test%")) != 0) {
+	    size_t root_len = strlen (SRCDIR);
+	    size_t len = strlen (s);
+
+	    allocated = malloc (root_len + len);
+	    if (!allocated)
+		return FcFalse;
+	    strcpy (allocated, SRCDIR);
+	    allocated[root_len] = '/';
+	    strcpy (&allocated[root_len + 1], (const char *)&m[6]);
+	    s = allocated;
+	} else if (strstr (s, "..") != 0) {
+	    fprintf (stderr, "W: the path traversal sequences are not allowed\n");
+	    continue;
+	} else if (s[0] != '/') {
+	    /* need to resolve a relative path without depending on the default config */
+	    size_t root_len = strlen (SRCDIR);
+	    size_t len = strlen (s);
+
+	    allocated = malloc (root_len + 4 /* /../ */ + len + 1);
+	    if (!allocated)
+		return FcFalse;
+	    strcpy (allocated, SRCDIR);
+	    allocated[root_len] = '/';
+	    allocated[root_len + 1] = '.';
+	    allocated[root_len + 2] = '.';
+	    allocated[root_len + 3] = '/';
+	    strcpy (&allocated[root_len + 4], (const char *)s);
+	    s = allocated;
+	}
+	ret = FcConfigParseAndLoad (config, (const FcChar8 *)s, FcTrue);
+	if (allocated) {
+	    free (allocated);
+	    allocated = NULL;
+	}
+	if (!ret)
+	    goto bail;
+    }
+bail:
+    return ret;
 }
 
 static FcPattern *
@@ -192,24 +297,24 @@ build_pattern (json_object *obj)
 			if (type == json_type_string) {
 			    const FcConstant *c = FcNameGetConstant ((const FcChar8 *)json_object_get_string (o));
 			    if (!c) {
-		                fprintf (stderr, "E: value is not a known constant\n");
-		                fprintf (stderr, "   key: %s\n", iter.key);
-		                fprintf (stderr, "   val: %s (idx: %d)\n", json_object_get_string (iter.val), i);
-		                continue;
-		            }
-		            if (strcmp (c->object, iter.key) != 0) {
-		                fprintf (stderr, "E: value is a constant of different object\n");
-		                fprintf (stderr, "   key: %s\n", iter.key);
-		                fprintf (stderr, "   val: %s (idx: %d)\n", json_object_get_string (iter.val), i);
-		                fprintf (stderr, "   key implied by value: %s\n", c->object);
-		                continue;
-		            }
+				fprintf (stderr, "E: value is not a known constant\n");
+				fprintf (stderr, "   key: %s\n", iter.key);
+				fprintf (stderr, "   val: %s (idx: %d)\n", json_object_get_string (iter.val), i);
+				continue;
+			    }
+			    if (strcmp (c->object, iter.key) != 0) {
+				fprintf (stderr, "E: value is a constant of different object\n");
+				fprintf (stderr, "   key: %s\n", iter.key);
+				fprintf (stderr, "   val: %s (idx: %d)\n", json_object_get_string (iter.val), i);
+				fprintf (stderr, "   key implied by value: %s\n", c->object);
+				continue;
+			    }
 			    v.u.i = c->value;
 			} else if (type != json_type_int) {
 			    fprintf (stderr, "E: unable to convert to int\n");
 			    continue;
 			} else {
-			    v.u.i = json_object_get_int(o);
+			    v.u.i = json_object_get_int (o);
 			}
 			v.type = FcTypeInteger;
 			FcPatternAdd (pat, iter.key, v, FcTrue);
@@ -218,25 +323,25 @@ build_pattern (json_object *obj)
 		} else {
 		    FcLangSet *ls = FcLangSetCreate();
 		    if (!ls) {
-		        fprintf (stderr, "E: failed to create langset\n");
-		        continue;
+			fprintf (stderr, "E: failed to create langset\n");
+			continue;
 		    }
 		    v.type = FcTypeLangSet;
 		    v.u.l = ls;
 		    destroy_v = FcTrue;
 		    for (i = 0; i < n; i++) {
-		        o = json_object_array_get_idx (iter.val, i);
-		        type = json_object_get_type (o);
-		        if (type != json_type_string) {
+			o = json_object_array_get_idx (iter.val, i);
+			type = json_object_get_type (o);
+			if (type != json_type_string) {
 			    fprintf (stderr, "E: langset value not string\n");
 			    FcValueDestroy (v);
 			    continue;
-		        }
-		        if (FcLangSetAdd (ls, (const FcChar8 *)json_object_get_string (o)) == FcFalse) {
+			}
+			if (FcLangSetAdd (ls, (const FcChar8 *)json_object_get_string (o)) == FcFalse) {
 			    fprintf (stderr, "E: failed to add to langset\n");
 			    FcValueDestroy (v);
 			    continue;
-		        }
+			}
 		    }
 		}
 	    } else if (type == json_type_double || type == json_type_int) {
@@ -371,7 +476,7 @@ bail:
 static FcBool
 build_fonts (FcConfig *config, json_object *root)
 {
-    json_object *fonts, *filter, *appfonts;
+    json_object *fonts, *filter, *appfonts, *cfg_xml;
     FcFontSet   *fs;
     FcPattern   *filterpat;
 
@@ -402,6 +507,14 @@ build_fonts (FcConfig *config, json_object *root)
 	if (config->fonts[FcSetApplication])
 	    FcFontSetDestroy (config->fonts[FcSetApplication]);
 	config->fonts[FcSetApplication] = fs;
+    }
+    if (json_object_object_get_ex (root, "load_xml", &cfg_xml)) {
+	if (json_object_get_type (cfg_xml) != json_type_array) {
+	    fprintf (stderr, "W: Invalid load_xml defined\n");
+	    return FcFalse;
+	}
+	if (!build_config (config, cfg_xml))
+	    return FcFalse;
     }
 
     return FcTrue;
@@ -523,7 +636,7 @@ process_fs (FcConfig  *config,
 	    }
 	} while (FcPatternIterNext (result_fs->fonts[j], &iter));
     }
- bail:
+bail:
 
     return fail;
 }
@@ -553,7 +666,7 @@ process_list (FcConfig  *config,
     } else {
 	fail += process_fs (config, fs, result_fs);
     }
- bail:
+bail:
     if (fs)
 	FcFontSetDestroy (fs);
 
@@ -587,7 +700,7 @@ process_sort (FcConfig   *config,
     } else {
 	fail += process_fs (config, fs, result_fs);
     }
- bail:
+bail:
     if (fs)
 	FcFontSetDestroy (fs);
 
@@ -599,8 +712,8 @@ process_pattern (FcConfig  *config,
                  FcPattern *query,
                  FcPattern *result)
 {
-    FcPatternIter  iter1, iter2;
-    int            vc1, vc2, fail = 0, i;
+    FcPatternIter iter1, iter2;
+    int           vc1, vc2, fail = 0, i;
 
     if (!query) {
 	fprintf (stderr, "E: no query defined.\n");
@@ -625,10 +738,10 @@ process_pattern (FcConfig  *config,
 	    vc1 = FcPatternIterValueCount (query, &iter1);
 	    vc2 = FcPatternIterValueCount (result, &iter2);
 	    if (vc1 != vc2 || !FcPatternIterEqual (query, &iter1, result, &iter2)) {
-		FcValue v1, v2;
+		FcValue        v1, v2;
 		FcValueBinding b1, b2;
 
-	        printf ("E: object (%s) mismatched:\n", obj);
+		printf ("E: object (%s) mismatched:\n", obj);
 		printf ("   actual result: %d\n    ", vc1);
 		for (i = 0; i < vc1; i++) {
 		    if (FcPatternIterGetValue (query, &iter1, i, &v1, &b1) != FcResultMatch)
@@ -637,7 +750,7 @@ process_pattern (FcConfig  *config,
 		    printf (" ");
 		}
 		printf ("\n");
-	        printf ("   expected result: %d\n    ", vc2);
+		printf ("   expected result: %d\n    ", vc2);
 		for (i = 0; i < vc1; i++) {
 		    if (FcPatternIterGetValue (result, &iter2, i, &v2, &b2) != FcResultMatch)
 			v2.type = FcTypeVoid;
@@ -645,12 +758,12 @@ process_pattern (FcConfig  *config,
 		    printf (" ");
 		}
 		printf ("\n");
-	        fail++;
-	        goto bail;
+		fail++;
+		goto bail;
 	    }
 	}
     } while (FcPatternIterNext (result, &iter2));
- bail:
+bail:
     return fail;
 }
 
@@ -731,7 +844,7 @@ run_test (FcConfig *config, json_object *root)
 	} else if (method != NULL &&
 	           strcmp (method, "pattern") == 0) {
 	    fail += process_pattern (config, query, result);
-        } else {
+	} else {
 	    fprintf (stderr, "W: unknown testing method: %s\n", method);
 	}
 	if (method)
@@ -763,6 +876,10 @@ run_scenario (FcConfig *config, char *file)
     if (!root) {
 	fprintf (stderr, "E: Unable to read the file: %s\n", file);
 	return FcFalse;
+    }
+    if (!build_env (config, root)) {
+	ret = FcFalse;
+	goto bail1;
     }
     if (!build_fonts (config, root)) {
 	ret = FcFalse;

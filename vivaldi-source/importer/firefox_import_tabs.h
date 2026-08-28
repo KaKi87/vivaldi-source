@@ -3,7 +3,7 @@
 namespace vivaldi {
 
 #define VIVALDI_IMPORT_OPEN_TABS                                             \
-  if ((items & user_data_importer::TABS) && !cancelled()) {                  \
+  if ((items_ & user_data_importer::TABS) && !cancelled()) {                  \
     bridge_->NotifyItemStarted(user_data_importer::TABS);                    \
     vivaldi::ImportFirefoxTabs(this, bridge_,                                \
                                GetCopiedSourcePath("sessionstore.jsonlz4")); \

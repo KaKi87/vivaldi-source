@@ -200,6 +200,9 @@ optimization_guide::proto::Actions MakeMediaControl(
 
 std::unique_ptr<ToolRequest> MakeClickRequest(content::RenderFrameHost& rfh,
                                               int content_node_id);
+std::unique_ptr<ToolRequest> MakeDirectElementActivationClickRequest(
+    content::RenderFrameHost& rfh,
+    int content_node_id);
 std::unique_ptr<ToolRequest> MakeClickRequest(tabs::TabInterface& tab,
                                               const gfx::Point& click_point);
 std::unique_ptr<ToolRequest> MakeHistoryBackRequest(tabs::TabInterface& tab);
@@ -280,6 +283,9 @@ void ExpectOkResult(base::test::TestFuture<mojom::ActionResultPtr>& future);
 void ExpectOkResult(ActResultFuture& future);
 void ExpectErrorResult(ActResultFuture& future,
                        mojom::ActionResultCode expected_code);
+// Checks the standard disabled-target error and its reason-specific message.
+void ExpectElementDisabledResultWithReason(ActResultFuture& future,
+                                           std::string_view reason);
 
 // Sets up GLIC_ACTION_PAGE_BLOCK to block the given host via component updater.
 bool SetUpOptimizationGuideComponentBlocklist(const base::FilePath& path,
@@ -366,6 +372,11 @@ class MockActorTaskDelegate : public ActorTaskDelegate {
               (override));
 
   MOCK_METHOD(void,
+              OnTaskTabsVisibilityChanged,
+              (TaskId task_id, bool has_visible_tab),
+              (override));
+
+  MOCK_METHOD(void,
               RequestToShowCredentialSelectionDialog,
               (TaskId task_id,
                (const base::flat_map<std::string, gfx::Image>&)icons,
@@ -396,6 +407,18 @@ class MockActorTaskDelegate : public ActorTaskDelegate {
                AutofillSuggestionSelectedCallback callback),
               (override));
 
+  MOCK_METHOD(void,
+              RequestToShowGmailOtpOptInDialog,
+              (TaskId task_id, GmailOtpOptInCallback callback),
+              (override));
+
+  MOCK_METHOD(void,
+              RequestToShowGmailOtpConfirmationDialog,
+              (TaskId task_id,
+               const std::string& verification_code,
+               GmailOtpConfirmationCallback callback),
+              (override));
+
   base::WeakPtr<MockActorTaskDelegate> GetWeakPtr() {
     return weak_factory_.GetWeakPtr();
   }
@@ -406,12 +429,14 @@ class MockActorTaskDelegate : public ActorTaskDelegate {
 
 class MockPolicyChecker : public EnterprisePolicyChecker {
  public:
-  explicit MockPolicyChecker(UrlBlockReason reason,
-                             ContentValidationReason content_reason =
-                                 ContentValidationReason::kAllowed);
+  explicit MockPolicyChecker(
+      UrlBlockReason reason,
+      std::optional<ContentValidationReason> content_reason =
+          ContentValidationReason::kAllowed);
   ~MockPolicyChecker() override;
 
   UrlBlockReason Evaluate(const GURL& url) const override;
+  void set_reason(UrlBlockReason reason) { reason_ = reason; }
   void ValidateContentSentToRenderer(
       content::RenderFrameHost* frame,
       const std::string& content,
@@ -419,7 +444,7 @@ class MockPolicyChecker : public EnterprisePolicyChecker {
 
  private:
   UrlBlockReason reason_;
-  ContentValidationReason content_reason_;
+  std::optional<ContentValidationReason> content_reason_;
 };
 
 // Returns a passthrough EnterprisePolicyChecker tests can use to avoid

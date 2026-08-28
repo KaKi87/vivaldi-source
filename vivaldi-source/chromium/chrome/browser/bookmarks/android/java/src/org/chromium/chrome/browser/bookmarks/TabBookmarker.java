@@ -172,7 +172,7 @@ public class TabBookmarker {
                                     tab.getOriginalUrl());
                         if (bookmarkId != null && bookmarkModel.isInsideTrashFolder(bookmarkId))
                             bookmarkId = null;
-                        // End Vivald
+                        // End Vivaldi
 
                         currentBookmarkItems.add(
                                 bookmarkId == null
@@ -221,7 +221,7 @@ public class TabBookmarker {
                         if (SpeedDialUtils.thumbnailsEnabled() && newBookmarkId != null
                                 && bookmarkModel.isInsideSpeedDialFolder(newBookmarkId)) {
                             ChromeActivity activity = (ChromeActivity) mActivity;
-                            activity.captureThumbnailForSpeedDial(
+                            activity.captureThumbnailForSpeedDial(tabsToBookmark.get(i),
                                     bookmarkModel, bookmarkModel.getBookmarkById(newBookmarkId));
                         }
                         // End vivaldi

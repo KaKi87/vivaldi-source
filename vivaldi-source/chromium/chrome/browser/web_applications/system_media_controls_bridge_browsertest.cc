@@ -4,7 +4,6 @@
 
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
 #include "chrome/browser/apps/app_shim/app_shim_host_mac.h"
 #include "chrome/browser/apps/app_shim/app_shim_manager_mac.h"
@@ -16,7 +15,6 @@
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/system_media_controls/system_media_controls.h"
 #include "components/webapps/common/web_app_id.h"
-#include "content/public/common/content_features.h"
 #include "content/public/common/isolated_world_ids.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -32,9 +30,7 @@ namespace testing {
 class SystemMediaControlsBridgeBrowsertest
     : public web_app::WebAppBrowserTestBase {
  public:
-  SystemMediaControlsBridgeBrowsertest() {
-    feature_list_.InitWithFeatures({features::kWebAppSystemMediaControls}, {});
-  }
+  SystemMediaControlsBridgeBrowsertest() = default;
 
   SystemMediaControlsBridgeBrowsertest(
       const SystemMediaControlsBridgeBrowsertest&) = delete;
@@ -126,9 +122,6 @@ class SystemMediaControlsBridgeBrowsertest
  protected:
   std::optional<base::RunLoop> wait_for_bridge_creation_run_loop_;
   int num_bridges_created_ = 0;
-
- private:
-  base::test::ScopedFeatureList feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(SystemMediaControlsBridgeBrowsertest, TwoApps) {
@@ -141,7 +134,7 @@ IN_PROC_BROWSER_TEST_F(SystemMediaControlsBridgeBrowsertest, TwoApps) {
   // Wait for the app shim to connect.
   apps::AppShimManager* app_shim_manager = apps::AppShimManager::Get();
   AppShimHost* app_shim_host =
-      app_shim_manager->FindHost(web_app_browser1->profile(), app_id1);
+      app_shim_manager->FindHost(web_app_browser1->GetProfile(), app_id1);
   MaybeWaitForAppShimConnection(app_shim_host);
 
   // At this point, WebAppSystemMediaControlsManager exists,
@@ -167,7 +160,7 @@ IN_PROC_BROWSER_TEST_F(SystemMediaControlsBridgeBrowsertest, TwoApps) {
 
   // Wait for 2nd app shim to connect.
   AppShimHost* app_shim_host2 =
-      app_shim_manager->FindHost(web_app_browser2->profile(), app_id2);
+      app_shim_manager->FindHost(web_app_browser2->GetProfile(), app_id2);
   MaybeWaitForAppShimConnection(app_shim_host2);
 
   // Start playing the audio.
@@ -226,7 +219,7 @@ IN_PROC_BROWSER_TEST_F(SystemMediaControlsBridgeBrowsertest, OneBrowserOneApp) {
   // Wait for the app shim to connect.
   apps::AppShimManager* app_shim_manager = apps::AppShimManager::Get();
   AppShimHost* app_shim_host =
-      app_shim_manager->FindHost(web_app_browser1->profile(), app_id1);
+      app_shim_manager->FindHost(web_app_browser1->GetProfile(), app_id1);
   MaybeWaitForAppShimConnection(app_shim_host);
 
   // At this point, WebAppSystemMediaControlsManager exists,
@@ -254,7 +247,7 @@ IN_PROC_BROWSER_TEST_F(SystemMediaControlsBridgeBrowsertest, DuplicateApp) {
   // Wait for the app shim to connect.
   apps::AppShimManager* app_shim_manager = apps::AppShimManager::Get();
   AppShimHost* app_shim_host =
-      app_shim_manager->FindHost(web_app_browser1->profile(), app_id1);
+      app_shim_manager->FindHost(web_app_browser1->GetProfile(), app_id1);
   MaybeWaitForAppShimConnection(app_shim_host);
 
   // At this point, WebAppSystemMediaControlsManager exists,
@@ -299,7 +292,7 @@ IN_PROC_BROWSER_TEST_F(SystemMediaControlsBridgeBrowsertest,
   // Wait for the app shim to connect.
   apps::AppShimManager* app_shim_manager = apps::AppShimManager::Get();
   AppShimHost* app_shim_host =
-      app_shim_manager->FindHost(web_app_browser1->profile(), app_id1);
+      app_shim_manager->FindHost(web_app_browser1->GetProfile(), app_id1);
   MaybeWaitForAppShimConnection(app_shim_host);
 
   // Start playing the audio.
@@ -323,7 +316,7 @@ IN_PROC_BROWSER_TEST_F(SystemMediaControlsBridgeBrowsertest,
   // Wait for the app shim to connect.
   apps::AppShimManager* app_shim_manager = apps::AppShimManager::Get();
   AppShimHost* app_shim_host =
-      app_shim_manager->FindHost(web_app_browser1->profile(), app_id1);
+      app_shim_manager->FindHost(web_app_browser1->GetProfile(), app_id1);
   MaybeWaitForAppShimConnection(app_shim_host);
 
   // Register for a callback when the bridge is made. We don't really care about
@@ -375,7 +368,7 @@ IN_PROC_BROWSER_TEST_F(SystemMediaControlsBridgeBrowsertest,
   // Wait for the app shim to connect.
   apps::AppShimManager* app_shim_manager = apps::AppShimManager::Get();
   AppShimHost* app_shim_host =
-      app_shim_manager->FindHost(web_app_browser1->profile(), app_id1);
+      app_shim_manager->FindHost(web_app_browser1->GetProfile(), app_id1);
   MaybeWaitForAppShimConnection(app_shim_host);
 
   // Register for a callback when the bridge is made. We don't really care about

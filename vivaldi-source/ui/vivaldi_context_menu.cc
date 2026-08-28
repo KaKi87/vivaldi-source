@@ -3,7 +3,6 @@
 #include "base/base64.h"
 #include "base/logging.h"
 #include "browser/vivaldi_browser_finder.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "skia/ext/image_operations.h"
 #include "ui/gfx/favicon_size.h"

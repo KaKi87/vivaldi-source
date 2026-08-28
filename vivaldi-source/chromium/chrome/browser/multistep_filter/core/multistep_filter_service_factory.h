@@ -32,6 +32,9 @@ class MultistepFilterServiceFactory : public ProfileKeyedServiceFactory {
   ~MultistepFilterServiceFactory() override;
   std::unique_ptr<KeyedService> BuildServiceInstanceForBrowserContext(
       content::BrowserContext* context) const override;
+  bool ServiceIsCreatedWithBrowserContext() const override;
+  void RegisterProfilePrefs(
+      user_prefs::PrefRegistrySyncable* registry) override;
 };
 
 }  // namespace multistep_filter

@@ -15,6 +15,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.RuleChain;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.params.ParameterAnnotations;
@@ -27,6 +28,8 @@ import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
+import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
+import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.util.browser.LocationSettingsTestUtil;
 import org.chromium.components.permissions.PermissionsAndroidFeatureList;
 import org.chromium.content_public.browser.test.util.DOMUtils;
@@ -60,12 +63,18 @@ public class LocationPrecisionChooserRenderTest {
     private static final int TEST_PORT = 12345;
 
     private final boolean mNightModeEnabled;
-    @Rule public PermissionTestRule mPermissionRule = new PermissionTestRule();
+    public AutoResetCtaTransitTestRule mActivityTestRule =
+            ChromeTransitTestRules.autoResetCtaActivityRule();
+    public PermissionTestRule mPermissionRule =
+            new PermissionTestRule(mActivityTestRule.getActivityTestRule());
+
+    @Rule
+    public RuleChain mRuleChain = RuleChain.outerRule(mActivityTestRule).around(mPermissionRule);
 
     @Rule
     public RenderTestRule mRenderTestRule =
             RenderTestRule.Builder.withPublicCorpus()
-                    .setRevision(1)
+                    .setRevision(3)
                     .setBugComponent(RenderTestRule.Component.UI_BROWSER_MOBILE_MESSAGES)
                     .build();
 
@@ -118,76 +127,17 @@ public class LocationPrecisionChooserRenderTest {
     @Test
     @MediumTest
     @Feature({"Prompt", "RenderTest"})
-    @EnableFeatures("ApproximateGeolocationPermission:prompt_arm/1")
-    public void testGeolocationOneTimePrompt1() throws Exception {
+    public void testGeolocationOneTimePrompt() throws Exception {
         LocationSettingsTestUtil.setSystemLocationSettingEnabled(true);
         LocationProviderOverrider.setLocationProviderImpl(new MockLocationProvider());
         mPermissionRule.setUpUrl(TEST_FILE);
-        testPrompt(/* goldenViewId= */ "oneTimePrompt_location_arm1");
+        testPrompt(/* goldenViewId= */ "oneTimePrompt_location");
     }
 
     @Test
     @MediumTest
     @Feature({"Prompt", "RenderTest"})
-    @EnableFeatures("ApproximateGeolocationPermission:prompt_arm/2")
-    public void testGeolocationOneTimePromptArm2() throws Exception {
-        LocationSettingsTestUtil.setSystemLocationSettingEnabled(true);
-        LocationProviderOverrider.setLocationProviderImpl(new MockLocationProvider());
-        mPermissionRule.setUpUrl(TEST_FILE);
-        testPrompt(/* goldenViewId= */ "oneTimePrompt_location_arm2");
-    }
-
-    @Test
-    @MediumTest
-    @Feature({"Prompt", "RenderTest"})
-    @EnableFeatures("ApproximateGeolocationPermission:prompt_arm/3")
-    public void testGeolocationOneTimePromptArm3() throws Exception {
-        LocationSettingsTestUtil.setSystemLocationSettingEnabled(true);
-        LocationProviderOverrider.setLocationProviderImpl(new MockLocationProvider());
-        mPermissionRule.setUpUrl(TEST_FILE);
-        testPrompt(/* goldenViewId= */ "oneTimePrompt_location_arm3");
-    }
-
-    @Test
-    @MediumTest
-    @Feature({"Prompt", "RenderTest"})
-    @EnableFeatures("ApproximateGeolocationPermission:prompt_arm/4")
-    public void testGeolocationOneTimePromptArm4() throws Exception {
-        LocationSettingsTestUtil.setSystemLocationSettingEnabled(true);
-        LocationProviderOverrider.setLocationProviderImpl(new MockLocationProvider());
-        mPermissionRule.setUpUrl(TEST_FILE);
-        testPrompt(/* goldenViewId= */ "oneTimePrompt_location_arm4");
-    }
-
-    @Test
-    @MediumTest
-    @Feature({"Prompt", "RenderTest"})
-    @EnableFeatures("ApproximateGeolocationPermission:prompt_arm/5")
-    public void testGeolocationOneTimePromptArm5() throws Exception {
-        LocationSettingsTestUtil.setSystemLocationSettingEnabled(true);
-        LocationProviderOverrider.setLocationProviderImpl(new MockLocationProvider());
-        mPermissionRule.setUpUrl(TEST_FILE);
-        testPrompt(/* goldenViewId= */ "oneTimePrompt_location_arm5");
-    }
-
-    @Test
-    @MediumTest
-    @Feature({"Prompt", "RenderTest"})
-    @EnableFeatures("ApproximateGeolocationPermission:prompt_arm/6")
-    public void testGeolocationOneTimePromptArm6() throws Exception {
-        LocationSettingsTestUtil.setSystemLocationSettingEnabled(true);
-        LocationProviderOverrider.setLocationProviderImpl(new MockLocationProvider());
-        mPermissionRule.setUpUrl(TEST_FILE);
-        testPrompt(/* goldenViewId= */ "oneTimePrompt_location_arm6");
-    }
-
-    @Test
-    @MediumTest
-    @Feature({"Prompt", "RenderTest"})
-    @EnableFeatures({
-        "ApproximateGeolocationPermission:prompt_arm/1",
-        PermissionsAndroidFeatureList.GEOLOCATION_ELEMENT
-    })
+    @EnableFeatures(PermissionsAndroidFeatureList.GEOLOCATION_ELEMENT)
     public void testGeolocationElementPrompt() throws Exception {
         LocationSettingsTestUtil.setSystemLocationSettingEnabled(true);
         LocationProviderOverrider.setLocationProviderImpl(new MockLocationProvider());

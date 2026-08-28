@@ -14,7 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 
 import {$$, $closest, hideElement, isVisible} from "../utils/dom.js";
@@ -25,9 +24,10 @@ import {profile} from "../introspection/profile.js";
 let {getComputedStyle, MutationObserver, WeakSet} = $(window);
 
 /**
- * Hides any HTML element that uses an `aria-labelledby`, or one of its
- * ancestors, if the related aria element contains the searched text.
- * @alias module:content/snippets.hide-if-labelled-by
+ * @description Hides any HTML element that uses an
+ * `aria-labelledby`, or one of its ancestors, if the related
+ * aria element contains the searched text.
+ * @memberof module:snippets/conditional-hiding
  *
  * @param {string} search The string to look for in HTML elements. If the
  *   string begins and ends with a slash (`/`), the text in between is treated
@@ -37,7 +37,12 @@ let {getComputedStyle, MutationObserver, WeakSet} = $(window);
  * @param {?string} [searchSelector] The CSS selector of an ancestor of the
  *   HTML element that uses as `aria-labelledby` attribute. Defaults to the
  *   value of the `selector` argument.
+ * @example
+ * hide-if-labelled-by inline FAQ nav a => Hides any nav element which has
+ * an inline element whose text content contains the word FAQ.
  *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69960640/hide-if-labelled-by} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/conditional-hiding-snippets/hide-if-labelled-by} for external documentation.
  * @since Adblock Plus 3.9
  */
 export function hideIfLabelledBy(search, selector, searchSelector = null) {

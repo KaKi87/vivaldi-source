@@ -651,6 +651,8 @@ class DocWriter(xml_formatted_writer.XMLFormattedWriter):
       policy_group_ref = './policy-list-3/atomic_groups'
       if 'local' in self.config and self.config['local']:
         policy_group_ref = './chrome_policy_atomic_groups_list.html'
+        if self.config.get('build') == 'vivaldi':
+          policy_group_ref = './vivaldi_policy_atomic_groups_list.html'
       self.AddText(dd, self.GetLocalizedMessage('policy_in_atomic_group') + ' ')
       self.AddElement(dd, 'a',
                       {'href': policy_group_ref + '#' + policy['atomic_group']},

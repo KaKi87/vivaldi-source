@@ -169,7 +169,7 @@ public class BookmarkImageFetcher {
                                     faviconDisplaySize));
                 };
 
-        if (mImageServiceBridge.hasConsentToFetchImages(item.isAccountBookmark())) {
+        if (item.isAccountBookmark()) {
             mFaviconHelper.getForeignFaviconImageForURL(
                     mProfile,
                     faviconUrl,

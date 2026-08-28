@@ -89,9 +89,18 @@ ContextualTasksCookieSynchronizer::GetDeviceBoundSessionManagerForPartition() {
 }
 #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
 
-void ContextualTasksCookieSynchronizer::CopyCookiesToWebviewStoragePartition() {
+void ContextualTasksCookieSynchronizer::CopyCookiesToWebviewStoragePartition(
+    base::OnceClosure callback) {
+  CHECK(!callback.is_null());
+  pending_cookie_sync_completion_callbacks_.push_back(std::move(callback));
+
   if (cookie_loader_) {
     // A request is in progress already.
+    return;
+  }
+
+  if (!identity_manager_) {
+    CompleteAuth(/*is_success=*/false);
     return;
   }
 
@@ -101,7 +110,7 @@ void ContextualTasksCookieSynchronizer::CopyCookiesToWebviewStoragePartition() {
                                 base::Unretained(this)));
 
   if (!GetStoragePartition()) {
-    CompleteAuth(false);
+    CompleteAuth(/*is_success=*/false);
     return;
   }
 
@@ -115,11 +124,12 @@ void ContextualTasksCookieSynchronizer::OnIdentityManagerShutdown(
 }
 
 void ContextualTasksCookieSynchronizer::BeginCookieSync() {
+  CHECK(identity_manager_);
   // We only need primary account authentication in the webview.
   CoreAccountId primary_account_id =
       identity_manager_->GetPrimaryAccountId(signin::ConsentLevel::kSignin);
   if (primary_account_id.empty()) {
-    CompleteAuth(false);
+    CompleteAuth(/*is_success=*/false);
     return;
   }
   signin::MultiloginParameters parameters = {
@@ -160,6 +170,10 @@ void ContextualTasksCookieSynchronizer::OnTimeout() {
 void ContextualTasksCookieSynchronizer::CompleteAuth(bool is_success) {
   timeout_.Stop();
   cookie_loader_.reset();
+  auto callbacks = std::move(pending_cookie_sync_completion_callbacks_);
+  for (auto& callback : callbacks) {
+    std::move(callback).Run();
+  }
 }
 
 content::StoragePartition*

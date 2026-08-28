@@ -14,26 +14,31 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import {abortOnWrite} from "../utils/execution.js";
 import {formatArguments} from "../utils/general.js";
 import {profile} from "../introspection/profile.js";
 
 /**
- * Patches a property on the window object to abort execution when the
- * property is written.
+ * @description Patches a property on the window object
+ * to abort execution when the property is written.
  *
  * No error is printed to the console.
  *
  * The idea originates from
  * [uBlock Origin](https://github.com/uBlockOrigin/uAssets/blob/80b195436f8f8d78ba713237bfc268ecfc9d9d2b/filters/resources.txt#L1671).
- * @alias module:content/snippets.abort-on-property-write
+ * @memberof module:snippets/behavioral
  *
  * @param {string} property The name of the property.
  * @param {?string} setConfigurable Value of the configurable attribute. Sets
- *   the flag to false if "false" is given, the flag is set to true
- *   for all other cases.
+ * the flag to false if "false" is given, the flag is set to true
+ * for all other cases.
+ * @example
+ * abort-on-property-write adHandler.cmd.push => The code that
+ * sets the push function throws an exception. This function is
+ * a property of cmd, witch is a property of adHandler global object.
  *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69970943/abort-on-property-write} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/behavioral-snippets/abort-on-property-write} for external documentation.
  * @since Adblock Plus 3.4.3
  */
 export function abortOnPropertyWrite(property, setConfigurable) {

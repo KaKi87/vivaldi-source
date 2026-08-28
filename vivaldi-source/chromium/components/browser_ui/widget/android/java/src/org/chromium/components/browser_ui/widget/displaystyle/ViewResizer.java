@@ -94,7 +94,14 @@ public class ViewResizer implements DisplayStyleObserver, View.OnLayoutChangeLis
 
     private void updatePadding() {
         int padding = computePadding();
+        // Vivaldi VAB-13361
+        if (padding == mView.getPaddingStart() && padding == mView.getPaddingEnd()) return;
+
         mView.setPaddingRelative(padding, mView.getPaddingTop(), padding, mView.getPaddingBottom());
+
+        // Vivaldi VAB-13361: This also runs from onLayoutChange(), where the layout that
+        // setPaddingRelative() asks for is dropped. Post it so the children follow.
+        if (mView.isInLayout()) mView.post(mView::requestLayout);
     }
 
     /** Computes the lateral padding to be applied to the associated view. */

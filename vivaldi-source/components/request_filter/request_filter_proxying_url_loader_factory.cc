@@ -11,6 +11,7 @@
 
 #include "base/no_destructor.h"
 #include "base/strings/stringprintf.h"
+#include "build/build_config.h"
 #include "components/keyed_service/content/browser_context_keyed_service_shutdown_notifier_factory.h"
 #include "components/keyed_service/core/keyed_service_shutdown_notifier.h"
 #include "content/public/browser/browser_context.h"
@@ -43,11 +44,6 @@
 namespace vivaldi {
 namespace {
 
-// A message when `WebRequestProxyingURLLoaderFactory::CreateLoaderAndStart()`
-// is called with a request ID already in use by another active request.
-constexpr char kDuplicateRequestIdError[] =
-    "Tried to proxy a web request with a duplicate request ID.";
-
 // This shutdown notifier makes sure the proxy is destroyed if an incognito
 // browser context is destroyed. This is needed because RequestFilterManager
 // only clears the proxies when the original browser context is destroyed.
@@ -75,11 +71,12 @@ void ForwardOnBeforeSendHeadersCallback(
     network::mojom::TrustedHeaderClient::OnBeforeSendHeadersCallback callback,
     const std::optional<::net::HttpRequestHeaders>& initial_headers,
     int32_t error_code,
-    const std::optional<::net::HttpRequestHeaders>& headers) {
+    const std::optional<::net::HttpRequestHeaders>& headers,
+    std::optional<::base::DictValue> dict) {
   if (headers) {
-    std::move(callback).Run(error_code, headers);
+    std::move(callback).Run(error_code, headers, std::move(dict));
   } else {
-    std::move(callback).Run(error_code, initial_headers);
+    std::move(callback).Run(error_code, initial_headers, std::move(dict));
   }
 }
 
@@ -125,8 +122,9 @@ RequestFilterProxyingURLLoaderFactory::InProgressRequest::FollowRedirectParams::
 
 RequestFilterProxyingURLLoaderFactory::InProgressRequest::InProgressRequest(
     RequestFilterProxyingURLLoaderFactory* factory,
-    uint64_t request_id,
-    int32_t network_service_request_id,
+    uint64_t profile_request_id,
+    int32_t request_id_for_network_service,
+    int32_t request_id_from_client,
     int32_t view_routing_id,
     int32_t frame_routing_id,
     uint32_t options,
@@ -138,8 +136,9 @@ RequestFilterProxyingURLLoaderFactory::InProgressRequest::InProgressRequest(
     : factory_(factory),
       request_(request),
       original_initiator_(request.request_initiator),
-      request_id_(request_id),
-      network_service_request_id_(network_service_request_id),
+      profile_request_id_(profile_request_id),
+      request_id_for_network_service_(request_id_for_network_service),
+      request_id_from_client_(request_id_from_client),
       view_routing_id_(view_routing_id),
       frame_routing_id_(frame_routing_id),
       options_(options),
@@ -150,7 +149,7 @@ RequestFilterProxyingURLLoaderFactory::InProgressRequest::InProgressRequest(
       target_client_(std::move(client)),
       current_response_(network::mojom::URLResponseHead::New()),
       has_any_extra_headers_listeners_(
-          network_service_request_id_ != 0 &&
+          request_id_for_network_service_ != 0 &&
           factory->request_handler_->HasAnyExtraHeadersListener()),
       has_any_security_info_listeners_(
           factory->request_handler_->HasAnySecurityInfoListener()),
@@ -169,13 +168,13 @@ RequestFilterProxyingURLLoaderFactory::InProgressRequest::InProgressRequest(
 
 RequestFilterProxyingURLLoaderFactory::InProgressRequest::InProgressRequest(
     RequestFilterProxyingURLLoaderFactory* factory,
-    uint64_t request_id,
+    uint64_t profile_request_id,
     int32_t frame_routing_id,
     const network::ResourceRequest& request)
     : factory_(factory),
       request_(request),
       original_initiator_(request.request_initiator),
-      request_id_(request_id),
+      profile_request_id_(profile_request_id),
       frame_routing_id_(frame_routing_id),
       proxied_loader_receiver_(this),
       for_cors_preflight_(true),
@@ -194,7 +193,7 @@ RequestFilterProxyingURLLoaderFactory::InProgressRequest::~InProgressRequest() {
   }
   if (on_before_send_headers_callback_) {
     std::move(on_before_send_headers_callback_)
-        .Run(net::ERR_ABORTED, std::nullopt);
+        .Run(net::ERR_ABORTED, std::nullopt, std::nullopt);
   }
   if (on_headers_received_callback_) {
     std::move(on_headers_received_callback_)
@@ -215,7 +214,7 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
   // the original for |initiator| in the event.
   network::ResourceRequest request_for_info = request_;
   request_for_info.request_initiator = original_initiator_;
-  info_.emplace(request_id_,
+  info_.emplace(profile_request_id_,
                 content::GlobalRenderFrameHostId(factory_->render_process_id_,
                                                  frame_routing_id_),
                 request_for_info, factory_->loader_factory_type(),
@@ -234,7 +233,7 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
       factory_->url_loader_header_client_receiver_.is_bound() &&
       (request_.url.SchemeIsHTTPOrHTTPS() ||
        request_.url.SchemeIs(url::kUuidInPackageScheme)) &&
-      (for_cors_preflight_ || network_service_request_id_ != 0) &&
+      (for_cors_preflight_ || request_id_for_network_service_ != 0) &&
       factory_->request_handler_->HasExtraHeadersListenerForRequest(
           &info_.value());
 }
@@ -445,7 +444,7 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::OnComplete(
                                           &info_.value(), status.error_code);
 
   // Deletes |this|.
-  factory_->RemoveRequest(network_service_request_id_, request_id_);
+  factory_->RemoveRequest(request_id_for_network_service_, profile_request_id_);
 }
 
 void RequestFilterProxyingURLLoaderFactory::InProgressRequest::OnLoaderCreated(
@@ -481,14 +480,15 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::OnLoaderCreated(
 }
 
 void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
-    OnBeforeSendHeaders(const net::HttpRequestHeaders& headers,
+    OnBeforeSendHeaders(const GURL& request_url,
+                        const net::HttpRequestHeaders& headers,
                         OnBeforeSendHeadersCallback callback) {
   if (!current_request_uses_header_client_) {
     if (forwarding_header_client_) {
-      forwarding_header_client_->OnBeforeSendHeaders(headers,
+      forwarding_header_client_->OnBeforeSendHeaders(request_url, headers,
                                                      std::move(callback));
     } else {
-      std::move(callback).Run(net::OK, std::nullopt);
+      std::move(callback).Run(net::OK, std::nullopt, std::nullopt);
     }
     return;
   }
@@ -530,7 +530,8 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
       // callback. In that case, the forwarding client may delete itself,
       // resulting in us landing in OnRequestError.
       if (!forwarding_header_client_) {
-        factory_->RemoveRequest(network_service_request_id_, request_id_);
+        factory_->RemoveRequest(request_id_for_network_service_,
+                                profile_request_id_);
       }
     }
     return;
@@ -711,7 +712,7 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
     factory_->target_factory_->CreateLoaderAndStart(
         target_loader_.BindNewPipeAndPassReceiver(
             navigation_response_task_runner_),
-        network_service_request_id_, options, request_,
+        request_id_for_network_service_, options, request_,
         proxied_client_receiver_.BindNewPipeAndPassRemote(
             navigation_response_task_runner_),
         traffic_annotation_);
@@ -738,13 +739,13 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
     DCHECK(on_before_send_headers_callback_);
     if (forwarding_header_client_) {
       forwarding_header_client_->OnBeforeSendHeaders(
-          request_.headers,
+          request_.url, request_.headers,
           base::BindOnce(&ForwardOnBeforeSendHeadersCallback,
                          std::move(on_before_send_headers_callback_),
                          request_.headers));
     } else {
       std::move(on_before_send_headers_callback_)
-          .Run(error_code, request_.headers);
+          .Run(error_code, request_.headers, std::nullopt);
     }
   } else if (pending_follow_redirect_params_) {
     pending_follow_redirect_params_->headers_update_params.removed_headers
@@ -867,7 +868,8 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
     // callback. In that case, the forwarding client may delete itself,
     // resulting in us landing in OnRequestError.
     if (!forwarding_header_client_) {
-      factory_->RemoveRequest(network_service_request_id_, request_id_);
+      factory_->RemoveRequest(request_id_for_network_service_,
+                              profile_request_id_);
     }
     return;
   }
@@ -1074,7 +1076,7 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::OnRequestError(
   state_ = state;
 
   // Deletes |this|.
-  factory_->RemoveRequest(network_service_request_id_, request_id_);
+  factory_->RemoveRequest(request_id_for_network_service_, profile_request_id_);
 }
 
 void RequestFilterProxyingURLLoaderFactory::InProgressRequest::OnNetworkError(
@@ -1104,16 +1106,17 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
                          const std::string& description) {
   if (custom_reason == network::mojom::URLLoader::kClientDisconnectReason &&
       description == blink::ThrottlingURLLoader::kFollowRedirectReason) {
-    // Save the ID here because this request will be restarted with a new
-    // URLLoader instead of continuing with FollowRedirect(). The saved ID will
-    // be retrieved in the restarted request, which will call
-    // RequestIDGenerator::Generate() with the same ID pair.
+    // Save the mapping so the restarted `URLLoader` retrieves the same
+    // request filter manager visible id when calling
+    // `RequestIDGenerator::Generate()` with the same (`view_routing_id_`,
+    // `request_id_from_client_`) pair.
     factory_->request_id_generator_->SaveID(
-        view_routing_id_, network_service_request_id_, request_id_);
+        view_routing_id_, request_id_from_client_, profile_request_id_);
 
     state_ = State::kRedirectFollowedByAnotherInProgressRequest;
-    // Deletes |this|.
-    factory_->RemoveRequest(network_service_request_id_, request_id_);
+    // Deletes `this`.
+    factory_->RemoveRequest(request_id_for_network_service_,
+                            profile_request_id_);
   } else {
     OnNetworkError(CreateURLLoaderCompletionStatus(net::ERR_ABORTED));
   }
@@ -1139,7 +1142,17 @@ bool RequestFilterProxyingURLLoaderFactory::InProgressRequest::IsRedirectSafe(
                                         original_initiator_, upstream_url);
   }
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(IS_ANDROID)
+  // Vivaldi VAB-13083: This proxy runs for every request, so the generic
+  // IsSafeRedirectTarget check here rejects server redirects (e.g. to data:)
+  // that Chromium otherwise allows, breaking Custom Tab OAuth flows on Android.
+  // Skip it on Android only; redirect safety is still enforced downstream
+  // (NavigationURLLoaderImpl and Blink fetch). The extension check above still
+  // runs when we enable extensions on Android in the future.
+  return true;
+#else
   return content::IsSafeRedirectTarget(upstream_url, target_url);
+#endif  // BUILDFLAG(IS_ANDROID)
 }
 
 network::URLLoaderCompletionStatus RequestFilterProxyingURLLoaderFactory::
@@ -1245,39 +1258,52 @@ void RequestFilterProxyingURLLoaderFactory::CreateLoaderAndStart(
     const net::MutableNetworkTrafficAnnotationTag& traffic_annotation) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
-  // The|web_request_id| doesn't really matter. It just needs to be unique
+  // The `filtered_request_id` doesn't really matter. It just needs to be
   // per-BrowserContext so filters can make sense of it.  Note that
-  // |network_service_request_id_| by contrast is not necessarily unique, so
+  // Note that `request_id_for_network_service` by contrast is not
   // we don't use it for identity here. This request ID may be the same as a
   // previous request if the previous request was redirected to a URL that
   // required a different loader.
   const uint64_t filtered_request_id =
       request_id_generator_->Generate(view_routing_id_, request_id);
 
-  if (request_id) {
+  // Determine the request ID forwarded to the network service:
+  // - For requests from child processes (`render_process_id_ != -1`), generate
+  //   a unique, non-zero network service request ID. The caller-supplied ID is
+  //   untrusted and may collide across concurrent requests or be 0. A unique ID
+  //   ensures network service callbacks (e.g., auth challenges,
+  //   `TrustedHeaderClient` events) reliably route back to this proxy request.
+  // - For browser-initiated requests (`render_process_id_ == -1`, e.g., frame
+  //   navigations), forward the trusted browser-assigned ID unmodified so that
+  //   components like `LoginTabHelper` can correlate auth cancellation against
+  //   the global navigation ID.
+  // - If we have a forwarding_url_loader_header_client_, that means we are
+  //   getting a request ID that was already modified by the WebRequest API. It
+  //   is trustworthy and modifying it breaks WebRequestAPI.
+  const int32_t request_id_for_network_service =
+      forwarding_url_loader_header_client_ ? request_id
+      : (render_process_id_ != -1)
+          ? request_id_generator_->GenerateNetworkRequestId()
+          : request_id;
+
+  if (request_id_for_network_service) {
     // Only requests with a non-zero request ID can have their proxy
-    // associated with said ID.
-    content::GlobalRequestID global_id(
-        content::ToOriginatingProcessIdUnsafe(render_process_id_), request_id);
-    // Associate the proxy with this request ID. If the request ID is already
-    // in use, abort and report a bad IPC message.
-    if (!proxies_->AssociateProxyWithRequestId(this, global_id)) {
-      if (render_process_id_ != -1) {
-        proxy_receivers_.ReportBadMessage(kDuplicateRequestIdError);
-      }
-      return;
-    }
-    auto emplace_result = network_request_id_to_filtered_request_id_.emplace(
-        request_id, filtered_request_id);
-    CHECK(emplace_result.second);
+    // associated with said ID. This is necessary to support
+    // correlation against any auth events received by the browser.
+    proxies_->AssociateProxyWithRequestId(
+        this, content::GlobalRequestID(
+                  content::ToOriginatingProcessIdUnsafe(render_process_id_),
+                  request_id_for_network_service));
+    network_request_id_to_filtered_request_id_.emplace(
+        request_id_for_network_service, filtered_request_id);
   }
 
   auto result = requests_.emplace(
       filtered_request_id,
       std::make_unique<InProgressRequest>(
-          this, filtered_request_id, request_id, view_routing_id_,
-          frame_routing_id_, options, request, traffic_annotation,
-          std::move(loader_receiver), std::move(client),
+          this, filtered_request_id, request_id_for_network_service, request_id,
+          view_routing_id_, frame_routing_id_, options, request,
+          traffic_annotation, std::move(loader_receiver), std::move(client),
           navigation_response_task_runner_));
   result.first->second->Restart();
 }
@@ -1360,15 +1386,16 @@ void RequestFilterProxyingURLLoaderFactory::OnProxyBindingError() {
 }
 
 void RequestFilterProxyingURLLoaderFactory::RemoveRequest(
-    int32_t network_service_request_id,
-    uint64_t request_id) {
-  network_request_id_to_filtered_request_id_.erase(network_service_request_id);
-  requests_.erase(request_id);
-  if (network_service_request_id) {
+    int32_t request_id_for_network_service,
+    uint64_t profile_request_id) {
+  network_request_id_to_filtered_request_id_.erase(
+      request_id_for_network_service);
+  requests_.erase(profile_request_id);
+  if (request_id_for_network_service) {
     proxies_->DisassociateProxyWithRequestId(
         this, content::GlobalRequestID(
                   content::ToOriginatingProcessIdUnsafe(render_process_id_),
-                  network_service_request_id));
+                  request_id_for_network_service));
   }
 
   MaybeRemoveProxy();

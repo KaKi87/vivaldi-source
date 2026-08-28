@@ -3,15 +3,16 @@
 // found in the LICENSE file.
 
 #include "base/feature_list.h"
-#include "base/test/test_timeouts.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+#include "chrome/browser/ui/omnibox/omnibox_next_features.h"
+#include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/multi_contents_drop_target_view.h"
+#include "chrome/browser/ui/views/frame/multi_contents_view_drop_target_controller.h"
 #include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
 #include "chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h"
-#include "chrome/browser/ui/views/tabs/tab.h"
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
 #include "chrome/browser/ui/views/test/split_view_interactive_test_mixin.h"
 #include "chrome/browser/ui/views/test/tab_strip_interactive_test_mixin.h"
@@ -24,14 +25,9 @@
 #include "content/public/common/content_features.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/base/test/ui_controls.h"
 #include "ui/display/screen.h"
 #include "ui/views/interaction/interaction_test_util_views.h"
 #include "ui/views/view_utils.h"
-
-#if BUILDFLAG(IS_OZONE)
-#include "ui/ozone/public/ozone_platform.h"
-#endif  // BUILDFLAG(IS_OZONE)
 
 namespace {
 
@@ -55,15 +51,36 @@ class MultiContentsViewTabDragEntrypointsUiTest
   MultiContentsViewTabDragEntrypointsUiTest() = default;
   ~MultiContentsViewTabDragEntrypointsUiTest() override = default;
 
+  const std::vector<base::test::FeatureRefAndParams> GetEnabledFeatures()
+      override {
+    return std::vector<base::test::FeatureRefAndParams>{
+        {tabs::kSplitViewHorizontal, {}}};
+  }
+
+  const std::vector<base::test::FeatureRef> GetDisabledFeatures() override {
+    // TODO(crbug.com/452061489): Fix tests that fail when the WebUI Omnibox is
+    // enabled and then remove this.
+    return {omnibox::internal::kWebUIOmniboxPopup,
+            omnibox::internal::kWebUIOmniboxAimPopup};
+  }
+
   gfx::Point GetPointForDropSide(MultiContentsDropTargetView::DropSide side) {
     const gfx::Rect bounds = GetBrowserView().GetBoundsInScreen();
     switch (side) {
       case MultiContentsDropTargetView::DropSide::START:
-        return gfx::Point(bounds.left_center().x() + 10,
-                          bounds.left_center().y());
+        return bounds.left_center() +
+               gfx::Vector2d(MultiContentsViewDropTargetController::
+                                 DropTargetConstants::GetHideWidth(),
+                             0);
       case MultiContentsDropTargetView::DropSide::END:
-        return gfx::Point(bounds.right_center().x() - 10,
-                          bounds.right_center().y());
+        return bounds.right_center() -
+               gfx::Vector2d(MultiContentsViewDropTargetController::
+                                 DropTargetConstants::GetHideWidth(),
+                             0);
+      case MultiContentsDropTargetView::DropSide::BOTTOM:
+        return bounds.bottom_center() - gfx::Vector2d(0, 1);
+      default:
+        NOTREACHED();
     }
   }
 
@@ -208,8 +225,15 @@ IN_PROC_BROWSER_TEST_P(MultiContentsViewTabDragEntrypointsUiParamTest,
       WaitForState(kDragStatePoller, false));
 }
 
+// TODO(crbug.com/477961009): Deflake and re-enable.
+#if defined(MEMORY_SANITIZER)
+#define MAYBE_DragAndDropDisabledForChromePage \
+  DISABLED_DragAndDropDisabledForChromePage
+#else
+#define MAYBE_DragAndDropDisabledForChromePage DragAndDropDisabledForChromePage
+#endif
 IN_PROC_BROWSER_TEST_P(MultiContentsViewTabDragEntrypointsUiParamTest,
-                       DragAndDropDisabledForChromePage) {
+                       MAYBE_DragAndDropDisabledForChromePage) {
   // TODO(crbug.com/448651072): Remove when Weston support is added.
 #if BUILDFLAG(IS_LINUX)
   if (views::test::InteractionTestUtilSimulatorViews::IsWayland()) {
@@ -255,15 +279,8 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewTabDragEntrypointsUiTest,
   }
 #endif
 
-#if BUILDFLAG(IS_LINUX)
-  if (base::FeatureList::IsEnabled(features::kInitialWebUI)) {
-    GTEST_SKIP() << "Skipping test because it fails with InitialWebUI enabled. "
-                    "See crbug.com/477426026.";
-  }
-#endif
-
   // Disable drag and drop.
-  browser()->profile()->GetPrefs()->SetBoolean(
+  browser()->GetProfile()->GetPrefs()->SetBoolean(
       prefs::kSplitViewDragAndDropEnabled, false);
 
   RunTestSequence(
@@ -291,7 +308,8 @@ INSTANTIATE_TEST_SUITE_P(
     All,
     MultiContentsViewTabDragEntrypointsUiParamTest,
     ::testing::Values(MultiContentsDropTargetView::DropSide::START,
-                      MultiContentsDropTargetView::DropSide::END));
+                      MultiContentsDropTargetView::DropSide::END,
+                      MultiContentsDropTargetView::DropSide::BOTTOM));
 #endif  // !BUILDFLAG(IS_MAC) && !BUILDFLAG(IS_WIN)
 
 }  // namespace

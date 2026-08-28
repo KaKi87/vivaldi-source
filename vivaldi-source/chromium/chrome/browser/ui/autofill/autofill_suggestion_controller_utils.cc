@@ -15,7 +15,6 @@
 #include "components/autofill/core/browser/suggestions/suggestion.h"
 #include "components/autofill/core/browser/suggestions/suggestion_type.h"
 #include "components/autofill/core/common/autofill_features.h"
-#include "components/autofill/core/common/dense_set.h"
 #include "components/autofill/core/common/form_field_data.h"
 #include "components/compose/core/browser/compose_features.h"
 #include "components/feature_engagement/public/feature_constants.h"
@@ -34,14 +33,6 @@
 
 namespace autofill {
 
-bool IsAcceptableSuggestionType(SuggestionType id) {
-  using enum SuggestionType;
-  static constexpr auto kUnacceptableItemIds =
-      DenseSet({kSeparator, kInsecureContextPaymentDisabledMessage,
-                kMixedFormMessage, kTitle});
-  return !kUnacceptableItemIds.contains(id);
-}
-
 SuggestionSection GetSuggestionSection(SuggestionType type) {
   switch (type) {
     // Structural items.
@@ -52,22 +43,25 @@ SuggestionSection GetSuggestionSection(SuggestionType type) {
     // Footer items.
     case SuggestionType::kAllLoyaltyCardsEntry:
     case SuggestionType::kAllSavedPasswordsEntry:
+    case SuggestionType::kAtMemoryAiDisclosure:
+    case SuggestionType::kAtMemorySourceAttribution:
+    case SuggestionType::kAutocompleteAtMemoryButton:
+    case SuggestionType::kBnplFootnote:
     case SuggestionType::kFreeformFooter:
     case SuggestionType::kManageAddress:
     case SuggestionType::kManageAutofillAi:
     case SuggestionType::kManageAutofillAiIdentityDocs:
+    case SuggestionType::kManageAutofillAiShopping:
     case SuggestionType::kManageAutofillAiTravel:
     case SuggestionType::kManageCreditCard:
     case SuggestionType::kManageIban:
     case SuggestionType::kManageLoyaltyCard:
+    case SuggestionType::kPendingStateSignin:
+    case SuggestionType::kManageEnhancedAutofill:
     case SuggestionType::kScanCreditCard:
     case SuggestionType::kSeePromoCodeDetails:
     case SuggestionType::kUndoOrClear:
     case SuggestionType::kViewPasswordDetails:
-    case SuggestionType::kPendingStateSignin:
-    case SuggestionType::kBnplFootnote:
-    case SuggestionType::kAutocompleteAtMemoryButton:
-    case SuggestionType::kPersonalContextNotice:
       return SuggestionSection::kFooter;
 
     // Body items.
@@ -75,42 +69,50 @@ SuggestionSection GetSuggestionSection(SuggestionType type) {
     case SuggestionType::kAddressEntry:
     case SuggestionType::kAddressEntryOnTyping:
     case SuggestionType::kAddressFieldByFieldFilling:
+    case SuggestionType::kAtMemoryGenericError:
+    case SuggestionType::kAtMemoryInactivityNudge:
+    case SuggestionType::kAtMemoryNoConnection:
+    case SuggestionType::kAtMemorySearchAffordance:
+    case SuggestionType::kAtMemorySearchResult:
     case SuggestionType::kAutocompleteEntry:
-    case SuggestionType::kComposeResumeNudge:
-    case SuggestionType::kComposeProactiveNudge:
+    case SuggestionType::kAutofillAiOtherOrders:
+    case SuggestionType::kAutofillAiOtherShipments:
+    case SuggestionType::kAutofillAiPrivateInferenceNotice:
+    case SuggestionType::kBackupPasswordEntry:
+    case SuggestionType::kBnplEntry:
     case SuggestionType::kComposeDisable:
     case SuggestionType::kComposeGoToSettings:
     case SuggestionType::kComposeNeverShowOnThisSiteAgain:
+    case SuggestionType::kComposeProactiveNudge:
+    case SuggestionType::kComposeResumeNudge:
     case SuggestionType::kComposeSavedStateNotification:
     case SuggestionType::kCreditCardEntry:
     case SuggestionType::kDatalistEntry:
     case SuggestionType::kDevtoolsTestAddressByCountry:
     case SuggestionType::kDevtoolsTestAddressEntry:
     case SuggestionType::kDevtoolsTestAddresses:
+    case SuggestionType::kFetchingAmbientData:
+    case SuggestionType::kFillAutofillAi:
     case SuggestionType::kFillPassword:
     case SuggestionType::kGeneratePasswordEntry:
     case SuggestionType::kIbanEntry:
+    case SuggestionType::kIdentityCredential:
     case SuggestionType::kInsecureContextPaymentDisabledMessage:
+    case SuggestionType::kLoadingThrobber:
     case SuggestionType::kLoyaltyCardEntry:
+    case SuggestionType::kMaximizeCreditCardBenefitsEntry:
     case SuggestionType::kMerchantPromoCodeEntry:
     case SuggestionType::kMixedFormMessage:
-    case SuggestionType::kPasswordEntry:
-    case SuggestionType::kBackupPasswordEntry:
-    case SuggestionType::kTroubleSigningInEntry:
-    case SuggestionType::kPasswordFieldByFieldFilling:
-    case SuggestionType::kSaveAndFillCreditCardEntry:
-    case SuggestionType::kVirtualCreditCardEntry:
-    case SuggestionType::kIdentityCredential:
-    case SuggestionType::kWebauthnCredential:
-    case SuggestionType::kAtMemorySearchResult:
-    case SuggestionType::kFillAutofillAi:
-    case SuggestionType::kBnplEntry:
     case SuggestionType::kOneTimePasswordEntry:
-    case SuggestionType::kLoadingThrobber:
-    case SuggestionType::kAtMemoryInactivityNudge:
     case SuggestionType::kOpenGemini:
-    case SuggestionType::kAtMemoryNoConnection:
-    case SuggestionType::kAtMemorySearchAffordance:
+    case SuggestionType::kPasswordEntry:
+    case SuggestionType::kPasswordFieldByFieldFilling:
+    case SuggestionType::kPersonalContextNotice:
+    case SuggestionType::kSaveAndFillCreditCardEntry:
+    case SuggestionType::kTroubleSigningInEntry:
+    case SuggestionType::kVirtualCreditCardEntry:
+    case SuggestionType::kWebauthnCredential:
+    case SuggestionType::kWebauthnPasskeyQrCode:
       return SuggestionSection::kBody;
 
     case SuggestionType::kWebauthnSignInWithAnotherDevice:
@@ -153,7 +155,7 @@ bool IsStandaloneSuggestionType(SuggestionType type) {
   NOTREACHED();
 }
 
-content::RenderFrameHost* GetRenderFrameHost(
+content::RenderFrameHost* GetRenderFrameHost_DoNotUse(
     AutofillSuggestionDelegate& delegate) {
   return std::visit(
       absl::Overload{
@@ -166,7 +168,7 @@ content::RenderFrameHost* GetRenderFrameHost(
                        driver)
                 ->render_frame_host();
           }},
-      delegate.GetDriver());
+      delegate.GetDriver_DoNotUse());
 }
 
 bool IsAncestorOf(content::RenderFrameHost* ancestor,

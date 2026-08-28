@@ -15,7 +15,6 @@
 #include "chrome/browser/gcm/instance_id/instance_id_profile_service_factory.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/sharing/click_to_call/phone_number_regex.h"
 #include "chrome/browser/sharing/sharing_device_registration_impl.h"
 #include "chrome/browser/sharing/sharing_handler_registry_impl.h"
 #include "chrome/browser/sharing/sharing_message_bridge_factory.h"
@@ -48,6 +47,8 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/sms_fetcher.h"
 #include "content/public/browser/storage_partition.h"
+
+#include "app/vivaldi_apptools.h"
 
 namespace {
 constexpr char kServiceName[] = "SharingService";
@@ -113,11 +114,13 @@ SharingServiceFactory::BuildServiceInstanceForBrowserContext(
   syncer::SyncService* sync_service =
       SyncServiceFactory::GetForProfile(profile);
 
+  if (vivaldi::IsVivaldiRunning()) {
+    return nullptr; // Vivaldi: VB-128107 We do not want these services enabled or active
+  }
+
   if (!sync_service) {
     return nullptr;
   }
-
-  PrecompilePhoneNumberRegexesAsync();
 
   syncer::DeviceInfoSyncService* device_info_sync_service =
       DeviceInfoSyncServiceFactory::GetForProfile(profile);

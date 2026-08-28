@@ -7,7 +7,6 @@
 #include "ash/constants/ash_features.h"
 #include "ash/public/cpp/network_config_service.h"
 #include "base/values.h"
-#include "chromeos/ash/components/login/login_state/login_state.h"
 #include "chromeos/ash/components/network/managed_cellular_pref_handler.h"
 #include "chromeos/ash/components/network/managed_network_configuration_handler.h"
 #include "chromeos/ash/components/network/metrics/cellular_network_metrics_logger.h"
@@ -16,6 +15,9 @@
 #include "chromeos/ash/components/network/network_state_handler.h"
 #include "chromeos/services/network_config/public/cpp/cros_network_config_util.h"
 #include "components/device_event_log/device_event_log.h"
+#include "components/session_manager/core/session.h"
+#include "components/session_manager/core/session_manager.h"
+#include "components/user_manager/user_manager.h"
 #include "third_party/cros_system_api/dbus/service_constants.h"
 
 namespace ash {
@@ -116,6 +118,16 @@ void ApnMigrator::NetworkListChanged() {
   if (has_iccids_changed(new_iccids, old_iccids_)) {
     old_iccids_ = new_iccids;
 
+    std::string username_hash;
+    auto* primary_session =
+        session_manager::SessionManager::Get()->GetPrimarySession();
+    if (primary_session) {
+      const AccountId& account_id = primary_session->account_id();
+      if (auto* user = user_manager::UserManager::Get()->FindUser(account_id)) {
+        username_hash = user->username_hash();
+      }
+    }
+
     for (const NetworkState* network : network_list) {
       // Only attempt to migrate networks known by Shill.
       if (network->IsNonShillCellularNetwork()) {
@@ -157,12 +169,21 @@ void ApnMigrator::NetworkListChanged() {
         }
         continue;
       }
+      if (username_hash.empty()) {
+        // There's no primary session on the login screen, avoid spamming logs.
+        if (primary_session) {
+          NET_LOG(DEBUG)
+              << "Delaying APN migration/application until user logs in: "
+              << network->iccid();
+        }
+        continue;
+      }
 
       if (!has_network_been_migrated) {
         NET_LOG(EVENT)
             << "Network has not been migrated, attempting to migrate: "
             << network->iccid();
-        MigrateNetwork(*network);
+        MigrateNetwork(*network, username_hash);
         continue;
       }
 
@@ -241,8 +262,10 @@ void ApnMigrator::OnSetShillCustomApnListFailure(
   CompleteMigrationAttempt(iccid, /*success=*/false);
 }
 
-void ApnMigrator::MigrateNetwork(const NetworkState& network) {
+void ApnMigrator::MigrateNetwork(const NetworkState& network,
+                                 const std::string& username_hash) {
   DCHECK(ash::features::IsApnRevampEnabled());
+  DCHECK(!username_hash.empty());
 
   // Return early if the network is already in the process of being migrated.
   if (iccids_in_migration_.contains(network.iccid())) {
@@ -272,13 +295,14 @@ void ApnMigrator::MigrateNetwork(const NetworkState& network) {
   // If the pre-revamp APN list is non-empty, get the network's managed
   // properties, to be used for the migration heuristic. This call is
   // asynchronous; mark the ICCID as migrating so that the network won't
-  // be attempted to be migrated again while these properties are being fetched.
+  // be attempted to be migrated again while these properties are being
+  // fetched.
   iccids_in_migration_.emplace(network.iccid());
 
   NET_LOG(EVENT) << "Fetching managed properties for network: "
                  << network.iccid();
   network_configuration_handler_->GetManagedProperties(
-      LoginState::Get()->primary_user_hash(), network.path(),
+      username_hash, network.path(),
       base::BindOnce(&ApnMigrator::OnGetManagedProperties,
                      weak_factory_.GetWeakPtr(), network.iccid(),
                      network.guid()));

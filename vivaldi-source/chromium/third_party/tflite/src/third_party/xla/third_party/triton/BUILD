@@ -1,28 +1,17 @@
-load("//tools/build_defs/testing:bzl_library.bzl", "bzl_library")
+# copybara:uncomment package(default_applicable_licenses = ["//third_party/tensorflow:license"])
 
-# copybara:uncomment_begin
-# package(default_applicable_licenses = ["//tensorflow:license"])
-#
-# filegroup(
-#     name = "patch_files",
-#     srcs = glob([
-#         "xla_extensions/**",
-#         "llvm_integration/**",
-#         "temporary/**",
-#     ]),
-#     visibility = ["//visibility:public"],
-# )
-# copybara:uncomment_end
+filegroup(
+    name = "patch_files",
+    srcs = glob([
+        "common/**",
+        "oss_only/**",
+    ]),
+    visibility = ["//visibility:public"],
+)
 
 filegroup(
     name = "workspace",
     srcs = ["workspace.bzl"],
+    # copybara:uncomment compatible_with = ["//buildenv/target:non_prod"],
     visibility = ["//visibility:public"],
-)
-
-bzl_library(
-    name = "workspace_bzl",
-    srcs = ["workspace.bzl"],
-    parse_tests = False,
-    visibility = ["//visibility:private"],
 )

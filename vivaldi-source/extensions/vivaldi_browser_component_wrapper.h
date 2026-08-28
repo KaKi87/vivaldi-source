@@ -101,8 +101,9 @@ using MediaResponseCallback = base::OnceCallback<void(
 }  // namespace content
 
 namespace gfx {
+class Point;
 class Rect;
-}
+}  // namespace gfx
 
 namespace history {
 class TopSitesObserver;
@@ -484,6 +485,13 @@ class VivaldiBrowserComponentWrapper {
                                       std::string extension_id,
                                       int32_t window_id,
                                       std::string menu_id) = 0;
+
+  virtual void VivaldiForBrowserShowWebsiteSettingsAt(
+      Browser* browser,
+      Profile* profile,
+      content::WebContents* web_contents,
+      const GURL& url,
+      gfx::Point pos) = 0;
 
   //<..>
 };

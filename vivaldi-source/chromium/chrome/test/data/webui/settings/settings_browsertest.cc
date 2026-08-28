@@ -10,6 +10,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/enterprise/browser_management/management_service_factory.h"
 #include "chrome/browser/glic/glic_pref_names.h"
+#include "chrome/browser/glic/public/features.h"
 #include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/test_support/glic_test_environment.h"
@@ -68,10 +69,8 @@
 class SettingsBrowserTest : public WebUIMochaBrowserTest {
  protected:
   SettingsBrowserTest() {
-    scoped_feature_list_.InitWithFeatures(
-        {},
-        /*disabled_features=*/
-        {features::kGlicDefaultTabContextSetting});
+    scoped_feature_list_.InitAndDisableFeature(
+        features::kGlicDefaultTabContextSetting);
     set_test_loader_host(chrome::kChromeUISettingsHost);
   }
 
@@ -249,6 +248,10 @@ IN_PROC_BROWSER_TEST_F(SettingsTest, AiModeSearchPage) {
   RunTest("settings/ai_mode_search_page_test.js", "mocha.run()");
 }
 
+IN_PROC_BROWSER_TEST_F(SettingsTest, DictationPage) {
+  RunTest("settings/dictation_page_test.js", "mocha.run()");
+}
+
 IN_PROC_BROWSER_TEST_F(SettingsTest, AiSuggestionsPage) {
   RunTest("settings/ai_suggestions_page_test.js", "mocha.run()");
 }
@@ -291,6 +294,10 @@ IN_PROC_BROWSER_TEST_F(SettingsTest, FileSystemSettingsListEntryItems) {
 
 IN_PROC_BROWSER_TEST_F(SettingsTest, HelpPage) {
   RunTest("settings/help_page_test.js", "mocha.run()");
+}
+
+IN_PROC_BROWSER_TEST_F(SettingsTest, HomeUrlInput) {
+  RunTest("settings/home_url_input_test.js", "mocha.run()");
 }
 
 #if !BUILDFLAG(IS_CHROMEOS)
@@ -422,13 +429,31 @@ IN_PROC_BROWSER_TEST_F(SettingsTest, PrivacyPageIndex) {
           "runMochaSuite('PrivacyPageIndex Main')");
 }
 
-IN_PROC_BROWSER_TEST_F(SettingsTest, PrivacyPageIndexSiteSettings) {
+// TODO(crbug.com/533057215): Flaky on Linux and ChromeOS debug builds.
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
+#define MAYBE_PrivacyPageIndexSiteSettings DISABLED_PrivacyPageIndexSiteSettings
+#else
+#define MAYBE_PrivacyPageIndexSiteSettings PrivacyPageIndexSiteSettings
+#endif
+IN_PROC_BROWSER_TEST_F(SettingsTest, MAYBE_PrivacyPageIndexSiteSettings) {
   RunTest("settings/privacy_page_index_test.js",
           "runMochaSuite('PrivacyPageIndex SiteSettings')");
 }
 
 IN_PROC_BROWSER_TEST_F(SettingsTest, Prefs) {
   RunTest("settings/settings_prefs_test.js", "mocha.run()");
+}
+
+IN_PROC_BROWSER_TEST_F(SettingsTest, PrefService) {
+  RunTest("settings/pref_service_test.js", "mocha.run()");
+}
+
+IN_PROC_BROWSER_TEST_F(SettingsTest, PrefServiceObserverMixin) {
+  RunTest("settings/pref_service_observer_mixin_test.js", "mocha.run()");
+}
+
+IN_PROC_BROWSER_TEST_F(SettingsTest, PrefServiceObserverMixinLit) {
+  RunTest("settings/pref_service_observer_mixin_lit_test.js", "mocha.run()");
 }
 
 IN_PROC_BROWSER_TEST_F(SettingsTest, PrefUtils) {
@@ -448,6 +473,12 @@ IN_PROC_BROWSER_TEST_F(SettingsTest, GlicSubpage) {
           "runMochaSuite('GlicSubpage Default')");
 }
 
+IN_PROC_BROWSER_TEST_F(SettingsTest,
+                       GlicSubpageMediaUnderstandingToggleVisible) {
+  RunTest("settings/glic_subpage_test.js",
+          "runMochaSuite('GlicSubpage MediaUnderstandingToggleVisible')");
+}
+
 IN_PROC_BROWSER_TEST_F(SettingsTest, GlicSubpageExperimentalTriggeringToggle) {
   RunTest("settings/glic_subpage_test.js",
           "runMochaSuite('GlicSubpage ExperimentalTriggeringToggle')");
@@ -456,6 +487,27 @@ IN_PROC_BROWSER_TEST_F(SettingsTest, GlicSubpageExperimentalTriggeringToggle) {
 IN_PROC_BROWSER_TEST_F(SettingsTest, GlicSubpageWebActuation) {
   RunTest("settings/glic_subpage_test.js",
           "runMochaSuite('GlicSubpage WebActuationSettingFeatureEnabled')");
+}
+
+class SettingsGlicHotkeyLocalScopeEnabledTest : public SettingsBrowserTest {
+ public:
+  SettingsGlicHotkeyLocalScopeEnabledTest() {
+    scoped_feature_list_.InitAndEnableFeature(features::kGlicHotkeyLocalScope);
+  }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
+IN_PROC_BROWSER_TEST_F(SettingsGlicHotkeyLocalScopeEnabledTest,
+                       GlicSubpageHotkeyLocalScopeEnabled) {
+  RunTest("settings/glic_subpage_test.js",
+          "runMochaSuite('GlicSubpage HotkeyLocalScopeEnabled')");
+}
+
+IN_PROC_BROWSER_TEST_F(SettingsTest, GlicSubpageHotkeyLocalScopeDisabled) {
+  RunTest("settings/glic_subpage_test.js",
+          "runMochaSuite('GlicSubpage HotkeyLocalScopeDisabled')");
 }
 
 IN_PROC_BROWSER_TEST_F(SettingsTest, GlicLoginPermissionsPage) {
@@ -606,7 +658,7 @@ class SettingsGlicSubPageTestBase : public SettingsBrowserTest {
             identity_manager->GetPrimaryAccountId(
                 signin::ConsentLevel::kSignin));
 
-    AccountCapabilitiesTestMutator mutator(&primary_account.capabilities);
+    AccountCapabilitiesTestMutator mutator(&primary_account);
     mutator.set_can_use_model_execution_features(true);
 
     signin::UpdateAccountInfoForAccount(identity_manager, primary_account);
@@ -1036,6 +1088,11 @@ IN_PROC_BROWSER_TEST_F(SettingsTest, SearchableViewContainerMixin) {
   RunTest("settings/searchable_view_container_mixin_test.js", "mocha.run()");
 }
 
+IN_PROC_BROWSER_TEST_F(SettingsTest, SearchableViewContainerMixinLit) {
+  RunTest("settings/searchable_view_container_mixin_lit_test.js",
+          "mocha.run()");
+}
+
 IN_PROC_BROWSER_TEST_F(SettingsTest, SearchEngineEditDialog) {
   RunTest("settings/search_engine_edit_dialog_test.js", "mocha.run()");
 }
@@ -1121,6 +1178,10 @@ IN_PROC_BROWSER_TEST_F(SettingsTest, SettingsCategoryDefaultRadioGroup) {
 
 IN_PROC_BROWSER_TEST_F(SettingsTest, SettingsMenu) {
   RunTest("settings/settings_menu_test.js", "mocha.run()");
+}
+
+IN_PROC_BROWSER_TEST_F(SettingsTest, SettingsRadioGroup) {
+  RunTest("settings/settings_radio_group_test.js", "mocha.run()");
 }
 
 IN_PROC_BROWSER_TEST_F(SettingsTest, SimpleConfirmationDialog) {
@@ -1269,19 +1330,22 @@ class SettingsSystemPageTest : public SettingsBrowserTest {
 IN_PROC_BROWSER_TEST_F(SettingsSystemPageTest, SystemPage) {
   RunTest("settings/system_page_test.js", "mocha.run()");
 }
+#endif  //! BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-class SettingsSystemPageOfficialTest : public SettingsBrowserTest {
+// TODO(crbug.com/537695604): Re-enable on ChromeOS after investigating failure.
+#if !BUILDFLAG(IS_CHROMEOS)
+class SettingsAiPageOfficialTest : public SettingsBrowserTest {
  private:
   base::test::ScopedFeatureList scoped_feature_list_{
       features::kShowOnDeviceAiSettings};
 };
 
-IN_PROC_BROWSER_TEST_F(SettingsSystemPageOfficialTest, SystemPageOfficial) {
-  RunTest("settings/system_page_official_test.js", "mocha.run()");
+IN_PROC_BROWSER_TEST_F(SettingsAiPageOfficialTest, AiPageOfficial) {
+  RunTest("settings/ai_page_official_test.js", "mocha.run()");
 }
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
-#endif  //! BUILDFLAG(IS_CHROMEOS)
 
 using SettingsAboutPageTest = SettingsBrowserTest;
 
@@ -1311,30 +1375,30 @@ IN_PROC_BROWSER_TEST_F(SettingsTest, PrivacyGuidePromoVisibility) {
   RunTest("settings/privacy_guide_promo_visibility_test.js", "mocha.run()");
 }
 
-using SettingsClearBrowsingDataV2Test = SettingsBrowserTest;
+using SettingsClearBrowsingDataTest = SettingsBrowserTest;
 
 #if !BUILDFLAG(IS_CHROMEOS)
-IN_PROC_BROWSER_TEST_F(SettingsClearBrowsingDataV2Test,
+IN_PROC_BROWSER_TEST_F(SettingsClearBrowsingDataTest,
                        DeleteBrowsingDataAccountIndicator) {
   RunTest("settings/clear_browsing_data_account_indicator_test.js",
           "runMochaSuite('DeleteBrowsingDataAccountIndicator')");
 }
 #endif  // !BUILDFLAG(IS_CHROMEOS)
 
-IN_PROC_BROWSER_TEST_F(SettingsClearBrowsingDataV2Test,
+IN_PROC_BROWSER_TEST_F(SettingsClearBrowsingDataTest,
                        DeleteBrowsingDataDialog) {
-  RunTest("settings/clear_browsing_data_dialog_v2_test.js",
+  RunTest("settings/clear_browsing_data_dialog_test.js",
           "runMochaSuite('DeleteBrowsingDataDialog')");
 }
 
 // TODO(crbug.com/440503425): Flaky on all platforms.
-IN_PROC_BROWSER_TEST_F(SettingsClearBrowsingDataV2Test,
+IN_PROC_BROWSER_TEST_F(SettingsClearBrowsingDataTest,
                        DISABLED_OtherGoogleDataDialog) {
   RunTest("settings/other_google_data_dialog_test.js",
           "runMochaSuite('OtherGoogleDataDialog')");
 }
 
-IN_PROC_BROWSER_TEST_F(SettingsClearBrowsingDataV2Test,
+IN_PROC_BROWSER_TEST_F(SettingsClearBrowsingDataTest,
                        DeleteBrowsingDataTimePicker) {
   RunTest("settings/clear_browsing_data_time_picker_test.js",
           "runMochaSuite('DeleteBrowsingDataTimePicker')");
@@ -1472,17 +1536,6 @@ IN_PROC_BROWSER_TEST_F(SettingsPrivacyGuideTest, CookiesCardNavigations) {
           "runMochaSuite('CookiesCardNavigations')");
 }
 
-IN_PROC_BROWSER_TEST_F(SettingsPrivacyGuideTest, AdTopicsCardNavigations) {
-  RunTest("settings/privacy_guide_page_test.js",
-          "runMochaSuite('AdTopicsCardNavigations')");
-}
-
-IN_PROC_BROWSER_TEST_F(SettingsPrivacyGuideTest,
-                       AdTopicsCardHiddenAdPrivacyDeprecationEnabled) {
-  RunTest("settings/privacy_guide_page_test.js",
-          "runMochaSuite('AdTopicsCardHiddenAdPrivacyDeprecationEnabled')");
-}
-
 IN_PROC_BROWSER_TEST_F(SettingsPrivacyGuideTest, PrivacyGuideDialog) {
   RunTest("settings/privacy_guide_page_test.js",
           "runMochaSuite('PrivacyGuideDialog')");
@@ -1524,94 +1577,6 @@ IN_PROC_BROWSER_TEST_F(SettingsPrivacyGuideTest, CompletionFragment) {
           "runMochaSuite('CompletionFragment')");
 }
 
-IN_PROC_BROWSER_TEST_F(SettingsPrivacyGuideTest,
-                       CompletionFragmentPrivacySandboxRestricted) {
-  RunTest("settings/privacy_guide_completion_fragment_test.js",
-          "runMochaSuite('CompletionFragmentPrivacySandboxRestricted')");
-}
-
-IN_PROC_BROWSER_TEST_F(
-    SettingsPrivacyGuideTest,
-    CompletionFragmentPrivacySandboxRestrictedWithNoticeEnabled) {
-  RunTest("settings/privacy_guide_completion_fragment_test.js",
-          "runMochaSuite('"
-          "CompletionFragmentPrivacySandboxRestrictedWithNoticeEnabled')");
-}
-
-// TODO(crbug.com/410848707): Re-enable this test
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_AdTopicsFragment DISABLED_AdTopicsFragment
-#else
-#define MAYBE_AdTopicsFragment AdTopicsFragment
-#endif
-IN_PROC_BROWSER_TEST_F(SettingsPrivacyGuideTest, MAYBE_AdTopicsFragment) {
-  RunTest("settings/privacy_guide_ad_topics_fragment_test.js",
-          "runMochaSuite('AdTopicsFragment')");
-}
-
-class SettingsPrivacyPagePrivacySandboxRestrictedTest
-    : public SettingsBrowserTest {
- protected:
-  SettingsPrivacyPagePrivacySandboxRestrictedTest() {
-    scoped_feature_list_.InitAndEnableFeatureWithParameters(
-        privacy_sandbox::kPrivacySandboxSettings4,
-        {
-            {"force-restricted-user", "true"},
-        });
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(SettingsPrivacyPagePrivacySandboxRestrictedTest,
-                       Restricted) {
-  RunTest("settings/privacy_page_test.js",
-          "runMochaSuite('PrivacySandbox4EnabledButRestricted')");
-}
-
-class SettingsPrivacyPagePrivacySandboxRestrictedWithNoticeTest
-    : public SettingsBrowserTest {
- protected:
-  SettingsPrivacyPagePrivacySandboxRestrictedWithNoticeTest() {
-    scoped_feature_list_.InitAndEnableFeatureWithParameters(
-        privacy_sandbox::kPrivacySandboxSettings4,
-        {
-            {"force-restricted-user", "true"},
-            {"restricted-notice", "true"},
-        });
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(
-    SettingsPrivacyPagePrivacySandboxRestrictedWithNoticeTest,
-    RestrictedWithNotice) {
-  RunTest("settings/privacy_page_test.js",
-          "runMochaSuite('PrivacySandbox4EnabledButRestrictedWithNotice')");
-}
-
-class SettingsPrivacyPagePrivacySandboxAdPrivacyUxDeprecationEnabledTest
-    : public SettingsBrowserTest {
- protected:
-  SettingsPrivacyPagePrivacySandboxAdPrivacyUxDeprecationEnabledTest() {
-    scoped_feature_list_.InitAndEnableFeature(
-        privacy_sandbox::kPrivacySandboxAdPrivacyUxDeprecation);
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(
-    SettingsPrivacyPagePrivacySandboxAdPrivacyUxDeprecationEnabledTest,
-    PrivacySandboxAdPrivacyUxDeprecationEnabled) {
-  RunTest("settings/privacy_page_test.js",
-          "runMochaSuite('PrivacySandboxAdPrivacyUxDeprecationEnabled')");
-}
-
 class SettingsPrivacyPageTest : public SettingsBrowserTest {
  protected:
   SettingsPrivacyPageTest() {
@@ -1638,9 +1603,6 @@ IN_PROC_BROWSER_TEST_F(SettingsPrivacyPageTest, PrivacyPage) {
   RunTest("settings/privacy_page_test.js", "runMochaSuite('PrivacyPage')");
 }
 
-IN_PROC_BROWSER_TEST_F(SettingsPrivacyPageTest, PrivacySandbox) {
-  RunTest("settings/privacy_page_test.js", "runMochaSuite('PrivacySandbox')");
-}
 
 IN_PROC_BROWSER_TEST_F(SettingsPrivacyPageTest,
                        CookiesSubpageRedesignDisabled) {
@@ -1687,84 +1649,6 @@ class JavascriptOptimizerPageTest : public SettingsBrowserTest {};
 
 IN_PROC_BROWSER_TEST_F(JavascriptOptimizerPageTest, JavascriptOptimizerPage) {
   RunTest("settings/v8_page_test.js", "runMochaSuite('V8Page')");
-}
-
-class SettingsPrivacySandboxPageTest : public SettingsBrowserTest {
- protected:
-  SettingsPrivacySandboxPageTest() {
-    scoped_feature_list_.InitAndDisableFeature(
-        privacy_sandbox::kPrivacySandboxAdPrivacyUxDeprecation);
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(SettingsPrivacySandboxPageTest, PrivacySandboxPage) {
-  RunTest("settings/privacy_sandbox_page_test.js",
-          "runMochaSuite('PrivacySandboxPage')");
-}
-
-IN_PROC_BROWSER_TEST_F(SettingsPrivacySandboxPageTest, RestrictedEnabled) {
-  RunTest("settings/privacy_sandbox_page_test.js",
-          "runMochaSuite('RestrictedEnabled')");
-}
-
-// TODO(crbug.com/437872601, crbug.com/40866505): Flaky everywhere.
-IN_PROC_BROWSER_TEST_F(SettingsPrivacySandboxPageTest, DISABLED_TopicsSubpage) {
-  RunTest("settings/privacy_sandbox_page_test.js",
-          "runMochaSuite('TopicsSubpage')");
-}
-
-IN_PROC_BROWSER_TEST_F(SettingsPrivacySandboxPageTest,
-                       TopicsSubpageAdsApiUxEnhancements) {
-  RunTest("settings/privacy_sandbox_page_test.js",
-          "runMochaSuite('TopicsSubpageAdsApiUxEnhancements')");
-}
-
-IN_PROC_BROWSER_TEST_F(SettingsPrivacySandboxPageTest, FledgeSubpageEmpty) {
-  RunTest("settings/privacy_sandbox_page_test.js",
-          "runMochaSuite('FledgeSubpageEmpty')");
-}
-
-IN_PROC_BROWSER_TEST_F(SettingsPrivacySandboxPageTest,
-                       FledgeSubpageSeeAllSites) {
-  RunTest("settings/privacy_sandbox_page_test.js",
-          "runMochaSuite('FledgeSubpageSeeAllSites')");
-}
-
-IN_PROC_BROWSER_TEST_F(SettingsPrivacySandboxPageTest, AdMeasurementSubpage) {
-  RunTest("settings/privacy_sandbox_page_test.js",
-          "runMochaSuite('AdMeasurementSubpage')");
-}
-
-IN_PROC_BROWSER_TEST_F(SettingsPrivacySandboxPageTest,
-                       AdMeasurementSubpageAdsApiUxEnhancements) {
-  RunTest("settings/privacy_sandbox_page_test.js",
-          "runMochaSuite('AdMeasurementSubpageAdsApiUxEnhancements')");
-}
-
-IN_PROC_BROWSER_TEST_F(SettingsPrivacySandboxPageTest, ManageTopics) {
-  RunTest("settings/privacy_sandbox_page_test.js",
-          "runMochaSuite('ManageTopics')");
-}
-
-IN_PROC_BROWSER_TEST_F(SettingsPrivacySandboxPageTest,
-                       SiteSuggestedAdsSubpageAdsApiUxEnhancement) {
-  RunTest("settings/privacy_sandbox_page_test.js",
-          "runMochaSuite('SiteSuggestedAdsSubpageAdsApiUxEnhancement')");
-}
-
-IN_PROC_BROWSER_TEST_F(SettingsPrivacySandboxPageTest,
-                       ManageTopicsAndAdTopicsPageState) {
-  RunTest("settings/privacy_sandbox_page_test.js",
-          "runMochaSuite('ManageTopicsAndAdTopicsPageState')");
-}
-
-IN_PROC_BROWSER_TEST_F(SettingsPrivacySandboxPageTest,
-                       TopicsSubpageAdTopicsContentParity) {
-  RunTest("settings/privacy_sandbox_page_test.js",
-          "runMochaSuite('TopicsSubpageAdTopicsContentParity')");
 }
 
 using SettingsRouteTest = SettingsBrowserTest;
@@ -2080,6 +1964,10 @@ IN_PROC_BROWSER_TEST_F(YourSavedInfoTest, IdentityDocsPageTest) {
 
 IN_PROC_BROWSER_TEST_F(YourSavedInfoTest, ShoppingPageTest) {
   RunTest("settings/shopping_page_test.js", "mocha.run()");
+}
+
+IN_PROC_BROWSER_TEST_F(YourSavedInfoTest, SuggestionsFromGeminiSubpage) {
+  RunTest("settings/suggestions_from_gemini_subpage_test.js", "mocha.run()");
 }
 
 IN_PROC_BROWSER_TEST_F(YourSavedInfoTest, TravelPageTest) {

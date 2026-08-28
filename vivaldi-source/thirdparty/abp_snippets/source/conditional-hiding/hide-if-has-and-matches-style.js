@@ -14,24 +14,26 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 
 import {$$, $closest, getComputedCSSText, hideElement} from "../utils/dom.js";
 import {raceWinner} from "../introspection/race.js";
-import {formatArguments, toRegExp} from "../utils/general.js";
+import {formatArguments, sendSnippetHitEvent, toRegExp}
+  from "../utils/general.js";
 import {debug} from "../introspection/debug.js";
 import {getDebugger} from "../introspection/log.js";
 import {profile} from "../introspection/profile.js";
 import {waitUntilEvent} from "../utils/execution.js";
 
 let {MutationObserver, WeakSet, getComputedStyle} = $(window);
+const hitFilters = new Set();
 
 /**
- * Hides any HTML element or one of its ancestors matching a CSS selector if a
- * descendant of the element matches a given CSS selector and, optionally, if
- * the element's computed style contains a given string.
- * @alias module:content/snippets.hide-if-has-and-matches-style
+ * @description Hides any HTML element or one of its ancestors
+ * matching a CSS selector if a descendant of the element
+ * matches a given CSS selector and, optionally, if the element's
+ * computed style contains a given string.
+ * @memberof module:snippets/conditional-hiding
  *
  * @param {string} search The CSS selector against which to match the
  *   descendants of HTML elements.
@@ -55,6 +57,15 @@ let {MutationObserver, WeakSet, getComputedStyle} = $(window);
  *   disable the snippet if window.innerWidth is smaller than the given value
  * @param {string} windowWidthMax Optional parameter that can be used to
  *   disable the snippet if window.innerWidth is bigger than the given value
+ * @example
+ * hide-if-has-and-matches-style span.social-media-toolbar
+ * div nav 'color: blue' =>
+ * Hides any div element which has the color property set to blue and has
+ * a nav element in its subtree which has a span.social-media-toolbar
+ * in its subtree.
+ *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69969373/hide-if-has-and-matches-style} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/conditional-hiding-snippets/hide-if-has-and-matches-style} for external documentation.
  * @since Adblock Plus 3.4.2
  */
 export function hideIfHasAndMatchesStyle(search,
@@ -102,6 +113,13 @@ export function hideIfHasAndMatchesStyle(search,
                      element,
                      "\nFILTER: hide-if-has-and-matches-style",
                      formattedArguments);
+            const filter =
+              "hide-if-has-and-matches-style " +
+              formattedArguments;
+            if (!hitFilters.has(filter)) {
+              hitFilters.add(filter);
+              sendSnippetHitEvent(filter);
+            }
           }
           else {
             if (!logMap || logMap.has(closest))

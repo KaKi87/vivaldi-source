@@ -13,7 +13,6 @@
 #import "ios/chrome/browser/intents/model/intents_donation_helper.h"
 #import "ios/chrome/browser/keyboard/ui_bundled/UIKeyCommand+Chrome.h"
 #import "ios/chrome/browser/net/model/crurl.h"
-#import "ios/chrome/browser/settings/clear_browsing_data/public/features.h"
 #import "ios/chrome/browser/settings/clear_browsing_data/public/quick_delete_constants.h"
 #import "ios/chrome/browser/settings/clear_browsing_data/ui/quick_delete_mutator.h"
 #import "ios/chrome/browser/settings/clear_browsing_data/ui/quick_delete_presentation_commands.h"
@@ -23,7 +22,6 @@
 #import "ios/chrome/browser/shared/ui/list_model/list_model.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_detail_text_item.h"
-#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_link_header_footer_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/content_configuration/table_view_cell_content_configuration.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
@@ -76,7 +74,6 @@ constexpr CGFloat kTableViewCornerRadius = 10;
 typedef NS_ENUM(NSInteger, SectionIdentifier) {
   SectionIdentifierTimeRange = kSectionIdentifierEnumZero,
   SectionIdentifierBrowsingData,
-  SectionIdentifierFooter,
 };
 
 // Item identifiers in Quick Delete's table view.
@@ -87,10 +84,8 @@ typedef NS_ENUM(NSInteger, ItemIdentifier) {
 
 }  // namespace
 
-@interface QuickDeleteViewController () <
-    ConfirmationAlertActionHandler,
-    UITableViewDelegate,
-    TableViewLinkHeaderFooterItemDelegate> {
+@interface QuickDeleteViewController () <ConfirmationAlertActionHandler,
+                                         UITableViewDelegate> {
   UITableViewDiffableDataSource<NSNumber*, NSNumber*>* _dataSource;
   UITableView* _tableView;
 
@@ -98,15 +93,11 @@ typedef NS_ENUM(NSInteger, ItemIdentifier) {
 
   browsing_data::TimePeriod _timeRange;
   NSString* _browsingDataSummary;
-  // TODO(crbug.com/463402932): Remove once
-  // `kPasswordRemovalFromDeleteBrowsingData` is enabled by default.
-  BOOL _shouldShowFooter;
 
   BOOL _historySelected;
   BOOL _tabsSelected;
   BOOL _siteDataSelected;
   BOOL _cacheSelected;
-  BOOL _passwordsSelected;
   BOOL _autofillSelected;
 }
 @end
@@ -143,10 +134,7 @@ typedef NS_ENUM(NSInteger, ItemIdentifier) {
       l10n_util::GetNSString(IDS_IOS_DELETE_BROWSING_DATA_BUTTON);
   self.configuration.secondaryActionString =
       l10n_util::GetNSString(IDS_IOS_DELETE_BROWSING_DATA_CANCEL);
-  self.configuration.primaryButtonStyle =
-      IsPasswordRemovalFromDeleteBrowsingDataEnabled()
-          ? ChromeButtonStylePrimary
-          : ChromeButtonStylePrimaryDestructive;
+  self.configuration.primaryButtonStyle = ChromeButtonStylePrimaryDestructive;
 
   self.underTitleView = _tableView;
 
@@ -221,56 +209,6 @@ typedef NS_ENUM(NSInteger, ItemIdentifier) {
   }
 }
 
-- (UIView*)tableView:(UITableView*)tableView
-    viewForFooterInSection:(NSInteger)section {
-  SectionIdentifier sectionIdentifier = static_cast<SectionIdentifier>(
-      [_dataSource sectionIdentifierForIndex:section].integerValue);
-  switch (sectionIdentifier) {
-    case SectionIdentifierFooter: {
-      if (!_shouldShowFooter) {
-        return nil;
-      }
-      TableViewLinkHeaderFooterView* footer =
-          DequeueTableViewHeaderFooter<TableViewLinkHeaderFooterView>(
-              _tableView);
-      footer.accessibilityIdentifier = kQuickDeleteFooterIdentifier;
-      footer.delegate = self;
-      footer.urls = @[
-        [[CrURL alloc]
-            initWithGURL:GURL(kClearBrowsingDataDSESearchUrlInFooterURL)],
-        [[CrURL alloc]
-            initWithGURL:GURL(kClearBrowsingDataDSEMyActivityUrlInFooterURL)]
-      ];
-      [footer setText:l10n_util::GetNSString(
-                          IDS_IOS_DELETE_BROWSING_DATA_BOTTOM_SHEET_FOOTER)
-            withColor:[UIColor colorNamed:kTextSecondaryColor]];
-      return footer;
-    }
-    case SectionIdentifierTimeRange:
-    case SectionIdentifierBrowsingData: {
-      return nil;
-    }
-  }
-  NOTREACHED();
-}
-
-- (CGFloat)tableView:(UITableView*)tableView
-    heightForFooterInSection:(NSInteger)section {
-  SectionIdentifier sectionIdentifier = static_cast<SectionIdentifier>(
-      [_dataSource sectionIdentifierForIndex:section].integerValue);
-  if (sectionIdentifier == SectionIdentifierFooter && _shouldShowFooter) {
-    return UITableViewAutomaticDimension;
-  }
-  return kSectionFooterHeight;
-}
-
-#pragma mark - TableViewLinkHeaderFooterItemDelegate
-
-- (void)view:(TableViewLinkHeaderFooterView*)view didTapLinkURL:(CrURL*)url {
-  DCHECK(url.gurl == kClearBrowsingDataDSESearchUrlInFooterURL ||
-         url.gurl == kClearBrowsingDataDSEMyActivityUrlInFooterURL);
-  [self.presentationHandler openMyActivityURL:url.gurl];
-}
 
 #pragma mark - QuickDeleteConsumer
 
@@ -316,23 +254,7 @@ typedef NS_ENUM(NSInteger, ItemIdentifier) {
 }
 
 - (void)setShouldShowFooter:(BOOL)shouldShowFooter {
-  if (_shouldShowFooter == shouldShowFooter) {
-    return;
-  }
-  _shouldShowFooter =
-      shouldShowFooter && !IsPasswordRemovalFromDeleteBrowsingDataEnabled();
-  // Reload the footer section.
-  __weak __typeof(self) weakSelf = self;
-  NSDiffableDataSourceSnapshot<NSNumber*, NSNumber*>* snapshot =
-      [_dataSource snapshot];
-  [snapshot reloadSectionsWithIdentifiers:@[ @(SectionIdentifierFooter) ]];
-  [_dataSource applySnapshot:snapshot
-        animatingDifferences:NO
-                  completion:^{
-                    // Update the bottom sheet height in case the footer is
-                    // added or removed.
-                    [weakSelf updateBottomSheetHeight];
-                  }];
+  // No-op: This ViewController doesn't have a footer.
 }
 
 - (void)setHistorySummary:(NSString*)historySummary {
@@ -346,11 +268,6 @@ typedef NS_ENUM(NSInteger, ItemIdentifier) {
 }
 
 - (void)setCacheSummary:(NSString*)cacheSummary {
-  // No-op: This ViewController doesn't show the individual summaries for each
-  // browsing data type.
-}
-
-- (void)setPasswordsSummary:(NSString*)passwordsSummary {
   // No-op: This ViewController doesn't show the individual summaries for each
   // browsing data type.
 }
@@ -377,12 +294,6 @@ typedef NS_ENUM(NSInteger, ItemIdentifier) {
 
 - (void)setCacheSelection:(BOOL)selected {
   _cacheSelected = selected;
-  [self updatePrimaryActionButtonEnabledStatus];
-}
-
-- (void)setPasswordsSelection:(BOOL)selected {
-  CHECK(!IsPasswordRemovalFromDeleteBrowsingDataEnabled());
-  _passwordsSelected = selected;
   [self updatePrimaryActionButtonEnabledStatus];
 }
 
@@ -451,7 +362,7 @@ typedef NS_ENUM(NSInteger, ItemIdentifier) {
 - (void)updatePrimaryActionButtonEnabledStatus {
   self.primaryActionButton.enabled = _historySelected || _tabsSelected ||
                                      _siteDataSelected || _cacheSelected ||
-                                     _passwordsSelected || _autofillSelected;
+                                     _autofillSelected;
 }
 
 // Action handler that executes when a voiceover announcement ends.
@@ -536,13 +447,11 @@ typedef NS_ENUM(NSInteger, ItemIdentifier) {
 
   RegisterTableViewCell<TableViewPopUpCell>(_tableView);
   [TableViewCellContentConfiguration registerCellForTableView:_tableView];
-  RegisterTableViewHeaderFooter<TableViewLinkHeaderFooterView>(_tableView);
 
   NSDiffableDataSourceSnapshot* snapshot =
       [[NSDiffableDataSourceSnapshot alloc] init];
   [snapshot appendSectionsWithIdentifiers:@[
-    @(SectionIdentifierTimeRange), @(SectionIdentifierBrowsingData),
-    @(SectionIdentifierFooter)
+    @(SectionIdentifierTimeRange), @(SectionIdentifierBrowsingData)
   ]];
   [snapshot appendItemsWithIdentifiers:@[ @(ItemIdentifierTimeRange) ]
              intoSectionWithIdentifier:@(SectionIdentifierTimeRange)];
@@ -668,9 +577,8 @@ typedef NS_ENUM(NSInteger, ItemIdentifier) {
       colorWithAlphaComponent:kTrashIconContainerViewAlphaComponent];
 
   // Trash icon that inside the container with the red background.
-  UIImageView* icon =
-      [[UIImageView alloc] initWithImage:DefaultSymbolTemplateWithPointSize(
-                                             kTrashSymbol, kTrashIconSize)];
+  UIImageView* icon = [[UIImageView alloc]
+      initWithImage:SymbolTemplateWithPointSize(SymbolTrash, kTrashIconSize)];
 
   if (vivaldi::IsVivaldiRunning()) {
     icon = [[UIImageView alloc]

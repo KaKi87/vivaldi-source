@@ -74,6 +74,7 @@ import org.chromium.chrome.test.transit.tabmodel.TabThumbnailsCapturedCarryOn;
 import org.chromium.chrome.test.util.ChromeRenderTestRule;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.tab_groups.TabGroupColorId;
+import org.chromium.components.tab_groups.TabGroupsFeatureMap;
 import org.chromium.mojo.system.Pair;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.PageTransition;
@@ -98,7 +99,8 @@ import java.util.function.Supplier;
     ANDROID_ELEGANT_TEXT_HEIGHT,
     ChromeFeatureList.ANDROID_SURFACE_COLOR_UPDATE,
     ChromeFeatureList.GRID_TAB_SWITCHER_SURFACE_COLOR_UPDATE,
-    ChromeFeatureList.ANDROID_THEME_MODULE
+    ChromeFeatureList.ANDROID_THEME_MODULE,
+    TabGroupsFeatureMap.UPDATE_TAB_GROUP_COLORS
 })
 public class TabSwitcherLayoutPTTest {
     private static final String TEST_URL = "/chrome/test/data/android/google.html";
@@ -113,12 +115,12 @@ public class TabSwitcherLayoutPTTest {
 
     @Rule
     public AutoResetCtaTransitTestRule mCtaTestRule =
-            ChromeTransitTestRules.autoResetCtaActivityRule();
+            ChromeTransitTestRules.fastAutoResetCtaActivityRule();
 
     @Rule
     public ChromeRenderTestRule mRenderTestRule =
             ChromeRenderTestRule.Builder.withPublicCorpus()
-                    .setRevision(15) // NTP vertical spacing fix
+                    .setRevision(16) // NTP new colour due to IA changes
                     .setBugComponent(ChromeRenderTestRule.Component.UI_BROWSER_MOBILE_HUB)
                     .build();
 
@@ -533,10 +535,6 @@ public class TabSwitcherLayoutPTTest {
         // Verify the color icon exists and that the dialog is dismissed via another action
         card.expectColor(TabGroupColorId.GREY);
         watcher.assertExpected();
-
-        // Open NTP PageStation for InitialStateRule to reset
-        RegularNewTabPageStation ntp = tabSwitcher.openNewTab();
-        assertFinalDestination(ntp);
     }
 
     @Test
@@ -575,10 +573,6 @@ public class TabSwitcherLayoutPTTest {
                 .expectGroupCard(List.of(firstTabId, secondTabId), "Test")
                 .expectColor(TabGroupColorId.BLUE);
         histograms.assertExpected();
-
-        // Open NTP PageStation for InitialStateRule to reset
-        RegularNewTabPageStation ntp = tabSwitcher.openNewTab();
-        assertFinalDestination(ntp);
     }
 
     @Test
@@ -607,10 +601,6 @@ public class TabSwitcherLayoutPTTest {
                         List.of(firstTabId, secondTabId),
                         TabSwitcherGroupCardFacility.DEFAULT_N_TABS_TITLE)
                 .expectColor(TabGroupColorId.GREY);
-
-        // Open NTP PageStation for InitialStateRule to reset
-        RegularNewTabPageStation ntp = tabSwitcher.openNewTab();
-        assertFinalDestination(ntp);
     }
 
     @Test
@@ -641,10 +631,6 @@ public class TabSwitcherLayoutPTTest {
                         List.of(firstTabId, secondTabId),
                         TabSwitcherGroupCardFacility.DEFAULT_N_TABS_TITLE)
                 .expectColor(TabGroupColorId.BLUE);
-
-        // Open NTP PageStation for InitialStateRule to reset
-        RegularNewTabPageStation ntp = tabSwitcher.openNewTab();
-        assertFinalDestination(ntp);
     }
 
     @Test
@@ -678,10 +664,6 @@ public class TabSwitcherLayoutPTTest {
                         List.of(firstTabId, secondTabId),
                         TabSwitcherGroupCardFacility.DEFAULT_N_TABS_TITLE)
                 .expectColor(TabGroupColorId.GREY);
-
-        // Open NTP PageStation for InitialStateRule to reset
-        RegularNewTabPageStation ntp = tabSwitcher.openNewTab();
-        assertFinalDestination(ntp);
     }
 
     @Test
@@ -711,10 +693,6 @@ public class TabSwitcherLayoutPTTest {
         tabSwitcher
                 .expectGroupCard(List.of(firstTabId, secondTabId), "Test")
                 .expectColor(TabGroupColorId.BLUE);
-
-        // Open NTP PageStation for InitialStateRule to reset
-        RegularNewTabPageStation ntp = tabSwitcher.openNewTab();
-        assertFinalDestination(ntp);
     }
 
     @Test
@@ -752,10 +730,6 @@ public class TabSwitcherLayoutPTTest {
                 List.of(firstTabId, secondTabId),
                 TabSwitcherGroupCardFacility.DEFAULT_N_TABS_TITLE);
         tabSwitcher.verifyTabSwitcherCardCount(1);
-
-        // Open NTP PageStation for InitialStateRule to reset
-        RegularNewTabPageStation ntp = tabSwitcher.openNewTab();
-        assertFinalDestination(ntp);
     }
 
     private <T extends CtaPageStation> T roundtripToHTSWithThumbnailChecks(

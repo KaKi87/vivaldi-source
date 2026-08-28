@@ -4,34 +4,14 @@
 
 import 'chrome://resources/cr_components/searchbox/searchbox_input.js';
 
-import type {SearchboxIconElement} from 'chrome://resources/cr_components/searchbox/searchbox_icon.js';
+import {createSearchMatchForTesting, SearchboxBrowserProxy} from 'chrome://resources/cr_components/searchbox/searchbox_browser_proxy.js';
 import type {SearchboxInputElement} from 'chrome://resources/cr_components/searchbox/searchbox_input.js';
-import {createAutocompleteMatch, createSearchMatchForTesting, SearchboxBrowserProxy} from 'chrome://resources/cr_components/searchbox/searchbox_browser_proxy.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
-import type {AutocompleteMatch} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {microtasksFinished} from 'chrome://webui-test/test_util.js';
 
-import {assertStyle} from './searchbox_test_utils.js';
+import {assertIconMaskImageUrl, createClipboardEvent, createUrlMatch} from './searchbox_test_utils.js';
 import {TestSearchboxBrowserProxy} from './test_searchbox_browser_proxy.js';
-
-function createClipboardEvent(name: string): ClipboardEvent {
-  return new ClipboardEvent(
-      name, {cancelable: true, clipboardData: new DataTransfer()});
-}
-
-function createUrlMatch(modifiers: Partial<AutocompleteMatch> = {}):
-    AutocompleteMatch {
-  return createAutocompleteMatch({
-    swapContentsAndDescription: true,
-    contents: 'helloworld.com',
-    contentsClass: [{offset: 0, style: 1}],
-    destinationUrl: 'https://helloworld.com/',
-    fillIntoEdit: 'https://helloworld.com',
-    type: 'url-what-you-typed',
-    ...modifiers,
-  });
-}
 
 async function createInput(properties: Partial<SearchboxInputElement> = {}):
     Promise<SearchboxInputElement> {
@@ -53,16 +33,6 @@ suite('SearchboxInputTest', () => {
     SearchboxBrowserProxy.setInstance(testProxy);
   });
 
-  function assertIconMaskImageUrl(element: HTMLElement, url: string) {
-    const icon =
-        element.shadowRoot!.querySelector<SearchboxIconElement>('#icon');
-    assertTrue(!!icon);
-    assertStyle(
-        icon.$.icon, '-webkit-mask-image',
-        `url("chrome://new-tab-page/${url}")`);
-    assertStyle(icon.$.icon, 'background-image', 'none');
-  }
-
   test('default loupe icon', async () => {
     loadTimeData.resetForTesting({
       isLensSearchbox: false,
@@ -70,12 +40,8 @@ suite('SearchboxInputTest', () => {
     });
     input = await createInput(
         {searchboxIcon: 'search.svg', placeholderText: 'Search'});
-    assertIconMaskImageUrl(input, 'search.svg');
+    assertIconMaskImageUrl(input.$.icon, 'search.svg');
   });
-
-  //============================================================================
-  // Test Cut/Copy
-  //============================================================================
 
   test('Copying or cutting empty input fails', async () => {
     input = await createInput();
@@ -158,10 +124,6 @@ suite('SearchboxInputTest', () => {
     assertEquals('', input.inputElement.value);
   });
 
-  //============================================================================
-  // Test Tabbing and Clicking
-  //============================================================================
-
   test('Tabbing or clicking fires event', async () => {
     input = await createInput();
     input.inputElement.value = 'hello';
@@ -194,10 +156,6 @@ suite('SearchboxInputTest', () => {
     assertEquals(2, eventCount);
   });
 
-  //============================================================================
-  // Test Set Input Text
-  //============================================================================
-
   test('input text appears on page call from browser', async () => {
     input = await createInput();
     assertEquals(input.inputElement.value, '');
@@ -213,10 +171,6 @@ suite('SearchboxInputTest', () => {
     assertEquals(input.inputElement.value, 'Hello');
     assertEquals(0, textUpdatedEventCount);
   });
-
-  //============================================================================
-  // Test File Paste
-  //============================================================================
 
   test('Pasting file fires event', async () => {
     input = await createInput({allowFilePaste: true});
@@ -243,10 +197,6 @@ suite('SearchboxInputTest', () => {
     assertEquals(1, (eventFiles as unknown as FileList).length);
     assertEquals('test.png', (eventFiles as unknown as FileList)[0]!.name);
   });
-
-  //============================================================================
-  // Test Inline Autocompletion
-  //============================================================================
 
   test('Typing over inline autocompletion', async () => {
     loadTimeData.overrideValues({
@@ -277,5 +227,36 @@ suite('SearchboxInputTest', () => {
     // The selection should now highlight 'o'.
     assertEquals(4, input.inputElement.selectionStart);
     assertEquals(5, input.inputElement.selectionEnd);
+  });
+
+  test('allows empty string placeholder without fallback', async () => {
+    // Set `placeholderText` to empty string.
+    input = await createInput({placeholderText: ''});
+    assertEquals('', input.inputElement.placeholder);
+
+    // Update `placeholderText` dynamically.
+    input.placeholderText = 'Updated Search';
+    await input.updateComplete;
+    assertEquals('Updated Search', input.inputElement.placeholder);
+
+    // Reset `placeholderText` to empty string'', to suppress it again.
+    input.placeholderText = '';
+    await input.updateComplete;
+    assertEquals('', input.inputElement.placeholder);
+  });
+
+  test('Fires searchbox-input-pasted event on paste', async () => {
+    input = await createInput();
+
+    let pasteEventCount = 0;
+    input.addEventListener('searchbox-input-pasted', () => {
+      pasteEventCount++;
+    });
+
+    const pasteEvent = createClipboardEvent('paste');
+    input.inputElement.dispatchEvent(pasteEvent);
+    await microtasksFinished();
+
+    assertEquals(1, pasteEventCount);
   });
 });

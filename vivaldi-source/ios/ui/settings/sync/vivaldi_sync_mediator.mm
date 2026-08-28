@@ -10,6 +10,8 @@
 #import "base/files/file_util.h"
 #import "base/functional/bind.h"
 #import "base/functional/callback.h"
+#import "base/json/json_reader.h"
+#import "base/json/json_writer.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/strings/utf_string_conversions.h"
 #import "base/task/thread_pool.h"
@@ -107,6 +109,35 @@ void DecryptString(std::string encrypted_string, CryptStringCallback callback) {
         std::move(callback).Run(std::move(result));
       },
       std::move(encrypted_string), std::move(callback)));
+}
+
+std::optional<std::string> SerializePendingRegistration(
+    const std::string& username,
+    const std::string& recovery_email,
+    const std::string& encrypted_password) {
+  base::Value pending_registration(base::Value::Type::DICT);
+  pending_registration.GetDict().Set(kUsernameKey, username);
+  pending_registration.GetDict().Set(kRecoveryEmailKey, recovery_email);
+  pending_registration.GetDict().Set(
+      kPasswordKey, base::Base64Encode(encrypted_password));
+
+  std::string serialized_pending_registration;
+  if (!base::JSONWriter::Write(pending_registration,
+                               &serialized_pending_registration)) {
+    return std::nullopt;
+  }
+  return serialized_pending_registration;
+}
+
+std::optional<base::DictValue> ReadPendingRegistration(PrefService* prefs) {
+  const std::string serialized_pending_registration =
+      prefs->GetString(vivaldiprefs::kVivaldiAccountPendingRegistration);
+  if (serialized_pending_registration.empty()) {
+    return std::nullopt;
+  }
+
+  return base::JSONReader::ReadDict(serialized_pending_registration,
+                                    base::JSON_PARSE_RFC);
 }
 
 }  // namespace
@@ -1362,42 +1393,49 @@ struct PendingRegistration {
           return;
         }
 
-        base::Value pending_registration(base::Value::Type::DICT);
-        pending_registration.GetDict().Set(kRecoveryEmailKey, recovery_email);
-        pending_registration.GetDict().Set(kUsernameKey, username);
-        pending_registration.GetDict().Set(
-            kPasswordKey, base::Base64Encode(*encrypted_password));
+        std::optional<std::string> serialized_pending_registration =
+            SerializePendingRegistration(username, recovery_email,
+                                         *encrypted_password);
+        if (!serialized_pending_registration) {
+          return;
+        }
 
-        strongSelf->_prefService->Set(
+        strongSelf->_prefService->SetString(
             vivaldiprefs::kVivaldiAccountPendingRegistration,
-            pending_registration);
+            *serialized_pending_registration);
       }));
 }
 
 - (void)loadPendingRegistrationWithCompletion:(void (^)(void))completion {
   void (^completionCopy)(void) = [completion copy];
-  const base::Value& pref_value =
-      _prefService->GetValue(vivaldiprefs::kVivaldiAccountPendingRegistration);
-
-  const std::string* username = pref_value.GetDict().FindString(kUsernameKey);
-  const std::string* encoded_password =
-      pref_value.GetDict().FindString(kPasswordKey);
-  const std::string* recovery_email =
-      pref_value.GetDict().FindString(kRecoveryEmailKey);
-
-  if (!username || !encoded_password || !recovery_email) {
+  auto finish = ^{
     if (completionCopy) {
       completionCopy();
     }
+  };
+
+  std::optional<base::DictValue> pending_registration =
+      ReadPendingRegistration(_prefService);
+  if (!pending_registration) {
+    finish();
+    return;
+  }
+
+  const std::string* username = pending_registration->FindString(kUsernameKey);
+  const std::string* encoded_password =
+      pending_registration->FindString(kPasswordKey);
+  const std::string* recovery_email =
+      pending_registration->FindString(kRecoveryEmailKey);
+
+  if (!username || !encoded_password || !recovery_email) {
+    finish();
     return;
   }
 
   std::string encrypted_password;
   if (!base::Base64Decode(*encoded_password, &encrypted_password) ||
       encrypted_password.empty()) {
-    if (completionCopy) {
-      completionCopy();
-    }
+    finish();
     return;
   }
 
@@ -1415,9 +1453,7 @@ struct PendingRegistration {
                         recovery_email_value;
                   }
 
-                  if (completionCopy) {
-                    completionCopy();
-                  }
+                  finish();
                 }));
 }
 

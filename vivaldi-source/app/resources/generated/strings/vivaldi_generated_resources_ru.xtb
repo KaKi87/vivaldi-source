@@ -39,7 +39,6 @@
 <translation id="1601560923496285236">Применить</translation>
 <translation id="1603914832182249871">(Приватный)</translation>
 <translation id="1627276047960621195">Дескрипторы файлов</translation>
-<translation id="1654713139320245449">Нет устройств для трансляции. Нужна помощь?</translation>
 <translation id="166278006618318542">Алгоритм открытого ключа субъекта</translation>
 <translation id="1682548588986054654">Новое приватное окно</translation>
 <translation id="1708338024780164500">(Неактивно)</translation>
@@ -60,7 +59,6 @@
 <translation id="1906488504371069394">Найдите больше расширений и тем оформления в <ph name="BEGIN_LINK" />Магазине Chrome<ph name="END_LINK" /></translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">Введите веб-адрес</translation>
-<translation id="1932098463447129402">Не ранее</translation>
 <translation id="1936157145127842922">Показать в папке</translation>
 <translation id="1936931585862840749">Укажите количество копий для печати, используя цифры (от 1 до <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">&amp;Открыть аудио в новой вкладке</translation>
@@ -102,7 +100,6 @@
 <translation id="253557089021624350">Количество соединений keepalive</translation>
 <translation id="2550212893339833758">Память подкачки</translation>
 <translation id="2553440850688409052">Скрыть этот плагин</translation>
-<translation id="2607101320794533334">Информация об открытом ключе субъекта</translation>
 <translation id="261305050785128654">Сообщите веб-сайтам о предпочтительных языках. Вы по возможности получите контент на этих языках.</translation>
 <translation id="26224892172169984">Запретить обработку протоколов на всех сайтах</translation>
 <translation id="2653275834716714682">Замена текста</translation>
@@ -112,7 +109,6 @@
 <translation id="2719936478972253983">Заблокированные файлы cookie</translation>
 <translation id="2721037002783622288">&amp;Найти картинку в <ph name="SEARCH_ENGINE" /></translation>
 <translation id="2722547199758472013">ID: <ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">Не позже</translation>
 <translation id="2749881179542288782">Проверять грамматику и правописание</translation>
 <translation id="2785873697295365461">Дескрипторы файлов</translation>
 <translation id="2825758591930162672">Открытый ключ субъекта</translation>
@@ -163,7 +159,6 @@
 <translation id="3387614642886316601">Расширенная проверка правописания</translation>
 <translation id="3390013585654699824">Сведения о приложении</translation>
 <translation id="345693547134384690">Открыть &amp;картинку в новой вкладке</translation>
-<translation id="3493881266323043047">Срок действия</translation>
 <translation id="3511307672085573050">&amp;Копировать адрес ссылки</translation>
 <translation id="354068948465830244">Возможно чтение и изменение данных сайта</translation>
 <translation id="3555812735919707620">Удалить расширение</translation>
@@ -179,7 +174,6 @@
 <translation id="3760460896538743390">Исследовать &amp;фоновую страницу</translation>
 <translation id="3786224729726357296">Удалить данные и разрешения сайта <ph name="SITE" /></translation>
 <translation id="3797900183766075808">&amp;Искать "<ph name="SEARCH_TERMS" />" в <ph name="SEARCH_ENGINE" /></translation>
-<translation id="3798449238516105146">Версия</translation>
 <translation id="3810973564298564668">Настроить</translation>
 <translation id="3838085852053358637">Ошибка загрузки расширения</translation>
 <translation id="383891835335927981">Нет сайтов с изменённым масштабом</translation>
@@ -266,12 +260,10 @@
 <translation id="5063480226653192405">Использование</translation>
 <translation id="5116628073786783676">&amp;Сохранить аудио как...</translation>
 <translation id="5154108062446123722">Дополнительные настройки для<ph name="PRINTING_DESTINATION" /></translation>
-<translation id="5154702632169343078">Субъект</translation>
 <translation id="5170568018924773124">Показать в папке</translation>
 <translation id="5171343362375269016">Память подкачки</translation>
 <translation id="5233231016133573565">ID процесса</translation>
 <translation id="5233736638227740678">&amp;Вставить</translation>
-<translation id="5244466461749935369">Пока оставить</translation>
 <translation id="5256861893479663409">На всех сайтах</translation>
 <translation id="5260334392110301220">Умные кавычки</translation>
 <translation id="5269977353971873915">Печать не удалась</translation>
@@ -310,7 +302,6 @@
 <translation id="5780973441651030252">Приоритет процессов</translation>
 <translation id="5804241973901381774">Разрешения</translation>
 <translation id="5828633471261496623">Печать...</translation>
-<translation id="5851868085455377790">Издатель</translation>
 <translation id="5860491529813859533">Включить</translation>
 <translation id="5910363049092958439">&amp;Сохранить картинку как...</translation>
 <translation id="5914724413750400082">Модуль (<ph name="MODULUS_NUM_BITS" /> бит):
@@ -460,7 +451,6 @@
 <translation id="862750493060684461">Кэш CSS</translation>
 <translation id="8661290697478713397">Открыть ссылку в &amp;приватном окне</translation>
 <translation id="8664389313780386848">&amp;Просмотр кода страницы</translation>
-<translation id="8705331520020532516">Серийный номер</translation>
 <translation id="8708000541097332489">Удалять при выходе</translation>
 <translation id="8714838604780058252">Фоновая графика</translation>
 <translation id="8725066075913043281">Повторить</translation>

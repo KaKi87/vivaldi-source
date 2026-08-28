@@ -2,7 +2,6 @@
 
 update_target("//chrome/browser:browser") {
   public_deps += [ "//vivaldi/contact" ]
-  allow_circular_includes_from += [ "//vivaldi/contact" ]
 }
 
 update_target("//chrome:dependencies") {

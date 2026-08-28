@@ -5,6 +5,7 @@
 #import "ios/chrome/browser/overlays/model/overlay_presenter_impl.h"
 
 #import "ios/chrome/app/application_delegate/app_state.h"
+#import "ios/chrome/app/application_delegate/fake_startup_information.h"
 #import "ios/chrome/app/profile/profile_init_stage.h"
 #import "ios/chrome/app/profile/profile_state.h"
 #import "ios/chrome/app/profile/profile_state_test_utils.h"
@@ -54,10 +55,11 @@ class OverlayPresenterImplTest : public PlatformTest {
  public:
   OverlayPresenterImplTest() {
     profile_ = TestProfileIOS::Builder().Build();
-    app_state_ = [[AppState alloc] initWithStartupInformation:nil];
+    startup_information_ = [[FakeStartupInformation alloc] init];
+    app_state_ =
+        [[AppState alloc] initWithStartupInformation:startup_information_];
     profile_state_ = [[ProfileState alloc] initWithAppState:app_state_];
-    scene_state_ = [[FakeSceneState alloc] initWithAppState:app_state_
-                                                    profile:profile_.get()];
+    scene_state_ = [[FakeSceneState alloc] initWithProfile:profile_.get()];
     scene_state_.profileState = profile_state_;
     profile_state_.profile = profile_.get();
     browser_ = std::make_unique<TestBrowser>(profile_.get(), scene_state_);
@@ -87,6 +89,7 @@ class OverlayPresenterImplTest : public PlatformTest {
     return presentation_context_;
   }
   MockOverlayPresenterObserver& observer() { return observer_; }
+  FakeStartupInformation* startup_information() { return startup_information_; }
 
   OverlayRequestQueueImpl* GetQueueForWebState(web::WebState* web_state) {
     if (!web_state) {
@@ -127,6 +130,7 @@ class OverlayPresenterImplTest : public PlatformTest {
  private:
   web::WebTaskEnvironment task_environment_;
   MockOverlayPresenterObserver observer_;
+  FakeStartupInformation* startup_information_;
   AppState* app_state_;
   std::unique_ptr<Browser> browser_;
   FakeSceneState* scene_state_;
@@ -658,4 +662,29 @@ TEST_F(OverlayPresenterImplTest,
 TEST_F(OverlayPresenterImplTest, PresenterWasDestroyed) {
   DeleteBrowser();
   EXPECT_TRUE(observer().presenter_destroyed());
+}
+
+// Tests that overlays are not presented when the app is terminating.
+TEST_F(OverlayPresenterImplTest, NoPresentationDuringTermination) {
+  SetProfileStateInitStage(profile_state(), ProfileInitStage::kNormalUI);
+  // Add a WebState to the list.
+  web_state_list()->InsertWebState(
+      std::make_unique<web::FakeWebState>(),
+      WebStateList::InsertionParams::Automatic().Activate());
+
+  // Set the app as terminating.
+  startup_information().isTerminating = YES;
+
+  // Add a request to the active WebState's queue.
+  // We expect no presentation, so we pass expect_presentation=false.
+  OverlayRequest* request =
+      AddRequest(active_web_state(), /*expect_presentation=*/false);
+  ASSERT_EQ(FakeOverlayPresentationContext::PresentationState::kNotPresented,
+            presentation_context().GetPresentationState(request));
+
+  // Set the UI delegate and verify that the request remains not presented.
+  presenter().SetPresentationContext(&presentation_context());
+  EXPECT_EQ(FakeOverlayPresentationContext::PresentationState::kNotPresented,
+            presentation_context().GetPresentationState(request));
+  EXPECT_FALSE(presenter().IsShowingOverlayUI());
 }

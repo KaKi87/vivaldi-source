@@ -45,6 +45,8 @@ class DocAtomicGroupsWriter(doc_writer.DocWriter):
       policy_ref = './'
       if self.config.get('local', False):
         policy_ref = './chrome_policy_list.html'
+        if self.config.get('build') == 'vivaldi':
+          policy_ref = './vivaldi_policy_list.html'
       self.AddElement(name_td, 'a', {'href': policy_ref + '#' + policy['name']},
                       policy['name'])
       self._AddStyledElement(tr, 'td', ['td', 'td.right'], {},

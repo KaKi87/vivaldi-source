@@ -78,6 +78,7 @@ Jaunas grāmatzīmes nevarēs saglabāt jūsu kontā, kamēr neizdzēsīsiet da�
 <translation id="2386292341327187942">Logrīka “Meklēšana” lodziņā ievadiet vaicājumu “Chromium”</translation>
 <translation id="2389827884654658221">Varat ātrāk piekļūt pārlūkam Chromium no iPad planšetdatora sākuma ekrāna.</translation>
 <translation id="2426113998523353159">Saskaņā ar jūsu organizācijas prasībām, lai izmantotu pārlūku Chromium, jums ir jāpierakstās.</translation>
+<translation id="244367646885670394">Apstipriniet savu identitāti, lai saglabātu šo paroli un iegūtu Chromium datus visās savās ierīcēs</translation>
 <translation id="2450140762465183767">Tagad varat izmantot Chromium ikreiz, kad pieskaraties saitēm ziņojumos, dokumentos un citās lietotnēs.</translation>
 <translation id="2459183986985456602">Atvērt manu pēdējo cilni pārlūkā Chromium.</translation>
 <translation id="2476409803017965813">Jebkurā brīdi pārlūka Chromium iestatījumos varat atjaunināt atlasi.</translation>
@@ -108,6 +109,7 @@ Lai skatītu citus iestatījumus, kuros dati tiek izmantoti Chromium lietošanas
 <translation id="3054480780637153380">Atveriet Chromium iestatījumus iOS ierīcē, pēc tam pieskarieties iestatījumam “Noklusējuma pārlūka lietotne” un atlasiet pārlūku Chromium.</translation>
 <translation id="3115956258722352278">Vai iestatīt Chromium kā noklusējuma pārlūku?</translation>
 <translation id="3180939591219927904">Ieslēdziet iestatījumu “Bloķēt inkognito cilnes, aizverot pārlūku Chromium”.</translation>
+<translation id="327628223428512207">Ievadiet ieejas frāzi, lai saglabātu šo paroli un iegūtu Chromium datus visās savās ierīcēs</translation>
 <translation id="328933489847748230">{count,plural, =1{Tagad tiek rādīts viens Chromium logs}zero{Tagad tiek rādīti {count} Chromium logi}one{Tagad tiek rādīts {count} Chromium logs}other{Tagad tiek rādīti {count} Chromium logi}}</translation>
 <translation id="3344973607274501920">Pārlūkprogrammā Chromium nevarēja pārbaudīt jūsu paroles. Pārbaudiet interneta savienojumu.</translation>
 <translation id="3366305173356742781">Chromium dati jūsu kontā</translation>
@@ -226,6 +228,7 @@ Lai mainītu šo iestatījumu, <ph name="BEGIN_LINK" />izdzēsiet Chromium datus
 <translation id="5731004036450828399">Lai aizsargātu piekļuves atslēgas, vispirms jums būs jāizveido atkopšanas PIN.
 
         Piekļuves atslēgas tiek saglabātas Paroļu pārvaldniekā, tādējādi varat tās izmantot pārlūkā Chromium jebkurā ierīcē.</translation>
+<translation id="575593940213760950">Konta <ph name="EMAIL" /> paroļu pārvaldniekā</translation>
 <translation id="584550191241316896">Esat pierakstījies pārlūkā Chromium</translation>
 <translation id="5862307444128926510">Laipni lūdzam pārlūkā Chromium!</translation>
 <translation id="5889847953983052353">Kad iestatījums ir ieslēgts

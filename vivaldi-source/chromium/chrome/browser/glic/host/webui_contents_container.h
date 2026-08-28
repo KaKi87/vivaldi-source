@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
@@ -28,6 +29,11 @@ class WebUIContentsContainer {
   virtual void AttachToHost(Host* host) = 0;
   virtual void SetVisibility(content::Visibility visibility) = 0;
   virtual content::WebContents* web_contents() const = 0;
+  virtual void OnActuatingChanged(bool actuating) = 0;
+  virtual void OnTaskTabsVisibilityChanged(bool has_visible_tab) = 0;
+  virtual std::unique_ptr<content::WebContents> ReleaseWebContents() = 0;
+  virtual void ReclaimWebContents(
+      std::unique_ptr<content::WebContents> web_contents) = 0;
   base::TimeTicks creation_time() const { return creation_time_; }
 
  protected:
@@ -51,6 +57,11 @@ class WebUIContentsContainerImpl : public content::WebContentsObserver,
   void AttachToHost(Host* host) override;
   void SetVisibility(content::Visibility visibility) override;
   content::WebContents* web_contents() const override;
+  void OnActuatingChanged(bool actuating) override;
+  void OnTaskTabsVisibilityChanged(bool has_visible_tab) override;
+  std::unique_ptr<content::WebContents> ReleaseWebContents() override;
+  void ReclaimWebContents(
+      std::unique_ptr<content::WebContents> web_contents) override;
 
  private:
   // content::WebContentsObserver:
@@ -60,15 +71,24 @@ class WebUIContentsContainerImpl : public content::WebContentsObserver,
       content::NavigationHandle* navigation_handle) override;
   void PrimaryMainDocumentElementAvailable() override;
   void DocumentOnLoadCompletedInPrimaryMainFrame() override;
+  void WebContentsDestroyed() override;
+  void UpdateActuationTracker();
 
   base::TimeTicks navigation_commit_time_;
   ScopedProfileKeepAlive profile_keep_alive_;
-  const std::unique_ptr<content::WebContents> web_contents_;
+  std::unique_ptr<content::WebContents> web_contents_;
+  raw_ptr<content::WebContents> web_contents_ptr_ = nullptr;
   const raw_ptr<Profile> profile_;
   // Raw pointer to the host this UI is attached to. This object is not owned
   // by GlicUI. Its lifetime is managed by GlicInstanceImpl (multi-instance),
   // which owns Host.
   raw_ptr<Host> host_ = nullptr;
+
+  base::ScopedClosureRunner webui_capture_runner_;
+  base::ScopedClosureRunner guest_capture_runner_;
+
+  bool is_actuating_ = false;
+  bool is_actuating_on_visible_tab_ = false;
 };
 
 }  // namespace glic

@@ -78,6 +78,9 @@ typedef NS_ENUM(NSUInteger, IPadLayoutState) {
 + (BOOL)isValidURL:(NSString* _Nonnull)urlString;
 /// Returns true if give string has http/s scheme.
 + (BOOL)urlStringHasHTTPorHTTPS:(NSString* _Nonnull)urlString;
+/// Returns a trimmed URL string. Adds https:// when the string has no scheme.
++ (NSString* _Nonnull)urlStringWithHTTPSchemeIfNeeded:
+    (NSString* _Nonnull)urlString;
 /// Returns the host of a given string. Strip the `www.` part
 /// if exists. So, `https://www.vivaldi.com` or `www.vivaldi.com`
 /// will return `vivaldi.com`

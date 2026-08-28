@@ -4,24 +4,17 @@
 
 #include "chrome/browser/ui/views/omnibox/omnibox_popup_view_views.h"
 
-#include <memory>
-
-#include "base/metrics/statistics_recorder.h"
-#include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "base/test/run_until.h"
 #include "build/build_config.h"
 #include "chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.h"
-#include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/extensions/chrome_test_extension_loader.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/themes/test/theme_service_changed_waiter.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/color/chrome_color_id.h"
+#include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/omnibox/omnibox_controller.h"
 #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
@@ -33,9 +26,7 @@
 #include "chrome/browser/ui/views/omnibox/omnibox_view_views.h"
 #include "chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
-#include "chrome/common/pref_names.h"
 #include "chrome/test/base/chrome_test_utils.h"
-#include "chrome/test/base/search_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings_pattern.h"
@@ -43,24 +34,14 @@
 #include "components/omnibox/browser/autocomplete_enums.h"
 #include "components/omnibox/browser/autocomplete_result.h"
 #include "components/omnibox/browser/fake_autocomplete_provider.h"
-#include "components/omnibox/browser/omnibox_field_trial.h"
 #include "components/omnibox/browser/omnibox_popup_selection.h"
 #include "components/omnibox/browser/omnibox_prefs.h"
-#include "components/omnibox/browser/omnibox_triggered_feature_service.h"
 #include "components/omnibox/browser/suggestion_group_util.h"
-#include "components/omnibox/common/omnibox_features.h"
-#include "components/unified_consent/pref_names.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
-#include "content/public/test/test_utils.h"
-#include "net/dns/mock_host_resolver.h"
-#include "net/test/embedded_test_server/embedded_test_server.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/base/theme_provider.h"
-#include "ui/base/ui_base_features.h"
-#include "ui/color/color_provider_utils.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animator.h"
 #include "ui/events/test/event_generator.h"
@@ -304,7 +285,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxPopupViewViewsTest,
 // Integration test for omnibox popup theming in regular.
 IN_PROC_BROWSER_TEST_F(OmniboxPopupViewViewsTest, ThemeIntegration) {
   ThemeService* theme_service =
-      ThemeServiceFactory::GetForProfile(browser()->profile());
+      ThemeServiceFactory::GetForProfile(browser()->GetProfile());
   UseDefaultTheme();
   SetUseDeviceTheme(false);
 
@@ -327,7 +308,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxPopupViewViewsTest, ThemeIntegration) {
   EXPECT_EQ(selection_color_light, GetSelectedColor(browser()));
 
   // Install a theme (in both browsers, since it's the same profile).
-  extensions::ChromeTestExtensionLoader loader(browser()->profile());
+  extensions::ChromeTestExtensionLoader loader(browser()->GetProfile());
   {
     ThemeChangeWaiter wait(theme_service);
     base::FilePath path = chrome_test_utils::GetTestFilePath(
@@ -355,7 +336,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxPopupViewViewsTest, ThemeIntegration) {
 
 IN_PROC_BROWSER_TEST_F(OmniboxPopupViewViewsTest, ThemeIntegrationInIncognito) {
   ThemeService* theme_service =
-      ThemeServiceFactory::GetForProfile(browser()->profile());
+      ThemeServiceFactory::GetForProfile(browser()->GetProfile());
   UseDefaultTheme();
   SetUseDeviceTheme(false);
 
@@ -370,7 +351,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxPopupViewViewsTest, ThemeIntegrationInIncognito) {
   SetIsGrayscale(false);
 
   // Install a theme (in both browsers, since it's the same profile).
-  extensions::ChromeTestExtensionLoader loader(browser()->profile());
+  extensions::ChromeTestExtensionLoader loader(browser()->GetProfile());
   {
     ThemeChangeWaiter wait(theme_service);
     base::FilePath path = chrome_test_utils::GetTestFilePath(
@@ -408,7 +389,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxPopupViewViewsTest, MAYBE_ClickOmnibox) {
 
   CreatePopupForTestQuery();
 
-  gfx::NativeWindow event_window = browser()->window()->GetNativeWindow();
+  gfx::NativeWindow event_window = browser()->GetWindow()->GetNativeWindow();
 #if defined(USE_AURA)
   event_window = event_window->GetRootWindow();
 #endif
@@ -711,7 +692,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxPopupViewViewsTest,
   edit_model()->SetUserText(u"foo");
   AutocompleteInput input(
       u"foo", metrics::OmniboxEventProto::BLANK,
-      ChromeAutocompleteSchemeClassifier(browser()->profile()));
+      ChromeAutocompleteSchemeClassifier(browser()->GetProfile()));
   input.set_omit_asynchronous_matches(true);
   controller()->autocomplete_controller()->Start(input);
 
@@ -885,7 +866,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxPopupViewViewsTest, DeleteSuggestion) {
   edit_model()->SetUserText(u"foo");
   AutocompleteInput input(
       u"foo", metrics::OmniboxEventProto::BLANK,
-      ChromeAutocompleteSchemeClassifier(browser()->profile()));
+      ChromeAutocompleteSchemeClassifier(browser()->GetProfile()));
   input.set_omit_asynchronous_matches(true);
   controller()->autocomplete_controller()->Start(input);
   ASSERT_TRUE(controller()->IsPopupOpen());
@@ -1063,6 +1044,25 @@ IN_PROC_BROWSER_TEST_F(OmniboxPopupViewViewsTest, AccessibleControlIds) {
       ax::mojom::IntListAttribute::kControlsIds));
 }
 
+IN_PROC_BROWSER_TEST_F(OmniboxPopupViewViewsTest,
+                       InvalidatesMetricsCallbacksOnHide) {
+  CreatePopupForTestQuery();
+  EXPECT_TRUE(controller()->IsPopupOpen());
+
+  // Get a weak pointer using the metrics factory to simulate a pending
+  // callback.
+  auto weak_ptr = GetMetricsWeakPtr();
+  EXPECT_TRUE(weak_ptr);
+
+  // Close the popup view, which should invalidate the pending metrics callback.
+  controller()->autocomplete_controller()->Stop(
+      AutocompleteStopReason::kClobbered);
+  popup_view()->UpdatePopupAppearance();
+
+  EXPECT_FALSE(controller()->IsPopupOpen());
+  EXPECT_FALSE(weak_ptr);
+}
+
 IN_PROC_BROWSER_TEST_F(OmniboxPopupSuggestionGroupHeadersTest,
                        ShowSuggestionGroupHeadersByPageContext) {
   scoped_refptr<FakeAutocompleteProvider> provider =
@@ -1128,7 +1128,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxPopupSuggestionGroupHeadersTest,
     AutocompleteInput input(
         u"foo",
         metrics::OmniboxEventProto::INSTANT_NTP_WITH_OMNIBOX_AS_STARTING_FOCUS,
-        ChromeAutocompleteSchemeClassifier(browser()->profile()));
+        ChromeAutocompleteSchemeClassifier(browser()->GetProfile()));
     input.set_omit_asynchronous_matches(true);
     controller()->autocomplete_controller()->Start(input);
     ASSERT_TRUE(controller()->IsPopupOpen());
@@ -1161,7 +1161,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxPopupSuggestionGroupHeadersTest,
         u"foo",
         metrics::OmniboxEventProto::
             SEARCH_RESULT_PAGE_NO_SEARCH_TERM_REPLACEMENT,
-        ChromeAutocompleteSchemeClassifier(browser()->profile()));
+        ChromeAutocompleteSchemeClassifier(browser()->GetProfile()));
     input.set_omit_asynchronous_matches(true);
     controller()->autocomplete_controller()->Start(input);
     ASSERT_TRUE(controller()->IsPopupOpen());
@@ -1189,7 +1189,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxPopupSuggestionGroupHeadersTest,
     edit_model()->SetUserText(u"foo");
     AutocompleteInput input(
         u"foo", metrics::OmniboxEventProto::OTHER,
-        ChromeAutocompleteSchemeClassifier(browser()->profile()));
+        ChromeAutocompleteSchemeClassifier(browser()->GetProfile()));
     input.set_omit_asynchronous_matches(true);
     controller()->autocomplete_controller()->Start(input);
     ASSERT_TRUE(controller()->IsPopupOpen());
@@ -1291,10 +1291,10 @@ class OmniboxPopupPermissionBrowserTest : public InProcessBrowserTest {
 
   void SetBrowserBounds(views::Widget* popup_widget, const gfx::Rect& bounds) {
     views::Widget* browser_widget = views::Widget::GetWidgetForNativeWindow(
-        browser()->window()->GetNativeWindow());
+        browser()->GetWindow()->GetNativeWindow());
     WidgetBoundsWaiter browser_waiter(browser_widget);
     WidgetBoundsWaiter popup_waiter(popup_widget);
-    browser()->window()->SetBounds(bounds);
+    browser()->GetWindow()->SetBounds(bounds);
     browser_waiter.Wait();
     popup_waiter.Wait();
   }
@@ -1327,7 +1327,10 @@ class OmniboxPopupPermissionBrowserTest : public InProcessBrowserTest {
 // Open Large -> Shrink, Open Small -> Grow
 IN_PROC_BROWSER_TEST_F(OmniboxPopupPermissionBrowserTest,
                        DynamicWindowResizing) {
-  browser()->window()->GetLocationBar()->GetOmniboxView()->SetUserText(u"test");
+  BrowserWindow::FromBrowser(browser())
+      ->GetLocationBar()
+      ->GetOmniboxView()
+      ->SetUserText(u"test");
   views::Widget* popup_widget = GetPopupWidget();
   ASSERT_TRUE(popup_widget);
 
@@ -1357,7 +1360,10 @@ IN_PROC_BROWSER_TEST_F(OmniboxPopupPermissionBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(OmniboxPopupPermissionBrowserTest,
                        ResetsOnAllFrontendClosureActions) {
-  browser()->window()->GetLocationBar()->GetOmniboxView()->SetUserText(u"test");
+  BrowserWindow::FromBrowser(browser())
+      ->GetLocationBar()
+      ->GetOmniboxView()
+      ->SetUserText(u"test");
   views::Widget* popup_widget = GetPopupWidget();
 
   // Small browser width.

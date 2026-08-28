@@ -39,7 +39,6 @@
 <translation id="1601560923496285236">Käytä</translation>
 <translation id="1603914832182249871">(yksityinen)</translation>
 <translation id="1627276047960621195">Tiedostokuvaajat</translation>
-<translation id="1654713139320245449">Suoratoistokohteita ei löytynyt. Tarvitsetko apua?</translation>
 <translation id="166278006618318542">Kohteen julkisen avaimen algoritmi</translation>
 <translation id="1682548588986054654">Uusi yksityinen ikkuna</translation>
 <translation id="1708338024780164500">(passiivinen)</translation>
@@ -60,7 +59,6 @@
 <translation id="1906488504371069394">Löydä lisää laajennuksia ja teemoja <ph name="BEGIN_LINK" />Chromen verkkokaupasta<ph name="END_LINK" /></translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">Syötä oma verkko-osoite</translation>
-<translation id="1932098463447129402">Ei aiemmin</translation>
 <translation id="1936157145127842922">Näytä kansiossa</translation>
 <translation id="1936931585862840749">Anna tulostuskopioiden määrä numerona (1–<ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">Avaa &amp;ääni uuteen välilehteen</translation>
@@ -102,7 +100,6 @@
 <translation id="253557089021624350">Keepalive-määrä</translation>
 <translation id="2550212893339833758">Sivutusmuisti</translation>
 <translation id="2553440850688409052">Piilota tämä lisäosa</translation>
-<translation id="2607101320794533334">Kohteen julkisen avaimen tiedot</translation>
 <translation id="261305050785128654">Anna sivustojen tietää puhumasi kielet. Milloin mahdollista, ne näyttävät sisällön niillä kielillä.</translation>
 <translation id="26224892172169984">Älä anna sivustojen määrittää yhteyskäytäntöjen käsittelypalveluita</translation>
 <translation id="2653275834716714682">Tekstin korvaus</translation>
@@ -112,7 +109,6 @@
 <translation id="2719936478972253983">Seuraavat evästeet estettiin</translation>
 <translation id="2721037002783622288">&amp;Etsi kuvaa hakukoneella <ph name="SEARCH_ENGINE" /></translation>
 <translation id="2722547199758472013">Tunniste: <ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">Ei jälkeen</translation>
 <translation id="2749881179542288782">Tarkista kielioppi oikeinkirjoituksen yhteydessä</translation>
 <translation id="2785873697295365461">Tiedostokuvaajat</translation>
 <translation id="2825758591930162672">Kohteen julkinen avain</translation>
@@ -163,7 +159,6 @@
 <translation id="3387614642886316601">Käytä parannettua oikolukua</translation>
 <translation id="3390013585654699824">Sovelluksen tiedot</translation>
 <translation id="345693547134384690">Avaa &amp;kuva uuteen välilehteen</translation>
-<translation id="3493881266323043047">Voimassaolo</translation>
 <translation id="3511307672085573050">Kopioi linkin osoit&amp;e</translation>
 <translation id="354068948465830244">Voi lukea ja muuttaa sivuston tietoja</translation>
 <translation id="3555812735919707620">Poista laajennus</translation>
@@ -179,7 +174,6 @@
 <translation id="3760460896538743390">Tarkastele &amp;taustasivua</translation>
 <translation id="3786224729726357296">Poista sivuston <ph name="SITE" /> tiedot ja käyttöoikeudet</translation>
 <translation id="3797900183766075808">Etsi "<ph name="SEARCH_TERMS" />" hakukoneella <ph name="SEARCH_ENGINE" /></translation>
-<translation id="3798449238516105146">Versio</translation>
 <translation id="3810973564298564668">Hallinnoi</translation>
 <translation id="3838085852053358637">Laajennuksen lataus epäonnistui</translation>
 <translation id="383891835335927981">Sivustoja ei ole lähennetty tai loitonnettu</translation>
@@ -266,12 +260,10 @@
 <translation id="5063480226653192405">Käyttö</translation>
 <translation id="5116628073786783676">T&amp;allenna ääni nimellä…</translation>
 <translation id="5154108062446123722">Tulostimen <ph name="PRINTING_DESTINATION" /> lisäasetukset</translation>
-<translation id="5154702632169343078">Kohde</translation>
 <translation id="5170568018924773124">Näytä kansiossa</translation>
 <translation id="5171343362375269016">Sivutusmuisti</translation>
 <translation id="5233231016133573565">Prosessin tunnus</translation>
 <translation id="5233736638227740678">&amp;Liitä</translation>
-<translation id="5244466461749935369">Pidä toistaiseksi</translation>
 <translation id="5256861893479663409">Kaikilla sivustoilla</translation>
 <translation id="5260334392110301220">Älykkäät lainausmerkit</translation>
 <translation id="5269977353971873915">Tulostus epäonnistui</translation>
@@ -310,7 +302,6 @@
 <translation id="5780973441651030252">Prosessien painotus</translation>
 <translation id="5804241973901381774">Käyttöoikeudet</translation>
 <translation id="5828633471261496623">Tulostetaan…</translation>
-<translation id="5851868085455377790">Myöntäjä</translation>
 <translation id="5860491529813859533">Ota käyttöön</translation>
 <translation id="5910363049092958439">Tallenna &amp;kuva nimellä…</translation>
 <translation id="5914724413750400082">Modulus (<ph name="MODULUS_NUM_BITS" /> bittiä):
@@ -459,7 +450,6 @@ other {# kirjanmerkkiä}}</translation>
 <translation id="862750493060684461">CSS-välimuisti</translation>
 <translation id="8661290697478713397">Avaa linkki &amp;yksityisikkunaan</translation>
 <translation id="8664389313780386848">&amp;Näytä sivun lähdekoodi</translation>
-<translation id="8705331520020532516">Sarjanumero</translation>
 <translation id="8708000541097332489">Tyhjennä suljettaessa</translation>
 <translation id="8714838604780058252">Taustagrafiikka</translation>
 <translation id="8725066075913043281">Yritä uudelleen</translation>

@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Zatraži otvaranje veza iz drugih aplikacija u privatnom režimu</translation>
 <translation id="1624481300475123200">Automatsko popunjavanje lozinki</translation>
 <translation id="1743244221910283364">Odbaci promene</translation>
+<translation id="1972589975368876259">Uredi grupu</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Dodaj karticu u grupu}
         other {Dodaj kartice u grupu}}</translation>
@@ -48,7 +49,6 @@
 <translation id="4772190485302020393">Zatvori sve kartice i grupe</translation>
 <translation id="4802185666270672526">Sakrij opciju ’Zahtevaj desktop verziju sajta’</translation>
 <translation id="4828571836982833289">Razgrupisati grupu kartica?</translation>
-<translation id="4838250035189612538">Preimenuj grupu</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 grupa kartica je zatvorena i sačuvana}
             few {{count} grupe kartica su zatvorene i sačuvane}

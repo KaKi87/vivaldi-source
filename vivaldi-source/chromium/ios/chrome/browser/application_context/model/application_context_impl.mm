@@ -14,7 +14,6 @@
 #import "base/files/file_path.h"
 #import "base/functional/bind.h"
 #import "base/functional/callback_helpers.h"
-#import "base/memory/memory_pressure_listener_registry.h"
 #import "base/memory/ptr_util.h"
 #import "base/metrics/histogram_functions.h"
 #import "base/path_service.h"
@@ -24,6 +23,7 @@
 #import "base/task/thread_pool.h"
 #import "base/time/default_clock.h"
 #import "base/time/default_tick_clock.h"
+#import "build/blink_buildflags.h"
 #import "components/activity_reporter/activity_reporter.h"
 #import "components/application_locale_storage/application_locale_storage.h"
 #import "components/breadcrumbs/core/breadcrumbs_status.h"
@@ -35,6 +35,7 @@
 #import "components/gcm_driver/gcm_driver.h"
 #import "components/history/core/browser/history_service.h"
 #import "components/keyed_service/core/service_access_type.h"
+#import "components/metrics/metrics_features.h"
 #import "components/metrics/metrics_service.h"
 #import "components/metrics_services_manager/metrics_services_manager.h"
 #import "components/net_log/net_export_file_writer.h"
@@ -99,6 +100,10 @@
 #import "services/network/public/mojom/network_service.mojom.h"
 #import "ui/base/resource/resource_bundle.h"
 
+#if !BUILDFLAG(USE_BLINK)
+#import "base/memory/memory_pressure_listener_registry.h"
+#endif
+
 #include "prefs/vivaldi_local_state_prefs.h"
 
 ApplicationContextImpl::ApplicationContextImpl(
@@ -107,9 +112,13 @@ ApplicationContextImpl::ApplicationContextImpl(
     const std::string& locale,
     const std::string& country)
     : application_locale_storage_(std::make_unique<ApplicationLocaleStorage>()),
-      local_state_task_runner_(local_state_task_runner),
+      local_state_task_runner_(local_state_task_runner)
+#if !BUILDFLAG(USE_BLINK)
+      ,
       memory_pressure_listener_registry_(
-          std::make_unique<base::MemoryPressureListenerRegistry>()) {
+          std::make_unique<base::MemoryPressureListenerRegistry>())
+#endif
+{
   DCHECK(!GetApplicationContext());
   SetApplicationContext(this);
 
@@ -652,13 +661,15 @@ void ApplicationContextImpl::OnAppEnterState(AppState app_state) {
   if (metrics_services_manager_) {
     if (metrics::MetricsService* metrics_service =
             metrics_services_manager_->GetMetricsService()) {
+      bool enable_background_metrics_work = base::FeatureList::IsEnabled(
+          metrics::features::kIOSBackgroundMetrics);
       switch (app_state) {
         case AppState::kForeground:
           metrics_service->OnAppEnterForeground();
           break;
 
         case AppState::kBackgroundFromActive:
-          metrics_service->OnAppEnterBackground();
+          metrics_service->OnAppEnterBackground(enable_background_metrics_work);
           break;
         case AppState::kBackgroundProcessing:
           // Background processing should be tracked in metrcis, including
@@ -669,7 +680,7 @@ void ApplicationContextImpl::OnAppEnterState(AppState app_state) {
           // When background processing is complete, this state should be
           // treated like normal backgrounding, including specifically the
           // clean exit beacon.
-          metrics_service->OnAppEnterBackground();
+          metrics_service->OnAppEnterBackground(enable_background_metrics_work);
           break;
       }
     }

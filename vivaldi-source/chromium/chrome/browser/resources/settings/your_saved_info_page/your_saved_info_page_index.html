@@ -33,10 +33,19 @@
       data-parent-view-id="parent">
   </settings-travel-page>
 
-  <template is="dom-if" if="[[enableYourSavedInfoShoppingPage_]]">
+  <template is="dom-if" if="[[isShoppingEnabled_]]">
     <settings-shopping-page slot="view" id="shopping" prefs="{{prefs}}"
         data-parent-view-id="parent">
     </settings-shopping-page>
   </template>
+
+  <if expr="_google_chrome"> // Vivaldi keep disabled
+  <template is="dom-if" if="[[showSuggestionsFromGeminiSettings_]]">
+    <settings-suggestions-from-gemini-subpage slot="view"
+        id="suggestionsFromGemini" data-parent-view-id="parent"
+        prefs="{{prefs}}">
+    </settings-suggestions-from-gemini-subpage>
+  </template>
+  </if>
 
 </cr-view-manager>

@@ -41,7 +41,7 @@ const extensions::Extension* DeveloperToolsMenuController::GetExtension()
     return nullptr;
   }
   extensions::ProcessManager* process_manager =
-      extensions::ProcessManager::Get(browser_->profile());
+      extensions::ProcessManager::Get(browser_->GetProfile());
   return process_manager->GetExtensionForWebContents(web_contents_);
 }
 
@@ -86,7 +86,7 @@ bool DeveloperToolsMenuController::HandleCommand(int command_id) {
       case IDC_CONTENT_CONTEXT_RELOAD_PACKAGED_APP:
         if (platform_app && platform_app->is_platform_app()) {
           extensions::ExtensionRegistrar* extension_registrar =
-              extensions::ExtensionRegistrar::Get(browser_->profile());
+              extensions::ExtensionRegistrar::Get(browser_->GetProfile());
           DCHECK(extension_registrar);
           extension_registrar->ReloadExtension(platform_app->id());
         }
@@ -108,7 +108,7 @@ bool DeveloperToolsMenuController::HandleCommand(int command_id) {
       case IDC_CONTENT_CONTEXT_INSPECTBACKGROUNDPAGE:
         if (platform_app && platform_app->is_platform_app()) {
           extensions::devtools_util::InspectBackgroundPage(
-              platform_app, browser_->profile(),
+              platform_app, browser_->GetProfile(),
               DevToolsOpenedByAction::kContextMenuInspect);
         }
         return true;
@@ -116,7 +116,7 @@ bool DeveloperToolsMenuController::HandleCommand(int command_id) {
       case IDC_VIV_INSPECT_SERVICE_WORKER:
         if (platform_app && platform_app->is_platform_app()) {
           extensions::devtools_util::InspectServiceWorkerBackground(
-              platform_app, browser_->profile(),
+              platform_app, browser_->GetProfile(),
               DevToolsOpenedByAction::kContextMenuInspect);
         }
         return true;
@@ -125,10 +125,10 @@ bool DeveloperToolsMenuController::HandleCommand(int command_id) {
         // VivaldiRootDocumentHandler only exist for the origin profile.
         extensions::VivaldiRootDocumentHandler* root_doc_handler =
             extensions::VivaldiRootDocumentHandlerFactory::GetForBrowserContext(
-                browser_->profile()->GetOriginalProfile());
+                browser_->GetProfile()->GetOriginalProfile());
 
         content::WebContents* portal_content =
-            browser_->profile()->IsOffTheRecord()
+            browser_->GetProfile()->IsOffTheRecord()
                 ? root_doc_handler->GetOTRWebContents()
                 : root_doc_handler->GetWebContents();
 

@@ -2,7 +2,7 @@
 #include "chrome/browser/extensions/api/side_panel/side_panel_service.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/browser.h"
-#include "extensions/schema/browser_action_utilities.h"
+#include "extensions/schema/extension_action_utils.h"
 #include "extensions/tools/vivaldi_tools.h"
 
 using namespace extensions;

@@ -30,6 +30,7 @@ import org.chromium.chrome.browser.profiles.ProfileProvider;
 import org.chromium.chrome.browser.tab.SadTab;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabCreationState;
+import org.chromium.chrome.browser.tab.TabDestroyStatus;
 import org.chromium.chrome.browser.tab.TabHidingType;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tab.TabSelectionType;
@@ -49,6 +50,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 // Vivaldi
+import org.chromium.build.BuildConfig;
+import org.vivaldi.browser.preferences.VivaldiPreferences;
 import org.vivaldi.browser.tabmodel.VivaldiTabModelOrderControllerImpl;
 
 /**
@@ -286,8 +289,15 @@ public class TabModelSelectorImpl extends TabModelSelectorBase implements TabMod
 
                     @Override
                     public void onCloseContents(Tab tab) {
+                        // Vivaldi VAB-13041: this path (e.g. closing a tab via the back button)
+                        // must stay undoable so the undo bar shows when the user enabled
+                        // "Show Undo Message on Tab Close".
+                        boolean allowUndo =
+                                BuildConfig.IS_VIVALDI
+                                        && VivaldiPreferences.getSharedPreferencesManager()
+                                                .readBoolean("show_undo_tab_close", false);
                         tryCloseTab(
-                                TabClosureParams.closeTab(tab).allowUndo(false).build(),
+                                TabClosureParams.closeTab(tab).allowUndo(allowUndo).build(),
                                 /* allowDialog= */ false);
                     }
                 };
@@ -307,14 +317,15 @@ public class TabModelSelectorImpl extends TabModelSelectorBase implements TabMod
         List<RecentlyClosedEntry> entries =
                 mRecentlyClosedBridge.getRecentlyClosedEntries(/* maxEntryCount= */ 1);
         if (entries == null || entries.isEmpty()) return TabModel.INVALID_TIMESTAMP;
-        return entries.get(0).getDate().getTime();
+        return entries.get(0).getTimestamp();
     }
 
     @Override
-    public void destroy() {
-        super.destroy();
+    public @TabDestroyStatus int destroy() {
+        @TabDestroyStatus int status = super.destroy();
         if (mRecentlyClosedBridge != null) mRecentlyClosedBridge.destroy();
         if (mTabModelSelectorTabObserver != null) mTabModelSelectorTabObserver.destroy();
+        return status;
     }
 
     /**
@@ -344,7 +355,6 @@ public class TabModelSelectorImpl extends TabModelSelectorBase implements TabMod
                             new Runnable() {
                                 @Override
                                 public void run() {
-                                    notifyChanged();
                                     // The tab model has changed to regular and all the visual
                                     // elements wrt regular mode is in-place. We can now signal
                                     // the re-auth to hide the dialog.
@@ -439,7 +449,6 @@ public class TabModelSelectorImpl extends TabModelSelectorBase implements TabMod
         }
 
         if (tab == null) {
-            notifyChanged();
             return;
         }
 

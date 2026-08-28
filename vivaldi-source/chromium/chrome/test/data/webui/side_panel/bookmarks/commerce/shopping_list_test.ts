@@ -8,10 +8,9 @@ import 'chrome://bookmarks-side-panel.top-chrome/power_bookmarks_list.js';
 import {ActionSource} from 'chrome://bookmarks-side-panel.top-chrome/bookmarks.mojom-webui.js';
 import {BookmarksApiProxyImpl} from 'chrome://bookmarks-side-panel.top-chrome/bookmarks_api_proxy.js';
 import type {ShoppingListElement} from 'chrome://bookmarks-side-panel.top-chrome/commerce/shopping_list.js';
-import {ACTION_BUTTON_TRACK_IMAGE, ACTION_BUTTON_UNTRACK_IMAGE, LOCAL_STORAGE_EXPAND_STATUS_KEY} from 'chrome://bookmarks-side-panel.top-chrome/commerce/shopping_list.js';
-import {PageCallbackRouter} from 'chrome://resources/cr_components/commerce/price_tracking.mojom-webui.js';
+import {ACTION_BUTTON_TRACK_IMAGE, ACTION_BUTTON_TRACK_IMAGE_OLD, ACTION_BUTTON_UNTRACK_IMAGE, ACTION_BUTTON_UNTRACK_IMAGE_OLD, LOCAL_STORAGE_EXPAND_STATUS_KEY} from 'chrome://bookmarks-side-panel.top-chrome/commerce/shopping_list.js';
+import {browserProxyFactory as priceTrackingBrowserProxyFactory, PriceTrackingHandlerRemote} from 'chrome://resources/cr_components/commerce/price_tracking.mojom-webui.js';
 import type {PageRemote} from 'chrome://resources/cr_components/commerce/price_tracking.mojom-webui.js';
-import {PriceTrackingBrowserProxyImpl} from 'chrome://resources/cr_components/commerce/price_tracking_browser_proxy.js';
 import type {BookmarkProductInfo} from 'chrome://resources/cr_components/commerce/shared.mojom-webui.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
@@ -25,7 +24,7 @@ import {TestBookmarksApiProxy} from '../test_bookmarks_api_proxy.js';
 suite('SidePanelShoppingListTest', () => {
   let shoppingList: ShoppingListElement;
   let bookmarksApi: TestBookmarksApiProxy;
-  const priceTrackingProxy = TestMock.fromClass(PriceTrackingBrowserProxyImpl);
+  const priceTrackingHandler = TestMock.fromClass(PriceTrackingHandlerRemote);
   let callbackRouterRemote: PageRemote;
   let metrics: MetricsTracker;
 
@@ -103,8 +102,11 @@ suite('SidePanelShoppingListTest', () => {
     }
     const actionButton = element.querySelector<HTMLElement>('.action-button');
     assertTrue(!!actionButton);
+    const isRounded = loadTimeData.getBoolean('webuiRoundedIconsEnabled');
     assertEquals(
-        ACTION_BUTTON_UNTRACK_IMAGE, actionButton.getAttribute('iron-icon'));
+        isRounded ? ACTION_BUTTON_UNTRACK_IMAGE :
+                    ACTION_BUTTON_UNTRACK_IMAGE_OLD,
+        actionButton.getAttribute('iron-icon'));
     assertEquals(
         actionButton.getAttribute('title'),
         loadTimeData.getString('shoppingListUntrackPriceButtonDescription'));
@@ -112,15 +114,19 @@ suite('SidePanelShoppingListTest', () => {
 
   function checkActionButtonStatus(
       actionButton: HTMLElement, isTracking: boolean): void {
+    const isRounded = loadTimeData.getBoolean('webuiRoundedIconsEnabled');
     if (isTracking) {
       assertEquals(
-          ACTION_BUTTON_UNTRACK_IMAGE, actionButton.getAttribute('iron-icon'));
+          isRounded ? ACTION_BUTTON_UNTRACK_IMAGE :
+                      ACTION_BUTTON_UNTRACK_IMAGE_OLD,
+          actionButton.getAttribute('iron-icon'));
       assertEquals(
           loadTimeData.getString('shoppingListUntrackPriceButtonDescription'),
           actionButton.getAttribute('title'));
     } else {
       assertEquals(
-          ACTION_BUTTON_TRACK_IMAGE, actionButton.getAttribute('iron-icon'));
+          isRounded ? ACTION_BUTTON_TRACK_IMAGE : ACTION_BUTTON_TRACK_IMAGE_OLD,
+          actionButton.getAttribute('iron-icon'));
       assertEquals(
           loadTimeData.getString('shoppingListTrackPriceButtonDescription'),
           actionButton.getAttribute('title'));
@@ -135,11 +141,11 @@ suite('SidePanelShoppingListTest', () => {
     bookmarksApi = new TestBookmarksApiProxy();
     BookmarksApiProxyImpl.setInstance(bookmarksApi);
 
-    priceTrackingProxy.reset();
-    const callbackRouter = new PageCallbackRouter();
-    priceTrackingProxy.setResultFor('getCallbackRouter', callbackRouter);
-    callbackRouterRemote = callbackRouter.$.bindNewPipeAndPassRemote();
-    PriceTrackingBrowserProxyImpl.setInstance(priceTrackingProxy);
+    priceTrackingHandler.reset();
+    const {instance, remote} =
+        priceTrackingBrowserProxyFactory.createForTest(priceTrackingHandler);
+    priceTrackingBrowserProxyFactory.setInstance(instance);
+    callbackRouterRemote = remote;
 
     shoppingList = document.createElement('shopping-list');
     shoppingList.productInfos = products.slice();
@@ -280,7 +286,7 @@ suite('SidePanelShoppingListTest', () => {
             '.action-button');
     assertTrue(!!actionButton);
     actionButton.click();
-    let id = await priceTrackingProxy.whenCalled('untrackPriceForBookmark');
+    let id = await priceTrackingHandler.whenCalled('untrackPriceForBookmark');
     assertEquals(id, products[0]!.bookmarkId);
     checkActionButtonStatus(actionButton, false);
     assertEquals(
@@ -290,7 +296,7 @@ suite('SidePanelShoppingListTest', () => {
         metrics.count('Commerce.PriceTracking.SidePanel.Untrack.BellButton'));
 
     actionButton.click();
-    id = await priceTrackingProxy.whenCalled('trackPriceForBookmark');
+    id = await priceTrackingHandler.whenCalled('trackPriceForBookmark');
     assertEquals(id, products[0]!.bookmarkId);
     checkActionButtonStatus(actionButton, true);
     assertEquals(
@@ -347,7 +353,7 @@ suite('SidePanelShoppingListTest', () => {
             '.action-button');
     assertTrue(!!actionButtonA);
     actionButtonA.click();
-    const id = await priceTrackingProxy.whenCalled('untrackPriceForBookmark');
+    const id = await priceTrackingHandler.whenCalled('untrackPriceForBookmark');
     assertEquals(id, products[0]!.bookmarkId);
     checkActionButtonStatus(actionButtonA, false);
 
@@ -402,7 +408,7 @@ suite('SidePanelShoppingListTest', () => {
         getProductElements(shoppingList)[0]!.querySelector('cr-icon-button');
     assertTrue(!!actionButton);
     actionButton.click();
-    const id = await priceTrackingProxy.whenCalled('untrackPriceForBookmark');
+    const id = await priceTrackingHandler.whenCalled('untrackPriceForBookmark');
     assertEquals(id, products[0]!.bookmarkId);
     checkActionButtonStatus(actionButton, false);
 
@@ -425,7 +431,7 @@ suite('SidePanelShoppingListTest', () => {
 
     assertTrue(shoppingList.$.errorToast.open);
     shoppingList.$.errorToast.querySelector('cr-button')!.click();
-    let id = await priceTrackingProxy.whenCalled('trackPriceForBookmark');
+    let id = await priceTrackingHandler.whenCalled('trackPriceForBookmark');
     assertEquals(id, products[0]!.bookmarkId);
     assertFalse(shoppingList.$.errorToast.open);
 
@@ -434,7 +440,7 @@ suite('SidePanelShoppingListTest', () => {
 
     assertTrue(shoppingList.$.errorToast.open);
     shoppingList.$.errorToast.querySelector('cr-button')!.click();
-    id = await priceTrackingProxy.whenCalled('untrackPriceForBookmark');
+    id = await priceTrackingHandler.whenCalled('untrackPriceForBookmark');
     assertEquals(id, products[1]!.bookmarkId);
     assertFalse(shoppingList.$.errorToast.open);
   });

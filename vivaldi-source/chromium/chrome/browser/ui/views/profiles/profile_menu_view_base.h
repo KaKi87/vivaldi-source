@@ -87,10 +87,13 @@ class ProfileMenuViewBase : public content::WebContentsDelegate,
     kBatchUploadAsPrimaryButton = 29,
     kBatchUploadWindows10DepreciationAsPrimaryButton = 30,
     kPasskeyUnlockButton = 31,
+    kSigninOnPhoneButton = 32,
 
-    kMaxValue = kPasskeyUnlockButton,
+    kMaxValue = kSigninOnPhoneButton,
   };
   // LINT.ThenChange(//tools/metrics/histograms/metadata/profile/enums.xml:ProfileMenuActionableItem)
+
+  enum class AvatarRingType { kNone, kDotted, kGradient };
 
   // Parameters for `SetProfileIdentityWithCallToAction()`
   struct IdentitySectionParams {
@@ -112,10 +115,11 @@ class ProfileMenuViewBase : public content::WebContentsDelegate,
 
     // `profile_image` must not be empty. It does not need to be circular.
     ui::ImageModel profile_image;
-    bool has_dotted_ring = false;
+    AvatarRingType avatar_ring = AvatarRingType::kNone;
     // This padding does not make the avatar larger in the menu.
     // `profile_image` is drawn smaller to leave space around for the padding.
     int profile_image_padding = 0;
+    std::u16string badge_label;
 
     // Must not be empty.
     std::u16string title;
@@ -158,6 +162,14 @@ class ProfileMenuViewBase : public content::WebContentsDelegate,
   ProfileMenuViewBase(const ProfileMenuViewBase&) = delete;
   ProfileMenuViewBase& operator=(const ProfileMenuViewBase&) = delete;
 
+  // Resizes and crops `image_model` to a circular shape.
+  // Note: if the image is backed by a vector icon, it is actually not cropped.
+  // Cropping it would require theme colors which are not necessarily available,
+  // and it is best to avoid cropping icons anyway -- icons naturally fitting in
+  // the circle should be used instead.
+  static ui::ImageModel GetCircularSizedImage(const ui::ImageModel& image_model,
+                                              int size);
+
   // This method is called once to add all menu items.
   virtual void BuildMenu() = 0;
 
@@ -167,12 +179,18 @@ class ProfileMenuViewBase : public content::WebContentsDelegate,
   void AddFeatureButton(const std::u16string& text,
                         base::RepeatingClosure action,
                         const gfx::VectorIcon& icon,
-                        float icon_to_image_ratio = 1.0f);
+                        float icon_to_image_ratio = 1.0f,
+                        bool is_new = false);
   void SetProfileManagementHeading(const std::u16string& heading);
-  void AddAvailableProfile(const ui::ImageModel& image_model,
-                           const std::u16string& name,
-                           bool is_guest,
-                           base::RepeatingClosure action);
+
+  // Does not resize the image.
+  void AddAvailableProfile(
+      const ui::ImageModel& image_model,
+      const std::u16string& name,
+      bool is_guest,
+      base::RepeatingClosure action,
+      const std::u16string& extra_accessible_text = std::u16string());
+
   void AddProfileManagementFeaturesSeparator();
   void AddProfileManagementFeatureButton(const gfx::VectorIcon& icon,
                                          const std::u16string& text,
@@ -227,10 +245,15 @@ class ProfileMenuViewBase : public content::WebContentsDelegate,
 
   void CreateAXWidgetObserver(views::Widget* widget);
 
+  // `badge_view` is a view positioned on the trailing edge of the button (e.g.
+  // a "New" badge or status icon) that sits flush on the far right opposite of
+  // the main title.
   std::unique_ptr<HoverButton> CreateMenuRowButton(
       base::RepeatingClosure action,
       std::unique_ptr<views::View> icon_view,
-      const std::u16string& text);
+      const std::u16string& text,
+      int icon_offset = 0,
+      std::unique_ptr<views::View> badge_view = nullptr);
 
   const raw_ref<Profile> profile_;
 
@@ -271,6 +294,8 @@ class ProfileMenuViewBase : public content::WebContentsDelegate,
   std::u16string profile_mgmt_heading_;
 
   std::unique_ptr<AXMenuWidgetObserver> ax_widget_observer_;
+
+  base::WeakPtrFactory<ProfileMenuViewBase> weak_factory_{this};
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_PROFILES_PROFILE_MENU_VIEW_BASE_H_

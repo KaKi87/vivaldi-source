@@ -11,6 +11,7 @@
 #include "base/command_line.h"
 #include "base/memory/ptr_util.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_init_state.h"
 #include "chrome/browser/ui/window_sizer/window_sizer_common_unittest.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/chrome_ash_test_base.h"
@@ -38,8 +39,8 @@ class WindowSizerChromeOSTest : public ChromeAshTestBase {
   // The window sizing code only works when the window hasn't yet been created.
   std::unique_ptr<Browser> CreateWindowlessBrowser(
       Browser::CreateParams params) {
-    params.skip_window_init_for_testing = true;
-    return Browser::DeprecatedCreateOwnedForTesting(params);
+    return chrome::CreateBrowserWithAuraTestWindowForParams(
+        std::unique_ptr<aura::Window>(), &params);
   }
 
   // Similar to WindowSizerTestUtil::GetWindowBounds() but takes an existing
@@ -47,7 +48,7 @@ class WindowSizerChromeOSTest : public ChromeAshTestBase {
   // TODO(mek): Refactor this to use a builder pattern similar to what
   // WindowSizerTestUtil does.
   enum Source { DEFAULT, LAST_ACTIVE, PERSISTED, BOTH };
-  void GetWindowBounds(const Browser* browser,
+  void GetWindowBounds(Browser* browser,
                        const gfx::Rect& passed_in,
                        int64_t display_id,
                        const gfx::Rect& bounds,
@@ -67,7 +68,7 @@ class WindowSizerChromeOSTest : public ChromeAshTestBase {
     WindowSizer::GetBrowserWindowBoundsAndShowState(
         std::move(state_provider), passed_in, browser, out_bounds, &ignored);
   }
-  void GetWindowBounds(const Browser* browser,
+  void GetWindowBounds(Browser* browser,
                        const gfx::Rect& passed_in,
                        int64_t display_id,
                        gfx::Rect* out_bounds = nullptr) {
@@ -83,7 +84,7 @@ class WindowSizerChromeOSTest : public ChromeAshTestBase {
       ui::mojom::WindowShowState show_state_persisted,
       ui::mojom::WindowShowState show_state_last,
       Source source,
-      const Browser* browser,
+      Browser* browser,
       const gfx::Rect& passed_in,
       gfx::Rect* out_bounds,
       ui::mojom::WindowShowState* out_show_state) {
@@ -106,7 +107,7 @@ class WindowSizerChromeOSTest : public ChromeAshTestBase {
       ui::mojom::WindowShowState show_state_persisted,
       ui::mojom::WindowShowState show_state_last,
       Source source,
-      const Browser* browser,
+      Browser* browser,
       const gfx::Rect& bounds,
       const gfx::Rect& work_area) {
     ui::mojom::WindowShowState out_show_state =
@@ -135,7 +136,7 @@ std::unique_ptr<Browser> CreateTestBrowser(std::unique_ptr<aura::Window> window,
       chrome::CreateBrowserWithAuraTestWindowForParams(std::move(window),
                                                        params);
   if (browser->is_type_normal()) {
-    browser->window()->GetNativeWindow()->SetProperty(
+    browser->GetWindow()->GetNativeWindow()->SetProperty(
         ash::kWindowPositionManagedTypeKey, true);
   }
   return browser;
@@ -400,7 +401,7 @@ TEST_F(WindowSizerChromeOSTest, DISABLED_PlaceNewWindows) {
   std::unique_ptr<Browser> browser2 = (CreateTestBrowser(
       CreateTestWindowInShell({.bounds = {16, 32, 640, 320}, .window_id = 0}),
       &params2));
-  BrowserWindow* browser_window = browser2->window();
+  ui::BaseWindow* browser_window = browser2->GetWindow();
 
   // Creating a popup to make sure it does not interfere with the positioning.
   Browser::CreateParams params_popup(Browser::TYPE_POPUP, &profile_, true);
@@ -534,7 +535,7 @@ TEST_F(WindowSizerChromeOSTest, DISABLED_PlaceNewWindowsOnMultipleDisplays) {
   std::unique_ptr<Browser> browser(CreateTestBrowser(
       CreateTestWindowInShell({.bounds = {10, 10, 200, 200}, .window_id = 0}),
       &params));
-  BrowserWindow* browser_window = browser->window();
+  ui::BaseWindow* browser_window = browser->GetWindow();
   gfx::NativeWindow native_window = browser_window->GetNativeWindow();
   browser_window->Show();
   EXPECT_EQ(native_window->GetRootWindow(),
@@ -544,7 +545,7 @@ TEST_F(WindowSizerChromeOSTest, DISABLED_PlaceNewWindowsOnMultipleDisplays) {
   std::unique_ptr<Browser> another_browser(CreateTestBrowser(
       CreateTestWindowInShell({.bounds = {400, 10, 300, 300}, .window_id = 1}),
       &another_params));
-  BrowserWindow* another_browser_window = another_browser->window();
+  ui::BaseWindow* another_browser_window = another_browser->GetWindow();
   gfx::NativeWindow another_native_window =
       another_browser_window->GetNativeWindow();
   another_browser_window->Show();
@@ -698,19 +699,22 @@ TEST_F(WindowSizerChromeOSTest, DISABLED_TestShowStateDefaults) {
                                 browser.get(), p1600x1200, p1600x1200);
   EXPECT_EQ(window_show_state, ui::mojom::WindowShowState::kDefault);
 
-  browser->set_initial_show_state(ui::mojom::WindowShowState::kMinimized);
+  BrowserInitState::From(browser.get())
+      ->set_initial_show_state(ui::mojom::WindowShowState::kMinimized);
   EXPECT_EQ(
       GetBrowserWindowShowState(ui::mojom::WindowShowState::kMaximized,
                                 ui::mojom::WindowShowState::kMaximized, BOTH,
                                 browser.get(), p1600x1200, p1600x1200),
       ui::mojom::WindowShowState::kMinimized);
-  browser->set_initial_show_state(ui::mojom::WindowShowState::kNormal);
+  BrowserInitState::From(browser.get())
+      ->set_initial_show_state(ui::mojom::WindowShowState::kNormal);
   EXPECT_EQ(
       GetBrowserWindowShowState(ui::mojom::WindowShowState::kMaximized,
                                 ui::mojom::WindowShowState::kMaximized, BOTH,
                                 browser.get(), p1600x1200, p1600x1200),
       ui::mojom::WindowShowState::kNormal);
-  browser->set_initial_show_state(ui::mojom::WindowShowState::kMaximized);
+  BrowserInitState::From(browser.get())
+      ->set_initial_show_state(ui::mojom::WindowShowState::kMaximized);
   EXPECT_EQ(GetBrowserWindowShowState(ui::mojom::WindowShowState::kNormal,
                                       ui::mojom::WindowShowState::kNormal, BOTH,
                                       browser.get(), p1600x1200, p1600x1200),
@@ -721,7 +725,8 @@ TEST_F(WindowSizerChromeOSTest, DISABLED_TestShowStateDefaults) {
   base::CommandLine::ForCurrentProcess()->AppendSwitch(
       switches::kStartMaximized);
 
-  browser->set_initial_show_state(ui::mojom::WindowShowState::kNormal);
+  BrowserInitState::From(browser.get())
+      ->set_initial_show_state(ui::mojom::WindowShowState::kNormal);
   EXPECT_EQ(GetBrowserWindowShowState(ui::mojom::WindowShowState::kNormal,
                                       ui::mojom::WindowShowState::kNormal, BOTH,
                                       browser.get(), p1600x1200, p1600x1200),

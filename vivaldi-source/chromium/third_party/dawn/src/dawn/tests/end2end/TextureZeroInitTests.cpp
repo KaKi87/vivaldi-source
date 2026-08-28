@@ -246,7 +246,8 @@ class TextureZeroInitTest : public DawnTest {
         EXPECT_LAZY_CLEAR(1u, queue.Submit(1, &commands));
 
         // Expect the rendered texture to be cleared
-        std::vector<utils::RGBA8> expectedWithZeros(kSize * kSize, {0, 0, 0, 0});
+        std::vector<utils::RGBA8> expectedWithZeros(static_cast<size_t>(kSize) * kSize,
+                                                    {0, 0, 0, 0});
         EXPECT_TEXTURE_EQ(expectedWithZeros.data(), renderTexture, {0, 0}, {kSize, kSize});
 
         // Expect texture subresource initialized to be true
@@ -323,7 +324,8 @@ TEST_P(TextureZeroInitTest, CopyMultipleTextureArrayLayersToBufferSource) {
     // Expect texture subresource initialized to be true
     EXPECT_TRUE(native::IsTextureSubresourceInitialized(texture.Get(), 0, 1, 0, kArrayLayers));
 
-    const std::vector<utils::RGBA8> kExpectedAllZero(kSize * kSize, {0, 0, 0, 0});
+    const std::vector<utils::RGBA8> kExpectedAllZero(static_cast<size_t>(kSize) * kSize,
+                                                     {0, 0, 0, 0});
     for (uint32_t layer = 0; layer < kArrayLayers; ++layer) {
         EXPECT_TEXTURE_EQ(kExpectedAllZero.data(), texture, {0, 0, layer}, {kSize, kSize});
     }
@@ -364,7 +366,7 @@ TEST_P(TextureZeroInitTest, RenderingMipMapClearsToZero) {
     EXPECT_LAZY_CLEAR(0u, queue.Submit(1, &commands));
 
     uint32_t mipSize = kSize >> 2;
-    std::vector<utils::RGBA8> expected(mipSize * mipSize, {0, 0, 0, 0});
+    std::vector<utils::RGBA8> expected(static_cast<size_t>(mipSize) * mipSize, {0, 0, 0, 0});
 
     EXPECT_TEXTURE_EQ(expected.data(), renderPass.color, {0, 0, baseArrayLayer}, {mipSize, mipSize},
                       baseMipLevel);
@@ -407,7 +409,7 @@ TEST_P(TextureZeroInitTest, RenderingArrayLayerClearsToZero) {
     wgpu::CommandBuffer commands = encoder.Finish();
     EXPECT_LAZY_CLEAR(0u, queue.Submit(1, &commands));
 
-    std::vector<utils::RGBA8> expected(kSize * kSize, {0, 0, 0, 0});
+    std::vector<utils::RGBA8> expected(static_cast<size_t>(kSize) * kSize, {0, 0, 0, 0});
 
     EXPECT_TEXTURE_EQ(expected.data(), renderPass.color, {0, 0, baseArrayLayer}, {kSize, kSize},
                       baseMipLevel);
@@ -428,7 +430,7 @@ TEST_P(TextureZeroInitTest, CopyBufferToTexture) {
                                 kColorFormat);
     wgpu::Texture texture = device.CreateTexture(&descriptor);
 
-    std::vector<uint8_t> data(kFormatBlockByteSize * kSize * kSize, 100);
+    std::vector<uint8_t> data(kFormatBlockByteSize * static_cast<size_t>(kSize) * kSize, 100);
     wgpu::Buffer stagingBuffer = utils::CreateBufferFromData(
         device, data.data(), static_cast<uint32_t>(data.size()), wgpu::BufferUsage::CopySrc);
 
@@ -443,7 +445,7 @@ TEST_P(TextureZeroInitTest, CopyBufferToTexture) {
     wgpu::CommandBuffer commands = encoder.Finish();
     EXPECT_LAZY_CLEAR(0u, queue.Submit(1, &commands));
 
-    std::vector<utils::RGBA8> expected(kSize * kSize, {100, 100, 100, 100});
+    std::vector<utils::RGBA8> expected(static_cast<size_t>(kSize) * kSize, {100, 100, 100, 100});
 
     EXPECT_TEXTURE_EQ(expected.data(), texture, {0, 0}, {kSize, kSize});
 
@@ -466,7 +468,7 @@ TEST_P(TextureZeroInitTest, CopyBufferToTextureHalf) {
                                 kColorFormat);
     wgpu::Texture texture = device.CreateTexture(&descriptor);
 
-    std::vector<uint8_t> data(kFormatBlockByteSize * kSize * kSize, 100);
+    std::vector<uint8_t> data(kFormatBlockByteSize * static_cast<size_t>(kSize) * kSize, 100);
     wgpu::Buffer stagingBuffer = utils::CreateBufferFromData(
         device, data.data(), static_cast<uint32_t>(data.size()), wgpu::BufferUsage::CopySrc);
 
@@ -481,8 +483,9 @@ TEST_P(TextureZeroInitTest, CopyBufferToTextureHalf) {
     wgpu::CommandBuffer commands = encoder.Finish();
     EXPECT_LAZY_CLEAR(1u, queue.Submit(1, &commands));
 
-    std::vector<utils::RGBA8> expected100((kSize / 2) * kSize, {100, 100, 100, 100});
-    std::vector<utils::RGBA8> expectedZeros((kSize / 2) * kSize, {0, 0, 0, 0});
+    std::vector<utils::RGBA8> expected100((static_cast<size_t>(kSize) / 2) * kSize,
+                                          {100, 100, 100, 100});
+    std::vector<utils::RGBA8> expectedZeros((static_cast<size_t>(kSize) / 2) * kSize, {0, 0, 0, 0});
     // first half filled with 100, by the buffer data
     EXPECT_TEXTURE_EQ(expected100.data(), texture, {0, 0}, {kSize / 2, kSize});
     // second half should be cleared
@@ -501,7 +504,8 @@ TEST_P(TextureZeroInitTest, CopyBufferToTextureMultipleArrayLayers) {
 
     constexpr uint32_t kBaseArrayLayer = 2u;
     constexpr uint32_t kCopyLayerCount = 3u;
-    std::vector<uint8_t> data(kFormatBlockByteSize * kSize * kSize * kCopyLayerCount, 100);
+    std::vector<uint8_t> data(
+        kFormatBlockByteSize * static_cast<size_t>(kSize) * kSize * kCopyLayerCount, 100);
     wgpu::Buffer stagingBuffer = utils::CreateBufferFromData(
         device, data.data(), static_cast<uint32_t>(data.size()), wgpu::BufferUsage::CopySrc);
 
@@ -523,7 +527,8 @@ TEST_P(TextureZeroInitTest, CopyBufferToTextureMultipleArrayLayers) {
     EXPECT_TRUE(native::IsTextureSubresourceInitialized(texture.Get(), 0, 1, kBaseArrayLayer,
                                                         kCopyLayerCount));
 
-    const std::vector<utils::RGBA8> expected100(kSize * kSize, {100, 100, 100, 100});
+    const std::vector<utils::RGBA8> expected100(static_cast<size_t>(kSize) * kSize,
+                                                {100, 100, 100, 100});
     for (uint32_t layer = kBaseArrayLayer; layer < kBaseArrayLayer + kCopyLayerCount; ++layer) {
         EXPECT_TEXTURE_EQ(expected100.data(), texture, {0, 0, layer}, {kSize, kSize});
     }
@@ -555,7 +560,7 @@ TEST_P(TextureZeroInitTest, CopyTextureToTexture) {
     wgpu::CommandBuffer commands = encoder.Finish();
     EXPECT_LAZY_CLEAR(1u, queue.Submit(1, &commands));
 
-    std::vector<utils::RGBA8> expected(kSize * kSize, {0, 0, 0, 0});
+    std::vector<utils::RGBA8> expected(static_cast<size_t>(kSize) * kSize, {0, 0, 0, 0});
 
     EXPECT_TEXTURE_EQ(expected.data(), srcTexture, {0, 0}, {kSize, kSize});
     EXPECT_TEXTURE_EQ(expected.data(), dstTexture, {0, 0}, {kSize, kSize});
@@ -577,7 +582,7 @@ TEST_P(TextureZeroInitTest, CopyTextureToTextureHalf) {
 
     // fill srcTexture with 100
     {
-        std::vector<uint8_t> data(kFormatBlockByteSize * kSize * kSize, 100);
+        std::vector<uint8_t> data(kFormatBlockByteSize * static_cast<size_t>(kSize) * kSize, 100);
         wgpu::Buffer stagingBuffer = utils::CreateBufferFromData(
             device, data.data(), static_cast<uint32_t>(data.size()), wgpu::BufferUsage::CopySrc);
         wgpu::TexelCopyBufferInfo texelCopyBufferInfo =
@@ -610,8 +615,10 @@ TEST_P(TextureZeroInitTest, CopyTextureToTextureHalf) {
     wgpu::CommandBuffer commands = encoder.Finish();
     EXPECT_LAZY_CLEAR(1u, queue.Submit(1, &commands));
 
-    std::vector<utils::RGBA8> expectedWithZeros((kSize / 2) * kSize, {0, 0, 0, 0});
-    std::vector<utils::RGBA8> expectedWith100(kSize * kSize, {100, 100, 100, 100});
+    std::vector<utils::RGBA8> expectedWithZeros((static_cast<size_t>(kSize) / 2) * kSize,
+                                                {0, 0, 0, 0});
+    std::vector<utils::RGBA8> expectedWith100(static_cast<size_t>(kSize) * kSize,
+                                              {100, 100, 100, 100});
 
     EXPECT_TEXTURE_EQ(expectedWith100.data(), srcTexture, {0, 0}, {kSize, kSize});
     EXPECT_TEXTURE_EQ(expectedWith100.data(), dstTexture, {0, 0}, {kSize / 2, kSize});
@@ -625,6 +632,9 @@ TEST_P(TextureZeroInitTest, CopyTextureToTextureHalf) {
 // This tests the texture with depth attachment and load op load will init depth stencil texture to
 // 0s.
 TEST_P(TextureZeroInitTest, RenderingLoadingDepth) {
+    // TODO(crbug.com/523272963): Produces incorrect result on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
+
     wgpu::TextureDescriptor srcDescriptor =
         CreateTextureDescriptor(1, 1,
                                 wgpu::TextureUsage::CopySrc | wgpu::TextureUsage::CopyDst |
@@ -657,7 +667,7 @@ TEST_P(TextureZeroInitTest, RenderingLoadingDepth) {
     EXPECT_LAZY_CLEAR(0u, queue.Submit(1, &commandBuffer));
 
     // Expect the texture to be red because depth test passed.
-    std::vector<utils::RGBA8> expected(kSize * kSize, {255, 0, 0, 255});
+    std::vector<utils::RGBA8> expected(static_cast<size_t>(kSize) * kSize, {255, 0, 0, 255});
     EXPECT_TEXTURE_EQ(expected.data(), srcTexture, {0, 0}, {kSize, kSize});
 
     // Expect texture subresource initialized to be true
@@ -667,6 +677,9 @@ TEST_P(TextureZeroInitTest, RenderingLoadingDepth) {
 // This tests the texture with stencil attachment and load op load will init depth stencil texture
 // to 0s.
 TEST_P(TextureZeroInitTest, RenderingLoadingStencil) {
+    // TODO(crbug.com/523272963): Produces incorrect result on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
+
     wgpu::TextureDescriptor srcDescriptor =
         CreateTextureDescriptor(1, 1,
                                 wgpu::TextureUsage::CopySrc | wgpu::TextureUsage::CopyDst |
@@ -699,7 +712,7 @@ TEST_P(TextureZeroInitTest, RenderingLoadingStencil) {
     EXPECT_LAZY_CLEAR(0u, queue.Submit(1, &commandBuffer));
 
     // Expect the texture to be red because stencil test passed.
-    std::vector<utils::RGBA8> expected(kSize * kSize, {255, 0, 0, 255});
+    std::vector<utils::RGBA8> expected(static_cast<size_t>(kSize) * kSize, {255, 0, 0, 255});
     EXPECT_TEXTURE_EQ(expected.data(), srcTexture, {0, 0}, {kSize, kSize});
 
     // Expect texture subresource initialized to be true
@@ -709,6 +722,9 @@ TEST_P(TextureZeroInitTest, RenderingLoadingStencil) {
 // This tests the texture with depth stencil attachment and load op load will init depth stencil
 // texture to 0s.
 TEST_P(TextureZeroInitTest, RenderingLoadingDepthStencil) {
+    // TODO(crbug.com/523272963): Produces incorrect result on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
+
     wgpu::TextureDescriptor srcDescriptor =
         CreateTextureDescriptor(1, 1,
                                 wgpu::TextureUsage::CopySrc | wgpu::TextureUsage::CopyDst |
@@ -738,7 +754,7 @@ TEST_P(TextureZeroInitTest, RenderingLoadingDepthStencil) {
     EXPECT_LAZY_CLEAR(0u, queue.Submit(1, &commandBuffer));
 
     // Expect the texture to be red because both depth and stencil tests passed.
-    std::vector<utils::RGBA8> expected(kSize * kSize, {255, 0, 0, 255});
+    std::vector<utils::RGBA8> expected(static_cast<size_t>(kSize) * kSize, {255, 0, 0, 255});
     EXPECT_TEXTURE_EQ(expected.data(), srcTexture, {0, 0}, {kSize, kSize});
 
     // Expect texture subresource initialized to be true
@@ -812,7 +828,8 @@ TEST_P(TextureZeroInitTest, IndependentDepthStencilLoadAfterDiscard) {
 
             // Expect the texture to be red because the depth and stencil tests passed. Depth was 0
             // and stencil was 2.
-            std::vector<utils::RGBA8> expected(kSize * kSize, {255, 0, 0, 255});
+            std::vector<utils::RGBA8> expected(static_cast<size_t>(kSize) * kSize,
+                                               {255, 0, 0, 255});
             EXPECT_TEXTURE_EQ(expected.data(), colorTexture, {0, 0}, {kSize, kSize});
         }
 
@@ -825,7 +842,7 @@ TEST_P(TextureZeroInitTest, IndependentDepthStencilLoadAfterDiscard) {
                                                                 1, WGPUTextureAspect_StencilOnly));
 
         // Check by copy that the stencil data is 2.
-        std::vector<uint8_t> expected(kSize * kSize, 2);
+        std::vector<uint8_t> expected(static_cast<size_t>(kSize) * kSize, 2);
         EXPECT_LAZY_CLEAR(
             0u, EXPECT_TEXTURE_EQ(expected.data(), depthStencilTexture, {0, 0}, {kSize, kSize}, 0,
                                   wgpu::TextureAspect::StencilOnly));
@@ -883,7 +900,8 @@ TEST_P(TextureZeroInitTest, IndependentDepthStencilLoadAfterDiscard) {
 
             // Expect the texture to be red because both the depth a stencil tests passed.
             // Depth was 0.7 and stencil was 0
-            std::vector<utils::RGBA8> expected(kSize * kSize, {255, 0, 0, 255});
+            std::vector<utils::RGBA8> expected(static_cast<size_t>(kSize) * kSize,
+                                               {255, 0, 0, 255});
             EXPECT_TEXTURE_EQ(expected.data(), colorTexture, {0, 0}, {kSize, kSize});
         }
 
@@ -898,7 +916,7 @@ TEST_P(TextureZeroInitTest, IndependentDepthStencilLoadAfterDiscard) {
         // TODO(chromium:42241686): Fail on the Android devices using Mali GPUs (e.g. Pixel 6).
         if (!(IsAndroid() && IsARM())) {
             // Check by copy that the stencil data is 0.
-            std::vector<uint8_t> expected(kSize * kSize, 0);
+            std::vector<uint8_t> expected(static_cast<size_t>(kSize) * kSize, 0);
             EXPECT_LAZY_CLEAR(
                 0u, EXPECT_TEXTURE_EQ(expected.data(), depthStencilTexture, {0, 0}, {kSize, kSize},
                                       0, wgpu::TextureAspect::StencilOnly));
@@ -909,6 +927,9 @@ TEST_P(TextureZeroInitTest, IndependentDepthStencilLoadAfterDiscard) {
 // Test that a stencil texture that is written via copy, then discarded, sees
 // zero contents when it is read by sampling.
 TEST_P(TextureZeroInitTest, StencilCopyThenDiscardAndReadBySampling) {
+    // TODO(crbug.com/523272963): Produces incorrect result on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
+
     for (wgpu::TextureFormat format :
          {wgpu::TextureFormat::Stencil8, wgpu::TextureFormat::Depth24PlusStencil8}) {
         wgpu::Texture depthStencilTexture = CreateAndFillStencilTexture(format);
@@ -962,7 +983,7 @@ TEST_P(TextureZeroInitTest, StencilCopyThenDiscardAndReadByCopy) {
         }
 
         // Data should now be zero.
-        std::vector<uint8_t> stencilData(kSize * kSize, 0);
+        std::vector<uint8_t> stencilData(static_cast<size_t>(kSize) * kSize, 0);
         EXPECT_TEXTURE_EQ(stencilData.data(), depthStencilTexture, {0, 0}, {kSize, kSize}, 0u,
                           wgpu::TextureAspect::StencilOnly);
     }
@@ -1043,6 +1064,9 @@ TEST_P(TextureZeroInitTest, IndependentDepthStencilCopyAfterDiscard) {
     // TODO(dawn:1549) Fails on Qualcomm-based Android devices.
     DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsQualcomm());
 
+    // TODO(crbug.com/523272963): Produces incorrect result on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
+
     wgpu::TextureDescriptor depthStencilDescriptor = CreateTextureDescriptor(
         1, 1, wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc,
         kDepthStencilFormat);
@@ -1072,7 +1096,7 @@ TEST_P(TextureZeroInitTest, IndependentDepthStencilCopyAfterDiscard) {
 
     // Check by copy that the stencil data is lazily cleared to 0.
     {
-        std::vector<uint8_t> expected(kSize * kSize, 0);
+        std::vector<uint8_t> expected(static_cast<size_t>(kSize) * kSize, 0);
         EXPECT_LAZY_CLEAR(
             1u, EXPECT_TEXTURE_EQ(expected.data(), depthStencilTexture, {0, 0}, {kSize, kSize}, 0,
                                   wgpu::TextureAspect::StencilOnly));
@@ -1112,7 +1136,7 @@ TEST_P(TextureZeroInitTest, IndependentDepthStencilCopyAfterDiscard) {
 
         // Expect the texture to be red because both the depth a stencil tests passed.
         // Depth was 0.3 and stencil was 0
-        std::vector<utils::RGBA8> expected(kSize * kSize, {255, 0, 0, 255});
+        std::vector<utils::RGBA8> expected(static_cast<size_t>(kSize) * kSize, {255, 0, 0, 255});
         EXPECT_TEXTURE_EQ(expected.data(), colorTexture, {0, 0}, {kSize, kSize});
     }
 }
@@ -1132,7 +1156,7 @@ TEST_P(TextureZeroInitTest, ColorAttachmentsClear) {
     wgpu::CommandBuffer commands = encoder.Finish();
     EXPECT_LAZY_CLEAR(0u, queue.Submit(1, &commands));
 
-    std::vector<utils::RGBA8> expected(kSize * kSize, {0, 0, 0, 0});
+    std::vector<utils::RGBA8> expected(static_cast<size_t>(kSize) * kSize, {0, 0, 0, 0});
     EXPECT_TEXTURE_EQ(expected.data(), renderPass.color, {0, 0}, {kSize, kSize});
 
     // Expect texture subresource initialized to be true
@@ -1141,18 +1165,27 @@ TEST_P(TextureZeroInitTest, ColorAttachmentsClear) {
 
 // This tests the clearing of sampled 1D textures in render pass
 TEST_P(TextureZeroInitTest, RenderPassSampled1DTextureClear) {
+    // TODO(crbug.com/523272963): Produces incorrect result on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
+
     DoRenderableSampledTextureClearTest(wgpu::TextureDimension::e1D,
                                         wgpu::TextureUsage::TextureBinding);
 }
 
 // This tests the clearing of sampled 2D textures in render pass
 TEST_P(TextureZeroInitTest, RenderPassSampled2DTextureClear) {
+    // TODO(crbug.com/523272963): Produces incorrect result on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
+
     DoRenderableSampledTextureClearTest(wgpu::TextureDimension::e2D,
                                         wgpu::TextureUsage::TextureBinding);
 }
 
 // This tests the clearing of renderable 2D textures in render pass
 TEST_P(TextureZeroInitTest, RenderPassRenderable2DTextureClear) {
+    // TODO(crbug.com/523272963): Produces incorrect result on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
+
     DoRenderableSampledTextureClearTest(
         wgpu::TextureDimension::e2D,
         wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::RenderAttachment);
@@ -1163,6 +1196,9 @@ TEST_P(TextureZeroInitTest, RenderPassSampled3DTextureClear) {
     // TODO(448982392): Failing in compat mode.
     DAWN_TEST_UNSUPPORTED_IF(IsCompatibilityMode());
 
+    // TODO(crbug.com/523272963): Produces incorrect result on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
+
     DoRenderableSampledTextureClearTest(wgpu::TextureDimension::e3D,
                                         wgpu::TextureUsage::TextureBinding);
 }
@@ -1171,6 +1207,9 @@ TEST_P(TextureZeroInitTest, RenderPassSampled3DTextureClear) {
 TEST_P(TextureZeroInitTest, RenderPassRenderable3DTextureClear) {
     // TODO(448982392): Failing in compat mode.
     DAWN_TEST_UNSUPPORTED_IF(IsCompatibilityMode());
+
+    // TODO(crbug.com/523272963): Produces incorrect result on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
 
     DoRenderableSampledTextureClearTest(
         wgpu::TextureDimension::e3D,
@@ -1211,8 +1250,10 @@ TEST_P(TextureZeroInitTest, RenderPass3DTextureDepthSliceClearTestViaCopy) {
             queue.Submit(1, &commands);
         }
 
-        std::vector<utils::RGBA8> expectedZeros(kSize * kSize, utils::RGBA8::kZero);
-        std::vector<utils::RGBA8> expectedCleared(kSize * kSize, {128, 128, 128, 128});
+        std::vector<utils::RGBA8> expectedZeros(static_cast<size_t>(kSize) * kSize,
+                                                utils::RGBA8::kZero);
+        std::vector<utils::RGBA8> expectedCleared(static_cast<size_t>(kSize) * kSize,
+                                                  {128, 128, 128, 128});
 
         std::vector<const std::vector<utils::RGBA8>*> expectedSlices(kNumSlices, &expectedZeros);
         expectedSlices[slice] = &expectedCleared;
@@ -1229,6 +1270,9 @@ TEST_P(TextureZeroInitTest, RenderPass3DTextureDepthSliceClearTestViaCopy) {
 // This test renders to a single slice of a 3d texture and then reads it back by rendering the 3D
 // texture to a 2D array render target and sampling it in a shader.
 TEST_P(TextureZeroInitTest, RenderPass3DTextureDepthSliceClearTestViaUsage) {
+    // TODO(crbug.com/523272963): Produces incorrect result on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
+
     constexpr uint32_t kNumSlices = 3;
     for (uint32_t slice = 0; slice < kNumSlices; ++slice) {
         wgpu::TextureDescriptor desc;
@@ -1310,12 +1354,12 @@ TEST_P(TextureZeroInitTest, RenderPass3DTextureDepthSliceClearTestViaUsage) {
 
             std::vector<wgpu::TextureView> renderTargets;
             for (uint32_t i = 0; i < kNumSlices; ++i) {
-                wgpu::TextureViewDescriptor viewDesc{
+                wgpu::TextureViewDescriptor rtViewDesc{
                     .dimension = wgpu::TextureViewDimension::e2DArray,
                     .baseArrayLayer = i,
                     .arrayLayerCount = 1,
                 };
-                renderTargets.push_back(renderTarget.CreateView(&viewDesc));
+                renderTargets.push_back(renderTarget.CreateView(&rtViewDesc));
             }
             utils::ComboRenderPassDescriptor renderPassDesc(renderTargets);
             for (uint32_t i = 0; i < kNumSlices; ++i) {
@@ -1334,8 +1378,10 @@ TEST_P(TextureZeroInitTest, RenderPass3DTextureDepthSliceClearTestViaUsage) {
         wgpu::CommandBuffer commands = encoder.Finish();
         queue.Submit(1, &commands);
 
-        std::vector<utils::RGBA8> expectedZeros(kSize * kSize, utils::RGBA8::kZero);
-        std::vector<utils::RGBA8> expectedCleared(kSize * kSize, {128, 128, 128, 128});
+        std::vector<utils::RGBA8> expectedZeros(static_cast<size_t>(kSize) * kSize,
+                                                utils::RGBA8::kZero);
+        std::vector<utils::RGBA8> expectedCleared(static_cast<size_t>(kSize) * kSize,
+                                                  {128, 128, 128, 128});
 
         std::vector<const std::vector<utils::RGBA8>*> expectedSlices(kNumSlices, &expectedZeros);
         expectedSlices[slice] = &expectedCleared;
@@ -1355,6 +1401,9 @@ TEST_P(TextureZeroInitTest, TextureBothSampledAndAttachmentClear) {
     // TODO(crbug.com/346362367): Compatibility mode does not support binding a `2d-array` texture
     // to a WGSL variable of type `texture_2d`.
     DAWN_TEST_UNSUPPORTED_IF(IsCompatibilityMode());
+
+    // TODO(crbug.com/523272963): Produces incorrect result on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
 
     // Create a 2D array texture, layer 0 will be used as attachment, layer 1 as sampled.
     wgpu::TextureDescriptor texDesc;
@@ -1550,7 +1599,7 @@ TEST_P(TextureZeroInitTest, NonRenderableTextureClearWithMultiArrayLayers) {
     wgpu::Texture texture = device.CreateTexture(&descriptor);
 
     // Set buffer with dirty data so we know it is cleared by the lazy cleared texture copy
-    uint32_t bufferSize = kFormatBlockByteSize * kSize * kSize;
+    uint32_t bufferSize = kFormatBlockByteSize * static_cast<size_t>(kSize) * kSize;
     std::vector<uint8_t> data(bufferSize, 100);
     wgpu::Buffer bufferDst = utils::CreateBufferFromData(
         device, data.data(), static_cast<uint32_t>(data.size()), wgpu::BufferUsage::CopySrc);
@@ -1592,7 +1641,7 @@ TEST_P(TextureZeroInitTest, RenderPassStoreOpClear) {
     wgpu::Texture renderTexture = device.CreateTexture(&renderTextureDescriptor);
 
     // Fill the sample texture with data
-    std::vector<uint8_t> data(kFormatBlockByteSize * kSize * kSize, 1);
+    std::vector<uint8_t> data(kFormatBlockByteSize * static_cast<size_t>(kSize) * kSize, 1);
     wgpu::Buffer stagingBuffer = utils::CreateBufferFromData(
         device, data.data(), static_cast<uint32_t>(data.size()), wgpu::BufferUsage::CopySrc);
     wgpu::TexelCopyBufferInfo texelCopyBufferInfo =
@@ -1634,7 +1683,7 @@ TEST_P(TextureZeroInitTest, RenderPassStoreOpClear) {
     EXPECT_LAZY_CLEAR(0u, queue.Submit(1, &commands));
 
     // Expect the rendered texture to be cleared
-    std::vector<utils::RGBA8> expectedWithZeros(kSize * kSize, {0, 0, 0, 0});
+    std::vector<utils::RGBA8> expectedWithZeros(static_cast<size_t>(kSize) * kSize, {0, 0, 0, 0});
     EXPECT_LAZY_CLEAR(
         1u, EXPECT_TEXTURE_EQ(expectedWithZeros.data(), renderTexture, {0, 0}, {kSize, kSize}));
 
@@ -1651,6 +1700,9 @@ TEST_P(TextureZeroInitTest, RenderPassStoreOpClear) {
 //      Because LoadOp is Load and the subresource is uninitialized, the texture will be cleared to
 //      0's This means the depth and stencil test will pass and the red square is drawn.
 TEST_P(TextureZeroInitTest, RenderingLoadingDepthStencilStoreOpClear) {
+    // TODO(crbug.com/523272963): Produces incorrect result on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
+
     wgpu::TextureDescriptor srcDescriptor =
         CreateTextureDescriptor(1, 1,
                                 wgpu::TextureUsage::CopySrc | wgpu::TextureUsage::CopyDst |
@@ -1688,7 +1740,7 @@ TEST_P(TextureZeroInitTest, RenderingLoadingDepthStencilStoreOpClear) {
 
         // The depth stencil test should fail and not draw because the depth stencil texture is
         // cleared to 1's by using loadOp clear and set values from descriptor.
-        std::vector<utils::RGBA8> expectedBlack(kSize * kSize, {0, 0, 0, 0});
+        std::vector<utils::RGBA8> expectedBlack(static_cast<size_t>(kSize) * kSize, {0, 0, 0, 0});
         EXPECT_TEXTURE_EQ(expectedBlack.data(), srcTexture, {0, 0}, {kSize, kSize});
 
         // Expect texture subresource initialized to be false since storeop is clear, sets
@@ -1713,7 +1765,7 @@ TEST_P(TextureZeroInitTest, RenderingLoadingDepthStencilStoreOpClear) {
 
         // Now the depth stencil test should pass since depth stencil texture is cleared to 0's by
         // loadop load and uninitialized subresource, so we should have a red square
-        std::vector<utils::RGBA8> expectedRed(kSize * kSize, {255, 0, 0, 255});
+        std::vector<utils::RGBA8> expectedRed(static_cast<size_t>(kSize) * kSize, {255, 0, 0, 255});
         EXPECT_TEXTURE_EQ(expectedRed.data(), srcTexture, {0, 0}, {kSize, kSize});
 
         // Expect texture subresource initialized to be false since storeop is clear, sets
@@ -1743,7 +1795,7 @@ TEST_P(TextureZeroInitTest, PreservesInitializedMip) {
 
     // Fill the sample texture's second mip with data
     uint32_t mipSize = kSize >> 1;
-    std::vector<uint8_t> data(kFormatBlockByteSize * mipSize * mipSize, 2);
+    std::vector<uint8_t> data(kFormatBlockByteSize * static_cast<size_t>(mipSize) * mipSize, 2);
     wgpu::Buffer stagingBuffer = utils::CreateBufferFromData(
         device, data.data(), static_cast<uint32_t>(data.size()), wgpu::BufferUsage::CopySrc);
     wgpu::TexelCopyBufferInfo texelCopyBufferInfo =
@@ -1786,7 +1838,7 @@ TEST_P(TextureZeroInitTest, PreservesInitializedMip) {
 
     // Expect the rendered texture to be cleared since we copied from the uninitialized first
     // mip.
-    std::vector<utils::RGBA8> expectedWithZeros(kSize * kSize, {0, 0, 0, 0});
+    std::vector<utils::RGBA8> expectedWithZeros(static_cast<size_t>(kSize) * kSize, {0, 0, 0, 0});
     EXPECT_LAZY_CLEAR(
         1u, EXPECT_TEXTURE_EQ(expectedWithZeros.data(), renderTexture, {0, 0}, {kSize, kSize}, 0));
 
@@ -1795,7 +1847,8 @@ TEST_P(TextureZeroInitTest, PreservesInitializedMip) {
         0u, EXPECT_TEXTURE_EQ(expectedWithZeros.data(), sampleTexture, {0, 0}, {kSize, kSize}, 0));
 
     // Expect the second mip to still be filled with 2.
-    std::vector<utils::RGBA8> expectedWithTwos(mipSize * mipSize, {2, 2, 2, 2});
+    std::vector<utils::RGBA8> expectedWithTwos(static_cast<size_t>(mipSize) * mipSize,
+                                               {2, 2, 2, 2});
     EXPECT_LAZY_CLEAR(0u, EXPECT_TEXTURE_EQ(expectedWithTwos.data(), sampleTexture, {0, 0},
                                             {mipSize, mipSize}, 1));
 
@@ -1827,7 +1880,7 @@ TEST_P(TextureZeroInitTest, PreservesInitializedArrayLayer) {
     wgpu::Texture renderTexture = device.CreateTexture(&renderTextureDescriptor);
 
     // Fill the sample texture's second array layer with data
-    std::vector<uint8_t> data(kFormatBlockByteSize * kSize * kSize, 2);
+    std::vector<uint8_t> data(kFormatBlockByteSize * static_cast<size_t>(kSize) * kSize, 2);
     wgpu::Buffer stagingBuffer = utils::CreateBufferFromData(
         device, data.data(), static_cast<uint32_t>(data.size()), wgpu::BufferUsage::CopySrc);
     wgpu::TexelCopyBufferInfo texelCopyBufferInfo =
@@ -1876,7 +1929,7 @@ TEST_P(TextureZeroInitTest, PreservesInitializedArrayLayer) {
 
     // Expect the rendered texture to be cleared since we copied from the uninitialized first
     // array layer.
-    std::vector<utils::RGBA8> expectedWithZeros(kSize * kSize, {0, 0, 0, 0});
+    std::vector<utils::RGBA8> expectedWithZeros(static_cast<size_t>(kSize) * kSize, {0, 0, 0, 0});
     EXPECT_LAZY_CLEAR(
         1u, EXPECT_TEXTURE_EQ(expectedWithZeros.data(), renderTexture, {0, 0, 0}, {kSize, kSize}));
 
@@ -1885,7 +1938,7 @@ TEST_P(TextureZeroInitTest, PreservesInitializedArrayLayer) {
         0u, EXPECT_TEXTURE_EQ(expectedWithZeros.data(), sampleTexture, {0, 0, 0}, {kSize, kSize}));
 
     // Expect the second array layer to still be filled with 2.
-    std::vector<utils::RGBA8> expectedWithTwos(kSize * kSize, {2, 2, 2, 2});
+    std::vector<utils::RGBA8> expectedWithTwos(static_cast<size_t>(kSize) * kSize, {2, 2, 2, 2});
     EXPECT_LAZY_CLEAR(
         0u, EXPECT_TEXTURE_EQ(expectedWithTwos.data(), sampleTexture, {0, 0, 1}, {kSize, kSize}));
 
@@ -1912,7 +1965,7 @@ TEST_P(TextureZeroInitTest, CopyTextureToBufferNonRenderableUnaligned) {
 
         // Create and initialize the destination buffer to ensure we only count the times of
         // texture lazy initialization in this test.
-        const uint64_t bufferSize = kUnalignedSize * bytesPerRow;
+        const uint64_t bufferSize = static_cast<uint64_t>(kUnalignedSize) * bytesPerRow;
         const std::vector<uint8_t> initialBufferData(bufferSize, 0u);
         wgpu::Buffer buffer = utils::CreateBufferFromData(device, initialBufferData.data(),
                                                           bufferSize, wgpu::BufferUsage::CopyDst);
@@ -1998,7 +2051,7 @@ TEST_P(TextureZeroInitTest, WriteTextureHalf) {
     // Expect texture initialized to be true
     EXPECT_EQ(true, native::IsTextureSubresourceInitialized(texture.Get(), 0, 1, 0, 1));
 
-    std::vector<utils::RGBA8> expectedZeros((kSize / 2) * kSize, {0, 0, 0, 0});
+    std::vector<utils::RGBA8> expectedZeros((static_cast<size_t>(kSize) / 2) * kSize, {0, 0, 0, 0});
     // first half filled with 100, by the data
     EXPECT_TEXTURE_EQ(data.data(), texture, {0, 0}, {kSize / 2, kSize});
     // second half should be cleared
@@ -2081,7 +2134,7 @@ TEST_P(TextureZeroInitTest, WriteTextureArrayHalf) {
     EXPECT_EQ(true, native::IsTextureSubresourceInitialized(texture.Get(), 0, 1, kBaseArrayLayer,
                                                             kCopyLayerCount));
 
-    std::vector<utils::RGBA8> expectedZeros((kSize / 2) * kSize, {0, 0, 0, 0});
+    std::vector<utils::RGBA8> expectedZeros((static_cast<size_t>(kSize) / 2) * kSize, {0, 0, 0, 0});
     for (uint32_t layer = kBaseArrayLayer; layer < kBaseArrayLayer + kCopyLayerCount; ++layer) {
         // first half filled with 100, by the data
         EXPECT_TEXTURE_EQ(data.data(), texture, {0, 0, layer}, {kSize / 2, kSize});
@@ -2160,7 +2213,8 @@ TEST_P(TextureZeroInitTest, WriteTextureHalfAtMipLevel) {
     // Expect texture initialized to be true
     EXPECT_EQ(true, native::IsTextureSubresourceInitialized(texture.Get(), kMipLevel, 1, 0, 1));
 
-    std::vector<utils::RGBA8> expectedZeros((kMipSize / 2) * kMipSize, {0, 0, 0, 0});
+    std::vector<utils::RGBA8> expectedZeros((static_cast<size_t>(kMipSize) / 2) * kMipSize,
+                                            {0, 0, 0, 0});
     // first half filled with 100, by the data
     EXPECT_TEXTURE_EQ(data.data(), texture, {0, 0}, {kMipSize / 2, kMipSize}, kMipLevel);
     // second half should be cleared
@@ -2268,7 +2322,7 @@ TEST_P(TextureZeroInitRenderAreaTest, SubRectClearInitializesFullSubresource) {
 
     {
         // Full subresource must be cleared
-        std::vector<utils::RGBA8> expected(kTexSize * kTexSize, {0, 0, 0, 0});
+        std::vector<utils::RGBA8> expected(static_cast<size_t>(kTexSize) * kTexSize, {0, 0, 0, 0});
         EXPECT_TEXTURE_EQ(expected.data(), texture, {0, 0}, {kTexSize, kTexSize}, 0);
     }
 }
@@ -2311,7 +2365,7 @@ TEST_P(TextureZeroInitRenderAreaTest, SubRectLoadInitializesFullSubresource) {
 
     {
         // Full subresource must be cleared
-        std::vector<utils::RGBA8> expected(kTexSize * kTexSize, {0, 0, 0, 0});
+        std::vector<utils::RGBA8> expected(static_cast<size_t>(kTexSize) * kTexSize, {0, 0, 0, 0});
         EXPECT_TEXTURE_EQ(expected.data(), texture, {0, 0}, {kTexSize, kTexSize}, 0);
     }
 }
@@ -2358,7 +2412,7 @@ TEST_P(TextureZeroInitRenderAreaTest, SubRectDepthStencilInitializesFullSubresou
 
     {
         // Full subresource must be cleared
-        std::vector<uint8_t> expected(kTexSize * kTexSize, 0);
+        std::vector<uint8_t> expected(static_cast<size_t>(kTexSize) * kTexSize, 0);
         EXPECT_TEXTURE_EQ(expected.data(), depthStencilTexture, {0, 0}, {kSize, kSize}, 0,
                           wgpu::TextureAspect::StencilOnly);
     }
@@ -2406,7 +2460,7 @@ TEST_P(TextureZeroInitRenderAreaTest, SubRectResolveInitializesFullSubresource) 
 
     {
         // Full subresource must be cleared
-        std::vector<utils::RGBA8> expected(kTexSize * kTexSize, {0, 0, 0, 0});
+        std::vector<utils::RGBA8> expected(static_cast<size_t>(kTexSize) * kTexSize, {0, 0, 0, 0});
         EXPECT_TEXTURE_EQ(expected.data(), resolveTex, {0, 0}, {kTexSize, kTexSize}, 0);
     }
 }
@@ -2530,8 +2584,9 @@ class CompressedTextureZeroInitTest : public TextureZeroInitTest {
         wgpu::CommandBuffer commands = encoder.Finish();
         queue.Submit(1, &commands);
 
-        std::vector<utils::RGBA8> expected(nonPaddedCopyExtent.width * nonPaddedCopyExtent.height,
-                                           {0x00, 0x20, 0x08, 0xFF});
+        std::vector<utils::RGBA8> expected(
+            static_cast<size_t>(nonPaddedCopyExtent.width) * nonPaddedCopyExtent.height,
+            {0x00, 0x20, 0x08, 0xFF});
         EXPECT_TEXTURE_EQ(expected.data(), renderPass.color, {0, 0},
                           {nonPaddedCopyExtent.width, nonPaddedCopyExtent.height});
         EXPECT_TRUE(native::IsTextureSubresourceInitialized(bcTexture.Get(), viewMipmapLevel, 1,
@@ -2540,7 +2595,8 @@ class CompressedTextureZeroInitTest : public TextureZeroInitTest {
         // If we only copied to half the texture, check the other half is initialized to black
         if (halfCopyTest) {
             std::vector<utils::RGBA8> expectBlack(
-                nonPaddedCopyExtent.width * nonPaddedCopyExtent.height, {0x00, 0x00, 0x00, 0xFF});
+                static_cast<size_t>(nonPaddedCopyExtent.width) * nonPaddedCopyExtent.height,
+                {0x00, 0x00, 0x00, 0xFF});
             EXPECT_TEXTURE_EQ(expectBlack.data(), renderPass.color, {copyExtent3D.width, 0},
                               {nonPaddedCopyExtent.width, nonPaddedCopyExtent.height});
         }
@@ -2838,10 +2894,11 @@ TEST_P(CompressedTextureZeroInitTest, Copy2DArrayCompressedB2T2B) {
     std::vector<uint8_t> expected(data.size(), 0);
     for (uint32_t z = 0; z < copyExtent3D.depthOrArrayLayers; ++z) {
         for (uint32_t y = 0; y < copyHeightInBlock; ++y) {
-            DAWN_UNSAFE_TODO(memcpy(
-                &expected[copyBytesPerRow * y + copyBytesPerRow * copyRowsPerImage * z],
-                &data[copyBytesPerRow * y + copyBytesPerRow * copyRowsPerImage * z],
-                copyWidthInBlock * utils::GetTexelBlockSizeInBytes(textureDescriptor.format)));
+            DAWN_UNSAFE_TODO(
+                memcpy(&expected[copyBytesPerRow * y + copyBytesPerRow * copyRowsPerImage * z],
+                       &data[copyBytesPerRow * y + copyBytesPerRow * copyRowsPerImage * z],
+                       static_cast<size_t>(copyWidthInBlock) *
+                           utils::GetTexelBlockSizeInBytes(textureDescriptor.format)));
         }
     }
     // Check final contents

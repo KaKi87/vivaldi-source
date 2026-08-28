@@ -65,8 +65,11 @@
 #include "content/public/browser/disallow_activation_reason.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
+#include "content/public/browser/security_principal.h"
+#include "content/public/browser/site_instance.h"
 #include "content/public/browser/web_contents.h"
 #include "extensions/buildflags/buildflags.h"
+#include "storage/browser/file_system/external_mount_points.h"
 #include "third_party/blink/public/common/features_generated.h"
 #include "third_party/blink/public/mojom/file_system_access/file_system_access_manager.mojom.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -76,6 +79,7 @@
 
 #if BUILDFLAG(IS_ANDROID)
 #include "base/android/apk_info.h"
+#include "base/android/content_uri_utils.h"
 #include "base/strings/string_util.h"
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
 #include "chrome/browser/ui/android/tab_model/tab_model_list.h"
@@ -96,6 +100,11 @@
 #include "extensions/common/extension.h"
 #endif  // BUILDFLAG(ENABLE_PLATFORM_APPS)
 #endif  // BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_CHROMEOS)
+#include "chrome/browser/ash/file_manager/fileapi_util.h"
+#include "chrome/browser/ash/fusebox/fusebox_server.h"
+#include "content/public/browser/storage_partition.h"
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(SAFE_BROWSING_DOWNLOAD_PROTECTION)
 #include "chrome/browser/safe_browsing/download_protection/download_protection_service.h"
@@ -114,6 +123,41 @@
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE) && BUILDFLAG(ENABLE_GUEST_VIEW)
 
 namespace {
+
+#if BUILDFLAG(IS_CHROMEOS)
+base::FilePath GetExternalPath(Profile* profile,
+                               storage::FileSystemContext* file_system_context,
+                               storage::ExternalMountPoints* mount_points,
+                               const base::FilePath& virtual_path) {
+  std::string ignored_mount_name;
+  storage::FileSystemMountOption ignored_mount_option;
+  base::FilePath physical_path;
+  if (!mount_points || !mount_points->CrackVirtualPath(
+                           virtual_path, &ignored_mount_name, nullptr, nullptr,
+                           &physical_path, &ignored_mount_option)) {
+    return base::FilePath();
+  }
+
+  base::FilePath resolved_path = physical_path;
+  if (file_system_context && profile) {
+    GURL external_gurl;
+    if (file_manager::util::ConvertAbsoluteFilePathToFileSystemUrl(
+            profile, physical_path, file_manager::util::GetFileManagerURL(),
+            &external_gurl)) {
+      storage::FileSystemURL external_cracked_url =
+          file_system_context->CrackURLInFirstPartyContext(external_gurl);
+      if (external_cracked_url.is_valid()) {
+        base::FilePath fusebox_path =
+            fusebox::Server::SubstituteFuseboxFilePath(external_cracked_url);
+        if (!fusebox_path.empty()) {
+          resolved_path = std::move(fusebox_path);
+        }
+      }
+    }
+  }
+  return resolved_path;
+}
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 using FileRequestData =
     FileSystemAccessPermissionRequestManager::FileRequestData;
@@ -435,11 +479,13 @@ GenerateBlockPaths(bool should_normalize_file_path) {
       // a website can do with access to that directory and its contents.
       BlockPath::CreateRelative(base::DIR_HOME, FILE_PATH_LITERAL(".dbus"),
                                 BlockType::kBlockAllChildren),
+      // And block all of ~/.cache, matching the similar restrictions on mac
+      // and windows.
+      BlockPath::CreateRelative(base::DIR_CACHE, BlockType::kBlockAllChildren),
 #endif
 #if BUILDFLAG(IS_ANDROID)
       BlockPath::CreateRelative(base::DIR_ANDROID_APP_DATA,
                                 BlockType::kBlockAllChildren),
-      BlockPath::CreateRelative(base::DIR_CACHE, BlockType::kBlockAllChildren),
 #endif
       // TODO(crbug.com/40095723): Refine this list, for example add
       // XDG_CONFIG_HOME when it is not set ~/.config?
@@ -636,6 +682,31 @@ bool ShouldBlockAccessToPath(
   return true;
 }
 
+// Returns true if `child_path` is the same as or a descendant of
+// `parent_path`, ignoring case differences. Unlike
+// `base::FilePath::IsParent()`, this handles case-variant paths returned by
+// native pickers on case-insensitive filesystems.
+bool IsPathOrDescendantIgnoreCase(
+    const base::FilePath& parent_path,
+    const std::vector<base::FilePath::StringType>& parent_components,
+    const base::FilePath& child_path) {
+  // Fast path: Exact match or case-sensitive parent match.
+  if (child_path == parent_path || parent_path.IsParent(child_path)) {
+    return true;
+  }
+
+  const std::vector<base::FilePath::StringType> child_components =
+      child_path.GetComponents();
+  if (parent_components.empty() ||
+      parent_components.size() > child_components.size()) {
+    return false;
+  }
+
+  return std::equal(parent_components.begin(), parent_components.end(),
+                    child_components.begin(),
+                    base::FilePath::CompareEqualIgnoreCase);
+}
+
 #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
 void DoSafeBrowsingCheckOnUIThread(
     content::GlobalRenderFrameHostId frame_id,
@@ -738,11 +809,12 @@ std::string_view GetGrantKeyFromGrantType(GrantType type) {
 
 #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
 safe_browsing::DownloadFileType::DangerLevel GetFileTypeDangerLevel(
-    const base::FilePath& path,
-    const url::Origin& origin,
-    Profile* profile) {
+    const base::FilePath& path) {
+  // Passing an empty source URL and null prefs ensures the result reflects
+  // only the configured danger level for the file type, without applying any
+  // download-specific overrides.
   return safe_browsing::FileTypePolicies::GetInstance()->GetFileDangerLevel(
-      path, origin.GetURL(), profile->GetPrefs());
+      path, GURL(), /*prefs=*/nullptr);
 }
 #endif
 
@@ -1149,9 +1221,6 @@ class ChromeFileSystemAccessPermissionContext::PermissionGrantImpl
       // to support directory moves.
       return;
     }
-
-    DCHECK_EQ(old_path_it->second->GetActivePermissionStatus(),
-              PermissionStatus::GRANTED);
 
     auto* const grant_to_move = old_path_it->second.get();
 
@@ -2035,11 +2104,9 @@ bool ChromeFileSystemAccessPermissionContext::CanObtainWritePermission(
 }
 
 bool ChromeFileSystemAccessPermissionContext::IsFileTypeDangerous(
-    const base::FilePath& path,
-    const url::Origin& origin) {
+    const base::FilePath& path) {
 #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
-  return GetFileTypeDangerLevel(path, origin,
-                                Profile::FromBrowserContext(profile_)) ==
+  return GetFileTypeDangerLevel(path) ==
          safe_browsing::DownloadFileType::DANGEROUS;
 #else
   return false;
@@ -2071,9 +2138,9 @@ void ChromeFileSystemAccessPermissionContext::CheckPathsAgainstEnterprisePolicy(
     EntriesAllowedByEnterprisePolicyCallback callback) {
 #if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
   // Get WebContents pointer in order to perform enterprise content analysis.
+  content::RenderFrameHost* rfh = content::RenderFrameHost::FromID(frame_id);
   content::WebContents* web_contents = nullptr;
   if (!entries.empty()) {
-    content::RenderFrameHost* rfh = content::RenderFrameHost::FromID(frame_id);
     if (rfh && rfh->IsActive()) {
       web_contents = content::WebContents::FromRenderFrameHost(rfh);
     }
@@ -2084,10 +2151,10 @@ void ChromeFileSystemAccessPermissionContext::CheckPathsAgainstEnterprisePolicy(
     return;
   }
 
+  Profile* browser_profile = Profile::FromBrowserContext(profile());
   enterprise_connectors::ContentAnalysisDelegate::Data data;
   if (!enterprise_connectors::ContentAnalysisDelegate::IsEnabled(
-          Profile::FromBrowserContext(profile()),
-          web_contents->GetLastCommittedURL(), &data,
+          browser_profile, web_contents->GetLastCommittedURL(), &data,
           enterprise_connectors::AnalysisConnector::FILE_ATTACHED)) {
     std::move(callback).Run(std::move(entries));
     return;
@@ -2096,16 +2163,42 @@ void ChromeFileSystemAccessPermissionContext::CheckPathsAgainstEnterprisePolicy(
   data.reason =
       enterprise_connectors::ContentAnalysisRequest::FILE_PICKER_DIALOG;
 
-  // Move the paths from `entries` to `data.paths` to minimize memory copies.
-  // Later the paths will be recombined with the type left in `entries` for
-  // those files that pass enterprise policy checks.
-  data.paths = base::ToVector(
-      entries, [](auto& entry) { return std::move(entry.path); });
+#if BUILDFLAG(IS_CHROMEOS)
+  storage::FileSystemContext* file_system_context = nullptr;
+  if (rfh) {
+    content::SiteInstance* site_instance = rfh->GetSiteInstance();
+    if (site_instance && browser_profile) {
+      file_system_context = browser_profile->GetStoragePartition(site_instance)
+                                ->GetFileSystemContext();
+    }
+  }
+  storage::ExternalMountPoints* mount_points =
+      storage::ExternalMountPoints::GetSystemInstance();
+#endif
 
-  // TODO: crbug.com/326618625 - Handle kExternal files correctly.
-  // CreateForFilesInWebContents() only handles real OS files, so these entries
-  // are ignored and passed directly to OnContentAnalysisComplete() unchanged.
-  // kExternal files only exist in ChromeOS.
+  // Resolve virtual paths for kExternal files to their physical paths
+  // so they can be scanned, but keep the original entries (with virtual paths)
+  // to return to the caller.
+  data.paths.reserve(entries.size());
+  for (const auto& entry : entries) {
+    base::FilePath path_to_scan = entry.path;
+#if BUILDFLAG(IS_CHROMEOS)
+    if (entry.type == content::PathType::kExternal) {
+      base::FilePath resolved_path = GetExternalPath(
+          browser_profile, file_system_context, mount_points, entry.path);
+      if (!resolved_path.empty()) {
+        path_to_scan = std::move(resolved_path);
+      }
+    }
+#endif  // BUILDFLAG(IS_CHROMEOS)
+    data.paths.push_back(std::move(path_to_scan));
+  }
+
+  // CreateForFilesInWebContents() only handles real OS files. Any kExternal
+  // entries that failed to resolve will be ignored by the scanner and
+  // reconciled based on the policy's default action (fail-open or fail-closed).
+  // TODO(crbug.com/535207208): Add a test to validate that unscannedFileEvent
+  // is reported for these unresolved files.
   enterprise_connectors::ContentAnalysisDelegate::CreateForFilesInWebContents(
       web_contents, std::move(data),
       base::BindOnce(
@@ -2119,6 +2212,7 @@ void ChromeFileSystemAccessPermissionContext::CheckPathsAgainstEnterprisePolicy(
 
 #if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
 
+// TODO(crbug.com/534804380): Remove the unused `paths` parameter.
 void ChromeFileSystemAccessPermissionContext::OnContentAnalysisComplete(
     std::vector<content::PathInfo> entries,
     EntriesAllowedByEnterprisePolicyCallback callback,
@@ -2130,7 +2224,7 @@ void ChromeFileSystemAccessPermissionContext::OnContentAnalysisComplete(
   std::vector<content::PathInfo> result_entries;
   for (size_t i = 0; i < paths.size(); ++i) {
     if (allowed[i]) {
-      result_entries.emplace_back(entries[i].type, std::move(paths[i]),
+      result_entries.emplace_back(entries[i].type, std::move(entries[i].path),
                                   std::move(entries[i].display_name));
     }
   }
@@ -2172,13 +2266,7 @@ void ChromeFileSystemAccessPermissionContext::CheckPathAgainstBlocklist(
   // The only check for content-URIs is that they are not from an internal
   // FileProvider.
   if (path_info.path.IsContentUri()) {
-    std::string decoded_path = base::UnescapeBinaryURLComponent(
-        path_info.path.value(), base::UnescapeRule::NORMAL);
-    std::move(callback).Run(base::StartsWith(
-        decoded_path,
-        base::StrCat(
-            {"content://", base::android::apk_info::package_name(), "."}),
-        base::CompareCase::INSENSITIVE_ASCII));
+    std::move(callback).Run(base::IsContentUriFromThisApp(path_info.path));
     return;
   }
 #endif  // BUILDFLAG(IS_ANDROID)
@@ -2281,6 +2369,16 @@ ChromeFileSystemAccessPermissionContext::CanShowFilePicker(
   }
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE) && BUILDFLAG(ENABLE_GUEST_VIEW)
 
+  // Because permission is scoped to the profile, guest contexts (like
+  // <controlledframe> and SlimWebView), despite having isolated
+  // StoragePartitions, would share File System Access permissions with the rest
+  // of the profile. Therefore, we disable File System Access for guest
+  // contexts. Note that on desktop, <webview> is explicitly allowed to use FSA
+  // in the block above to avoid breaking existing usage.
+  if (rfh->GetSiteInstance()->GetSecurityPrincipal().IsGuest()) {
+    return base::unexpected(kDefaultNotAllowedMessage);
+  }
+
   // Disable any other non-default StoragePartition contexts. However, unique
   // schemes (e.g. isolated-app://) are exempt here.
   if (rfh->GetStoragePartition() !=
@@ -2331,8 +2429,7 @@ void ChromeFileSystemAccessPermissionContext::DidCheckPathAgainstBlocklist(
     // See https://crbug.com/40059513#comment5 for justification for why we show
     // the prompt if `danger_level` is ALLOW_ON_USER_GESTURE as well as
     // DANGEROUS.
-    auto danger_level = GetFileTypeDangerLevel(
-        path_info.path, origin, Profile::FromBrowserContext(profile_));
+    auto danger_level = GetFileTypeDangerLevel(path_info.path);
     if (danger_level == safe_browsing::DownloadFileType::DANGEROUS ||
         danger_level ==
             safe_browsing::DownloadFileType::ALLOW_ON_USER_GESTURE) {
@@ -2554,6 +2651,7 @@ void ChromeFileSystemAccessPermissionContext::NotifyEntryMoved(
       features::kFileSystemAccessMoveWithOverwrite);
 
   bool updated = false;
+  bool old_path_was_downgraded = false;
   auto it = active_permissions_map_.find(origin);
   if (it != active_permissions_map_.end()) {
     // TODO(crbug.com/40245144): Consolidate superfluous child grants.
@@ -2561,6 +2659,14 @@ void ChromeFileSystemAccessPermissionContext::NotifyEntryMoved(
                                          new_path, allow_overwrite);
     PermissionGrantImpl::UpdateGrantPath(it->second.read_grants, old_path,
                                          new_path, allow_overwrite);
+    if (base::FeatureList::IsEnabled(
+            blink::features::kFileSystemAccessRevokeReadOnRemove) &&
+        it->second.downgraded_read_paths.erase(old_path.path)) {
+      // The downgraded read grant moved along with the entry; carry the
+      // downgraded state to `new_path` so a later write there can restore it.
+      it->second.downgraded_read_paths.insert(new_path.path);
+      old_path_was_downgraded = true;
+    }
     updated = true;
   }
   if (base::FeatureList::IsEnabled(
@@ -2591,7 +2697,10 @@ void ChromeFileSystemAccessPermissionContext::NotifyEntryMoved(
   }
 
   if (base::FeatureList::IsEnabled(
-          blink::features::kFileSystemAccessRevokeReadOnRemove)) {
+          blink::features::kFileSystemAccessRevokeReadOnRemove) &&
+      !old_path_was_downgraded) {
+    // Only restore if the moved entry was readable at `old_path`; otherwise
+    // the origin has not authored the content now at `new_path`.
     MaybeRestoreReadPermission(origin, new_path.path);
   }
 }
@@ -2609,8 +2718,11 @@ void ChromeFileSystemAccessPermissionContext::NotifyEntryRemoved(
     return;
   }
 
+  const std::vector<base::FilePath::StringType> removed_components =
+      path.path.GetComponents();
   auto is_path_or_descendant = [&](const base::FilePath& file_path) {
-    return file_path == path.path || path.path.IsParent(file_path);
+    return IsPathOrDescendantIgnoreCase(path.path, removed_components,
+                                        file_path);
   };
 
   bool updated = false;

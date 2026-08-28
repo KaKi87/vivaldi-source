@@ -221,7 +221,7 @@ using vivaldi::IsVivaldiRunning;
   self.recentTabsTableViewController.imageDataSource = nil;
   self.recentTabsTableViewController.browser = nil;
   self.recentTabsTableViewController = nil;
-  [self.recentTabsNavigationController
+  [self.recentTabsNavigationController.presentingViewController
       dismissViewControllerAnimated:YES
                          completion:self.completion];
   [self stopReauthCoordinator];
@@ -335,6 +335,7 @@ using vivaldi::IsVivaldiRunning;
   SharingParams* params = [[SharingParams alloc] initWithURL:URL
                                                        title:title
                                                     scenario:scenario];
+  [self.sharingCoordinator stop];
   self.sharingCoordinator = [[SharingCoordinator alloc]
       initWithBaseViewController:self.recentTabsTableViewController
                          browser:self.browser

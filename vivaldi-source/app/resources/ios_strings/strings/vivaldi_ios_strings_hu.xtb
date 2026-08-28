@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Rákérdezés más alkalmazásokból származó hivatkozások privát módú megnyitásához</translation>
 <translation id="1624481300475123200">Jelszavak automatikus kitöltése</translation>
 <translation id="1743244221910283364">Módosítások elvetése</translation>
+<translation id="1972589975368876259">Csoport szerkesztése</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Lap csoporthoz adása}
         other {Lapok csoporthoz adása}}</translation>
@@ -48,7 +49,6 @@
 <translation id="4772190485302020393">Minden lap és csoport bezárása</translation>
 <translation id="4802185666270672526">"Asztali webhely kérése" elrejtése</translation>
 <translation id="4828571836982833289">Lapcsoport felbontása?</translation>
-<translation id="4838250035189612538">Csoport átnevezése</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 lapcsoport bezárva és mentve}
             other {{count} lapcsoport bezárva és mentve}}</translation>

@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "ash/constants/ash_policy_pref_names.h"
 #include "ash/constants/ash_pref_names.h"
 #include "base/compiler_specific.h"
 #include "base/environment.h"
@@ -37,11 +38,11 @@
 #include "chrome/browser/ash/ownership/fake_owner_settings_service.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/ash/settings/scoped_testing_cros_settings.h"
+#include "chrome/browser/ash/settings/stub_cros_settings_provider.h"
 #include "chrome/browser/chrome_content_browser_client.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/chrome_content_client.h"
 #include "chrome/common/chrome_paths.h"
-#include "chrome/common/pref_names.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile_manager.h"
 #include "chromeos/ash/components/dbus/cicerone/cicerone_client.h"
@@ -49,6 +50,7 @@
 #include "chromeos/ash/components/dbus/seneschal/seneschal_client.h"
 #include "chromeos/ash/components/dbus/update_engine/fake_update_engine_client.h"
 #include "chromeos/ash/components/dbus/update_engine/update_engine_client.h"
+#include "chromeos/ash/components/install_attributes/stub_install_attributes.h"
 #include "chromeos/ash/components/login/login_state/login_state.h"
 #include "chromeos/ash/components/settings/cros_settings_names.h"
 #include "chromeos/ash/components/settings/timezone_settings.h"
@@ -439,7 +441,7 @@ TEST_F(ChildStatusCollectorTest, ReportingBootMode) {
 TEST_F(ChildStatusCollectorTest, ReportingArcStatus) {
   RestartStatusCollector(
       base::BindRepeating(&GetFakeAndroidStatus, kArcStatus, kDroidGuardInfo));
-  testing_profile_->GetPrefs()->SetBoolean(prefs::kReportArcStatusEnabled,
+  testing_profile_->GetPrefs()->SetBoolean(ash::prefs::kReportArcStatusEnabled,
                                            true);
 
   GetStatus();

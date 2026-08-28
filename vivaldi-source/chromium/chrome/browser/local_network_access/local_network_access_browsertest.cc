@@ -15,6 +15,7 @@
 #include "chrome/common/url_constants.h"
 #include "chrome/test/base/chrome_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_pattern.h"
 #include "components/content_settings/core/common/content_settings_types.h"
@@ -39,12 +40,7 @@ namespace {
 // We use a custom page that explicitly disables its own favicon (by providing
 // an invalid data: URL for it) so as to prevent the browser from making an
 // automatic request to /favicon.ico.
-//
-// It also carries a header that makes the browser consider it came from the
-// `public` address space, irrespective of the fact that we loaded the web page
-// from localhost.
-constexpr char kTreatAsPublicAddressPath[] =
-    "/local_network_access/no-favicon-treat-as-public-address.html";
+constexpr char kNoFaviconPath[] = "/local_network_access/no-favicon.html";
 
 // Path to a response that passes Local Network Access checks.
 constexpr char kLnaPath[] =
@@ -64,8 +60,7 @@ class LocalNetworkAccessBrowserTest : public LocalNetworkAccessBrowserTestBase {
 
 IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest, FetchDenyPermission) {
   ASSERT_TRUE(content::NavigateToURL(
-      web_contents(),
-      https_server().GetURL("a.com", kTreatAsPublicAddressPath)));
+      web_contents(), https_public_server().GetURL("a.com", kNoFaviconPath)));
 
   // Enable auto-denial of LNA permission request.
   bubble_factory()->set_response_type(
@@ -80,8 +75,7 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest, FetchDenyPermission) {
 
 IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest, FetchAcceptPermission) {
   ASSERT_TRUE(content::NavigateToURL(
-      web_contents(),
-      https_server().GetURL("a.com", kTreatAsPublicAddressPath)));
+      web_contents(), https_public_server().GetURL("a.com", kNoFaviconPath)));
 
   // Enable auto-accept of LNA permission request.
   bubble_factory()->set_response_type(
@@ -154,8 +148,7 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
 IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
                        CheckPrivateAliasFeatureCounter) {
   ASSERT_TRUE(content::NavigateToURL(
-      web_contents(),
-      https_server().GetURL("a.com", kTreatAsPublicAddressPath)));
+      web_contents(), https_public_server().GetURL("a.com", kNoFaviconPath)));
 
   // LNA fetch fails due to mismatched targetAddressSpace. Result doesn't matter
   // here though, as we're just checking a use counter that doesn't depend on
@@ -172,8 +165,7 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
 IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
                        CheckPrivateAliasFeatureCounterLocalNotCounted) {
   ASSERT_TRUE(content::NavigateToURL(
-      web_contents(),
-      https_server().GetURL("a.com", kTreatAsPublicAddressPath)));
+      web_contents(), https_public_server().GetURL("a.com", kNoFaviconPath)));
 
   // LNA fetch fails due to mismatched targetAddressSpace. Result doesn't matter
   // here though, as we're just checking a use counter that doesn't depend on
@@ -202,7 +194,9 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
 
   ASSERT_TRUE(content::NavigateToURL(
       web_contents(),
-      embedded_test_server()->GetURL("a.com", kTreatAsPublicAddressPath)));
+      embedded_test_server()->GetURL(
+          "a.com",
+          "/local_network_access/no-favicon-treat-as-public-address.html")));
   GURL subresource_url =
       embedded_test_server()->GetURL("0.0.0.0", "/cors-ok.txt");
   EXPECT_EQ(false,
@@ -294,7 +288,7 @@ IN_PROC_BROWSER_TEST_F(LocalNetworkAccessBrowserTest,
                       base::test::ParseJson(kWebAccessibleResources));
 
   scoped_refptr<const extensions::Extension> extension = builder.Build();
-  extensions::ExtensionRegistrar::Get(browser()->profile())
+  extensions::ExtensionRegistrar::Get(browser()->GetProfile())
       ->OnExtensionInstalled(extension.get(), syncer::StringOrdinal(), 0);
 
   const GURL url = extension->GetResourceURL(kPageFile);

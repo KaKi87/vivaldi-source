@@ -11,12 +11,12 @@
 #include "base/observer_list.h"
 #include "base/timer/timer.h"
 #include "build/build_config.h"
-#include "chrome/browser/send_tab_to_self/receiving_ui_handler.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/page_action/page_action_model_observer.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/views/page_action/page_action_view.h"
+#include "components/send_tab_to_self/receiving_ui_handler.h"
 #include "components/web_modal/modal_dialog_host.h"
 #include "extensions/common/mojom/frame.mojom.h"
 #include "extensions/schema/window_private.h"
@@ -72,9 +72,9 @@ class VivaldiUIRelay : public send_tab_to_self::ReceivingUiHandler {
 
   // ReceivingUiHandler
   void DisplayNewEntries(
-      const std::vector<const send_tab_to_self::SendTabToSelfEntry*>&
-          new_entries) override;
-  void DismissEntries(const std::vector<std::string>& guids) override;
+      base::span<const send_tab_to_self::SendTabToSelfEntry* const> new_entries)
+      override;
+  void DismissEntries(base::span<const std::string> guids) override;
 
  private:
   Profile* profile_;
@@ -121,12 +121,12 @@ class VivaldiToolbarButtonProvider : public ToolbarButtonProvider {
 
  private:
   // ToolbarButtonProvider:
-  ExtensionsToolbarDesktop* GetExtensionsToolbarDesktop() override;
+  ExtensionsContainerViews* GetExtensionsContainerViews() override;
   PinnedToolbarActions* GetPinnedToolbarActions() override;
   gfx::Size GetToolbarButtonSize() const override;
   views::BubbleAnchor GetDefaultExtensionDialogAnchor() override;
   PageActionIconView* GetPageActionIconView(PageActionIconType type) override;
-  page_actions::PageActionView* GetPageActionView(
+  page_actions::PageActionViewInterface* GetPageActionViewInterface(
       actions::ActionId action_id) override;
   AppMenuControl* GetAppMenuControl() override;
   gfx::Rect GetFindBarBoundingBox(int contents_bottom) override;
@@ -134,11 +134,13 @@ class VivaldiToolbarButtonProvider : public ToolbarButtonProvider {
   views::AccessiblePaneView* GetAsAccessiblePaneView() override;
   views::BubbleAnchor GetBubbleAnchor(
       std::optional<actions::ActionId> action_id) override;
+  views::BubbleAnchor GetPageActionBubbleAnchor(
+      actions::ActionId action_id) override;
+
   void ZoomChangedForActiveTab(bool can_show_bubble) override;
   AvatarToolbarButtonInterface* GetAvatarToolbarButtonInterface() override;
   ToolbarButton* GetBackButton() override;
   ReloadControl* GetReloadButton() override;
-  IntentChipButton* GetIntentChipButton() override;
   ToolbarButton* GetDownloadButton() override;
   WebUIToolbarWebView* GetWebUIToolbarViewForTesting() override;
   // SidePanelToolbarButton* GetSidePanelButton() override;
@@ -367,6 +369,8 @@ class VivaldiBrowserWindow final : public views::WidgetObserver,
   std::optional<bool> GetWebApiWindowResizable() const;
   void SetResizableFromWebApi(std::optional<bool> resizable);
 
+  VivaldiBrowserWindow* VivaldiWindowCast() const override;
+
   //
   // BrowserWindow overrides
   //
@@ -386,10 +390,6 @@ class VivaldiBrowserWindow final : public views::WidgetObserver,
   std::vector<StatusBubble*> GetStatusBubbles() override;
   void UpdateTitleBar() override;
   void UpdateLoadingAnimations(bool should_animate) override {}
-  void SetStarredState(bool is_starred) override {}
-  bool IsTabModalPopupDeprecated() const override;
-  void SetIsTabModalPopupDeprecated(
-      bool is_tab_modal_popup_deprecated) override {}
   void OnActiveTabChanged(content::WebContents* old_contents,
                           content::WebContents* new_contents,
                           int index,
@@ -445,7 +445,7 @@ class VivaldiBrowserWindow final : public views::WidgetObserver,
   DownloadBubbleUIController* GetDownloadBubbleUIController() override;
   void ConfirmBrowserCloseWithPendingDownloads(
       int download_count,
-      Browser::DownloadCloseType dialog_type,
+      UnloadController::DownloadCloseType dialog_type,
       base::OnceCallback<void(bool)> callback) override;
   void VivaldiShowWebsiteSettingsAt(Profile* profile,
                                     content::WebContents* web_contents,
@@ -770,7 +770,8 @@ class VivaldiBrowserWindow final : public views::WidgetObserver,
   base::ObserverList<web_modal::ModalDialogHostObserver>
       modal_dialog_observers_;
 
-  std::vector<ContentsContainerView*> unused_contents_container_views_;
+  std::vector<raw_ptr<ContentsContainerView, DanglingUntriaged>>
+      unused_contents_container_views_;
   std::unique_ptr<DevtoolsUIController> devtools_ui_controller_;
 
   // Subscription for paint-as-active changes on the widget. Used to call

@@ -5,7 +5,7 @@
     "namespace": "windowPrivate",
     "description": "Use the <code>vivaldi.windowPrivate</code> API for vivaldi windows.",
     "compiler_options": {
-      "implemented_in": "extensions/api/window/window_private_api.h"
+      "implemented_in": "extensions/api/window_private/window_private_api.h"
     },
     "types": [
       {

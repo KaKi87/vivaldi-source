@@ -4,7 +4,9 @@
 
 #include "base/i18n/case_conversion.h"
 #include "base/i18n/rtl.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
+#include "components/calculator/calculator.h"
 #include "components/lookalikes/core/lookalike_url_util.h"
 #include "components/url_formatter/elide_url.h"
 #include "components/version_info/version_info.h"
@@ -51,6 +53,7 @@ RequestResult VivaldiUtilitiesHookDelegate::HandleRequest(
       {&VivaldiUtilitiesHookDelegate::HandleGetUrlFragments,
        "utilities.getUrlFragments"},
       {&VivaldiUtilitiesHookDelegate::HandleGetVersion, "utilities.getVersion"},
+      {&VivaldiUtilitiesHookDelegate::HandleCalculate, "utilities.calculate"},
       {&VivaldiUtilitiesHookDelegate::HandleIsUrlValid, "utilities.isUrlValid"},
       {&VivaldiUtilitiesHookDelegate::HandleUrlToThumbnailText,
        "utilities.urlToThumbnailText"},
@@ -236,6 +239,39 @@ RequestResult VivaldiUtilitiesHookDelegate::HandleUrlToThumbnailText(
           gin::StringToV8(isolate, domain.substr(0, domain.find_first_of('.')));
     }
   }
+  return result;
+}
+
+RequestResult VivaldiUtilitiesHookDelegate::HandleCalculate(
+    v8::Local<v8::Context> context,
+    v8::LocalVector<v8::Value>& arguments) {
+  RequestResult result(RequestResult::HANDLED);
+
+  DCHECK_EQ(1u, arguments.size());
+  DCHECK(arguments[0]->IsString());
+  v8::Isolate* isolate = v8::Isolate::GetCurrent();
+  std::string query = gin::V8ToString(isolate, arguments[0]);
+
+  if (!vivaldi::calculator::IsMathQuery(query)) {
+    result.return_value = v8::Undefined(isolate);
+    return result;
+  }
+
+  std::optional<double> eval_result = vivaldi::calculator::Evaluate(query);
+
+  if (!eval_result.has_value()) {
+    result.return_value = v8::Null(isolate);
+    return result;
+  }
+
+  std::string result_formatted;
+  if (std::isnan(eval_result.value())) {
+    result_formatted = "undefined";
+  } else {
+    result_formatted = base::NumberToString(eval_result.value());
+  }
+
+  result.return_value = gin::StringToV8(isolate, result_formatted);
   return result;
 }
 

@@ -20,6 +20,7 @@
 #include <gtest/gtest.h>
 #include "ynnpack/base/span.h"
 #include "ynnpack/include/ynnpack.h"
+#include "ynnpack/subgraph/static_transpose.h"
 #include "ynnpack/subgraph/subgraph.h"
 
 // This causes gmock to print the subgraph/node instead of just a hex encoded
@@ -112,8 +113,14 @@ MATCHER_P(HasInputCount, count, "") {
 // Checks that the given node is a LUT.
 //
 // Example:
-//   EXPECT_THAT(ProducerOf(y_id, subgraph), IsLut());
-MATCHER(IsLut, "") { return std::holds_alternative<ynn_node::lut>(arg.op); }
+//   EXPECT_THAT(ProducerOf(y_id, subgraph), IsLut(subgraph));
+MATCHER_P(IsLut, subgraph, "") {
+  const auto* g = std::get_if<ynn_node::gather>(&arg.op);
+  if (!g) return false;
+  if (g->axes.size() != 1 || g->axes[0] != 0) return false;
+  const ynn_value& table = subgraph.value(arg.inputs[0]);
+  return table.rank() == 1;
+}
 
 // Checks that the given node is a binary elementwise with the given operator.
 //
@@ -185,10 +192,14 @@ MATCHER_P(IsStencilCopy, stencils, "") {
   return true;
 }
 
-MATCHER(IsExpandDims, "") {
-  const ynn_node::static_expand_dims* expand_dims =
-      std::get_if<ynn_node::static_expand_dims>(&arg.op);
-  return expand_dims != nullptr;
+MATCHER_P(IsExpandDims, subgraph, "") {
+  const ynn_node::static_transpose* transpose =
+      std::get_if<ynn_node::static_transpose>(&arg.op);
+  if (!transpose) return false;
+  const ynn_subgraph* s = internal::GetSubgraph(subgraph, result_listener);
+  if (!s) return false;
+  return get_static_expand_dims_axes(*transpose, s->value(arg.inputs[0]).rank())
+      .has_value();
 }
 
 MATCHER(IsCopy, "") {
@@ -220,9 +231,27 @@ MATCHER(IsDequantize, "") {
 // Checks that the given node is a dequantize_dot.
 //
 // Example:
-//   EXPECT_THAT(ProducerOf(y_id, subgraph), IsRescaleDot());
-MATCHER(IsRescaleDot, "") {
+//   EXPECT_THAT(ProducerOf(y_id, subgraph), IsDequantizeDot());
+MATCHER(IsDequantizeDot, "") {
   return std::holds_alternative<ynn_node::dequantize_dot>(arg.op);
+}
+
+// Checks that the given node is a dynamic quantization with the given output
+// zero point.
+//
+// Example:
+//   EXPECT_THAT(ProducerOf(zp_id, subgraph), IsDynamicQuantization(0));
+MATCHER_P(IsDynamicQuantization, output_zero_point, "") {
+  const auto* dq = std::get_if<ynn_node::dynamic_quantization>(&arg.op);
+  if (!dq) {
+    *result_listener << "is not a dynamic quantization node";
+    return false;
+  }
+  if (dq->output_zero_point != output_zero_point) {
+    *result_listener << "has output zero point " << dq->output_zero_point;
+    return false;
+  }
+  return true;
 }
 
 // Checks that the given node is a dot.
@@ -250,9 +279,6 @@ MATCHER(IsStaticBroadcast, "") {
 MATCHER(IsStaticReshape, "") {
   return std::holds_alternative<ynn_node::static_reshape>(arg.op);
 }
-MATCHER(IsStaticExpandDims, "") {
-  return std::holds_alternative<ynn_node::static_expand_dims>(arg.op);
-}
 MATCHER(IsStaticSlice, "") {
   return std::holds_alternative<ynn_node::static_slice>(arg.op);
 }
@@ -265,6 +291,18 @@ MATCHER_P(IsStaticTransposeWithPerm, perm_matcher, "") {
   return transpose &&
          testing::ExplainMatchResult(perm_matcher, transpose->permutation,
                                      result_listener);
+}
+
+// Checks that the given value has the given type.
+//
+// Example:
+//   EXPECT_THAT(subgraph.value(x_id), HasType(ynn_type_fp32));
+MATCHER_P(HasType, type, "") {
+  if (arg.type != type) {
+    *result_listener << "has type " << arg.type;
+    return false;
+  }
+  return true;
 }
 
 // Checks that the given value ID is valid in the given subgraph.

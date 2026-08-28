@@ -2,9 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <memory>
-
-#include "base/functional/callback_helpers.h"
 #include "base/strings/strcat.h"
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
@@ -99,10 +96,9 @@ class ProfileTypeChoiceUIPixelTest
     observer.StartWatchingNewWebContents();
 
     profile_picker_view_ = new ProfileManagementStepTestView(
-        // We use `ProfilePicker::Params::ForFirstRun` here because it is the
-        // only constructor that lets us force a profile to use.
-        ProfilePicker::Params::ForFirstRun(browser()->profile()->GetPath(),
-                                           base::DoNothing()),
+        ProfilePicker::Params::ForTesting(
+            ProfilePicker::EntryPoint::kProfileMenuAddNewProfile,
+            browser()->GetProfile()->GetPath()),
         ProfileManagementFlowController::Step::kProfilePicker,
         /*step_controller_factory=*/
         base::BindLambdaForTesting(

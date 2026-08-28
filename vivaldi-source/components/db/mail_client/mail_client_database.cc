@@ -78,9 +78,7 @@ MailClientDatabase::MailClientDatabase()
               // Set the cache size. The page size, plus a little extra, times
               // this value, tells us how much memory the cache will use
               // maximum. 1000 * 4kB = 4MB
-              .set_cache_size(1000)
-              // Prime the cache.
-              .set_preload(true),
+              .set_cache_size(1000),
           "mail") {}
 
 MailClientDatabase::~MailClientDatabase() {}

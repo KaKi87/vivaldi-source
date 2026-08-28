@@ -11,12 +11,23 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.annotation.Config;
 
+import org.chromium.base.ContextUtils;
+import org.chromium.base.FileUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.blink.mojom.SerializedBlob;
+import org.chromium.components.browser_ui.share.ShareImageFileUtils;
 import org.chromium.components.browser_ui.share.ShareParams;
+import org.chromium.mojo_base.mojom.FilePath;
+import org.chromium.mojo_base.mojom.SafeBaseName;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.url.mojom.Url;
 import org.chromium.webshare.mojom.ShareError;
 import org.chromium.webshare.mojom.ShareService;
+import org.chromium.webshare.mojom.SharedFile;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
 
 /** Unit tests for {@link ShareServiceImpl}. */
 @RunWith(BaseRobolectricTestRunner.class)
@@ -149,7 +160,7 @@ public class ShareServiceImplTest {
                 });
 
         Assert.assertEquals(ShareError.PERMISSION_DENIED, shareError[0]);
-        Assert.assertEquals(11 /* RFH_INVALID_WEB_FRAME_URL */, badMessageReason[0]);
+        Assert.assertEquals(11, badMessageReason[0]); // RFH_INVALID_WEB_FRAME_URL
     }
 
     @Test
@@ -159,33 +170,136 @@ public class ShareServiceImplTest {
         int[] shareError = new int[1];
         boolean[] shareCalled = new boolean[1];
 
+        WindowAndroid windowAndroid =
+                new WindowAndroid(ContextUtils.getApplicationContext(), false);
+        try {
+            ShareServiceImpl.WebShareDelegate mockDelegate =
+                    new ShareServiceImpl.WebShareDelegate() {
+                        @Override
+                        public boolean canShare() {
+                            return true;
+                        }
+
+                        @Override
+                        public void share(ShareParams params) {
+                            shareCalled[0] = true;
+                            params.getCallback().onTargetChosen(null);
+                        }
+
+                        @Override
+                        public WindowAndroid getWindowAndroid() {
+                            return windowAndroid;
+                        }
+
+                        @Override
+                        public void terminateRendererDueToBadMessage(int reason) {
+                            badMessageReason[0] = reason;
+                        }
+                    };
+
+            ShareServiceImpl shareService = new ShareServiceImpl(mockDelegate);
+            Url url = new Url();
+            url.url = "";
+
+            shareService.share(
+                    "title",
+                    "text",
+                    url,
+                    null,
+                    new ShareService.Share_Response() {
+                        @Override
+                        public void call(int error) {
+                            shareError[0] = error;
+                        }
+                    });
+
+            Assert.assertTrue(shareCalled[0]);
+            Assert.assertEquals(ShareError.OK, shareError[0]);
+            Assert.assertEquals(0, badMessageReason[0]);
+        } finally {
+            windowAndroid.destroy();
+        }
+    }
+
+    // Verifies that ShareServiceImpl preserves file names when creating temporary shared files.
+    @Test
+    @SmallTest
+    public void testPreservesFileNames() {
+        String filename = "intro.webm";
+        SafeBaseName name = new SafeBaseName();
+        name.path = new FilePath();
+        name.path.path = filename;
+        SerializedBlob blob = new SerializedBlob();
+        blob.contentType = "video/webm";
+        blob.size = 0;
+        SharedFile sharedFile = new SharedFile();
+        sharedFile.name = name;
+        sharedFile.blob = blob;
+        SharedFile[] files = new SharedFile[] {sharedFile};
+
+        ShareParams.Builder paramsBuilder = new ShareParams.Builder(null, "title", "");
+        ArrayList<BlobReceiver> blobReceivers = new ArrayList<>();
+
+        boolean result =
+                ShareServiceImpl.prepareShareParamsWithFiles(files, paramsBuilder, blobReceivers);
+        File[] shareDirs = null;
+        try {
+            // Verify that the temp file was created with the correct name.
+            Assert.assertTrue(result);
+            File sharePath = ShareImageFileUtils.getSharedFilesDirectory();
+            shareDirs = sharePath.listFiles(File::isDirectory);
+
+            Assert.assertNotNull(shareDirs);
+            Assert.assertEquals(1, shareDirs.length);
+
+            File[] sharedFiles = shareDirs[0].listFiles(File::isFile);
+            Assert.assertNotNull(sharedFiles);
+            Assert.assertEquals(1, sharedFiles.length);
+            Assert.assertEquals(filename, sharedFiles[0].getName());
+        } catch (IOException e) {
+            e.printStackTrace();
+            Assert.fail();
+        } finally {
+            if (shareDirs != null) {
+                for (File dir : shareDirs) {
+                    FileUtils.recursivelyDeleteFile(dir, FileUtils.DELETE_ALL);
+                }
+            }
+        }
+    }
+
+    @Test
+    @SmallTest
+    public void testShareWhenWebContentsDestroyed() {
+        int[] shareError = new int[1];
+
         ShareServiceImpl.WebShareDelegate mockDelegate =
                 new ShareServiceImpl.WebShareDelegate() {
                     @Override
                     public boolean canShare() {
-                        return true;
+                        // Simulates mWebContents.isDestroyed() returning true.
+                        return false;
                     }
 
                     @Override
                     public void share(ShareParams params) {
-                        shareCalled[0] = true;
-                        params.getCallback().onTargetChosen(null);
+                        Assert.fail("share() should not be called when canShare() is false.");
                     }
 
                     @Override
                     public WindowAndroid getWindowAndroid() {
-                        return null;
+                        throw new IllegalStateException("Native WebContents already destroyed");
                     }
 
                     @Override
-                    public void terminateRendererDueToBadMessage(int reason) {
-                        badMessageReason[0] = reason;
-                    }
+                    public void terminateRendererDueToBadMessage(int reason) {}
                 };
 
         ShareServiceImpl shareService = new ShareServiceImpl(mockDelegate);
         Url url = new Url();
-        url.url = "";
+        url.url = "https://example.com";
+
+        Assert.assertFalse(mockDelegate.canShare());
 
         shareService.share(
                 "title",
@@ -199,8 +313,6 @@ public class ShareServiceImplTest {
                     }
                 });
 
-        Assert.assertTrue(shareCalled[0]);
-        Assert.assertEquals(ShareError.OK, shareError[0]);
-        Assert.assertEquals(0, badMessageReason[0]);
+        Assert.assertEquals(ShareError.INTERNAL_ERROR, shareError[0]);
     }
 }

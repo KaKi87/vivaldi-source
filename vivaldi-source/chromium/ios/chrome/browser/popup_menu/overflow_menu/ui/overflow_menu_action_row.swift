@@ -38,8 +38,18 @@ struct OverflowMenuActionRow: View {
   /// Add extra padding between the row content and move handle in edit mode.
   private static let editRowEndPadding: CGFloat = 8
 
+  // Vivaldi
+  private static let submenuRowLeadingPadding: CGFloat = 24
+  // End Vivaldi
+
   /// The size of the "N" IPH icon.
   private static let newLabelIconWidth: CGFloat = 15
+
+  /// The size of the preview image.
+  private static let previewImageSize: CGFloat = 24
+
+  /// The size of the fallback preview image.
+  private static let fallbackImageSize: CGFloat = 18
 
   // The duration that the view's highlight should persist.
   private static let highlightDuration: DispatchTimeInterval = .seconds(2)
@@ -92,6 +102,15 @@ struct OverflowMenuActionRow: View {
         view.accentColor(.textPrimary)
       }
       .listRowSeparatorTint(.overflowMenuSeparator)
+
+      // Vivaldi
+      .transition(
+        VivaldiGlobalHelpers.isVivaldiRunning() && action.submenuChild
+          ? AnyTransition.move(edge: .top).combined(with: .opacity)
+          : .identity
+      )
+      // End Vivaldi
+
   }
 
   @ViewBuilder
@@ -105,7 +124,7 @@ struct OverflowMenuActionRow: View {
         .labelStyle(.iconOnly)
         .tint(.chromeBlue)
         .accessibilityRemoveTraits(.isSelected)
-        rowIcon
+        rowIcon?.foregroundColor(action.symbolTintColor.map { Color(uiColor: $0) })
         centerTextView
         Spacer()
       }
@@ -114,10 +133,16 @@ struct OverflowMenuActionRow: View {
       .accessibilityLabel([action.name, action.subtitle].compactMap { $0 }.joined(separator: ", "))
     } else {
       HStack {
+
+        if VivaldiGlobalHelpers.isVivaldiRunning() && action.submenuChild {
+          Spacer()
+            .frame(width: Self.submenuRowLeadingPadding)
+        } else {
         // If there is no icon, the text should be centered.
         if rowIcon == nil {
           Spacer()
         }
+        } // End Vivaldi
 
         if let rowIcon = rowIcon, VivaldiGlobalHelpers.isVivaldiRunning() {
           rowIcon
@@ -129,18 +154,32 @@ struct OverflowMenuActionRow: View {
           newLabelIconView
         }
         Spacer()
+        if let previewImage = action.previewImage {
+          CircularPreviewContainer(size: Self.previewImageSize) {
+            Image(uiImage: previewImage)
+              .resizable()
+              .aspectRatio(contentMode: .fill)
+          }
+        } else if let fallbackPreviewImage = action.fallbackPreviewImage {
+          Image(uiImage: fallbackPreviewImage)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(
+              width: Self.fallbackImageSize,
+              height: Self.fallbackImageSize
+            )
+        }
 
         if VivaldiGlobalHelpers.isVivaldiRunning() {
           if action.submenuActions.count > 0 {
             Image(systemName: "chevron.forward")
+              .rotationEffect(.degrees(action.submenuExpanded ? 90 : 0))
+              .animation(.default, value: action.submenuExpanded)
               .foregroundColor(.textTertiary)
           }
         } else {
-        if let rowIcon = rowIcon {
-          rowIcon
-        }
+        rowIcon?.foregroundColor(action.symbolTintColor.map { Color(uiColor: $0) })
         } // End Vivaldi
-
       }
       .padding([.trailing], Self.rowEndPadding)
     }
@@ -162,20 +201,6 @@ struct OverflowMenuActionRow: View {
     if isEditing {
       rowContent
     } else {
-      if VivaldiGlobalHelpers.isVivaldiRunning() &&
-          action.submenuActions.count > 0 {
-        VivaldiOverflowActionSubMenuView(
-          label:
-            rowContent
-            .contentShape(
-              Rectangle()
-            ),
-          actions: action.submenuActions
-        )
-        .if(action.useButtonStyling) { view in
-          view.buttonStyle(.borderless)
-        }
-      } else {
       Button(
         action: {
           metricsHandler?.popupMenuTriggerElement()
@@ -191,8 +216,6 @@ struct OverflowMenuActionRow: View {
       .if(action.useButtonStyling) { view in
         view.buttonStyle(.borderless)
       }
-      } // End Vivaldi
-
     }
   }
 
@@ -244,5 +267,27 @@ struct OverflowMenuActionRow: View {
         }
       }
       .accessibilityIdentifier("overflowRowIPHBadgeIdentifier")
+  }
+}
+
+/// A generic circular container with a 1pt separator-colored border.
+/// It clips its content to a circle.
+struct CircularPreviewContainer<Content: View>: View {
+  var size: CGFloat
+  var content: Content
+
+  init(size: CGFloat, @ViewBuilder content: () -> Content) {
+    self.size = size
+    self.content = content()
+  }
+
+  var body: some View {
+    ZStack {
+      Circle()
+        .stroke(Color(uiColor: .separator), lineWidth: 1)
+      content
+        .clipShape(Circle())
+    }
+    .frame(width: size, height: size)
   }
 }

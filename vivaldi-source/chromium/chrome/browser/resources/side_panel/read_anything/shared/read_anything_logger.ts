@@ -5,7 +5,7 @@
 import {hasEspeakIdentifier, hasNaturalIdentifier} from '../read_aloud/voice_language_conversions.js';
 
 import {MetricsBrowserProxyImpl, ReadAnythingSpeechError, ReadAnythingVoiceType, UmaName} from './metrics_browser_proxy.js';
-import type {MetricsBrowserProxy, ReadAloudSettingsChange, ReadAnythingSettingsChange} from './metrics_browser_proxy.js';
+import type {MetricsBrowserProxy, ReadAloudSettingsChange, ReadAnythingSettingsAction, ReadAnythingSettingsChange} from './metrics_browser_proxy.js';
 
 export enum TimeFrom {
   APP = 'App',
@@ -28,15 +28,34 @@ export enum LinkStatus {
   TOO_MANY_MATCHES = 'TooManyMatches',
 }
 
+export enum PageType {
+  PDF = 'PDF',
+  WEB_PAGE = 'WebPage',
+}
+
+export enum ViewMode {
+  FULL_PAGE = 'FullPage',
+  SIDE_PANEL = 'SidePanel',
+}
+
 // Handles the business logic for logging.
 export class ReadAnythingLogger {
   private metrics: MetricsBrowserProxy = MetricsBrowserProxyImpl.getInstance();
   // When this class is first instantiated, it will be because reading mode
   // is visible, so isHidden_ should be false be default.
   private isHidden_: boolean = false;
+  private hasUnloggedDistillation_: boolean = false;
+  private savedWordCountContainer_: Element|null = null;
+  private keyPointsRegex_: RegExp|null = null;
 
   setHidden(hidden: boolean) {
+    const wasHidden = this.isHidden_;
     this.isHidden_ = hidden;
+
+    if (wasHidden && !hidden && this.hasUnloggedDistillation_ &&
+        this.savedWordCountContainer_) {
+      this.logDistilledPageStructure(this.savedWordCountContainer_);
+    }
   }
 
   logEmptyState() {
@@ -170,6 +189,10 @@ export class ReadAnythingLogger {
     this.metrics.recordLanguage(langToLog);
   }
 
+  logSettingsAction(settingsAction: ReadAnythingSettingsAction) {
+    this.metrics.recordSettingsAction(settingsAction);
+  }
+
   logTextSettingsChange(settingsChange: ReadAnythingSettingsChange) {
     this.metrics.recordTextSettingsChange(settingsChange);
   }
@@ -185,7 +208,28 @@ export class ReadAnythingLogger {
   logSpeechPlaySession(startTime: number, voice: SpeechSynthesisVoice|null) {
     this.logVoiceTypeUsedForReading_(voice);
     this.logLanguageUsedForReading_(voice?.lang);
-    this.metrics.recordSpeechPlaybackLength(Date.now() - startTime);
+
+    const playbackTime = Date.now() - startTime;
+    this.metrics.recordSpeechPlaybackLengthLegacy(playbackTime);
+    if (!chrome.readingMode.isImmersiveEnabled) {
+      return;
+    }
+
+    const activePresentationState = chrome.readingMode.activePresentationState;
+    const isImmersiveState = activePresentationState ===
+        chrome.readingMode.inImmersiveOverlayPresentationState;
+    if (!isImmersiveState &&
+        activePresentationState !==
+            chrome.readingMode.inSidePanelPresentationState) {
+      return;
+    }
+
+    const pageType =
+        chrome.readingMode.isPdf ? PageType.PDF : PageType.WEB_PAGE;
+    const viewMode =
+        isImmersiveState ? ViewMode.FULL_PAGE : ViewMode.SIDE_PANEL;
+    const umaName = `${UmaName.SPEECH_PLAYBACK}.${pageType}In${viewMode}`;
+    this.metrics.recordSpeechPlaybackLength(umaName, playbackTime);
   }
 
   logSpeechControlClick(control: SpeechControls) {
@@ -213,15 +257,60 @@ export class ReadAnythingLogger {
 
   logDistilledPageStructure(wordCountContainer: Element) {
     if (this.isHidden_) {
+      this.hasUnloggedDistillation_ = true;
+      this.savedWordCountContainer_ = wordCountContainer;
       return;
     }
 
-    // Log the number of paragraphs.
-    const paragraphs = wordCountContainer.querySelectorAll('p');
-    this.metrics.recordCount(UmaName.NUMBER_PARAGRAPHS, paragraphs.length);
+    this.hasUnloggedDistillation_ = false;
+    this.savedWordCountContainer_ = null;
 
+    const paragraphs = wordCountContainer.querySelectorAll('p');
     const headerCounts = ReadAnythingLogger.getHeaderCounts(wordCountContainer);
 
+    this.logOverallStructureMetrics_(headerCounts, paragraphs.length);
+    this.logTopTwoHeaderMetrics_(headerCounts);
+    if (chrome.readingMode.isPdf) {
+      this.logPdfDistilledPageStructure_(headerCounts, paragraphs.length);
+    }
+
+    this.logEnglishKeyPointsMetrics_(wordCountContainer);
+  }
+
+  private logEnglishKeyPointsMetrics_(wordCountContainer: Element) {
+    const lang = chrome.readingMode.baseLanguageForSpeech;
+    if (!lang || !lang.toLowerCase().startsWith('en')) {
+      return;
+    }
+
+    // Skip h1s as those are likely page titles.
+    const potentialKeyPointsContainers = wordCountContainer.querySelectorAll(
+        'h2, h3, h4, h5, h6, button, summary');
+    let maybeHasKeyPoints = false;
+    const regex = this.getKeyPointsRegex_();
+
+    for (const node of potentialKeyPointsContainers) {
+      const text = node.textContent || '';
+
+      if (regex.test(text)) {
+        maybeHasKeyPoints = true;
+        break;
+      }
+    }
+    this.metrics.recordBoolean(
+        'Accessibility.ReadAnything.PageStructure.EnglishKeyPointsInReadingMode',
+        maybeHasKeyPoints);
+
+    const maybeHasKeyPointsOnPage =
+        chrome.readingMode.maybeHasKeyPointsSection();
+    this.metrics.recordBoolean(
+        'Accessibility.ReadAnything.PageStructure.EnglishKeyPointsOnPage',
+        maybeHasKeyPointsOnPage);
+  }
+
+  private logOverallStructureMetrics_(
+      headerCounts: Array<{tag: string, count: number}>,
+      paragraphCount: number) {
     // The total number of distilled headers.
     const totalHeaderCount =
         headerCounts.reduce((sum, item) => sum + item.count, 0);
@@ -231,7 +320,16 @@ export class ReadAnythingLogger {
     const uniqueHeaderTags = headerCounts.filter(item => item.count > 0).length;
     this.metrics.recordCount(UmaName.UNIQUE_HEADER_TAGS, uniqueHeaderTags);
 
-    this.logTopTwoHeaderMetrics_(headerCounts);
+    // Log the number of paragraphs.
+    this.metrics.recordCount(UmaName.NUMBER_PARAGRAPHS, paragraphCount);
+
+    if (paragraphCount > 0) {
+      // The ratio of headings to paragraphs, scaled by 100.
+      const headingToParagraphRatio =
+          Math.round((totalHeaderCount / paragraphCount) * 100);
+      this.metrics.recordCount(
+          UmaName.HEADING_TO_PARAGRAPH_RATIO, headingToParagraphRatio);
+    }
   }
 
   // The "top two" headers in a hierarchy represent the first two non-zero
@@ -268,6 +366,36 @@ export class ReadAnythingLogger {
     this.metrics.recordBoolean(
         UmaName.TOP_TWO_HEADERS_HAVE_MINIMUM_TWO_ITEMS,
         topTwoHeadersHaveMinimumTwoItems);
+
+    if (presentHeaders.length >= 2 && presentHeaders[1]!.count > 0) {
+      // The ratio of the top level to the second top level header, scaled by
+      // 100.
+      const topTwoHeadingRatio = Math.round(
+          (presentHeaders[0]!.count / presentHeaders[1]!.count) * 100);
+      this.metrics.recordCount(
+          UmaName.TOP_TWO_HEADING_RATIO, topTwoHeadingRatio);
+    }
+  }
+
+  private logPdfDistilledPageStructure_(
+      headerCounts: Array<{tag: string, count: number}>,
+      paragraphCount: number) {
+    for (const header of headerCounts) {
+      const headingLevel = header.tag.toUpperCase();
+      this.metrics.recordCount(
+          `Accessibility.ReadAnything.Pdf.Headings.${headingLevel}`,
+          header.count);
+    }
+    this.metrics.recordCount(UmaName.PDF_NUMBER_PARAGRAPHS, paragraphCount);
+
+    if (paragraphCount > 0) {
+      const totalHeaderCount =
+          headerCounts.reduce((sum, item) => sum + item.count, 0);
+      const headingToParagraphRatio =
+          Math.round((totalHeaderCount / paragraphCount) * 100);
+      this.metrics.recordCount(
+          UmaName.PDF_HEADING_TO_PARAGRAPH_RATIO, headingToParagraphRatio);
+    }
   }
 
   static getHeaderCounts(wordCountContainer: Element):
@@ -280,6 +408,14 @@ export class ReadAnythingLogger {
       {tag: 'h5', count: wordCountContainer.querySelectorAll('h5').length},
       {tag: 'h6', count: wordCountContainer.querySelectorAll('h6').length},
     ];
+  }
+
+  private getKeyPointsRegex_(): RegExp {
+    if (!this.keyPointsRegex_) {
+      const regexStr = chrome.readingMode.getKeyPointsRegex();
+      this.keyPointsRegex_ = new RegExp(regexStr, 'i');
+    }
+    return this.keyPointsRegex_;
   }
 
   static getInstance(): ReadAnythingLogger {

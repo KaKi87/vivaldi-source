@@ -162,12 +162,13 @@ void TranslateManager::InitiateTranslation(std::string_view page_lang) {
   GetActiveTranslateMetricsLogger()->LogInitialState();
 }
 
-bool TranslateManager::CanManuallyTranslate(bool menuLogging) {
+bool TranslateManager::CanManuallyTranslate(bool menu_logging) {
   bool can_translate = true;
 
   if (net::NetworkChangeNotifier::IsOffline()) {
-    if (!menuLogging)
+    if (!menu_logging) {
       return false;
+    }
     TranslateBrowserMetrics::ReportMenuTranslationUnavailableReason(
         TranslateBrowserMetrics::MenuTranslationUnavailableReason::
             kNetworkOffline);
@@ -176,8 +177,9 @@ bool TranslateManager::CanManuallyTranslate(bool menuLogging) {
 
   if (!ignore_missing_key_for_testing_ &&
       !::google_apis::HasAPIKeyConfigured()) {
-    if (!menuLogging)
+    if (!menu_logging) {
       return false;
+    }
     TranslateBrowserMetrics::ReportMenuTranslationUnavailableReason(
         TranslateBrowserMetrics::MenuTranslationUnavailableReason::
             kApiKeysMissing);
@@ -187,8 +189,9 @@ bool TranslateManager::CanManuallyTranslate(bool menuLogging) {
   // not supported MIME type pages currently cannot be translated.
   // See bug: 217945, 1208340.
   if (!IsMimeTypeSupported(translate_driver_->GetContentsMimeType())) {
-    if (!menuLogging)
+    if (!menu_logging) {
       return false;
+    }
     TranslateBrowserMetrics::ReportMenuTranslationUnavailableReason(
         TranslateBrowserMetrics::MenuTranslationUnavailableReason::
             kMIMETypeUnsupported);
@@ -197,8 +200,9 @@ bool TranslateManager::CanManuallyTranslate(bool menuLogging) {
 
   if (!translate_client_->IsTranslatableURL(
           translate_driver_->GetVisibleURL())) {
-    if (!menuLogging)
+    if (!menu_logging) {
       return false;
+    }
     TranslateBrowserMetrics::ReportMenuTranslationUnavailableReason(
         TranslateBrowserMetrics::MenuTranslationUnavailableReason::
             kURLNotTranslatable);
@@ -212,8 +216,9 @@ bool TranslateManager::CanManuallyTranslate(bool menuLogging) {
   // supports manual translation in this case.
 #if !BUILDFLAG(IS_ANDROID)
   if (source_language.empty()) {
-    if (!menuLogging)
+    if (!menu_logging) {
       return false;
+    }
     TranslateBrowserMetrics::ReportMenuTranslationUnavailableReason(
         TranslateBrowserMetrics::MenuTranslationUnavailableReason::
             kSourceLangUnknown);
@@ -224,8 +229,9 @@ bool TranslateManager::CanManuallyTranslate(bool menuLogging) {
   std::unique_ptr<TranslatePrefs> translate_prefs(
       translate_client_->GetTranslatePrefs());
   if (!translate_prefs->IsTranslateAllowedByPolicy()) {
-    if (!menuLogging)
+    if (!menu_logging) {
       return false;
+    }
     TranslateBrowserMetrics::ReportMenuTranslationUnavailableReason(
         TranslateBrowserMetrics::MenuTranslationUnavailableReason::
             kNotAllowedByPolicy);
@@ -236,17 +242,19 @@ bool TranslateManager::CanManuallyTranslate(bool menuLogging) {
       translate_prefs.get(), language_model_,
       TranslateDownloadManager::GetLanguageCode(source_language));
   if (target_lang.empty()) {
-    if (!menuLogging)
+    if (!menu_logging) {
       return false;
+    }
     TranslateBrowserMetrics::ReportMenuTranslationUnavailableReason(
         TranslateBrowserMetrics::MenuTranslationUnavailableReason::
             kTargetLangUnknown);
     can_translate = false;
   }
 
-  if (menuLogging)
+  if (menu_logging) {
     UMA_HISTOGRAM_BOOLEAN("Translate.MenuTranslation.IsAvailable",
                           can_translate);
+  }
 
   return can_translate;
 }
@@ -734,11 +742,6 @@ void TranslateManager::RecordTranslateEvent(int event_type) {
       event_type, translate_driver_->GetUkmSourceId(), translate_event_.get());
 }
 
-bool TranslateManager::ShouldOverrideMatchesPreviousLanguageDecision() {
-  return translate_ranker_->ShouldOverrideMatchesPreviousLanguageDecision(
-      translate_driver_->GetUkmSourceId(), translate_event_.get());
-}
-
 bool TranslateManager::ShouldSuppressBubbleUI(
     std::string_view target_language) {
   // Suppress the UI if the user navigates to a page with the same language as
@@ -749,10 +752,11 @@ bool TranslateManager::ShouldSuppressBubbleUI(
   // translation after the user navigates to another page.
   DCHECK(!target_language.empty());
   if (language_state_.href_translate() == target_language ||
-      language_state_.HasLanguageChanged() ||
-      ShouldOverrideMatchesPreviousLanguageDecision()) {
+      language_state_.HasLanguageChanged()) {
     return false;
   }
+
+  RecordTranslateEvent(metrics::TranslateEventProto::MATCHES_PREVIOUS_LANGUAGE);
 
   GetActiveTranslateMetricsLogger()->LogTriggerDecision(
       TriggerDecision::kDisabledMatchesPreviousLanguage);

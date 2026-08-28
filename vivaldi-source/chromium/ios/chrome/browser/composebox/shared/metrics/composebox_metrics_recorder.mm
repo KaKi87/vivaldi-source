@@ -83,6 +83,8 @@ ContextualSearchAttachmentButtonTypeFromFuseboxButtonType(
       return contextual_search::ContextualSearchAttachmentButtonType::kGallery;
     case FuseboxAttachmentButtonType::kFiles:
       return contextual_search::ContextualSearchAttachmentButtonType::kFiles;
+    case FuseboxAttachmentButtonType::kDriveFiles:
+      return contextual_search::ContextualSearchAttachmentButtonType::kDrive;
     case FuseboxAttachmentButtonType::kClipboard:
       return contextual_search::ContextualSearchAttachmentButtonType::
           kClipboard;
@@ -138,6 +140,8 @@ omnibox::ModelMode ModelModeFromComposeboxModelOption(
       return omnibox::ModelMode::MODEL_MODE_GEMINI_PRO;
     case ComposeboxModelOption::kThinkingNoGenUI:
       return omnibox::ModelMode::MODEL_MODE_GEMINI_PRO_NO_GEN_UI;
+    case ComposeboxModelOption::kFlash:
+      return omnibox::ModelMode::MODEL_MODE_GEMINI_FLASH_LATEST;
   }
 }
 
@@ -271,6 +275,15 @@ std::string GetStringForEntrypoint(ComposeboxEntrypoint entrypoint) {
   if (_contextualSearchMetricsRecorder) {
     _contextualSearchMetricsRecorder->RecordFilePickedCount(
         contextual_search::ContextualSearchAttachmentButtonType::kFiles, count);
+  }
+}
+
+- (void)recordDriveFilesAttached:(NSUInteger)count {
+  base::UmaHistogramCounts100("Omnibox.MobileFusebox.NumDriveFilesAttached",
+                              count);
+  if (_contextualSearchMetricsRecorder) {
+    _contextualSearchMetricsRecorder->RecordFilePickedCount(
+        contextual_search::ContextualSearchAttachmentButtonType::kDrive, count);
   }
 }
 

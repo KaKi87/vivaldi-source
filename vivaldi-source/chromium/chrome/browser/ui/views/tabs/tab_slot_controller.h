@@ -135,9 +135,6 @@ class TabSlotController {
   // Returns true if any tab or group header has focus.
   virtual bool IsFocusInTabStrip() const = 0;
 
-  // Returns true if The tab should have a compacted leading edge.
-  virtual bool ShouldCompactLeadingEdge() const = 0;
-
   // Potentially starts a drag for the specified Tab.
   virtual void MaybeStartDrag(TabSlotView* source,
                               const ui::LocatedEvent& event,
@@ -199,6 +196,9 @@ class TabSlotController {
   // This can only be done when the TabController can guarantee that nothing
   // in the same window will redraw on top of the the favicon area of any tab.
   virtual bool CanPaintThrobberToLayer() const = 0;
+
+  // Returns true if the tab strip is painted on a glass frame.
+  virtual bool IsGlassFrame() const = 0;
 
   // Returns the color of the separator between the tabs.
   virtual SkColor GetTabSeparatorColor() const = 0;

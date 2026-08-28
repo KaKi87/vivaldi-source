@@ -105,9 +105,9 @@ ${callback}
           if (dependencyVarName.length) {
             // Remove anything that matches:
             // const xyz=--anything--const dependencies=xyz;
-            let finalEscapedDepStr = `const ${dependencyVarName}=([\\S\\s]*?)const dependencies=${dependencyVarName};`;
+            let finalEscapedDepStr = `(,|;const |;let )?${dependencyVarName}=([\\S\\s\\n]*?)const dependencies=${dependencyVarName};`;
             const finalEscapedDepRegex = new RegExp(finalEscapedDepStr, "g");
-            webextCallback = webextCallback.replace(finalEscapedDepRegex, '');
+            webextCallback = webextCallback.replace(finalEscapedDepRegex, ";");
             alreadyRemovedDep = true;
           }
         }
@@ -142,10 +142,25 @@ ${callback}
     webextCallback = webextCallback.replace(/const dependencies([\S\s]*?)\;/, '');
 
     let output = withLicense() + `
+let currentEnvironment = {initial: true};
 const callback = ${withoutLicense(webextCallback)};
-const graph = new Map([${graph.join(',')}]);
+const graph = new Map([${graph.join(",")}]);
 callback.get = snippet => graph.get(snippet);
 callback.has = snippet => graph.has(snippet);
+callback.getGraph = () => graph;
+callback.setEnvironment = env => {
+  if (typeof currentEnvironment !== "undefined")
+    currentEnvironment = env;
+};
+callback.setDebugStyle = styles => {
+  if (typeof currentEnvironment !== "undefined")
+  {
+    delete currentEnvironment.initial;
+    currentEnvironment.debugCSSProperties = styles;
+  }
+    
+};
+callback.getEnvironment = () => currentEnvironment;
 export default callback;`;
 
     writeFile(

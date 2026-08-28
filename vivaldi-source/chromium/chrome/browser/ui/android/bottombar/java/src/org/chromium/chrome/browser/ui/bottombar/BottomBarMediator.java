@@ -5,19 +5,28 @@
 package org.chromium.chrome.browser.ui.bottombar;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.os.SystemClock;
 
 import org.chromium.base.Callback;
+import org.chromium.base.ContextUtils;
 import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.base.supplier.NullableObservableSupplier;
+import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 /*import org.chromium.chrome.browser.glic.GlicEnabling;
 import org.chromium.chrome.browser.glic.GlicKeyedService;
 import org.chromium.chrome.browser.glic.GlicKeyedServiceFactory; Vivaldi */
+import org.chromium.chrome.browser.layouts.LayoutStateProvider;
+import org.chromium.chrome.browser.layouts.LayoutStateProvider.LayoutStateObserver;
+import org.chromium.chrome.browser.layouts.LayoutType;
+import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabObserver;
@@ -31,6 +40,9 @@ import org.chromium.components.browser_ui.widget.highlight.ViewHighlighter.Highl
 import org.chromium.components.browser_ui.widget.highlight.ViewHighlighter.HighlightShape;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.components.feature_engagement.FeatureConstants;
+import org.chromium.components.feature_engagement.Tracker;
+import org.chromium.components.search_engines.TemplateUrlService;
+import org.chromium.components.search_engines.TemplateUrlService.TemplateUrlServiceObserver;
 import org.chromium.ui.modelutil.PropertyModel;
 
 /** Mediator for the bottom bar */
@@ -39,6 +51,8 @@ public class BottomBarMediator
         implements ThemeColorProvider.TintObserver,
                 BottomBarButtonManager.Listener,
                 BottomBarPromoDialogCoordinator.BottomBarPromoDialogListener,
+                LayoutStateObserver,
+                SharedPreferences.OnSharedPreferenceChangeListener,
                 Destroyable {
     /** Delegate for compositor-level visibility changes. */
     public interface VisibilityDelegate {
@@ -56,41 +70,55 @@ public class BottomBarMediator
         void onBackgroundColorChanged();
     }
 
+    // Dependencies
+    @SuppressWarnings("unused") // Vivaldi
+    private final Context mContext;
     private final PropertyModel mModel;
     private final BottomBarButtonManager mButtonManager;
     private final ThemeColorProvider mThemeColorProvider;
-    private final NullableObservableSupplier<Tab> mTabSupplier;
-    private final TabObserver mTabObserver;
     private final VisibilityDelegate mVisibilityDelegate;
+    private final BottomBarPromoDialogCoordinator mPromoDialogCoordinator;
+    private final NullableObservableSupplier<Tab> mTabSupplier;
     private final NonNullObservableSupplier<Boolean> mHomepageEnabledSupplier;
     private final NonNullObservableSupplier<Boolean> mOmniboxFocusStateSupplier;
+    private final NullableObservableSupplier<Profile> mProfileSupplier;
+    private final OneshotSupplier<String> mCountrySupplier;
+    /*private final NullableObservableSupplier<PropertyModel> mGlicActionSupplier;
+    private final NullableObservableSupplier<PropertyModel> mAiModeActionSupplier; Not needed in Vivaldi */
+    private final NullableObservableSupplier<PropertyModel> mNewTabActionSupplier;
+    private final boolean mShouldIncludeHomeButton;
+
+    // Observers and Callbacks
+    private final TabObserver mTabObserver;
     private final Callback<@Nullable Tab> mTabSupplierObserver = this::onTabChanged;
     private final Callback<Boolean> mHomepageEnabledObserver = this::onHomepageEnabledChanged;
     private final Callback<Boolean> mOmniboxFocusObserver = this::onOmniboxFocusChanged;
-    private final boolean mShouldIncludeHomeButton;
-    @SuppressWarnings("unused") // Vivaldi
-    private final NullableObservableSupplier<Profile> mProfileSupplier;
-    private final Callback<@Nullable Profile> mProfileObserver = this::updateGlicVisibility;
-    private final BottomBarPromoDialogCoordinator mPromoDialogCoordinator;
-    //private final NullableObservableSupplier<PropertyModel> mGlicActionSupplier; // Vivaldi
-    private final NullableObservableSupplier<PropertyModel> mNewTabActionSupplier;
-
-    /* private @Nullable GlicKeyedService mGlicKeyedService;
+    private final Callback<@Nullable Profile> mProfileObserver = this::onProfileChanged;
+    /* Vivaldi
     private final GlicKeyedService.AllowedChangedObserver mAllowedChangedObserver =
-            this::onGlicAllowedChanged; Vivaldi */
+            this::onGlicAllowedChanged;
 
-    private @Nullable Profile mOriginalProfile;
-
+    // Mutable State (Nullable)
+    private @Nullable GlicKeyedService mGlicKeyedService; Not needed in Vivaldi */
+    //private @Nullable Profile mOriginalProfile;
     private @Nullable Tab mCurrentTab;
     private @Nullable Boolean mIsVisible;
+    // private @Nullable IphIntent mNewTabIphIntent;
+    private @Nullable TemplateUrlService mTemplateUrlService;
+    private @Nullable TemplateUrlServiceObserver mTemplateUrlServiceObserver;
+    private @Nullable LayoutStateProvider mLayoutStateProvider;
+    //private @Nullable @ActionId Integer mResolvedCandidateExtraAction;
+
+    // Mutable State (Primitive / Non-null)
     //private boolean mGlicWasVisible; // Vivaldi
     //private boolean mGlicTimeToAppearRecorded; // Vivaldi
+    private boolean mShouldHideForHub;
+    private boolean mDestroyed;
     @SuppressWarnings("unused") // Vivaldi
     private long mBottomBarShownTimeMs = -1; // Vivaldi
     //private long mGlicAppearedTimeMs = -1; // Vivaldi
-    //private @Nullable IphIntent mNewTabIphIntent;
-    @SuppressWarnings("unused") // Vivaldi
-    private final Context mContext;
+    private boolean mStartupPromoFlowFinished;
+    private boolean mObservingSharedPrefs;
 
     /**
      * @param context The context to use for the bottom bar.
@@ -102,6 +130,7 @@ public class BottomBarMediator
      * @param visibilityDelegate Delegate to handle compositor-level visibility changes.
      * @param shouldIncludeHomeButton Whether the home button should be included in the bottom bar.
      * @param profileSupplier Supplier of the current profile.
+     * @param countrySupplier Supplier of the latest variations country code.
      * @param omniboxFocusStateSupplier Supplier of the omnibox focus state.
      * @param promoDialogCoordinator The {@link BottomBarPromoDialogCoordinator} for the promo
      *     dialog.
@@ -117,9 +146,11 @@ public class BottomBarMediator
             VisibilityDelegate visibilityDelegate,
             boolean shouldIncludeHomeButton,
             NullableObservableSupplier<Profile> profileSupplier,
+            OneshotSupplier<String> countrySupplier,
             NonNullObservableSupplier<Boolean> omniboxFocusStateSupplier,
             BottomBarPromoDialogCoordinator promoDialogCoordinator,
-            ActionRegistry actionRegistry) {
+            ActionRegistry actionRegistry,
+            LayoutStateProvider layoutStateProvider) {
         mContext = context;
         mModel = model;
         mButtonManager = buttonManager;
@@ -129,11 +160,19 @@ public class BottomBarMediator
         mVisibilityDelegate = visibilityDelegate;
         mShouldIncludeHomeButton = shouldIncludeHomeButton;
         mProfileSupplier = profileSupplier;
+        mCountrySupplier = countrySupplier;
         mOmniboxFocusStateSupplier = omniboxFocusStateSupplier;
         mPromoDialogCoordinator = promoDialogCoordinator;
         //mGlicActionSupplier = actionRegistry.get(ActionId.GLIC);
+        //mAiModeActionSupplier = actionRegistry.get(ActionId.AI_MODE);
         mNewTabActionSupplier = actionRegistry.get(ActionId.NEW_TAB);
         //mGlicTimeToAppearRecorded = false; // Vivaldi
+
+        if (!BottomBarConfigUtils.shouldShowOnGts()) {
+            layoutStateProvider.addObserver(this);
+            mShouldHideForHub = layoutStateProvider.isLayoutVisible(LayoutType.HUB);
+            mLayoutStateProvider = layoutStateProvider;
+        }
 
         mTabObserver =
                 new EmptyTabObserver() {
@@ -146,6 +185,7 @@ public class BottomBarMediator
         mThemeColorProvider.addTintObserver(this);
         mModel.set(BottomBarProperties.COLOR_SCHEME, mThemeColorProvider.getBrandedColorScheme());
         mProfileSupplier.addSyncObserverAndCallIfNonNull(mProfileObserver);
+        mCountrySupplier.onAvailable((country) -> updateExtraActionVisibility());
         mOmniboxFocusStateSupplier.addSyncObserver(mOmniboxFocusObserver);
         onTabChanged(mTabSupplier.addSyncObserver(mTabSupplierObserver));
         if (mShouldIncludeHomeButton) {
@@ -172,6 +212,22 @@ public class BottomBarMediator
         updateVisibility();
     }
 
+    @Override
+    public void onFinishedShowing(@LayoutType int layoutType) {
+        if (layoutType == LayoutType.HUB) {
+            mShouldHideForHub = true;
+            updateVisibility();
+        }
+    }
+
+    @Override
+    public void onStartedHiding(@LayoutType int layoutType) {
+        if (layoutType == LayoutType.HUB) {
+            mShouldHideForHub = false;
+            updateVisibility();
+        }
+    }
+
     private void updateVisibility() {
         boolean currentTabIsRegularNtp =
                 mCurrentTab != null
@@ -180,7 +236,7 @@ public class BottomBarMediator
         boolean isOmniboxFocused = mOmniboxFocusStateSupplier.get();
         boolean shouldDisableOnNtp =
                 BottomBarConfigUtils.shouldDisableOnNtp() && currentTabIsRegularNtp;
-        boolean isVisible = !shouldDisableOnNtp && !isOmniboxFocused;
+        boolean isVisible = !shouldDisableOnNtp && !isOmniboxFocused && !mShouldHideForHub;
 
         if (mIsVisible != null && mIsVisible == isVisible) return;
 
@@ -202,12 +258,40 @@ public class BottomBarMediator
         }
     }
 
+    /**
+     * Notifies the mediator that the startup promo flow has finished.
+     *
+     * <p>This marks the startup promo flow as finished, unlocking the ability to show BottomBar
+     * IPHs. If no startup promo was shown, it attempts to show the IPHs immediately. If a promo was
+     * shown, it defers showing IPHs until a subsequent visibility change to avoid
+     * double-promotions.
+     *
+     * @param promoShown True if any startup promo was shown during the startup flow.
+     */
+    public void onStartupPromoFlowFinished(boolean promoShown) {
+        mStartupPromoFlowFinished = true;
+        if (!promoShown) {
+            maybeShowIphs();
+        }
+    }
+
     private void maybeShowIphs() {
+        if (!mStartupPromoFlowFinished) return;
         boolean isBottomBarVisible = Boolean.TRUE.equals(mIsVisible);
-        boolean isGlicVisible =
-                Boolean.TRUE.equals(mModel.get(BottomBarProperties.IS_GLIC_BUTTON_VISIBLE));
-        if (isBottomBarVisible && isGlicVisible) {
-            if (!mPromoDialogCoordinator.maybeShowPromoDialog()) {
+        boolean isExtraVisible =
+                Boolean.TRUE.equals(mModel.get(BottomBarProperties.IS_EXTRA_BUTTON_VISIBLE));
+        if (isBottomBarVisible && isExtraVisible) {
+            Profile profile = mProfileSupplier.get();
+            Tracker tracker =
+                    profile == null
+                            ? null
+                            : TrackerFactory.getTrackerForProfile(profile.getOriginalProfile());
+            boolean hasSeenPromo =
+                    tracker != null
+                            && tracker.hasEverTriggered(
+                                    FeatureConstants.ANDROID_BOTTOM_BAR_PROMO_DIALOG, false);
+
+            if (!mPromoDialogCoordinator.isShowing() && hasSeenPromo) {
                 triggerNewTabIph();
             }
         } else if (isBottomBarVisible) {
@@ -217,28 +301,71 @@ public class BottomBarMediator
         }
     }
 
-    private void updateGlicVisibility(@Nullable Profile profile) {
+    private void onProfileChanged(@Nullable Profile profile) {
+        updateExtraActionVisibility();
+    }
+
+    private void updateExtraActionVisibility() {
+        if (mDestroyed) return;
         /* Not needed in Vivaldi
-        Profile originalProfile = profile != null ? profile.getOriginalProfile() : null;
-
-        // Manage observers for dynamic updates.
-        updateObservers(originalProfile);
-
+        Profile profile = mProfileSupplier.get();
         if (profile == null) {
             setButtonVisibility(ActionId.GLIC, false);
+            setButtonVisibility(ActionId.AI_MODE, false);
             return;
         }
 
+        Profile originalProfile = profile.getOriginalProfile();
+        String country = mCountrySupplier.get();
 
-        // Calculate and set visibility.
-        long startTime = SystemClock.uptimeMillis();
-        boolean shouldBeVisible = GlicEnabling.isEnabledForProfile(originalProfile); Vivaldi
-        long decisionDuration = SystemClock.uptimeMillis() - startTime;
+        if (mResolvedCandidateExtraAction == null) {
+            // Check if prerequisites for resolution are satisfied.
+            if (!BottomBarActionEligibility.isCandidateResolutionReady(originalProfile, country)) {
+                // Country code not yet populated and geofencing not bypassed: defer decision.
+                setButtonVisibility(ActionId.GLIC, /* visible= */ false);
+                setButtonVisibility(ActionId.AI_MODE, /* visible= */ false);
+                return;
+            }
 
-        /* Not needed in Vivaldi
-        BottomBarMetrics.recordGlicVisibilityDecisionTime(decisionDuration);
+            long startTime = SystemClock.uptimeMillis();
+            BottomBarActionEligibility.getCandidateExtraAction(originalProfile, country);
+            mResolvedCandidateExtraAction =
+                    BottomBarActionEligibility.getCachedCandidateExtraAction();
+            long decisionDuration = SystemClock.uptimeMillis() - startTime;
+            BottomBarMetrics.recordGlicVisibilityDecisionTime(decisionDuration);
+        }
 
-        if (shouldBeVisible && !mGlicWasVisible) {
+        updateObservers(originalProfile);
+
+        Integer candidateExtraAction = mResolvedCandidateExtraAction;
+        if (candidateExtraAction != null && candidateExtraAction == ActionId.GLIC) {
+            updateGlicVisibility(originalProfile);
+        } else if (candidateExtraAction != null && candidateExtraAction == ActionId.AI_MODE) {
+            updateAiModeVisibility();
+        } else {
+            setButtonVisibility(ActionId.GLIC, /* visible= */ false);
+            setButtonVisibility(ActionId.AI_MODE, /* visible= */ false);
+        }
+        */ // Vivaldi
+    }
+
+    /* Not needed in Vivaldi
+    private void updateGlicVisibility(@Nullable Profile originalProfile) {
+        Integer candidateExtraAction = mResolvedCandidateExtraAction;
+        if (originalProfile == null
+                || candidateExtraAction == null
+                || candidateExtraAction != ActionId.GLIC) {
+            setButtonVisibility(ActionId.GLIC, /* visible= */ false);
+            return;
+        }
+
+        String country = mCountrySupplier.get();
+        boolean visible =
+                (GlicEnabling.isPolicyEnforced(originalProfile)
+                                || BottomBarConfigUtils.isGlicButtonEnabled())
+                        && BottomBarActionEligibility.isGlicAllowedInCountry(country);
+
+        if (visible && !mGlicWasVisible) {
             mGlicAppearedTimeMs = SystemClock.uptimeMillis();
             if (mBottomBarShownTimeMs != -1 && !mGlicTimeToAppearRecorded) {
                 long timeSinceShown = mGlicAppearedTimeMs - mBottomBarShownTimeMs;
@@ -246,12 +373,30 @@ public class BottomBarMediator
                 mGlicTimeToAppearRecorded = true;
             }
         }
-        mGlicWasVisible = shouldBeVisible;
+        mGlicWasVisible = visible;
 
-        setButtonVisibility(ActionId.GLIC, shouldBeVisible);
-        */ // Vivaldi
+        setButtonVisibility(ActionId.AI_MODE, /* visible= */ false);
+        setButtonVisibility(ActionId.GLIC, visible);
     }
+    */ // Vivaldi
 
+    /*Not needed in Vivaldi
+    private void updateAiModeVisibility() {
+        Integer candidateExtraAction = mResolvedCandidateExtraAction;
+        if (candidateExtraAction == null || candidateExtraAction != ActionId.AI_MODE) {
+            setButtonVisibility(ActionId.AI_MODE, /* visible= */ false);
+            return;
+        }
+
+        boolean visible =
+                mTemplateUrlService != null && mTemplateUrlService.isDefaultSearchEngineGoogle();
+
+        setButtonVisibility(ActionId.GLIC, /* visible= */ false);
+        setButtonVisibility(ActionId.AI_MODE, visible);
+    }
+    */ // Vivaldi
+
+    /* Not needed in Vivaldi
     @SuppressWarnings("unused") // Vivaldi
     private void updateObservers(@Nullable Profile originalProfile) {
         if (mOriginalProfile == originalProfile) {
@@ -259,24 +404,62 @@ public class BottomBarMediator
         }
         mOriginalProfile = originalProfile;
 
-        /* Not needed in Vivaldi
         if (mGlicKeyedService != null) {
             mGlicKeyedService.removeAllowedChangedObserver(mAllowedChangedObserver);
             mGlicKeyedService = null;
         }
+        if (mObservingSharedPrefs) {
+            ContextUtils.getAppSharedPreferences().unregisterOnSharedPreferenceChangeListener(this);
+            mObservingSharedPrefs = false;
+        }
+        if (mTemplateUrlService != null && mTemplateUrlServiceObserver != null) {
+            mTemplateUrlService.removeObserver(mTemplateUrlServiceObserver);
+            mTemplateUrlService = null;
+            mTemplateUrlServiceObserver = null;
+        }
 
-        if (originalProfile == null) return;
+        Integer candidateExtraAction = mResolvedCandidateExtraAction;
+        if (originalProfile == null || candidateExtraAction == null) {
+            return;
+        }
 
-        GlicKeyedService glicKeyedService = GlicKeyedServiceFactory.getForProfile(originalProfile);
-        mGlicKeyedService = glicKeyedService;
-        if (mGlicKeyedService != null) {
-            mGlicKeyedService.addAllowedChangedObserver(mAllowedChangedObserver);
-        }*/
+        if (candidateExtraAction == ActionId.GLIC) {
+            GlicKeyedService glicKeyedService =
+                    GlicKeyedServiceFactory.getForProfile(originalProfile);
+            mGlicKeyedService = glicKeyedService;
+            if (mGlicKeyedService != null) {
+                mGlicKeyedService.addAllowedChangedObserver(mAllowedChangedObserver);
+            }
+            ContextUtils.getAppSharedPreferences().registerOnSharedPreferenceChangeListener(this);
+            mObservingSharedPrefs = true;
+        } else if (candidateExtraAction == ActionId.AI_MODE) {
+            mTemplateUrlService = TemplateUrlServiceFactory.getForProfile(originalProfile);
+            if (mTemplateUrlService != null) {
+                mTemplateUrlServiceObserver = this::onTemplateURLServiceChanged;
+                mTemplateUrlService.addObserver(mTemplateUrlServiceObserver);
+            }
+        }
+    }
+    */ // Vivaldi
+
+    /* Not needed in Vivaldi
+    private void onGlicAllowedChanged() {
+        updateGlicVisibility(mOriginalProfile);
     }
 
-    @SuppressWarnings("unused") // Vivaldi
-    private void onGlicAllowedChanged() {
-        updateGlicVisibility(mProfileSupplier.get());
+    private void onTemplateURLServiceChanged() {
+        updateAiModeVisibility();
+    }
+    */ // Vivaldi
+
+    @Override
+    public void onSharedPreferenceChanged(
+            SharedPreferences sharedPreferences, @Nullable String key) {
+    /* Not needed in Vivaldi
+        if (ChromePreferenceKeys.BOTTOM_BAR_GLIC_BUTTON_ENABLED.equals(key)) {
+            updateGlicVisibility(mOriginalProfile);
+        }
+    */ // Vivaldi
     }
 
     private void onHomepageEnabledChanged(boolean isEnabled) {
@@ -322,36 +505,55 @@ public class BottomBarMediator
     @Override
     public void onPromoDialogAccepted() {
         /* Not needed in Vivaldi
-        PropertyModel glicModel = mGlicActionSupplier.get();
-        if (glicModel == null) return;
+        @ActionId int eligibleAction = mModel.get(BottomBarProperties.EXTRA_BUTTON_ACTION_ID);
 
-        HighlightParams glicHighlightParams = new HighlightParams(HighlightShape.RECTANGLE);
-        glicHighlightParams.setBoundsRespectPadding(true);
+        PropertyModel actionModel;
+        int stringResId;
+        String featureTracker;
+
+        if (eligibleAction == ActionId.AI_MODE) {
+            actionModel = mAiModeActionSupplier.get();
+            stringResId = R.string.iph_android_bottom_bar_aim;
+            featureTracker = FeatureConstants.ANDROID_BOTTOM_BAR_AIM;
+        } else {
+            actionModel = mGlicActionSupplier.get();
+            stringResId = R.string.iph_android_bottom_bar_glic;
+            featureTracker = FeatureConstants.ANDROID_BOTTOM_BAR_GLIC;
+        }
+
+        if (actionModel == null) return;
+
+        HighlightParams highlightParams = new HighlightParams(HighlightShape.RECTANGLE);
+        highlightParams.setBoundsRespectPadding(true);
         int circleRadius =
                 mContext.getResources()
                         .getDimensionPixelSize(R.dimen.bottom_bar_button_highlight_radius);
-        glicHighlightParams.setCornerRadius(circleRadius);
+        highlightParams.setCornerRadius(circleRadius);
 
-        IphIntent glicIph =
-                new IphIntent.Builder(FeatureConstants.ANDROID_BOTTOM_BAR_GLIC)
-                        .setStringResId(R.string.iph_android_bottom_bar_glic)
-                        .setAccessibilityResId(R.string.iph_android_bottom_bar_glic)
-                        .setHighlightParams(glicHighlightParams)
+        @BottomBarMetrics.IphFeature
+        String iphFeatureType =
+                eligibleAction == ActionId.AI_MODE
+                        ? BottomBarMetrics.IphFeature.AIM
+                        : BottomBarMetrics.IphFeature.GLIC;
+
+        IphIntent iphIntent =
+                new IphIntent.Builder(featureTracker)
+                        .setStringResId(stringResId)
+                        .setAccessibilityResId(stringResId)
+                        .setHighlightParams(highlightParams)
                         .setOnShowCallback(
                                 () ->
                                         BottomBarMetrics.recordIphEvent(
-                                                BottomBarMetrics.IphEvent.SHOWN,
-                                                /* isNewTabIph= * / false))
+                                                BottomBarMetrics.IphEvent.SHOWN, iphFeatureType))
                         .setOnDismissCallback(
                                 () -> {
                                     BottomBarMetrics.recordIphEvent(
-                                            BottomBarMetrics.IphEvent.DISMISSED,
-                                            /* isNewTabIph= * / false);
+                                            BottomBarMetrics.IphEvent.DISMISSED, iphFeatureType);
                                     triggerNewTabIph();
                                 })
                         .build();
 
-        glicModel.set(ActionProperties.IPH_INTENT, glicIph);
+        actionModel.set(ActionProperties.IPH_INTENT, iphIntent);
         */ // Vivaldi
     }
 
@@ -387,12 +589,12 @@ public class BottomBarMediator
                                 () ->
                                         BottomBarMetrics.recordIphEvent(
                                                 BottomBarMetrics.IphEvent.SHOWN,
-                                                /* isNewTabIph= * / true))
+                                                BottomBarMetrics.IphFeature.NEW_TAB))
                         .setOnDismissCallback(
                                 () ->
                                         BottomBarMetrics.recordIphEvent(
                                                 BottomBarMetrics.IphEvent.DISMISSED,
-                                                /* isNewTabIph= * / true))
+                                                BottomBarMetrics.IphFeature.NEW_TAB))
                         .build();
         newTabModel.set(ActionProperties.IPH_INTENT, newTabIph);
         mNewTabIphIntent = newTabIph;
@@ -401,6 +603,7 @@ public class BottomBarMediator
 
     @Override
     public void destroy() {
+        mDestroyed = true;
         mThemeColorProvider.removeTintObserver(this);
         if (mCurrentTab != null) {
             mCurrentTab.removeObserver(mTabObserver);
@@ -410,20 +613,41 @@ public class BottomBarMediator
         if (mShouldIncludeHomeButton) {
             mHomepageEnabledSupplier.removeObserver(mHomepageEnabledObserver);
         }
+        if (mObservingSharedPrefs) {
+            ContextUtils.getAppSharedPreferences().unregisterOnSharedPreferenceChangeListener(this);
+            mObservingSharedPrefs = false;
+        }
         mProfileSupplier.removeObserver(mProfileObserver);
         /* Not needed in Vivaldi
         if (mGlicKeyedService != null) {
             mGlicKeyedService.removeAllowedChangedObserver(mAllowedChangedObserver);
             mGlicKeyedService = null;
-        } */
+        }
+        */ // Vivaldi
+
+        if (mTemplateUrlService != null && mTemplateUrlServiceObserver != null) {
+            mTemplateUrlService.removeObserver(mTemplateUrlServiceObserver);
+            mTemplateUrlService = null;
+            mTemplateUrlServiceObserver = null;
+        }
 
         mOmniboxFocusStateSupplier.removeObserver(mOmniboxFocusObserver);
+
+        if (mLayoutStateProvider != null) {
+            mLayoutStateProvider.removeObserver(this);
+            mLayoutStateProvider = null;
+        }
 
         /* Not needed in Vivaldi
         PropertyModel glicModel = mGlicActionSupplier.get();
         if (glicModel != null) {
             glicModel.set(ActionProperties.IPH_INTENT, null);
-        }*/
+        }
+        PropertyModel aiModeModel = mAiModeActionSupplier.get();
+        if (aiModeModel != null) {
+            aiModeModel.set(ActionProperties.IPH_INTENT, null);
+        }
+        */ // Vivaldi
         PropertyModel newTabModel = mNewTabActionSupplier.get();
         if (newTabModel != null) {
             newTabModel.set(ActionProperties.IPH_INTENT, null);

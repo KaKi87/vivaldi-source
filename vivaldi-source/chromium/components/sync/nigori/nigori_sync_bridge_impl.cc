@@ -16,9 +16,9 @@
 #include "components/sync/base/custom_passphrase_bootstrap_token.h"
 #include "components/sync/base/passphrase_enums.h"
 #include "components/sync/base/time.h"
+#include "components/sync/model/crypto/key_derivation_params.h"
 #include "components/sync/nigori/cross_user_sharing_public_key.h"
 #include "components/sync/nigori/cryptographer_impl.h"
-#include "components/sync/nigori/key_derivation_params.h"
 #include "components/sync/nigori/keystore_keys_cryptographer.h"
 #include "components/sync/nigori/nigori_storage.h"
 #include "components/sync/nigori/pending_local_nigori_commit.h"
@@ -324,13 +324,6 @@ NigoriSyncBridgeImpl::NigoriSyncBridgeImpl(
         PendingLocalNigoriCommit::
             ForCrossUserSharingPublicPrivateKeyInitializer());
   }
-
-  // Keystore key rotation might be not performed, but required.
-  MaybeTriggerKeystoreReencryption();
-
-  // Ensure that `cryptographer` contains all keystore keys (non-keystore
-  // passphrase types only).
-  MaybePopulateKeystoreKeysIntoCryptographer();
 }
 
 NigoriSyncBridgeImpl::~NigoriSyncBridgeImpl() {
@@ -575,7 +568,6 @@ bool NigoriSyncBridgeImpl::SetKeystoreKeys(
     }
   }
 
-  MaybeTriggerKeystoreReencryption();
   // Note: we don't need to persist keystore keys here, because we will receive
   // Nigori node right after this method and persist all the data during
   // UpdateLocalState().
@@ -709,7 +701,7 @@ std::optional<ModelError> NigoriSyncBridgeImpl::UpdateLocalState(
   // upon SetExplicitPassphraseDecryptionKey() or equivalent depending on the
   // passphrase type.
   state_.pending_keys = specifics.encryption_keybag();
-  state_.cryptographer->ClearDefaultEncryptionKey();
+  state_.cryptographer->InvalidateDefaultEncryptionKey();
 
   if (specifics.has_cross_user_sharing_public_key()) {
     // Remote update wins over local state.
@@ -1005,12 +997,6 @@ sync_pb::NigoriLocalData NigoriSyncBridgeImpl::SerializeAsNigoriLocalData()
   return output;
 }
 
-void NigoriSyncBridgeImpl::MaybeTriggerKeystoreReencryption() {
-  if (state_.NeedsKeystoreReencryption()) {
-    QueuePendingLocalCommit(
-        PendingLocalNigoriCommit::ForKeystoreReencryption());
-  }
-}
 
 void NigoriSyncBridgeImpl::QueuePendingLocalCommit(
     std::unique_ptr<PendingLocalNigoriCommit> local_commit) {
@@ -1038,24 +1024,6 @@ void NigoriSyncBridgeImpl::PutNextApplicablePendingLocalCommit() {
     // The local change failed to apply.
     pending_local_commit_queue_.front()->OnFailure(observer_list_);
     pending_local_commit_queue_.pop_front();
-  }
-}
-
-void NigoriSyncBridgeImpl::MaybePopulateKeystoreKeysIntoCryptographer() {
-  if (state_.keystore_keys_cryptographer->IsEmpty()) {
-    return;
-  }
-  if (state_.passphrase_type == NigoriSpecifics::KEYSTORE_PASSPHRASE) {
-    // KEYSTORE_PASSPHRASE should be ignored, because otherwise keystore key
-    // rotation logic would be broken.
-    return;
-  }
-  // These keys should usually already be in the keybag, but there is evidence
-  // that some users run into corrupt data with the keys missing in the keybag.
-  for (const std::string& keystore_key :
-       state_.keystore_keys_cryptographer->keystore_keys()) {
-    state_.cryptographer->EmplaceKey(keystore_key,
-                                     KeyDerivationParams::CreateForPbkdf2());
   }
 }
 

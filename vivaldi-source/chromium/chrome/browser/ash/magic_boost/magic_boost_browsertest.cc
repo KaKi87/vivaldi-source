@@ -237,7 +237,7 @@ class MagicBoostBrowserTest
   // Showing "chrome-untrusted://mako/" help me write bubble.
   bool IsShowingMakoBubble() const {
     return ash::input_method::EditorMediatorFactory::GetForProfile(
-               browser()->profile())
+               browser()->GetProfile())
         ->mako_bubble_coordinator_for_testing()
         .IsShowingUI();
   }
@@ -309,16 +309,16 @@ class MagicBoostBrowserTest
     ASSERT_TRUE(https_server_.Start());
 
     // Sets the editor mode.
-    input_method::EditorMediatorFactory::GetForProfile(browser()->profile())
+    input_method::EditorMediatorFactory::GetForProfile(browser()->GetProfile())
         ->OverrideEditorModeForTesting(GetEditorMode());
 
     // Sets the Orca consent status.
-    browser()->profile()->GetPrefs()->SetInteger(
+    browser()->GetProfile()->GetPrefs()->SetInteger(
         prefs::kOrcaConsentStatus,
         std::to_underlying(GetInitEditorConsentStatus()));
 
     // Sets the Hmr consent status.
-    browser()->profile()->GetPrefs()->SetInteger(
+    browser()->GetProfile()->GetPrefs()->SetInteger(
         prefs::kHMRConsentStatus,
         std::to_underlying(GetInitHmrConsentStatus()));
   }
@@ -358,7 +358,7 @@ IN_PROC_BROWSER_TEST_P(MagicBoostBrowserTest, AcceptOptInFromReadOnlyContent) {
   EXPECT_EQ(chromeos::MagicBoostState::Get()->hmr_consent_status(),
             GetInitHmrConsentStatus());
   EXPECT_TRUE(chromeos::MagicBoostState::Get()->hmr_enabled().value());
-  PrefService* prefs = browser()->profile()->GetPrefs();
+  PrefService* prefs = browser()->GetProfile()->GetPrefs();
   EXPECT_TRUE(prefs->GetBoolean(prefs::kHmrEnabled));
   EXPECT_TRUE(prefs->GetBoolean(prefs::kOrcaEnabled));
   EXPECT_EQ(prefs->GetInteger(prefs::kHMRConsentStatus),
@@ -467,7 +467,7 @@ IN_PROC_BROWSER_TEST_P(MagicBoostBrowserTest,
   EXPECT_EQ(chromeos::MagicBoostState::Get()->hmr_consent_status(),
             GetInitHmrConsentStatus());
   EXPECT_EQ(chromeos::MagicBoostState::Get()->hmr_enabled().value(), true);
-  PrefService* prefs = browser()->profile()->GetPrefs();
+  PrefService* prefs = browser()->GetProfile()->GetPrefs();
   EXPECT_TRUE(prefs->GetBoolean(prefs::kHmrEnabled));
   EXPECT_TRUE(prefs->GetBoolean(prefs::kOrcaEnabled));
   EXPECT_EQ(prefs->GetInteger(prefs::kHMRConsentStatus),
@@ -536,7 +536,7 @@ IN_PROC_BROWSER_TEST_P(MagicBoostBrowserTest,
   EXPECT_EQ(chromeos::MagicBoostState::Get()->hmr_consent_status(),
             GetInitHmrConsentStatus());
   EXPECT_TRUE(chromeos::MagicBoostState::Get()->hmr_enabled().value());
-  PrefService* prefs = browser()->profile()->GetPrefs();
+  PrefService* prefs = browser()->GetProfile()->GetPrefs();
   EXPECT_TRUE(prefs->GetBoolean(prefs::kHmrEnabled));
   EXPECT_TRUE(prefs->GetBoolean(prefs::kOrcaEnabled));
   EXPECT_EQ(prefs->GetInteger(prefs::kHMRConsentStatus),
@@ -657,7 +657,7 @@ IN_PROC_BROWSER_TEST_P(MagicBoostBrowserTest, AcceptOptInFromInputFieldWeb) {
   EXPECT_EQ(chromeos::MagicBoostState::Get()->hmr_consent_status(),
             GetInitHmrConsentStatus());
   EXPECT_TRUE(chromeos::MagicBoostState::Get()->hmr_enabled().value());
-  PrefService* prefs = browser()->profile()->GetPrefs();
+  PrefService* prefs = browser()->GetProfile()->GetPrefs();
   EXPECT_TRUE(prefs->GetBoolean(prefs::kHmrEnabled));
   EXPECT_TRUE(prefs->GetBoolean(prefs::kOrcaEnabled));
   EXPECT_EQ(prefs->GetInteger(prefs::kHMRConsentStatus),
@@ -752,7 +752,7 @@ IN_PROC_BROWSER_TEST_P(MagicBoostBrowserTest,
   EXPECT_EQ(chromeos::MagicBoostState::Get()->hmr_consent_status(),
             GetInitHmrConsentStatus());
   EXPECT_TRUE(chromeos::MagicBoostState::Get()->hmr_enabled().value());
-  PrefService* prefs = browser()->profile()->GetPrefs();
+  PrefService* prefs = browser()->GetProfile()->GetPrefs();
   EXPECT_TRUE(prefs->GetBoolean(prefs::kHmrEnabled));
   EXPECT_TRUE(prefs->GetBoolean(prefs::kOrcaEnabled));
   EXPECT_EQ(prefs->GetInteger(prefs::kHMRConsentStatus),
@@ -820,7 +820,7 @@ IN_PROC_BROWSER_TEST_P(MagicBoostBrowserTest,
   EXPECT_EQ(chromeos::MagicBoostState::Get()->hmr_consent_status(),
             GetInitHmrConsentStatus());
   EXPECT_TRUE(chromeos::MagicBoostState::Get()->hmr_enabled().value());
-  PrefService* prefs = browser()->profile()->GetPrefs();
+  PrefService* prefs = browser()->GetProfile()->GetPrefs();
   EXPECT_TRUE(prefs->GetBoolean(prefs::kHmrEnabled));
   EXPECT_TRUE(prefs->GetBoolean(prefs::kOrcaEnabled));
   EXPECT_EQ(prefs->GetInteger(prefs::kHMRConsentStatus),
@@ -921,14 +921,14 @@ IN_PROC_BROWSER_TEST_P(MagicBoostBrowserTest, ShowDisclaimerViewOnMultiScreen) {
 
   // Sets the second display to be the window screen. Right click on the web
   // content to show the opt in card.
-  browser()->window()->SetBounds(displays[1].work_area());
+  browser()->GetWindow()->SetBounds(displays[1].work_area());
   event_generator().SetTargetWindow(root_windows[1]);
   NavigateToReadOnlyWeb();
   event_generator().MoveMouseTo(displays[1].work_area().CenterPoint());
   event_generator().ClickRightButton();
 
   if (IsMagicBoostRevampEnabled()) {
-    browser()->profile()->GetPrefs()->SetInteger(
+    browser()->GetProfile()->GetPrefs()->SetInteger(
         prefs::kHMRConsentStatus, std::to_underlying(init_hmr_status));
     if (!ShouldShowHmrMenuCard()) {
       EXPECT_FALSE(
@@ -958,9 +958,9 @@ IN_PROC_BROWSER_TEST_P(MagicBoostBrowserTest, ShowDisclaimerViewOnMultiScreen) {
 
     // Resets the Hmr consent status to continue testing showing disclaimer view
     // on the second screen.
-    browser()->profile()->GetPrefs()->SetInteger(
+    browser()->GetProfile()->GetPrefs()->SetInteger(
         prefs::kHMRConsentStatus, std::to_underlying(init_hmr_status));
-    browser()->window()->SetBounds(displays[0].work_area());
+    browser()->GetWindow()->SetBounds(displays[0].work_area());
     event_generator().SetTargetWindow(root_windows[0]);
     NavigateToReadOnlyWeb();
     event_generator().MoveMouseTo(displays[0].work_area().CenterPoint());
@@ -981,9 +981,9 @@ IN_PROC_BROWSER_TEST_P(MagicBoostBrowserTest, ShowDisclaimerViewOnMultiScreen) {
 
     // Resets the Hmr consent status to continue testing showing disclaimer view
     // on the third screen.
-    browser()->profile()->GetPrefs()->SetInteger(
+    browser()->GetProfile()->GetPrefs()->SetInteger(
         prefs::kHMRConsentStatus, std::to_underlying(init_hmr_status));
-    browser()->window()->SetBounds(displays[2].work_area());
+    browser()->GetWindow()->SetBounds(displays[2].work_area());
     event_generator().SetTargetWindow(root_windows[2]);
     NavigateToReadOnlyWeb();
     event_generator().MoveMouseTo(displays[2].work_area().CenterPoint());
@@ -1005,7 +1005,7 @@ IN_PROC_BROWSER_TEST_P(MagicBoostBrowserTest, ShowDisclaimerViewOnMultiScreen) {
     // Without resetting the hmr consent status, it should show mahi menu and
     // close the dicaimer view after right clicking on the read only web content
     // again on the first screen.
-    browser()->window()->SetBounds(displays[0].work_area());
+    browser()->GetWindow()->SetBounds(displays[0].work_area());
     event_generator().SetTargetWindow(root_windows[0]);
     NavigateToReadOnlyWeb();
     event_generator().MoveMouseTo(displays[0].work_area().CenterPoint());
@@ -1048,9 +1048,9 @@ IN_PROC_BROWSER_TEST_P(MagicBoostBrowserTest, ShowDisclaimerViewOnMultiScreen) {
 
   // Resets the Hmr consent status to continue testing showing disclaimer view
   // on the first screen.
-  browser()->profile()->GetPrefs()->SetInteger(
+  browser()->GetProfile()->GetPrefs()->SetInteger(
       prefs::kHMRConsentStatus, std::to_underlying(init_hmr_status));
-  browser()->window()->SetBounds(displays[0].work_area());
+  browser()->GetWindow()->SetBounds(displays[0].work_area());
   event_generator().SetTargetWindow(root_windows[0]);
   NavigateToReadOnlyWeb();
   event_generator().MoveMouseTo(displays[0].work_area().CenterPoint());
@@ -1069,9 +1069,9 @@ IN_PROC_BROWSER_TEST_P(MagicBoostBrowserTest, ShowDisclaimerViewOnMultiScreen) {
 
   // Resets the Hmr consent status to continue testing showing disclaimer view
   // on the third screen.
-  browser()->profile()->GetPrefs()->SetInteger(
+  browser()->GetProfile()->GetPrefs()->SetInteger(
       prefs::kHMRConsentStatus, std::to_underlying(init_hmr_status));
-  browser()->window()->SetBounds(displays[2].work_area());
+  browser()->GetWindow()->SetBounds(displays[2].work_area());
   event_generator().SetTargetWindow(root_windows[2]);
   NavigateToReadOnlyWeb();
   event_generator().MoveMouseTo(displays[2].work_area().CenterPoint());
@@ -1091,7 +1091,7 @@ IN_PROC_BROWSER_TEST_P(MagicBoostBrowserTest, ShowDisclaimerViewOnMultiScreen) {
   // Without resetting the hmr consent status, it should show mahi menu and
   // close the dicaimer view after right clicking on the read only web content
   // again on the first screen.
-  browser()->window()->SetBounds(displays[0].work_area());
+  browser()->GetWindow()->SetBounds(displays[0].work_area());
   event_generator().SetTargetWindow(root_windows[0]);
   NavigateToReadOnlyWeb();
   event_generator().MoveMouseTo(displays[0].work_area().CenterPoint());

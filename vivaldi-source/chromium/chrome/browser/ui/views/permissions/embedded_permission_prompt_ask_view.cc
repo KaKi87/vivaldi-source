@@ -6,7 +6,6 @@
 
 #include "chrome/browser/ui/url_identity.h"
 #include "chrome/grit/generated_resources.h"
-#include "components/permissions/features.h"
 #include "components/strings/grit/components_strings.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -18,9 +17,9 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(EmbeddedPermissionPromptAskView,
                                       kAllowThisTimeId);
 
 EmbeddedPermissionPromptAskView::EmbeddedPermissionPromptAskView(
-    Browser* browser,
+    content::WebContents* web_contents,
     base::WeakPtr<EmbeddedPermissionPromptViewDelegate> delegate)
-    : EmbeddedPermissionPromptBaseView(browser, delegate) {}
+    : EmbeddedPermissionPromptBaseView(web_contents, delegate) {}
 
 EmbeddedPermissionPromptAskView::~EmbeddedPermissionPromptAskView() = default;
 

@@ -54,21 +54,18 @@
 #include "url/origin.h"
 
 #if BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/glic/browser_ui/glic_nudge_controller_android.h"
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
 #include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 #else
 #include "chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h"  // nogncheck crbug.com/40147906
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)   // Vivaldi keep disabled
+#include "chrome/browser/glic/public/glic_side_panel_coordinator.h"
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
 #include "chrome/browser/ui/views/glic/glic_button_interface.h"  // nogncheck crbug.com/40147906
 #include "ui/views/controls/button/label_button.h"  // nogncheck crbug.com/40147906
-
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)   // Vivaldi keep disabled
-#include "chrome/browser/glic/public/glic_side_panel_coordinator.h"
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-
 #endif
 
 namespace glic {
@@ -134,30 +131,21 @@ ContextualCueingHelper::~ContextualCueingHelper() = default;
 
 glic::GlicNudgeController* ContextualCueingHelper::GetGlicNudgeController() {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-#if !BUILDFLAG(IS_ANDROID)
   if (!IsContextualCueingEnabled()) {
     return nullptr;
   }
-
-  BrowserWindowInterface* browser =
-      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
-          web_contents());
+  tabs::TabInterface* tab =
+      tabs::TabInterface::MaybeGetFromContents(web_contents());
+  if (!tab) {
+    return nullptr;
+  }
+  BrowserWindowInterface* browser = tab->GetBrowserWindowInterface();
   if (!browser) {
     return nullptr;
   }
-  return browser->GetFeatures().glic_nudge_controller();
-#else
-  if (!glic_nudge_controller_) {
-    TabListInterface* tab_list =
-        TabModelList::GetTabModelForWebContents(web_contents());
-    glic_nudge_controller_ =
-        std::make_unique<glic::GlicNudgeControllerAndroid>(tab_list);
-  }
-  return glic_nudge_controller_.get();
-#endif
-#else // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-  return nullptr;
+  return glic::GlicNudgeController::From(browser);
 #endif // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  return nullptr;
 }
 
 void ContextualCueingHelper::PrimaryPageChanged(content::Page& page) {
@@ -216,7 +204,6 @@ void ContextualCueingHelper::DidFinishNavigation(
   if (glic_nudge_controller) {
     glic_nudge_controller->UpdateNudgeLabel(
         web_contents(), std::string(), /*prompt_suggestion=*/std::nullopt,
-        /*anchored_message_text=*/std::string(),
         glic::GlicNudgeActivity::kNudgeIgnoredNavigation, base::DoNothing());
   }
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
@@ -273,7 +260,8 @@ void ContextualCueingHelper::PrimaryMainDocumentElementAvailable() {
                      weak_ptr_factory_.GetWeakPtr(), base::TimeTicks::Now()));
 }
 
-void ContextualCueingHelper::OnFirstContentfulPaintInPrimaryMainFrame() {
+void ContextualCueingHelper::OnFirstContentfulPaintInPrimaryMainFrame(
+    base::TimeTicks presentation_time) {
   if (!IsZeroStateSuggestionsEnabled()) {
     return;
   }
@@ -478,7 +466,6 @@ void ContextualCueingHelper::OnCueingDecision(
       decision_result->prompt_suggestion.empty()
           ? std::nullopt
           : std::make_optional(decision_result->prompt_suggestion),
-      decision_result->anchored_message_text,
       /*activity=*/std::nullopt,
       base::BindRepeating(&ContextualCueingService::OnNudgeActivity,
                           contextual_cueing_service_->GetWeakPtr(),
@@ -557,7 +544,7 @@ ContextualCueingHelper::AutoOpenGlicSidePanel(
       invocation_source = glic::mojom::InvocationSource::kAutoOpenedForPdf;
     }
 
-    glic::GlicInvokeOptions options(glic::Target(tab_interface),
+    glic::GlicInvokeOptions options(glic::Target(*tab_interface),
                                     invocation_source);
     options.fre_override = glic::mojom::FreOverride::kTrustFirstInline;
     if (!decision_result.prompt_suggestion.empty()) {

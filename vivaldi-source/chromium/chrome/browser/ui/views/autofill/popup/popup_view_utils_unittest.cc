@@ -8,11 +8,18 @@
 #include <vector>
 
 #include "chrome/browser/ui/views/autofill/popup/popup_base_view.h"
+#include "chrome/browser/ui/views/autofill/popup/popup_view_views.h"
 #include "components/autofill/core/browser/ui/popup_open_enums.h"
+#include "components/feature_engagement/public/feature_constants.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "ui/base/interaction/element_identifier.h"
 #include "ui/views/view.h"
 
 namespace autofill {
+
+namespace {
+
+BASE_FEATURE(kTestFeature, base::FEATURE_DISABLED_BY_DEFAULT);
 
 std::vector<views::BubbleArrowSide> GetDefaultPopupSides() {
   return {PopupBaseView::kDefaultPreferredPopupSides.begin(),
@@ -557,5 +564,59 @@ TEST(PopupViewsUtilsTest, TrackAndRun_Basic) {
   EXPECT_FALSE(survived);
   EXPECT_FALSE(cb2_called);
 }
+
+// Tests that only AtMemorySearchAffordance suggestions are autoselected.
+TEST(PopupViewUtilsTest, IsSuggestionTypeAutoselected) {
+  EXPECT_TRUE(
+      IsSuggestionTypeAutoselected(SuggestionType::kAtMemorySearchAffordance));
+  EXPECT_FALSE(IsSuggestionTypeAutoselected(SuggestionType::kAddressEntry));
+  EXPECT_FALSE(IsSuggestionTypeAutoselected(SuggestionType::kCreditCardEntry));
+}
+
+// Tests that the first suggestion is autoselected based on the trigger source
+// and suggestion type.
+TEST(PopupViewUtilsTest, ShouldAutoselectFirstSuggestion) {
+  // 1. Trigger source requests auto-selection:
+  EXPECT_TRUE(ShouldAutoselectFirstSuggestion(AutoselectFirstSuggestion(true),
+                                              std::nullopt));
+  EXPECT_TRUE(ShouldAutoselectFirstSuggestion(AutoselectFirstSuggestion(true),
+                                              SuggestionType::kAddressEntry));
+  EXPECT_TRUE(ShouldAutoselectFirstSuggestion(
+      AutoselectFirstSuggestion(true),
+      SuggestionType::kAtMemorySearchAffordance));
+
+  // 2. Trigger source does NOT request auto-selection, but suggestion type
+  // overrides:
+  EXPECT_TRUE(ShouldAutoselectFirstSuggestion(
+      AutoselectFirstSuggestion(false),
+      SuggestionType::kAtMemorySearchAffordance));
+
+  // 3. Neither requests:
+  EXPECT_FALSE(ShouldAutoselectFirstSuggestion(AutoselectFirstSuggestion(false),
+                                               std::nullopt));
+  EXPECT_FALSE(ShouldAutoselectFirstSuggestion(AutoselectFirstSuggestion(false),
+                                               SuggestionType::kAddressEntry));
+}
+
+TEST(PopupViewUtilsTest, GetAutofillPopupCellElementIdentifier) {
+  // Null feature maps to invalid element identifier.
+  EXPECT_FALSE(GetAutofillPopupCellElementIdentifier(nullptr));
+
+  // Unknown feature maps to invalid element identifier.
+  EXPECT_FALSE(GetAutofillPopupCellElementIdentifier(&kTestFeature));
+
+  // Virtual card feature maps to kAutofillCreditCardSuggestionEntryElementId.
+  EXPECT_EQ(GetAutofillPopupCellElementIdentifier(
+                &feature_engagement::kIPHAutofillVirtualCardSuggestionFeature),
+            PopupViewViews::kAutofillCreditCardSuggestionEntryElementId);
+
+  // Standalone CVC feature maps to kAutofillStandaloneCvcSuggestionElementId.
+  EXPECT_EQ(
+      GetAutofillPopupCellElementIdentifier(
+          &feature_engagement::kIPHAutofillVirtualCardCVCSuggestionFeature),
+      PopupViewViews::kAutofillStandaloneCvcSuggestionElementId);
+}
+
+}  // namespace
 
 }  // namespace autofill

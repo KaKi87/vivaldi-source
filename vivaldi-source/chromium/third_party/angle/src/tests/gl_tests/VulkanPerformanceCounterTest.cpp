@@ -8,10 +8,7 @@
 //   For example we can verify a certain call set doesn't break the render pass.
 //
 
-#ifdef UNSAFE_BUFFERS_BUILD
-#    pragma allow_unsafe_buffers
-#endif
-
+#include "common/unsafe_buffers.h"
 #include "include/platform/Feature.h"
 #include "test_utils/ANGLETest.h"
 #include "test_utils/MultiThreadSteps.h"
@@ -287,6 +284,48 @@ class VulkanPerformanceCounterTest : public ANGLETest<>
             counters.depthAttachmentResolves + incrementalDepthAttachmentResolves;
         expected->stencilAttachmentResolves =
             counters.stencilAttachmentResolves + incrementalStencilAttachmentResolves;
+    }
+
+    void adjustExpectedCountersForDynamicRenderingMSRTTEmulationUnresolve(
+        uint64_t incrementalUnresolveRenderPasses,
+        uint64_t incrementalUnresolveColorAttachments,
+        uint64_t incrementalUnresolveDepthStencilAttachment,
+        bool unresolveDepth,
+        bool unresolveStencil,
+        angle::VulkanPerfCounters *expected)
+    {
+        if (isFeatureEnabled(Feature::PreferDynamicRendering) &&
+            !isFeatureEnabled(Feature::SupportsMultisampledRenderToSingleSampled))
+        {
+            expected->renderPasses += incrementalUnresolveRenderPasses;
+            expected->colorStoreOpStores += incrementalUnresolveColorAttachments;
+
+            if (unresolveDepth)
+            {
+                expected->depthStoreOpStores += incrementalUnresolveDepthStencilAttachment;
+            }
+            else if (isFeatureEnabled(Feature::SupportsRenderPassLoadStoreOpNone))
+            {
+                expected->depthStoreOpNones += incrementalUnresolveDepthStencilAttachment;
+                expected->depthLoadOpNones += incrementalUnresolveDepthStencilAttachment;
+            }
+
+            if (unresolveStencil)
+            {
+                expected->stencilStoreOpStores += incrementalUnresolveDepthStencilAttachment;
+                if (!isFeatureEnabled(Feature::SupportsShaderStencilExport))
+                {
+                    // Without VK_EXT_shader_stencil_export, the unresolve render pass clears
+                    // stencil to 0.
+                    expected->stencilLoadOpClears += incrementalUnresolveDepthStencilAttachment;
+                }
+            }
+            else if (isFeatureEnabled(Feature::SupportsRenderPassLoadStoreOpNone))
+            {
+                expected->stencilStoreOpNones += incrementalUnresolveDepthStencilAttachment;
+                expected->stencilLoadOpNones += incrementalUnresolveDepthStencilAttachment;
+            }
+        }
     }
 
     void maskedFramebufferFetchDraw(const GLColor &clearColor, GLBuffer &buffer);
@@ -686,7 +725,7 @@ void VulkanPerformanceCounterTest::maskedFramebufferFetchDraw(const GLColor &cle
     void *bufferData = glMapBufferRange(
         GL_SHADER_STORAGE_BUFFER, 0, kBufferSize,
         GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
-    memset(bufferData, 0, kBufferSize);
+    ANGLE_UNSAFE_TODO(memset(bufferData, 0, kBufferSize));
     glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
 
     // Mask color output
@@ -739,10 +778,12 @@ void VulkanPerformanceCounterTest::maskedFramebufferFetchDrawVerify(const GLColo
         for (uint32_t x = 0; x < kOpsTestSize; ++x)
         {
             uint32_t ssboIndex = (y * kOpsTestSize + x) * 4;
-            EXPECT_NEAR(colorData[ssboIndex + 0], expectedAsVec4[0], 0.05);
-            EXPECT_NEAR(colorData[ssboIndex + 1], expectedAsVec4[1], 0.05);
-            EXPECT_NEAR(colorData[ssboIndex + 2], expectedAsVec4[2], 0.05);
-            EXPECT_NEAR(colorData[ssboIndex + 3], expectedAsVec4[3], 0.05);
+            ANGLE_UNSAFE_TODO({
+                EXPECT_NEAR(colorData[ssboIndex + 0], expectedAsVec4[0], 0.05);
+                EXPECT_NEAR(colorData[ssboIndex + 1], expectedAsVec4[1], 0.05);
+                EXPECT_NEAR(colorData[ssboIndex + 2], expectedAsVec4[2], 0.05);
+                EXPECT_NEAR(colorData[ssboIndex + 3], expectedAsVec4[3], 0.05);
+            })
         }
     }
     glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
@@ -1603,60 +1644,6 @@ TEST_P(VulkanPerformanceCounterTest, MutableTextureCubemapIncompleteInit)
     EXPECT_EQ(getPerfCounters().mutableTexturesUploaded, expectedMutableTexturesUploaded);
 }
 
-// Tests that mutable cubemap array texture is uploaded with appropriate mip level attributes.
-TEST_P(VulkanPerformanceCounterTest, MutableTextureCubemapArrayCompatibleMipLevelsInit)
-{
-    ANGLE_SKIP_TEST_IF(!hasMutableMipmapTextureUpload());
-
-    uint32_t expectedMutableTexturesUploaded = getPerfCounters().mutableTexturesUploaded + 1;
-
-    std::vector<GLColor> mip0Color(4 * 4 * 6, GLColor::red);
-    std::vector<GLColor> mip1Color(2 * 2 * 6, GLColor::red);
-
-    GLTexture texture1;
-    glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, texture1);
-    glTexImage3D(GL_TEXTURE_CUBE_MAP_ARRAY, 0, GL_RGBA, 4, 4, 6, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                 mip0Color.data());
-    glTexImage3D(GL_TEXTURE_CUBE_MAP_ARRAY, 1, GL_RGBA, 2, 2, 6, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                 mip1Color.data());
-
-    EXPECT_GL_NO_ERROR();
-
-    GLTexture texture2;
-    glBindTexture(GL_TEXTURE_2D, texture2);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                 GLColor::green.data());
-    EXPECT_GL_NO_ERROR();
-    EXPECT_EQ(getPerfCounters().mutableTexturesUploaded, expectedMutableTexturesUploaded);
-}
-
-// Tests that mutable cubemap array texture is not uploaded with different layer-faces.
-TEST_P(VulkanPerformanceCounterTest, MutableTextureCubemapArrayDifferentLayerFacesNoInit)
-{
-    ANGLE_SKIP_TEST_IF(!hasMutableMipmapTextureUpload());
-
-    uint32_t expectedMutableTexturesUploaded = getPerfCounters().mutableTexturesUploaded;
-
-    std::vector<GLColor> mip0Color(4 * 4 * 6, GLColor::red);
-    std::vector<GLColor> mip1Color(2 * 2 * 12, GLColor::red);
-
-    GLTexture texture1;
-    glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, texture1);
-    glTexImage3D(GL_TEXTURE_CUBE_MAP_ARRAY, 0, GL_RGBA, 4, 4, 6, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                 mip0Color.data());
-    glTexImage3D(GL_TEXTURE_CUBE_MAP_ARRAY, 1, GL_RGBA, 2, 2, 12, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                 mip1Color.data());
-
-    EXPECT_GL_NO_ERROR();
-
-    GLTexture texture2;
-    glBindTexture(GL_TEXTURE_2D, texture2);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                 GLColor::green.data());
-    EXPECT_GL_NO_ERROR();
-    EXPECT_EQ(getPerfCounters().mutableTexturesUploaded, expectedMutableTexturesUploaded);
-}
-
 // Tests that RGB texture should not break renderpass.
 TEST_P(VulkanPerformanceCounterTest, SampleFromRGBTextureDoesNotBreakRenderPass)
 {
@@ -1842,6 +1829,62 @@ TEST_P(VulkanPerformanceCounterTest, IndependentBufferCopiesShareSingleBarrier)
 
     uint64_t actualFlushCount = getPerfCounters().flushedOutsideRenderPassCommandBuffers;
     EXPECT_EQ(expectedFlushCount, actualFlushCount);
+}
+
+// Tests that mutable cubemap array texture is uploaded with appropriate mip level attributes.
+TEST_P(VulkanPerformanceCounterTest_ES31, MutableTextureCubemapArrayCompatibleMipLevelsInit)
+{
+    ANGLE_SKIP_TEST_IF(!hasMutableMipmapTextureUpload());
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_texture_cube_map_array"));
+
+    uint32_t expectedMutableTexturesUploaded = getPerfCounters().mutableTexturesUploaded + 1;
+
+    std::vector<GLColor> mip0Color(4 * 4 * 6, GLColor::red);
+    std::vector<GLColor> mip1Color(2 * 2 * 6, GLColor::red);
+
+    GLTexture texture1;
+    glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, texture1);
+    glTexImage3D(GL_TEXTURE_CUBE_MAP_ARRAY, 0, GL_RGBA, 4, 4, 6, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 mip0Color.data());
+    glTexImage3D(GL_TEXTURE_CUBE_MAP_ARRAY, 1, GL_RGBA, 2, 2, 6, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 mip1Color.data());
+
+    EXPECT_GL_NO_ERROR();
+
+    GLTexture texture2;
+    glBindTexture(GL_TEXTURE_2D, texture2);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 GLColor::green.data());
+    EXPECT_GL_NO_ERROR();
+    EXPECT_EQ(getPerfCounters().mutableTexturesUploaded, expectedMutableTexturesUploaded);
+}
+
+// Tests that mutable cubemap array texture is not uploaded with different layer-faces.
+TEST_P(VulkanPerformanceCounterTest_ES31, MutableTextureCubemapArrayDifferentLayerFacesNoInit)
+{
+    ANGLE_SKIP_TEST_IF(!hasMutableMipmapTextureUpload());
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_texture_cube_map_array"));
+
+    uint32_t expectedMutableTexturesUploaded = getPerfCounters().mutableTexturesUploaded;
+
+    std::vector<GLColor> mip0Color(4 * 4 * 6, GLColor::red);
+    std::vector<GLColor> mip1Color(2 * 2 * 12, GLColor::red);
+
+    GLTexture texture1;
+    glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, texture1);
+    glTexImage3D(GL_TEXTURE_CUBE_MAP_ARRAY, 0, GL_RGBA, 4, 4, 6, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 mip0Color.data());
+    glTexImage3D(GL_TEXTURE_CUBE_MAP_ARRAY, 1, GL_RGBA, 2, 2, 12, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 mip1Color.data());
+
+    EXPECT_GL_NO_ERROR();
+
+    GLTexture texture2;
+    glBindTexture(GL_TEXTURE_2D, texture2);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 GLColor::green.data());
+    EXPECT_GL_NO_ERROR();
+    EXPECT_EQ(getPerfCounters().mutableTexturesUploaded, expectedMutableTexturesUploaded);
 }
 
 // Test resolving a multisampled texture with blit doesn't break the render pass so a subpass can be
@@ -2059,7 +2102,7 @@ void main()
 
         if (invalidate == Invalidate::AfterEachResolve)
         {
-            glInvalidateFramebuffer(GL_READ_FRAMEBUFFER, 1, discards + 1);
+            glInvalidateFramebuffer(GL_READ_FRAMEBUFFER, 1, ANGLE_UNSAFE_TODO(discards + 1));
         }
         else if (invalidate == Invalidate::AllAtEnd)
         {
@@ -5052,6 +5095,8 @@ TEST_P(VulkanPerformanceCounterTest_DepthStencilLoadStoreOps,
 
     // Additionally, expect 4 resolves and 3 unresolves.
     setExpectedCountersForUnresolveResolveTest(getPerfCounters(), 3, 3, 3, 4, 4, 4, &expected);
+    adjustExpectedCountersForDynamicRenderingMSRTTEmulationUnresolve(3, 3, 3, true, true,
+                                                                     &expected);
 
     constexpr GLsizei kSize = 6;
 
@@ -5441,6 +5486,8 @@ TEST_P(VulkanPerformanceCounterTest_DepthStencilLoadStoreOps,
     // stencil(Clears+0, Loads+1, LoadNones+0, Stores+1, StoreNones+0)
     setExpectedCountersForDepthOps(getPerfCounters(), 1, 0, 1, 0, 1, 0, &expected);
     setExpectedCountersForStencilOps(getPerfCounters(), 0, 1, 0, 1, 0, &expected);
+    adjustExpectedCountersForDynamicRenderingMSRTTEmulationUnresolve(1, 0, 1, true, true,
+                                                                     &expected);
 
     glUniform4f(colorUniformLocation, 0.0f, 1.0f, 0.0f, 1.0f);
     drawQuad(drawColor, essl1_shaders::PositionAttrib(), 0.5f);
@@ -5459,6 +5506,8 @@ TEST_P(VulkanPerformanceCounterTest_DepthStencilLoadStoreOps,
     // stencil(Clears+0, Loads+1, LoadNones+0, Stores+1, StoreNones+0)
     setExpectedCountersForDepthOps(getPerfCounters(), 1, 1, 0, 0, 1, 0, &expected);
     setExpectedCountersForStencilOps(getPerfCounters(), 0, 1, 0, 1, 0, &expected);
+    adjustExpectedCountersForDynamicRenderingMSRTTEmulationUnresolve(1, 0, 1, false, true,
+                                                                     &expected);
 
     glUniform4f(colorUniformLocation, 0.0f, 0.0f, 1.0f, 1.0f);
     drawQuad(drawColor, essl1_shaders::PositionAttrib(), 0.25f);
@@ -5477,6 +5526,8 @@ TEST_P(VulkanPerformanceCounterTest_DepthStencilLoadStoreOps,
     // stencil(Clears+1, Loads+0, LoadNones+0, Stores+1, StoreNones+0)
     setExpectedCountersForDepthOps(getPerfCounters(), 1, 0, 1, 0, 1, 0, &expected);
     setExpectedCountersForStencilOps(getPerfCounters(), 1, 0, 0, 1, 0, &expected);
+    adjustExpectedCountersForDynamicRenderingMSRTTEmulationUnresolve(1, 0, 1, true, false,
+                                                                     &expected);
 
     glUniform4f(colorUniformLocation, 1.0f, 1.0f, 0.0f, 1.0f);
     drawQuad(drawColor, essl1_shaders::PositionAttrib(), 0.0f);
@@ -6147,7 +6198,7 @@ void main()
 
     void *mapPtr = glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, kPackBufferSize, GL_MAP_READ_BIT);
     ASSERT_NE(nullptr, mapPtr);
-    memcpy(actualData.data(), mapPtr, kPackBufferSize);
+    ANGLE_UNSAFE_TODO(memcpy(actualData.data(), mapPtr, kPackBufferSize));
 
     glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
 
@@ -6231,7 +6282,7 @@ void main()
     ASSERT_EQ(getPerfCounters().renderPasses, 1u);
     ASSERT_EQ(getPerfCounters().buffersGhosted, 1u);
 
-    memcpy(mappedBuffer, kUpdateData1.data(), sizeof(kInitialData));
+    ANGLE_UNSAFE_TODO(memcpy(mappedBuffer, kUpdateData1.data(), sizeof(kInitialData)));
 
     glUnmapBuffer(GL_UNIFORM_BUFFER);
     ASSERT_GL_NO_ERROR();
@@ -6827,7 +6878,7 @@ void main()
     EXPECT_GL_NO_ERROR();
     for (unsigned int idx = 0; idx < 4; idx++)
     {
-        EXPECT_EQ(1.0, *(ptr + idx));
+        ANGLE_UNSAFE_TODO(EXPECT_EQ(1.0, *(ptr + idx)));
     }
 
     // Step3
@@ -7466,7 +7517,7 @@ TEST_P(VulkanPerformanceCounterTest, InvalidateThenRepeatedClearThenBlitThenDraw
     GLTexture tex[3];
     for (int i = 0; i < 3; ++i)
     {
-        glBindTexture(GL_TEXTURE_2D, tex[i]);
+        glBindTexture(GL_TEXTURE_2D, ANGLE_UNSAFE_TODO(tex[i]));
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kSize, kSize, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                      nullptr);
     }
@@ -7474,8 +7525,9 @@ TEST_P(VulkanPerformanceCounterTest, InvalidateThenRepeatedClearThenBlitThenDraw
     GLFramebuffer fbo[3];
     for (int i = 0; i < 3; ++i)
     {
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo[i]);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex[i], 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, ANGLE_UNSAFE_TODO(fbo[i]));
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                               ANGLE_UNSAFE_TODO(tex[i]), 0);
     }
 
     // Expect rpCount+1, color(Clears+0, Loads+1, LoadNones+0, Stores+1, StoreNones+0)
@@ -8136,7 +8188,7 @@ TEST_P(VulkanPerformanceCounterTest, SetTextureSwizzleWithDifferentValueOnFBOAtt
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, swizzle_B);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_ALPHA);
                 drawQuad(textureProgram, std::string(essl1_shaders::PositionAttrib()), 0.0f);
-                EXPECT_PIXEL_COLOR_EQ(0, 0, expectedColors[loop]);
+                ANGLE_UNSAFE_TODO(EXPECT_PIXEL_COLOR_EQ(0, 0, expectedColors[loop]));
                 loop++;
             }
         }
@@ -8362,7 +8414,7 @@ TEST_P(VulkanPerformanceCounterTest_ES31, DestroyAtomicCounterBufferAlsoDestroyD
     {
         // Allocate a padding buffer so that atomicCounterBuffer will be allocated in different
         // offset
-        glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, paddingBuffers[i]);
+        glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, ANGLE_UNSAFE_TODO(paddingBuffers[i]));
         glBufferData(GL_ATOMIC_COUNTER_BUFFER, 256, nullptr, GL_STATIC_DRAW);
         // Allocate, use, destroy atomic counter buffer
         GLBuffer atomicCounterBuffer;
@@ -8710,7 +8762,7 @@ TEST_P(VulkanPerformanceCounterTest,
         glMapBufferRange(GL_ARRAY_BUFFER, 0, bufferSize, GL_MAP_READ_BIT));
     ASSERT_NE(nullptr, mapPtr);
     EXPECT_EQ(0x89abcdef, mapPtr[0]);
-    EXPECT_EQ(0x89abcdef, mapPtr[count - 1]);
+    ANGLE_UNSAFE_TODO(EXPECT_EQ(0x89abcdef, mapPtr[count - 1]));
     glUnmapBuffer(GL_ARRAY_BUFFER);
     ASSERT_GL_NO_ERROR();
 }
@@ -9009,9 +9061,10 @@ TEST_P(VulkanPerformanceCounterTest, ClearThenBlitThenDraw)
     GLuint stencilValue = 0x55;
     for (size_t i = 0; i < 2; i++)
     {
-        setupColorTextureAndDepthBuffer(colorTextures[i], depthStencils[i], GL_DEPTH24_STENCIL8,
-                                        kWidth, kHeight);
-        setupFBO(colorTextures[i], depthStencils[i], depthStencils[i], fbos[i], kWidth, kHeight);
+        ANGLE_UNSAFE_TODO(setupColorTextureAndDepthBuffer(colorTextures[i], depthStencils[i],
+                                                          GL_DEPTH24_STENCIL8, kWidth, kHeight));
+        ANGLE_UNSAFE_TODO(setupFBO(colorTextures[i], depthStencils[i], depthStencils[i], fbos[i],
+                                   kWidth, kHeight));
 
         glDepthMask(GL_TRUE);
         glEnable(GL_DEPTH_TEST);
@@ -9075,9 +9128,10 @@ TEST_P(VulkanPerformanceCounterTest, ScissoredDrawThenBlitThenDraw)
     GLuint stencilValue                = 0x55;
     for (size_t i = 0; i < 2; i++)
     {
-        setupColorTextureAndDepthBuffer(colorTextures[i], depthStencils[i], GL_DEPTH24_STENCIL8,
-                                        kWidth, kHeight);
-        setupFBO(colorTextures[i], depthStencils[i], depthStencils[i], fbos[i], kWidth, kHeight);
+        ANGLE_UNSAFE_TODO(setupColorTextureAndDepthBuffer(colorTextures[i], depthStencils[i],
+                                                          GL_DEPTH24_STENCIL8, kWidth, kHeight));
+        ANGLE_UNSAFE_TODO(setupFBO(colorTextures[i], depthStencils[i], depthStencils[i], fbos[i],
+                                   kWidth, kHeight));
 
         glDepthMask(GL_TRUE);
         glEnable(GL_DEPTH_TEST);
@@ -9146,9 +9200,10 @@ TEST_P(VulkanPerformanceCounterTest, DrawThenBlitThenDrawWithXFB)
     GLuint stencilValue = 0x55;
     for (size_t i = 0; i < 2; i++)
     {
-        setupColorTextureAndDepthBuffer(colorTextures[i], depthStencils[i], GL_DEPTH24_STENCIL8,
-                                        kWidth, kHeight);
-        setupFBO(colorTextures[i], depthStencils[i], depthStencils[i], fbos[i], kWidth, kHeight);
+        ANGLE_UNSAFE_TODO(setupColorTextureAndDepthBuffer(colorTextures[i], depthStencils[i],
+                                                          GL_DEPTH24_STENCIL8, kWidth, kHeight));
+        ANGLE_UNSAFE_TODO(setupFBO(colorTextures[i], depthStencils[i], depthStencils[i], fbos[i],
+                                   kWidth, kHeight));
 
         glDepthMask(GL_TRUE);
         glEnable(GL_DEPTH_TEST);
@@ -9221,8 +9276,10 @@ TEST_P(VulkanPerformanceCounterTest, DrawThenBlitThenDrawWithXFB)
     {
         for (uint32_t i = 0; i < vertexCount; ++i)
         {
-            EXPECT_EQ(*mappedFloats, expect[i]);
-            mappedFloats++;
+            ANGLE_UNSAFE_TODO({
+                EXPECT_EQ(*mappedFloats, expect[i]);
+                mappedFloats++;
+            })
         }
     }
     glUnmapBuffer(GL_TRANSFORM_FEEDBACK_BUFFER);
@@ -9247,9 +9304,10 @@ TEST_P(VulkanPerformanceCounterTest, DrawThenBlitThenDrawWithQuery)
     std::array<GLfloat, 2> depthValues = {0.0f, 0.5};
     for (size_t i = 0; i < 2; i++)
     {
-        setupColorTextureAndDepthBuffer(colorTextures[i], depthStencils[i], GL_DEPTH24_STENCIL8,
-                                        kWidth, kHeight);
-        setupFBO(colorTextures[i], depthStencils[i], depthStencils[i], fbos[i], kWidth, kHeight);
+        ANGLE_UNSAFE_TODO(setupColorTextureAndDepthBuffer(colorTextures[i], depthStencils[i],
+                                                          GL_DEPTH24_STENCIL8, kWidth, kHeight));
+        ANGLE_UNSAFE_TODO(setupFBO(colorTextures[i], depthStencils[i], depthStencils[i], fbos[i],
+                                   kWidth, kHeight));
 
         glDepthMask(GL_TRUE);
         glEnable(GL_DEPTH_TEST);
@@ -9322,9 +9380,10 @@ TEST_P(VulkanPerformanceCounterTest, DrawThenBlitThenDrawWithSameProgram)
     std::array<GLfloat, 2> depthValues = {0.0f, 0.5};
     for (size_t i = 0; i < 2; i++)
     {
-        setupColorTextureAndDepthBuffer(colorTextures[i], depthStencils[i], GL_DEPTH24_STENCIL8,
-                                        kWidth, kHeight);
-        setupFBO(colorTextures[i], depthStencils[i], depthStencils[i], fbos[i], kWidth, kHeight);
+        ANGLE_UNSAFE_TODO(setupColorTextureAndDepthBuffer(colorTextures[i], depthStencils[i],
+                                                          GL_DEPTH24_STENCIL8, kWidth, kHeight));
+        ANGLE_UNSAFE_TODO(setupFBO(colorTextures[i], depthStencils[i], depthStencils[i], fbos[i],
+                                   kWidth, kHeight));
 
         glDepthMask(GL_TRUE);
         glEnable(GL_DEPTH_TEST);
@@ -9355,6 +9414,716 @@ TEST_P(VulkanPerformanceCounterTest, DrawThenBlitThenDrawWithSameProgram)
     // ANGLE should use mid render pass blit
     EXPECT_EQ(1u, getPerfCounters().renderPasses - renderPassesBefore);
     EXPECT_PIXEL_RECT_EQ(0, 0, kWidth, kHeight, GLColor::green);
+}
+
+// Tests that back-to-back clear calls on color attachment with the same value are optimized
+// (skipped).
+TEST_P(VulkanPerformanceCounterTest, RedundantColorClearWithCommand)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+
+    GLFramebuffer framebuffer;
+    GLTexture texture;
+    setupForColorOpsTest(&framebuffer, &texture);
+
+    // Initial clear
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Draw something
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Blue());
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // Clear color (first clear, mid-RP)
+    uint32_t colorClearsBefore = getPerfCounters().colorClearAttachments;
+    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Clear color again with the same value, should be skipped!
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Draw
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE);
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // The counter colorClearAttachments should only increase by 1.
+    EXPECT_EQ(getPerfCounters().colorClearAttachments, colorClearsBefore + 1);
+    // red + blue
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::magenta);
+}
+
+// Tests that back-to-back clear calls on color attachment of fbo with gaped attachments with the
+// same value are optimized (skipped).
+TEST_P(VulkanPerformanceCounterTest, RedundantColorClearOnFBOWithGapedAttachments)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+
+    GLFramebuffer framebuffer;
+    GLTexture texture0, texture2;
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    glBindTexture(GL_TEXTURE_2D, texture0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kOpsTestSize, kOpsTestSize, 0, GL_RGBA,
+                 GL_UNSIGNED_BYTE, nullptr);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture0, 0);
+    glBindTexture(GL_TEXTURE_2D, texture2);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kOpsTestSize, kOpsTestSize, 0, GL_RGBA,
+                 GL_UNSIGNED_BYTE, nullptr);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, texture2, 0);
+    glViewport(0, 0, kOpsTestSize, kOpsTestSize);
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+
+    // Initial clear of all targets to black
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Draw something
+    GLenum drawBuffers[3] = {GL_COLOR_ATTACHMENT0, GL_NONE, GL_COLOR_ATTACHMENT2};
+    glDrawBuffers(3, drawBuffers);
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Blue());
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // Clear color (first clear, mid-RP)
+    uint32_t colorClearsBefore              = getPerfCounters().colorClearAttachments;
+    const std::array<GLfloat, 4> clearColor = {1.0f, 0.0f, 0.0f, 1.0f};
+    glClearBufferfv(GL_COLOR, 2, clearColor.data());
+
+    // Clear color again with the same value, should be skipped!
+    glClearBufferfv(GL_COLOR, 2, clearColor.data());
+
+    // Draw
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE);
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // The counter colorClearAttachments should only increase by 1.
+    EXPECT_EQ(getPerfCounters().colorClearAttachments, colorClearsBefore + 1);
+    // red
+    glReadBuffer(GL_COLOR_ATTACHMENT2);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+}
+
+// Test sequence of draw, clear, read, draw, clear, read. Clear should not skip.
+TEST_P(VulkanPerformanceCounterTest, ColorDrawClearReadDrawClearRead)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+
+    GLFramebuffer framebuffer;
+    GLTexture texture;
+    setupForColorOpsTest(&framebuffer, &texture);
+
+    // Initial clear
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Draw something
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Blue());
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // Clear color (first clear, mid-RP)
+    uint32_t colorClearsBefore = getPerfCounters().colorClearAttachments;
+    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    // red
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+
+    // Draw
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    // Clear color again with the same value, should not be skipped!
+    glClear(GL_COLOR_BUFFER_BIT);
+    ASSERT_GL_NO_ERROR();
+
+    // The counter colorClearAttachments should increase by 2.
+    EXPECT_EQ(getPerfCounters().colorClearAttachments, colorClearsBefore + 2);
+    // red
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+}
+
+// Test sequence of draw, clear, read, draw, draw, clear, read. Clear should not skip.
+TEST_P(VulkanPerformanceCounterTest, ColorDrawClearReadDrawDrawClearRead)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+
+    GLFramebuffer framebuffer;
+    GLTexture texture;
+    setupForColorOpsTest(&framebuffer, &texture);
+
+    // Initial clear
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Draw something
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Blue());
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // Clear color (first clear, mid-RP)
+    uint32_t colorClearsBefore = getPerfCounters().colorClearAttachments;
+    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    // red
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+
+    // Draw twice
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    // Clear color again with the same value, should not be skipped!
+    glClear(GL_COLOR_BUFFER_BIT);
+    ASSERT_GL_NO_ERROR();
+
+    // The counter colorClearAttachments should increase by 2.
+    EXPECT_EQ(getPerfCounters().colorClearAttachments, colorClearsBefore + 2);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+}
+
+// Tests that back-to-back clear calls on color attachment with mask are NOT skipped.
+TEST_P(VulkanPerformanceCounterTest, NonRedundantColorClearWithDifferentMask)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+
+    GLFramebuffer framebuffer;
+    GLTexture texture;
+    setupForColorOpsTest(&framebuffer, &texture);
+
+    // Initial clear
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Draw something
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Blue());
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // Clear color with mask set to red only (first clear, mid-RP, should be using draw)
+    uint32_t colorClearsBefore = getPerfCounters().colorClearAttachments;
+    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    glColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Clear color again with the same value with mask set to all enabled, should not be skipped!
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Draw
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE);
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // The counter colorClearAttachments should increase by 1.
+    EXPECT_EQ(getPerfCounters().colorClearAttachments, colorClearsBefore + 1);
+    // red + blue
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::magenta);
+}
+
+// Tests that back-to-back clear calls on color attachment with different values are NOT skipped.
+TEST_P(VulkanPerformanceCounterTest, NonRedundantColorClearWithCommand)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+
+    GLFramebuffer framebuffer;
+    GLTexture texture;
+    setupForColorOpsTest(&framebuffer, &texture);
+
+    // Initial clear
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Draw something
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Blue());
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // Clear color (first clear)
+    uint32_t colorClearsBefore = getPerfCounters().colorClearAttachments;
+    glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Clear color again with different value, should NOT be skipped!
+    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Draw
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE);
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // The counter colorClearAttachments should increase by 2.
+    EXPECT_EQ(getPerfCounters().colorClearAttachments, colorClearsBefore + 2);
+    // red + blue
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::magenta);
+}
+
+// With scissor enabled for the first clear
+TEST_P(VulkanPerformanceCounterTest, NonRedundantColorClearWithScissor1)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+
+    GLFramebuffer framebuffer;
+    GLTexture texture;
+    setupForColorOpsTest(&framebuffer, &texture);
+
+    // Initial clear
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Draw something
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Blue());
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // Clear color with scissor (first clear)
+    uint32_t colorClearsBefore = getPerfCounters().colorClearAttachments;
+    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(0, 0, 1, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Clear color again with the same value with scissor disabled, should NOT be skipped!
+    glDisable(GL_SCISSOR_TEST);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Draw
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE);
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // The counter colorClearAttachments should increase by 2.
+    EXPECT_EQ(getPerfCounters().colorClearAttachments, colorClearsBefore + 2);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::magenta);
+}
+
+// With scissor enabled for the second clear
+TEST_P(VulkanPerformanceCounterTest, NonRedundantColorClearWithScissor2)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+
+    GLFramebuffer framebuffer;
+    GLTexture texture;
+    setupForColorOpsTest(&framebuffer, &texture);
+
+    // Initial clear
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Draw something
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Blue());
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // Clear color without scissor (first clear)
+    uint32_t colorClearsBefore = getPerfCounters().colorClearAttachments;
+    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    glDisable(GL_SCISSOR_TEST);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Clear color again with different value with scissor enabled, should NOT be skipped!
+    glScissor(0, 0, 1, 1);
+    glEnable(GL_SCISSOR_TEST);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Draw
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE);
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // The counter colorClearAttachments should increase by 2.
+    EXPECT_EQ(getPerfCounters().colorClearAttachments, colorClearsBefore + 2);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::magenta);
+}
+
+// Tests that back-to-back clear calls on depth attachment with the same value are optimized
+// (skipped).
+TEST_P(VulkanPerformanceCounterTest, RedundantDepthClearWithCommand)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+
+    GLProgram drawRed, drawGreen;
+    drawRed.makeRaster(essl1_shaders::vs::Simple(), essl1_shaders::fs::Red());
+    drawGreen.makeRaster(essl1_shaders::vs::Simple(), essl1_shaders::fs::Green());
+
+    GLFramebuffer framebuffer;
+    GLTexture texture;
+    GLRenderbuffer renderbuffer;
+    setupForDepthStencilOpsTest(&framebuffer, &texture, &renderbuffer);
+
+    GLfloat zValue = 0.0f;
+    glDepthFunc(GL_LESS);
+    glEnable(GL_DEPTH_TEST);
+
+    // Initial clear
+    glClearDepthf(1.0f);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Draw something. Depth test should pass.
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Green());
+    drawQuad(program, essl1_shaders::PositionAttrib(), zValue + 0.2f);
+    ASSERT_GL_NO_ERROR();
+
+    // Clear depth (first clear, mid-RP)
+    uint32_t depthClearsBefore = getPerfCounters().depthClearAttachments;
+    glClearDepthf(zValue * 0.5f + 0.5f);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Clear depth again with the same value, should be skipped!
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Draw. Depth test should fail.
+    drawQuad(program, essl1_shaders::PositionAttrib(), zValue + 0.1f);
+    ASSERT_GL_NO_ERROR();
+
+    // The counter depthClearAttachments should only increase by 1.
+    EXPECT_EQ(getPerfCounters().depthClearAttachments, depthClearsBefore + 1);
+    // Verify depth buffer value contains cleared depth value
+    drawQuadToVerifyDepthValue(drawGreen, drawRed, zValue);
+    EXPECT_PIXEL_RECT_EQ(0, 0, kOpsTestSize, kOpsTestSize, GLColor::green);
+}
+
+// Same as RedundantDepthClearWithCommand but with depth test disabled
+TEST_P(VulkanPerformanceCounterTest, RedundantDepthClearWithDepthDisabled)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+
+    GLProgram drawRed, drawGreen;
+    drawRed.makeRaster(essl1_shaders::vs::Simple(), essl1_shaders::fs::Red());
+    drawGreen.makeRaster(essl1_shaders::vs::Simple(), essl1_shaders::fs::Green());
+
+    GLFramebuffer framebuffer;
+    GLTexture texture;
+    GLRenderbuffer renderbuffer;
+    setupForDepthStencilOpsTest(&framebuffer, &texture, &renderbuffer);
+
+    GLfloat zValue = 0.0f;
+    glDepthFunc(GL_LESS);
+    glEnable(GL_DEPTH_TEST);
+
+    // Initial clear
+    glClearDepthf(1.0f);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Draw something. Depth test should pass.
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Blue());
+    drawQuad(program, essl1_shaders::PositionAttrib(), zValue + 0.2f);
+    ASSERT_GL_NO_ERROR();
+
+    // Clear depth (first clear, mid-RP).
+    uint32_t depthClearsBefore = getPerfCounters().depthClearAttachments;
+    glClearDepthf(zValue * 0.5f + 0.5f);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Draw with depth disabled
+    glDisable(GL_DEPTH_TEST);
+    drawQuad(program, essl1_shaders::PositionAttrib(), zValue - 0.1f);
+
+    // Clear depth again with the same value, should be skipped!
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Draw. Depth test should fail.
+    glEnable(GL_DEPTH_TEST);
+    drawQuad(program, essl1_shaders::PositionAttrib(), zValue + 0.2f);
+    ASSERT_GL_NO_ERROR();
+
+    // In theory we could optimize out second clear as well, but we dont track draws with depth
+    // disabled, so there is no optimization for this usage case yet.
+    EXPECT_EQ(getPerfCounters().depthClearAttachments, depthClearsBefore + 2);
+    // Verify depth buffer value contains cleared depth value
+    drawQuadToVerifyDepthValue(drawGreen, drawRed, zValue);
+    EXPECT_PIXEL_RECT_EQ(0, 0, kOpsTestSize, kOpsTestSize, GLColor::green);
+}
+
+// Tests that back-to-back clear calls on depth attachment with different values are NOT skipped.
+TEST_P(VulkanPerformanceCounterTest, NonRedundantDepthClearWithCommand)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+
+    GLProgram drawRed, drawGreen;
+    drawRed.makeRaster(essl1_shaders::vs::Simple(), essl1_shaders::fs::Red());
+    drawGreen.makeRaster(essl1_shaders::vs::Simple(), essl1_shaders::fs::Green());
+
+    GLFramebuffer framebuffer;
+    GLTexture texture;
+    GLRenderbuffer renderbuffer;
+    setupForDepthStencilOpsTest(&framebuffer, &texture, &renderbuffer);
+
+    GLfloat zValue = 0.0f;
+    glDepthFunc(GL_LESS);
+    glEnable(GL_DEPTH_TEST);
+
+    // Initial clear
+    glClearDepthf(1.0f);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Draw
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Green());
+    drawQuad(program, essl1_shaders::PositionAttrib(), zValue + 0.2f);
+    ASSERT_GL_NO_ERROR();
+
+    // Clear depth (first clear)
+    uint32_t depthClearsBefore = getPerfCounters().depthClearAttachments;
+    glClearDepthf(zValue * 0.5f + 0.6f);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Clear depth again with different value, should NOT be skipped!
+    glClearDepthf(zValue * 0.5f + 0.5f);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Draw. Should fail depth test
+    drawQuad(program, essl1_shaders::PositionAttrib(), zValue + 0.1f);
+    ASSERT_GL_NO_ERROR();
+
+    // The counter depthClearAttachments should increase by 2.
+    EXPECT_EQ(getPerfCounters().depthClearAttachments, depthClearsBefore + 2);
+    // Verify depth buffer value contains cleared depth value
+    drawQuadToVerifyDepthValue(drawGreen, drawRed, zValue);
+    EXPECT_PIXEL_RECT_EQ(0, 0, kOpsTestSize, kOpsTestSize, GLColor::green);
+}
+
+// Tests that back-to-back clear calls on stencil attachment with the same value are optimized
+// (skipped).
+TEST_P(VulkanPerformanceCounterTest, RedundantStencilClearWithCommand)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+
+    GLProgram drawGreen;
+    drawGreen.makeRaster(essl1_shaders::vs::Simple(), essl1_shaders::fs::Green());
+
+    GLFramebuffer framebuffer;
+    GLTexture texture;
+    GLRenderbuffer renderbuffer;
+    setupForDepthStencilOpsTest(&framebuffer, &texture, &renderbuffer);
+
+    // Initial clear
+    glClearStencil(0xAA);
+    glClear(GL_STENCIL_BUFFER_BIT);
+
+    // Draw something
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Blue());
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // Clear stencil (first clear, mid-RP)
+    uint32_t stencilClearsBefore = getPerfCounters().stencilClearAttachments;
+    glClearStencil(0x55);
+    glClear(GL_STENCIL_BUFFER_BIT);
+
+    // Clear stencil again with the same value, should be skipped!
+    glClear(GL_STENCIL_BUFFER_BIT);
+
+    // Draw
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // The counter stencilClearAttachments should only increase by 1.
+    EXPECT_EQ(getPerfCounters().stencilClearAttachments, stencilClearsBefore + 1);
+    drawQuadToVerifyStencilValue(drawGreen, 0x55);
+    EXPECT_PIXEL_RECT_EQ(0, 0, kOpsTestSize, kOpsTestSize, GLColor::green);
+}
+
+// Tests that back-to-back clear calls on stencil attachment with different values are NOT skipped.
+TEST_P(VulkanPerformanceCounterTest, NonRedundantMaskedStencilClear)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+
+    GLProgram drawGreen;
+    drawGreen.makeRaster(essl1_shaders::vs::Simple(), essl1_shaders::fs::Green());
+
+    GLFramebuffer framebuffer;
+    GLTexture texture;
+    GLRenderbuffer renderbuffer;
+    setupForDepthStencilOpsTest(&framebuffer, &texture, &renderbuffer);
+
+    // Initial clear
+    glClearStencil(0x00);
+    glClear(GL_STENCIL_BUFFER_BIT);
+
+    // Draw
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Blue());
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // Clear stencil (first clear)
+    uint32_t stencilClearsBefore = getPerfCounters().stencilClearAttachments;
+    glClearStencil(0x55);
+    glClear(GL_STENCIL_BUFFER_BIT);
+
+    // Clear stencil again with same value but mask, it should NOT be skipped but will not use
+    // clearAttachments either.
+    glStencilMask(0x0F);
+    glClear(GL_STENCIL_BUFFER_BIT);
+
+    // Draw
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    EXPECT_EQ(getPerfCounters().stencilClearAttachments, stencilClearsBefore + 1);
+    drawQuadToVerifyStencilValue(drawGreen, 0x55);
+    EXPECT_PIXEL_RECT_EQ(0, 0, kOpsTestSize, kOpsTestSize, GLColor::green);
+}
+
+// Tests that back-to-back clear calls on stencil attachment with different values are NOT skipped.
+TEST_P(VulkanPerformanceCounterTest, NonRedundantStencilClearWithCommand)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+
+    GLProgram drawGreen;
+    drawGreen.makeRaster(essl1_shaders::vs::Simple(), essl1_shaders::fs::Green());
+
+    GLFramebuffer framebuffer;
+    GLTexture texture;
+    GLRenderbuffer renderbuffer;
+    setupForDepthStencilOpsTest(&framebuffer, &texture, &renderbuffer);
+
+    // Initial clear
+    glClearStencil(0x00);
+    glClear(GL_STENCIL_BUFFER_BIT);
+
+    // Draw
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Blue());
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // Clear stencil (first clear)
+    uint32_t stencilClearsBefore = getPerfCounters().stencilClearAttachments;
+    glClearStencil(0x55);
+    glClear(GL_STENCIL_BUFFER_BIT);
+
+    // Clear stencil again with different value, should NOT be skipped!
+    glClearStencil(0xAA);
+    glClear(GL_STENCIL_BUFFER_BIT);
+
+    // Draw
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // The counter stencilClearAttachments should increase by 2.
+    EXPECT_EQ(getPerfCounters().stencilClearAttachments, stencilClearsBefore + 2);
+    drawQuadToVerifyStencilValue(drawGreen, 0xAA);
+    EXPECT_PIXEL_RECT_EQ(0, 0, kOpsTestSize, kOpsTestSize, GLColor::green);
+}
+
+// clear all buffers back to back
+TEST_P(VulkanPerformanceCounterTest, RedundantAllAttachmentsClear)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+
+    GLProgram drawRed, drawGreen;
+    drawRed.makeRaster(essl1_shaders::vs::Simple(), essl1_shaders::fs::Red());
+    drawGreen.makeRaster(essl1_shaders::vs::Simple(), essl1_shaders::fs::Green());
+
+    GLFramebuffer framebuffer;
+    GLTexture texture;
+    GLRenderbuffer renderbuffer;
+    setupForDepthStencilOpsTest(&framebuffer, &texture, &renderbuffer);
+
+    // Initial clear
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearDepthf(1.0f);
+    glClearStencil(0xAA);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+    // Draw something with depth and stencil test passing, color should be blue
+    GLfloat zValue = 0.0f;
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Blue());
+    glDepthFunc(GL_LESS);
+    glEnable(GL_DEPTH_TEST);
+    glStencilMask(0xFF);
+    glEnable(GL_STENCIL_TEST);
+    glStencilFunc(GL_EQUAL, 0xAA, 0xFF);
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // Clear all attachments (first clear, mid-RP) with red/0.5f/0x55
+    uint32_t colorClearsBefore   = getPerfCounters().colorClearAttachments;
+    uint32_t depthClearsBefore   = getPerfCounters().depthClearAttachments;
+    uint32_t stencilClearsBefore = getPerfCounters().stencilClearAttachments;
+    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    glClearDepthf(zValue * 0.5f + 0.5f);
+    glClearStencil(0x55);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+    // Clear stencil again with the same value, should be skipped!
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+    // Draw, Depth and stencil test should all fail.
+    glStencilFunc(GL_EQUAL, 0xAA, 0xFF);
+    drawQuad(program, essl1_shaders::PositionAttrib(), zValue + 0.1f);
+    ASSERT_GL_NO_ERROR();
+    EXPECT_PIXEL_RECT_EQ(0, 0, kOpsTestSize, kOpsTestSize, GLColor::red);
+
+    // The counter *ClearAttachments should only increase by 1.
+    EXPECT_EQ(getPerfCounters().colorClearAttachments, colorClearsBefore + 1);
+    EXPECT_EQ(getPerfCounters().depthClearAttachments, depthClearsBefore + 1);
+    EXPECT_EQ(getPerfCounters().stencilClearAttachments, stencilClearsBefore + 1);
+    drawQuadToVerifyDepthValue(drawGreen, drawRed, zValue);
+    EXPECT_PIXEL_RECT_EQ(0, 0, kOpsTestSize, kOpsTestSize, GLColor::green);
+    drawQuadToVerifyStencilValue(drawGreen, 0x55);
+    EXPECT_PIXEL_RECT_EQ(0, 0, kOpsTestSize, kOpsTestSize, GLColor::green);
+}
+
+// Similar to RedundantAllAttachmentsClear but with depth mask off
+TEST_P(VulkanPerformanceCounterTest, RedundantAllAttachmentsClearDepthMaskOff)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+
+    GLProgram drawGreen;
+    drawGreen.makeRaster(essl1_shaders::vs::Simple(), essl1_shaders::fs::Green());
+
+    GLFramebuffer framebuffer;
+    GLTexture texture;
+    GLRenderbuffer renderbuffer;
+    setupForDepthStencilOpsTest(&framebuffer, &texture, &renderbuffer);
+
+    // Initial clear
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearDepthf(1.0f);
+    glClearStencil(0xAA);
+    glDepthMask(GL_FALSE);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+    // Draw something with depth and stencil test passing, color should be blue
+    GLfloat zValue = 0.0f;
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Blue());
+    glDepthFunc(GL_LESS);
+    glEnable(GL_DEPTH_TEST);
+    glStencilMask(0xFF);
+    glEnable(GL_STENCIL_TEST);
+    glStencilFunc(GL_EQUAL, 0xAA, 0xFF);
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // Clear all attachments (first clear, mid-RP) with red/0.5f/0x55
+    uint32_t colorClearsBefore   = getPerfCounters().colorClearAttachments;
+    uint32_t depthClearsBefore   = getPerfCounters().depthClearAttachments;
+    uint32_t stencilClearsBefore = getPerfCounters().stencilClearAttachments;
+    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    glClearDepthf(zValue * 0.5f + 0.5f);
+    glClearStencil(0x55);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+    // Clear stencil again with the same value, should be skipped!
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+    // Draw, Depth and stencil test should all fail.
+    glStencilFunc(GL_EQUAL, 0xAA, 0xFF);
+    drawQuad(program, essl1_shaders::PositionAttrib(), zValue + 0.1f);
+    ASSERT_GL_NO_ERROR();
+    EXPECT_PIXEL_RECT_EQ(0, 0, kOpsTestSize, kOpsTestSize, GLColor::red);
+
+    // The counter color/stencil clearAttachments should only increase by 1. No depth clear is
+    // performed due to mask disabled.
+    EXPECT_EQ(getPerfCounters().colorClearAttachments, colorClearsBefore + 1);
+    EXPECT_EQ(getPerfCounters().depthClearAttachments, depthClearsBefore);
+    EXPECT_EQ(getPerfCounters().stencilClearAttachments, stencilClearsBefore + 1);
+    drawQuadToVerifyStencilValue(drawGreen, 0x55);
+    EXPECT_PIXEL_RECT_EQ(0, 0, kOpsTestSize, kOpsTestSize, GLColor::green);
 }
 
 // Verifies whether, when GL_RASTERIZER_DISCARD is enabled and no glClear is issued,
@@ -9942,8 +10711,7 @@ TEST_P(VulkanPerformanceCounterTest_TileMemory, BlitGradientDepthBuffer)
 
 // Similar to OneDSBufferUsedInOneRenderPassThenInvalidate_D24S8, add sample from cubemap texture
 // which on some GPU, it may trigger finishImpl call.
-TEST_P(VulkanPerformanceCounterTest_TileMemory,
-       OneDSBufferUsedInOneRenderPassThenSampleFromCubemapTexture)
+TEST_P(VulkanPerformanceCounterTest_TileMemory, DSBufferUsedInOneRPThenSampleFromCubemapTexture)
 {
     ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
     ANGLE_SKIP_TEST_IF(!isFeatureEnabled(Feature::SimulateTileMemoryForTesting) &&
@@ -10025,6 +10793,314 @@ TEST_P(VulkanPerformanceCounterTest_TileMemory,
     drawQuad(texProgram, essl1_shaders::PositionAttrib(), 0.6f);
     drawQuadToVerifyDepthValue(drawGreen, drawRed, 0.6f);
     EXPECT_PIXEL_RECT_EQ(0, 0, kWidth, kHeight, GLColor::green);
+}
+
+// Similar to DSBufferUsedInOneRPThenSampleFromCubemapTexture, but added glTexSubImage2D before read
+// pixels
+TEST_P(VulkanPerformanceCounterTest_TileMemory,
+       DSBufferUsedInOneRPThenSampleFromCubemapAndThenSubTexture)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+    ANGLE_SKIP_TEST_IF(!isFeatureEnabled(Feature::SimulateTileMemoryForTesting) &&
+                       !isFeatureEnabled(Feature::SupportsTileMemoryHeap));
+
+    setupPrograms();
+
+    const char kCubemapTextureFS[] = R"(precision highp float;
+            uniform samplerCube texCube;
+            varying vec2 v_texCoord;
+            void main()
+            {
+                vec3 cubecoord = vec3(1, v_texCoord);
+                gl_FragColor = textureCube(texCube, cubecoord);
+            })";
+
+    constexpr GLsizei kWidth  = 4;
+    constexpr GLsizei kHeight = 4;
+
+    uint64_t tileMemoryImageCountBefore = getPerfCounters().tileMemoryImages;
+    uint64_t renderPassCountBefore      = getPerfCounters().renderPasses;
+
+    // Create a cubemap texture. This will create a texture with mHasBeenBoundAsAttachment=false.
+    GLTexture cubeMapTexture;
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMapTexture);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexStorage2D(GL_TEXTURE_CUBE_MAP, 7, GL_RGB5_A1, 64, 64);
+    std::array<uint16_t, 64 * 64> textureData;
+    textureData.fill(0xF801);
+    for (GLenum target = GL_TEXTURE_CUBE_MAP_POSITIVE_X; target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
+         target++)
+    {
+        glTexSubImage2D(target, 0, 0, 0, 64, 64, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1,
+                        reinterpret_cast<const GLubyte *>(textureData.data()));
+    }
+    // This will make the cubemap texture's mHasBeenBoundAsAttachment=true.
+    GLFramebuffer fboWithCubemapTexture;
+    glBindFramebuffer(GL_FRAMEBUFFER, fboWithCubemapTexture);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X,
+                           cubeMapTexture, 0);
+
+    // Create FBO, it's depthStencil buffer should allocated with tile memory.
+    GLTexture colorTexture;
+    GLRenderbuffer depthStencil;
+    setupColorTextureAndDepthBuffer(colorTexture, depthStencil, GL_DEPTH24_STENCIL8, kWidth,
+                                    kHeight);
+    GLFramebuffer fbo;
+    setupFBO(colorTexture, depthStencil, depthStencil, fbo, kWidth, kHeight);
+
+    // Start renderPass
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearDepthf(0.5f);
+    glClearStencil(0x55);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+    drawQuadToVerifyDepthStencilValue(0.0f, 0x55);
+    EXPECT_GL_NO_ERROR();
+
+    // There should be only one render pass.
+    uint64_t renderPassCount = getPerfCounters().renderPasses - renderPassCountBefore;
+    EXPECT_EQ(1u, renderPassCount);
+    EXPECT_EQ(1u, getPerfCounters().tileMemoryImages - tileMemoryImageCountBefore);
+    EXPECT_EQ(0u, getPerfCounters().fallbackFromTileMemory);
+
+    // Sample from cubeMapTexture. This may trigger submitCommands on some GPUs that has to recreate
+    // VkImage for cubemap texture due to mHasBeenBoundAsAttachment==true and trigger a finishImpl
+    // call due to data copy back.
+    ANGLE_GL_PROGRAM(texProgram, essl1_shaders::vs::Texture2D(), kCubemapTextureFS);
+    glUseProgram(texProgram);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cubeMapTexture);
+    glDisable(GL_STENCIL_TEST);
+    glDepthMask(GL_TRUE);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_ALWAYS);
+    glClear(GL_COLOR_BUFFER_BIT);
+    drawQuad(texProgram, essl1_shaders::PositionAttrib(), 0.6f);
+    drawQuadToVerifyDepthValue(drawGreen, drawRed, 0.6f);
+    glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, 0, 0, 64, 64, GL_RGBA,
+                    GL_UNSIGNED_SHORT_5_5_5_1,
+                    reinterpret_cast<const GLubyte *>(textureData.data()));
+    EXPECT_PIXEL_RECT_EQ(0, 0, kWidth, kHeight, GLColor::green);
+    // Now verify depth buffer again.
+    drawQuadToVerifyDepthValue(drawGreen, drawRed, 0.6f);
+    EXPECT_PIXEL_RECT_EQ(0, 0, kWidth, kHeight, GLColor::green);
+}
+
+// Regression test: deleting a depth renderbuffer that is the (stale) cached
+// depth-stencil render target of the currently-bound but unsynced draw
+// framebuffer must not lead to a use-after-free.
+TEST_P(VulkanPerformanceCounterTest_TileMemory, DeleteDepthRenderbufferOfUnsyncedDrawFBOThenFinish)
+{
+    ANGLE_SKIP_TEST_IF(!isFeatureEnabled(Feature::SimulateTileMemoryForTesting) &&
+                       !isFeatureEnabled(Feature::SupportsTileMemoryHeap));
+
+    setupPrograms();
+
+    constexpr GLsizei kWidth  = 64;
+    constexpr GLsizei kHeight = 64;
+
+    // fboA with depth renderbuffer depthA.
+    GLTexture colA;
+    glBindTexture(GL_TEXTURE_2D, colA);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, kWidth, kHeight);
+    GLRenderbuffer depthA;
+    glBindRenderbuffer(GL_RENDERBUFFER, depthA);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, kWidth, kHeight);
+    GLFramebuffer fboA;
+    glBindFramebuffer(GL_FRAMEBUFFER, fboA);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colA, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthA);
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+    glViewport(0, 0, kWidth, kHeight);
+
+    // Step 1: start a render pass on fboA with depthA -> populates
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_ALWAYS);
+    glDepthMask(GL_TRUE);
+    glClearDepthf(1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    drawQuad(drawRed, essl1_shaders::PositionAttrib(), 0.0f);
+
+    // Step 2: invalidate depth so depthA is content-undefined when RP_A ends.
+    GLenum depthAtt = GL_DEPTH_ATTACHMENT;
+    glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &depthAtt);
+
+    // fboB with depth renderbuffer depthB.
+    GLTexture colB;
+    glBindTexture(GL_TEXTURE_2D, colB);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, kWidth, kHeight);
+    GLRenderbuffer depthB;
+    glBindRenderbuffer(GL_RENDERBUFFER, depthB);  // also unbinds depthA
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, kWidth, kHeight);
+    GLFramebuffer fboB;
+    glBindFramebuffer(GL_FRAMEBUFFER, fboB);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colB, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthB);
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+
+    // Step 3: draw on fboB -> closes RP_A, opens RP_B,
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    drawQuad(drawRed, essl1_shaders::PositionAttrib(), 0.0f);
+
+    // Step 4: rebind fboA as the *draw* framebuffer. Front-end state only:
+    // FramebufferVk for fboA is NOT synced; its mRenderTargetCache.depthStencil
+    // still points at depthA's RenderTargetVk. RenderPass B remains open in the backend.
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fboA);
+
+    // Step 5: delete depthA. This auto-detached from fboA.
+    depthA.reset();
+
+    // Step 6: glFinish(), which triggers submission. It should not access deleted render targets.
+    glFinish();
+
+    EXPECT_GL_NO_ERROR();
+}
+
+// Regression test: deleting a color renderbuffer of the currently-bound but unsynced draw
+// framebuffer must not lead to a use-after-free.
+TEST_P(VulkanPerformanceCounterTest_TileMemory, DeleteColorRenderbufferOfUnsyncedDrawFBOThenFinish)
+{
+    ANGLE_SKIP_TEST_IF(!isFeatureEnabled(Feature::SimulateTileMemoryForTesting) &&
+                       !isFeatureEnabled(Feature::SupportsTileMemoryHeap));
+
+    setupPrograms();
+
+    constexpr GLsizei kWidth  = 64;
+    constexpr GLsizei kHeight = 64;
+
+    // fboA with depth renderbuffer depthA
+    GLTexture colA;
+    glBindTexture(GL_TEXTURE_2D, colA);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, kWidth, kHeight);
+    GLRenderbuffer depthA;
+    glBindRenderbuffer(GL_RENDERBUFFER, depthA);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, kWidth, kHeight);
+    GLFramebuffer fboA;
+    glBindFramebuffer(GL_FRAMEBUFFER, fboA);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colA, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthA);
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+    glViewport(0, 0, kWidth, kHeight);
+
+    // Step 1: start a render pass on fboA with depthA
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_ALWAYS);
+    glDepthMask(GL_TRUE);
+    glClearDepthf(1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    drawQuad(drawRed, essl1_shaders::PositionAttrib(), 0.0f);
+
+    // Step 2: invalidate depthA so that it is content-undefined.
+    GLenum depthAtt = GL_DEPTH_ATTACHMENT;
+    glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &depthAtt);
+
+    // fboB with depth renderbuffer depthB.
+    GLTexture colB;
+    glBindTexture(GL_TEXTURE_2D, colB);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, kWidth, kHeight);
+    GLRenderbuffer depthB;
+    glBindRenderbuffer(GL_RENDERBUFFER, depthB);  // also unbinds depthA
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, kWidth, kHeight);
+    GLFramebuffer fboB;
+    glBindFramebuffer(GL_FRAMEBUFFER, fboB);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colB, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthB);
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+
+    // Step 3: draw on fboB
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    drawQuad(drawRed, essl1_shaders::PositionAttrib(), 0.6f);
+
+    // Step 4: rebind fboA as the draw framebuffer.
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fboA);
+
+    // Step 5: delete colA. This auto-detached from fboA and makes fboA dirty.
+    colA.reset();
+
+    // Step 6: glFinish(), which triggers submission. It should not access any deleted objects.
+    glFinish();
+    EXPECT_GL_NO_ERROR();
+
+    // The previous glFinish should have caused depthB fallback from tile memory. Now verify depthB
+    // buffer again.
+    glBindFramebuffer(GL_FRAMEBUFFER, fboB);
+    drawQuadToVerifyDepthValue(drawGreen, drawRed, 0.6f);
+    EXPECT_PIXEL_RECT_EQ(0, 0, kWidth, kHeight, GLColor::green);
+    EXPECT_EQ(1u, getPerfCounters().fallbackFromTileMemory);
+}
+
+// Test tile memory allocation failure is handled properly
+TEST_P(VulkanPerformanceCounterTest_TileMemory, DSBufferAllocateFailureThenBlit)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled(kPerfMonitorExtensionName));
+    ANGLE_SKIP_TEST_IF(!isFeatureEnabled(Feature::SimulateTileMemoryForTesting) &&
+                       !isFeatureEnabled(Feature::SupportsTileMemoryHeap));
+
+    setupPrograms();
+
+    GLfloat zValue = 0.0f;
+
+    // draw to default fbo to initialize depth buffer
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearDepthf(zValue * 0.5f + 0.5f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+    drawQuadToVerifyDepthValue(drawGreen, drawRed, zValue);
+    EXPECT_PIXEL_RECT_EQ(0, 0, getWindowWidth(), getWindowHeight(), GLColor::green);
+    EXPECT_EQ(1u, getPerfCounters().fallbackFromTileMemory);
+
+    uint64_t tileMemoryImageCountBefore = getPerfCounters().tileMemoryImages;
+
+    // Set up depthStencil with 4097x4097, the simulation code path will fail to allocate for
+    // testing purpose (allocation size > 64M).
+    constexpr GLsizei kWidth  = 4097;
+    constexpr GLsizei kHeight = 4097;
+
+    GLTexture colorTexture;
+    glBindTexture(GL_TEXTURE_2D, colorTexture);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, kWidth, kHeight);
+
+    GLRenderbuffer depthStencil;
+    glBindRenderbuffer(GL_RENDERBUFFER, depthStencil);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, kWidth, kHeight);
+
+    GLFramebuffer fbo;
+    setupFBO(colorTexture, depthStencil, depthStencil, fbo, kWidth, kHeight);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearDepthf(0.0f);
+    glClearStencil(0x55);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+
+    // blit depth from surface to to fbo
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo);
+    ASSERT(getWindowWidth() < kWidth);
+    ASSERT(getWindowHeight() < kHeight);
+    glBlitFramebuffer(0, 0, getWindowWidth(), getWindowHeight(), 0, 0, getWindowWidth(),
+                      getWindowHeight(), GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+
+    if (isFeatureEnabled(Feature::SupportsTileMemoryHeap))
+    {
+        // depthStencil may or may not be using tile memory.
+        EXPECT_TRUE(getPerfCounters().tileMemoryImages - tileMemoryImageCountBefore <= 1);
+    }
+    else
+    {
+        // simulation code path should fail to allocate tile memory and automatically fall back to
+        // regular memory
+        ASSERT(isFeatureEnabled(Feature::SimulateTileMemoryForTesting));
+        EXPECT_EQ(0u, getPerfCounters().tileMemoryImages - tileMemoryImageCountBefore);
+    }
+
+    // Verify depth buffer has correct value
+    drawQuadToVerifyDepthValue(drawGreen, drawRed, zValue);
+    EXPECT_PIXEL_RECT_EQ(0, 0, getWindowWidth(), getWindowHeight(), GLColor::green);
 }
 
 class VulkanPerformanceCounterTest_ClipDistance : public VulkanPerformanceCounterTest
@@ -10240,6 +11316,137 @@ TEST_P(VulkanPerformanceCounterTest_TileMemory, RedefineSharedDepthTextureWithOp
 
         threadSynchronization.nextStep(Step::Thread1OpenedRP);
         ASSERT_TRUE(threadSynchronization.waitForStep(Step::Thread0Redefined));
+
+        glFinish();
+        glDeleteTextures(1, &depthTex);
+        threadSynchronization.nextStep(Step::Finish);
+        EXPECT_EGL_TRUE(eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT));
+    };
+
+    std::array<LockStepThreadFunc, 2> threadFuncs = {std::move(thread0), std::move(thread1)};
+    RunLockStepThreads(getEGLWindow(), threadFuncs.size(), threadFuncs.data());
+    ASSERT_NE(currentStep, Step::Abort);
+}
+
+// Regression test: respecifying a depth texture's max level that is bound as the depth attachment
+// of the current draw FBO in two share-group contexts (each with an open render pass and a
+// surviving mImageWithTileMemory pointer) must not dereference a freed RenderTargetVk via
+// FramebufferVk::getImageWithTileMemory() during the re-entrant submitCommands() inside
+// TextureVk::stageSelfAsSubresourceUpdates().
+TEST_P(VulkanPerformanceCounterTest_TileMemory, RespecifySharedDepthTextureWithOpenRenderPasses)
+{
+    ANGLE_SKIP_TEST_IF(!isFeatureEnabled(Feature::SimulateTileMemoryForTesting) &&
+                       !isFeatureEnabled(Feature::SupportsTileMemoryHeap));
+
+    constexpr GLsizei kSize = 64;
+
+    enum class Step
+    {
+        Start,
+        Thread1CreatedDepthTex,
+        Thread0OpenedRP,
+        Thread1OpenedRP,
+        Thread0Respecified,
+        Finish,
+        Abort,
+    };
+    Step currentStep = Step::Start;
+    std::mutex mutex;
+    std::condition_variable condVar;
+    GLuint sharedDepthTex = 0;
+
+    // Per-context setup:
+    // 1. FBO_A: Color and a depth renderbuffer that is invalidated.  The Vulkan backend may use
+    //    tile memory for this depth renderbuffer
+    // 2. FBO_B: Color and the shared depth texture.  The Vulkan backend does not use tile memory
+    //    for textures.
+    auto setupContextState = [&](GLuint colorTexA, GLuint depthRB, GLuint fboA, GLuint colorTexB,
+                                 GLuint fboB, GLuint depthTex, GLuint program) {
+        glBindTexture(GL_TEXTURE_2D, colorTexA);
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, kSize, kSize);
+        glBindRenderbuffer(GL_RENDERBUFFER, depthRB);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, kSize, kSize);
+        glBindFramebuffer(GL_FRAMEBUFFER, fboA);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexA, 0);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthRB);
+        EXPECT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+        glViewport(0, 0, kSize, kSize);
+        glEnable(GL_DEPTH_TEST);
+        glDepthMask(GL_TRUE);
+        glDepthFunc(GL_ALWAYS);
+        glClearDepthf(1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+        const GLenum kDepthAttachment = GL_DEPTH_ATTACHMENT;
+        glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &kDepthAttachment);
+        EXPECT_GL_NO_ERROR();
+
+        glBindTexture(GL_TEXTURE_2D, colorTexB);
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, kSize, kSize);
+        glBindFramebuffer(GL_FRAMEBUFFER, fboB);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexB, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTex, 0);
+        EXPECT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+        drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+        EXPECT_GL_NO_ERROR();
+    };
+
+    auto thread0 = [&](EGLDisplay dpy, EGLSurface surface, EGLContext context) {
+        ThreadSynchronization<Step> threadSynchronization(&currentStep, &mutex, &condVar);
+        EXPECT_EGL_TRUE(eglMakeCurrent(dpy, surface, surface, context));
+
+        ASSERT_TRUE(threadSynchronization.waitForStep(Step::Thread1CreatedDepthTex));
+
+        ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Red());
+        GLTexture colorTexA, colorTexB;
+        GLRenderbuffer depthRB;
+        GLFramebuffer fboA, fboB;
+        setupContextState(colorTexA, depthRB, fboA, colorTexB, fboB, sharedDepthTex, program);
+
+        threadSynchronization.nextStep(Step::Thread0OpenedRP);
+        ASSERT_TRUE(threadSynchronization.waitForStep(Step::Thread1OpenedRP));
+
+        // Both contexts now have an open render pass with |sharedDepthTex| as depth attachment.
+        // In the Vulkan backend if tile memory is used, a reference to |depthRB| may be kept.
+        // The draw framebuffer is not dirty.
+        //
+        // Respecify max level of |sharedDepthTex| to recreate its views.  This should not cause
+        // use-after-free.
+        glBindTexture(GL_TEXTURE_2D, sharedDepthTex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 1);
+        EXPECT_GL_NO_ERROR();
+
+        glFinish();
+        threadSynchronization.nextStep(Step::Thread0Respecified);
+        ASSERT_TRUE(threadSynchronization.waitForStep(Step::Finish));
+        EXPECT_EGL_TRUE(eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT));
+    };
+
+    auto thread1 = [&](EGLDisplay dpy, EGLSurface surface, EGLContext context) {
+        ThreadSynchronization<Step> threadSynchronization(&currentStep, &mutex, &condVar);
+        EXPECT_EGL_TRUE(eglMakeCurrent(dpy, surface, surface, context));
+
+        ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Green());
+
+        // Create the shared depth texture as a mutable texture so glTexParameteri can respecify it.
+        GLuint depthTex;
+        glGenTextures(1, &depthTex);
+        glBindTexture(GL_TEXTURE_2D, depthTex);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, kSize, kSize, 0, GL_DEPTH_COMPONENT,
+                     GL_UNSIGNED_INT, nullptr);
+        EXPECT_GL_NO_ERROR();
+        sharedDepthTex = depthTex;
+
+        threadSynchronization.nextStep(Step::Thread1CreatedDepthTex);
+        ASSERT_TRUE(threadSynchronization.waitForStep(Step::Thread0OpenedRP));
+
+        GLTexture colorTexA, colorTexB;
+        GLRenderbuffer depthRB;
+        GLFramebuffer fboA, fboB;
+        setupContextState(colorTexA, depthRB, fboA, colorTexB, fboB, sharedDepthTex, program);
+
+        threadSynchronization.nextStep(Step::Thread1OpenedRP);
+        ASSERT_TRUE(threadSynchronization.waitForStep(Step::Thread0Respecified));
 
         glFinish();
         glDeleteTextures(1, &depthTex);

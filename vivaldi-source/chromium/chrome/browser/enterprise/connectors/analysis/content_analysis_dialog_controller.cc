@@ -14,7 +14,6 @@
 #include "chrome/browser/enterprise/connectors/analysis/content_analysis_delegate.h"
 #include "chrome/browser/enterprise/connectors/analysis/content_analysis_views.h"
 #include "chrome/browser/safe_browsing/cloud_content_scanning/deep_scanning_utils.h"
-#include "chrome/grit/generated_resources.h"
 #include "components/constrained_window/constrained_window_views.h"
 #include "components/web_modal/web_contents_modal_dialog_manager.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -121,8 +120,12 @@ void ContentAnalysisDialogController::ShowDialogNow() {
     return;
   }
 
-  auto* manager =
-      web_modal::WebContentsModalDialogManager::FromWebContents(web_contents());
+  web_modal::WebContentsModalDialogManager* manager = nullptr;
+  if (web_contents()) {
+    manager = web_modal::WebContentsModalDialogManager::FromWebContents(
+        web_contents());
+  }
+
   if (!manager) {
     // `manager` being null indicates that `web_contents()` doesn't correspond
     // to a browser tab (ex: an extension background page reading the

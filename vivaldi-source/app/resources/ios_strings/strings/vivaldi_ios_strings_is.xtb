@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Biddu um að opna hlekki frá öðum öppum í einkaham</translation>
 <translation id="1624481300475123200">Sjálfvirk útfylling lykilorða</translation>
 <translation id="1743244221910283364">Hætta við breytingar</translation>
+<translation id="1972589975368876259">Breyta bunka</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Bæta flipa í bunka}
         other {Bæta flipum í bunka}}</translation>
@@ -48,7 +49,6 @@
 <translation id="4772190485302020393">Loka öllum flipum og flipabunkum</translation>
 <translation id="4802185666270672526">Fela „Nota borðtölvuútlit“</translation>
 <translation id="4828571836982833289">Leysa upp flipabunka?</translation>
-<translation id="4838250035189612538">Endurnefna bunka</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1flipabunka lokað og hann vistaður}
             other {{count} flipabunkum lokað og þeir vistaðir}}</translation>

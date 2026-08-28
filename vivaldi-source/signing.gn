@@ -7,11 +7,11 @@ declare_overrides() {
   sign_executables = true
 }
 
-assert(is_vivaldi) # Needed to maintain sequence
+assert(is_vivaldi)  # Needed to maintain sequence
 
 import("//vivaldi/gn/config/stored_version.gni")
 
-assert(is_vivaldi) # Needed to maintain sequence
+assert(is_vivaldi)  # Needed to maintain sequence
 
 import("//vivaldi/gn/compile_updates.gni")
 import("//vivaldi/gn/config/features.gni")

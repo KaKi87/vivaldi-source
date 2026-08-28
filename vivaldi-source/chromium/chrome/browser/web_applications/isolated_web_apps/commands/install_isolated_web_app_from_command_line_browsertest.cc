@@ -56,7 +56,7 @@ class InstallIsolatedWebAppFromCommandLineBrowserTest
 
   void SetUpOnMainThread() override {
     WebAppBrowserTestBase::SetUpOnMainThread();
-    WebAppProvider::GetForTest(browser()->profile())
+    WebAppProvider::GetForTest(browser()->GetProfile())
         ->isolated_web_app_dev_install_manager()
         .OnReportInstallationResultForTesting(future_.GetCallback());
   }
@@ -68,7 +68,7 @@ class InstallIsolatedWebAppFromCommandLineBrowserTest
   }
 
   WebAppRegistrar& GetWebAppRegistrar() {
-    auto* provider = WebAppProvider::GetForTest(browser()->profile());
+    auto* provider = WebAppProvider::GetForTest(browser()->GetProfile());
     CHECK(provider != nullptr);
     return provider->registrar_unsafe();
   }
@@ -103,15 +103,8 @@ class InstallIsolatedWebAppFromCommandLineFromUrlBrowserTest
   GURL GetAppUrl() const { return embedded_test_server()->base_url(); }
 };
 
-// TODO(crbug.com/513729021): Re-enable the test
-#if BUILDFLAG(IS_LINUX)
-#define MAYBE_UrlAppFromCommandLineIsInstalled \
-  DISABLED_UrlAppFromCommandLineIsInstalled
-#else
-#define MAYBE_UrlAppFromCommandLineIsInstalled UrlAppFromCommandLineIsInstalled
-#endif
 IN_PROC_BROWSER_TEST_F(InstallIsolatedWebAppFromCommandLineFromUrlBrowserTest,
-                       MAYBE_UrlAppFromCommandLineIsInstalled) {
+                       UrlAppFromCommandLineIsInstalled) {
   webapps::AppId id = GetInstalledAppId();
 
   EXPECT_TRUE(
@@ -166,15 +159,8 @@ class InstallIsolatedWebAppFromCommandLineFromFileBrowserTest
   std::optional<web_package::SignedWebBundleId> bundle_id_;
 };
 
-// TODO(https://crbug.com/503784976): Flaky on Mac.
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_FileAppFromCommandLineIsInstalled \
-  DISABLED_AppFromCommandLineIsInstalled
-#else
-#define MAYBE_FileAppFromCommandLineIsInstalled AppFromCommandLineIsInstalled
-#endif
 IN_PROC_BROWSER_TEST_F(InstallIsolatedWebAppFromCommandLineFromFileBrowserTest,
-                       MAYBE_FileAppFromCommandLineIsInstalled) {
+                       FileAppFromCommandLineIsInstalled) {
   webapps::AppId id = GetInstalledAppId();
 
   ASSERT_TRUE(bundle_id_);

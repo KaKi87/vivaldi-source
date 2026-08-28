@@ -23,8 +23,12 @@ namespace glic {
 namespace {
 
 ui::Accelerator GetAcceleratorFromPreference(const char* pref_name) {
-  const ui::Accelerator hotkey = ui::Command::StringToAccelerator(
-      g_browser_process->local_state()->GetString(pref_name));
+  PrefService* const local_state = g_browser_process->local_state();
+  if (!local_state) {
+    return ui::Accelerator();
+  }
+  const ui::Accelerator hotkey =
+      ui::Command::StringToAccelerator(local_state->GetString(pref_name));
 
   // Return empty accelerator if an invalid modifier was set.
   if (!hotkey.IsEmpty() &&
@@ -67,6 +71,11 @@ GlicLauncherConfiguration::GlicLauncherConfiguration(Observer* manager)
         base::BindRepeating(
             &GlicLauncherConfiguration::OnGlobalHotkeyPrefChanged,
             base::Unretained(this)));
+    pref_registrar_.Add(
+        prefs::kGlicHotkeyGlobalScopeEnabled,
+        base::BindRepeating(
+            &GlicLauncherConfiguration::OnGlobalHotkeyPrefChanged,
+            base::Unretained(this)));
   }
 }
 
@@ -75,6 +84,12 @@ GlicLauncherConfiguration::~GlicLauncherConfiguration() = default;
 // static
 bool GlicLauncherConfiguration::IsEnabled(bool* is_default_value) {
   PrefService* const pref_service = g_browser_process->local_state();
+  if (!pref_service) {
+    if (is_default_value) {
+      *is_default_value = false;
+    }
+    return false;
+  }
   if (is_default_value) {
     *is_default_value =
         pref_service->FindPreference(prefs::kGlicLauncherEnabled)
@@ -85,41 +100,16 @@ bool GlicLauncherConfiguration::IsEnabled(bool* is_default_value) {
 }
 
 // static
-ui::Accelerator GlicLauncherConfiguration::GetGlobalHotkey() {
+ui::Accelerator GlicLauncherConfiguration::GetToggleHotkey() {
   return GetAcceleratorFromPreference(prefs::kGlicLauncherHotkey);
 }
 
 // static
-ui::Accelerator GlicLauncherConfiguration::GetSelectionGlobalHotkey() {
+ui::Accelerator GlicLauncherConfiguration::GetSelectionHotkey() {
   if (!base::FeatureList::IsEnabled(features::kGlicCaptureRegion)) {
     return ui::Accelerator();
   }
   return GetAcceleratorFromPreference(prefs::kGlicSelectionHotkey);
-}
-
-// static
-ui::Accelerator GlicLauncherConfiguration::GetDefaultHotkey() {
-#if BUILDFLAG(IS_MAC)
-  const ui::EventFlags modifiers = ui::EF_CONTROL_DOWN;
-#elif BUILDFLAG(IS_CHROMEOS)
-  // This is the search key on ChromeOS keyboard.
-  const ui::EventFlags modifiers = ui::EF_COMMAND_DOWN;
-#else
-  const ui::EventFlags modifiers = ui::EF_ALT_DOWN;
-#endif
-
-  return ui::Accelerator(ui::KeyboardCode::VKEY_G, modifiers);
-}
-
-// static
-ui::Accelerator GlicLauncherConfiguration::GetDefaultSelectionHotkey() {
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS)
-  const ui::EventFlags modifiers = ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN;
-#else
-  const ui::EventFlags modifiers = ui::EF_ALT_DOWN | ui::EF_CONTROL_DOWN;
-#endif
-
-  return ui::Accelerator(ui::KeyboardCode::VKEY_G, modifiers);
 }
 
 // static

@@ -9,6 +9,7 @@
 #include <string>
 
 #include "base/values.h"
+#include "build/build_config.h"
 #include "extensions/buildflags/buildflags.h"
 #include "extensions/common/constants.h"
 #include "extensions/common/extension_id.h"
@@ -48,6 +49,12 @@ bool HasIsolatedStorage(const std::string& extension_id,
                         content::BrowserContext* context);
 bool HasIsolatedStorage(const Extension& extension,
                         content::BrowserContext* context);
+
+// Returns whether the extension with `extension_id` is force installed by
+// policy, and fills `reason` (if non-null) with expository text.
+bool IsExtensionForceInstalled(const std::string& extension_id,
+                               content::BrowserContext* context,
+                               std::u16string* reason = nullptr);
 
 // Sets whether `extension_id` can run in an incognito window. Reloads the
 // extension if it's enabled since this permission is applied at loading time
@@ -95,6 +102,25 @@ bool AreExtensionsDisabled(const base::CommandLine& command_line,
 // extension with `extension_id`. If `extension_id` is empty, just shows the
 // main extensions page.
 GURL GetExtensionsPageUrl(const ExtensionId& extension_id);
+
+// Returns true if the extension with the given ID is allowed to use MojoJS
+// bindings.
+bool IsMojoJsEnabledForExtension(const ExtensionId& extension_id,
+                                 content::BrowserContext* context);
+
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+// Represents the type of settings override configured by the extension.
+// DSE = Default Search Engine.
+// NTP = New Tab Page.
+enum class DseNtpOverrideType {
+  kNone = 0,
+  kDse = 1,
+  kNtp = 2,
+  kBoth = 3,
+};
+
+DseNtpOverrideType GetDseNtpOverrideType(const Extension& extension);
+#endif
 
 }  // namespace util
 }  // namespace extensions

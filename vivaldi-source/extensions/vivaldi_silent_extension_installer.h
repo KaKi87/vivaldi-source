@@ -49,7 +49,7 @@ class SilentWebstoreInstaller : public extensions::WebstoreInstallWithPrompt {
  private:
   ~SilentWebstoreInstaller() override = default;
 
-  std::unique_ptr<ExtensionInstallPrompt::Prompt> CreateInstallPrompt()
+  std::unique_ptr<extensions::InstallPromptData> CreateInstallPrompt()
       const override {
     return nullptr;
   }

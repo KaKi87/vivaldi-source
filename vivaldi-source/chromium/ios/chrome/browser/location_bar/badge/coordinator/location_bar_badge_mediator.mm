@@ -23,6 +23,7 @@
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_browser_agent.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_service.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_tab_helper.h"
+#import "ios/chrome/browser/intelligence/bwg/utils/gemini_availability.h"
 #import "ios/chrome/browser/intelligence/bwg/utils/gemini_constants.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/location_bar/badge/coordinator/location_bar_badge_mediator_delegate.h"
@@ -33,11 +34,13 @@
 #import "ios/chrome/browser/location_bar/badge/ui/location_bar_badge_consumer.h"
 #import "ios/chrome/browser/location_bar/ui_bundled/location_bar_metrics.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list_observer_bridge.h"
-#import "ios/chrome/browser/shared/public/commands/bwg_commands.h"
 #import "ios/chrome/browser/shared/public/commands/contextual_panel_entrypoint_iph_commands.h"
 #import "ios/chrome/browser/shared/public/commands/contextual_sheet_commands.h"
+#import "ios/chrome/browser/shared/public/commands/custom_leading_view_type.h"
+#import "ios/chrome/browser/shared/public/commands/gemini_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/grit/ios_strings.h"
@@ -320,6 +323,10 @@ constexpr base::TimeDelta kStartCollapseTransitionTime = base::Seconds(5);
   [self.consumer showUnreadBadge:unread];
 }
 
+- (void)setBadgeCustomLeadingViewType:(CustomLeadingViewType)type {
+  // No-op.
+}
+
 #pragma mark - LocationBarBadgeMutator
 
 - (void)dismissIPHAnimated:(BOOL)animated {
@@ -334,14 +341,10 @@ constexpr base::TimeDelta kStartCollapseTransitionTime = base::Seconds(5);
   switch (badgeConfig.badgeType) {
     case LocationBarBadgeType::kGeminiContextualCueChip: {
       NSString* prompt = nil;
-      if (IsAskGeminiChipPrepopulateFloatyEnabled()) {
-        prompt = l10n_util::GetNSString(IDS_IOS_ASK_GEMINI_CHIP_PREFILL_PROMPT);
-      }
-
       GeminiStartupState* state = [[GeminiStartupState alloc]
           initWithEntryPoint:gemini::EntryPoint::OmniboxChip];
       state.prepopulatedPrompt = prompt;
-      [self.BWGCommandHandler startGeminiFlowWithStartupState:state];
+      [self.geminiHandler startGeminiFlowWithStartupState:state];
       _tracker->NotifyEvent(
           feature_engagement::events::kIOSGeminiContextualCueChipUsed);
 
@@ -396,7 +399,7 @@ constexpr base::TimeDelta kStartCollapseTransitionTime = base::Seconds(5);
 // in-memory tracking states without side effects.
 - (void)ensureFETFeatureIsDismissed {
   if (_isFETPromoShowing) {
-    if (!IsAskGeminiChipIgnoreCriteria()) {
+    if (!IsAskGeminiChipIgnoreCriteriaEnabled()) {
       _tracker->Dismissed(feature_engagement::kIPHiOSGeminiContextualCueChip);
     }
     _isFETPromoShowing = NO;
@@ -633,7 +636,6 @@ constexpr base::TimeDelta kStartCollapseTransitionTime = base::Seconds(5);
     }
     default:
       return NO;
-      ;
   }
 }
 
@@ -696,13 +698,15 @@ constexpr base::TimeDelta kStartCollapseTransitionTime = base::Seconds(5);
   if (_geminiBrowserAgent && _geminiBrowserAgent->is_floaty_invoked()) {
     return NO;
   }
-  GeminiTabHelper* tabHelper = GeminiTabHelper::FromWebState(_activeWebState);
+  ProfileIOS* profile =
+      _activeWebState
+          ? ProfileIOS::FromBrowserState(_activeWebState->GetBrowserState())
+          : nullptr;
   BOOL isPageEligible =
-      tabHelper && tabHelper->IsGeminiAvailableForWebState() &&
-      _geminiService && _geminiService->IsProfileEligibleForGemini();
-  // TODO(crbug.com/465766925): Remove when feature is enabled by default.
-  BOOL isConsentEligible = IsAskGeminiChipAllowNonconsentedUsersEnabled() ||
-                           _prefService->GetBoolean(prefs::kIOSBwgConsent);
+      gemini::IsGeminiAvailable(gemini::EntryPoint::DirectOmniboxBadge, profile,
+                                _activeWebState)
+          .enabled;
+  BOOL isConsentEligible = _prefService->GetBoolean(prefs::kIOSBwgConsent);
 
   // Checks if an eligible amount of time has passed since the last chip
   // display.
@@ -718,7 +722,7 @@ constexpr base::TimeDelta kStartCollapseTransitionTime = base::Seconds(5);
     return NO;
   }
 
-  if (IsAskGeminiChipIgnoreCriteria()) {
+  if (IsAskGeminiChipIgnoreCriteriaEnabled()) {
     return YES;
   }
 

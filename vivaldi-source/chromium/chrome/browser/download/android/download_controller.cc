@@ -46,7 +46,6 @@
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
 #include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 #include "chrome/common/pref_names.h"
-#include "chrome/grit/branded_strings.h"
 #include "components/download/content/public/context_menu_download.h"
 #include "components/download/public/common/android/auto_resumption_handler.h"
 #include "components/download/public/common/download_danger_type.h"
@@ -435,7 +434,8 @@ void DownloadController::OnDownloadUpdated(DownloadItem* item) {
     } else if (isEnterpriseBlockDownloadDangerType(item->GetDangerType())) {
       // The download is deemed blocked by enterprise policy, do
       // nothing here so the download will fail the completion check.
-    } else if (ShouldShowSafeBrowsingAndroidDownloadWarnings()) {
+    } else if (ShouldShowSafeBrowsingAndroidDownloadWarnings(
+                   /*enable_for_telemetry=*/true)) {
       dialog_shown = ShowDangerousDownloadWarning(model);
     } else {
       // Don't show notification for a dangerous download, as user can resume

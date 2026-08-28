@@ -20,10 +20,10 @@ namespace glic {
 class GlicMetrics;
 class GlicStablePinningDelegatingSharingManager;
 
-// Implements GlicSharingManager and provides additional functionality needed
-// by chrome/browser/glic. It also provides some common sharing-related
+// Implements GlicSharingManagerInternal and provides additional functionality
+// needed by chrome/browser/glic. It also provides some common sharing-related
 // functionality.
-class GlicSharingManagerImpl : public GlicSharingManager,
+class GlicSharingManagerImpl : public GlicSharingManagerInternal,
                                public GlicPinCandidateProvider {
  public:
   GlicSharingManagerImpl(
@@ -41,7 +41,7 @@ class GlicSharingManagerImpl : public GlicSharingManager,
   // without exposing generally.
   friend class GlicStablePinningDelegatingSharingManager;
 
-  // GlicSharingManager implementation.
+  // GlicSharingManagerInternal implementation.
 
   using FocusedTabChangedCallback =
       base::RepeatingCallback<void(const FocusedTabData&)>;
@@ -100,6 +100,7 @@ class GlicSharingManagerImpl : public GlicSharingManager,
   int32_t GetNumPinnedTabs() const override;
 
   bool IsTabPinned(tabs::TabHandle tab_handle) const override;
+  bool IsTabShared(tabs::TabInterface* tab) const override;
 
   bool IsTabFocused(tabs::TabHandle tab_handle) const override;
 
@@ -112,13 +113,19 @@ class GlicSharingManagerImpl : public GlicSharingManager,
 
   void GetContextFromTab(
       tabs::TabHandle tab_handle,
-      const mojom::GetTabContextOptions& options,
+      const mojom::TabContextOptions& options,
       base::OnceCallback<void(GlicGetContextResult)> callback) override;
 
   void GetContextForActorFromTab(
       tabs::TabHandle tab_handle,
-      const mojom::GetTabContextOptions& options,
+      const mojom::TabContextOptions& options,
       base::OnceCallback<void(GlicGetContextResult)> callback) override;
+
+  void GetImageBytes(
+      tabs::TabHandle tab_handle,
+      const std::string& document_id,
+      int32_t dom_node_id,
+      base::OnceCallback<void(GlicGetImageBytesResult)> callback) override;
 
   void SubscribeToPinCandidates(
       mojom::GetPinCandidatesOptionsPtr options,
@@ -126,12 +133,12 @@ class GlicSharingManagerImpl : public GlicSharingManager,
 
   void OnConversationTurnSubmitted() override;
 
-  base::WeakPtr<GlicSharingManager> GetWeakPtr() override;
+  base::WeakPtr<GlicSharingManagerInternal> GetWeakPtr() override;
 
  private:
   void GetContextFromTabImpl(
       tabs::TabInterface* tab,
-      const mojom::GetTabContextOptions& options,
+      const mojom::TabContextOptions& options,
       base::OnceCallback<void(GlicGetContextResult)> callback);
 
   GlicPinnedTabManager* pinned_tab_manager() const;

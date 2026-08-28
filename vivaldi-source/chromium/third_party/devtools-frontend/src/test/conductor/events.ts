@@ -42,6 +42,8 @@ const ALLOWED_ASSERTION_FAILURES = [
   'Fetch API cannot load chrome-error://chromewebdata/neterror.rollup.js.map. URL scheme "chrome-error" is not supported.',
   'Request Storage.getAffectedUrlsForThirdPartyCookieMetadata failed.',
   'Hash of blocked script',
+  // CXX debugging extension dummy icon error.
+  'Failed to load resource: net::ERR_INVALID_URL',
 ];
 
 const FILTERED_LOGS = ['Autofocus processing was blocked because a document already has a focused element'];
@@ -231,11 +233,11 @@ export function dumpCollectedErrors(): void {
 }
 
 const pendingErrorExpectations = new Set<ErrorExpectation>();
-export let fatalErrors: string[] = [];
+let fatalErrors: string[] = [];
 export let expectedErrors: string[] = [];
 /**
  * Gathered separately so we can surface them during screenshot tests to help
  * give an idea of failures, rather than having to guess purely based on the
  * screenshot.
  **/
-export const uiComponentDocErrors: Error[] = [];
+const uiComponentDocErrors: Error[] = [];

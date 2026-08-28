@@ -4,7 +4,6 @@
 
 #include "chrome/browser/ui/views/permissions/embedded_permission_prompt_policy_view.h"
 
-#include "chrome/browser/ui/url_identity.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -13,10 +12,10 @@
 #include "ui/gfx/paint_vector_icon.h"
 
 EmbeddedPermissionPromptPolicyView::EmbeddedPermissionPromptPolicyView(
-    Browser* browser,
+    content::WebContents* web_contents,
     base::WeakPtr<EmbeddedPermissionPromptViewDelegate> delegate,
     bool is_permission_allowed)
-    : EmbeddedPermissionPromptBaseView(browser, delegate),
+    : EmbeddedPermissionPromptBaseView(web_contents, delegate),
       is_permission_allowed_(is_permission_allowed) {}
 
 EmbeddedPermissionPromptPolicyView::~EmbeddedPermissionPromptPolicyView() =

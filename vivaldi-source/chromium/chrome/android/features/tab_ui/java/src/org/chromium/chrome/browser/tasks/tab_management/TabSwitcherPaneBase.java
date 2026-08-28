@@ -19,6 +19,7 @@ import android.graphics.RectF;
 import android.os.Handler;
 import android.os.SystemClock;
 import android.view.View;
+import android.view.View.OnClickListener;
 
 import androidx.annotation.ColorInt;
 import androidx.annotation.VisibleForTesting;
@@ -59,12 +60,13 @@ import org.chromium.chrome.browser.hub.ShrinkExpandHubLayoutAnimationFactory;
 import org.chromium.chrome.browser.hub.TabListHubLayoutAnimationFactory;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab_ui.RecyclerViewPosition;
+import org.chromium.chrome.browser.tab_ui.TabListMode;
 import org.chromium.chrome.browser.tab_ui.TabSwitcher;
 import org.chromium.chrome.browser.tab_ui.TabSwitcherCustomViewManager;
-import org.chromium.chrome.browser.tasks.tab_management.TabListCoordinator.TabListMode;
 import org.chromium.chrome.browser.toolbar.ToolbarPositionController;
 import org.chromium.chrome.browser.ui.actions.button.FullButtonData;
 import org.chromium.chrome.browser.ui.bottombar.BottomBarConfigUtils;
+import org.chromium.chrome.browser.ui.bottombar.BottomBarUtils;
 import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeController;
 import org.chromium.chrome.browser.ui.theme.ChromeSemanticColorUtils;
 import org.chromium.chrome.browser.user_education.UserEducationHelper;
@@ -106,6 +108,7 @@ public abstract class TabSwitcherPaneBase extends PaneBase
             ObservableSuppliers.createNonNull(false);
     protected final SettableNonNullObservableSupplier<Boolean> mIsAnimatingSupplier =
             ObservableSuppliers.createNonNull(false);
+    private final OnClickListener mNewTabButtonClickListener;
     private final SettableNullableObservableSupplier<View> mOverlayViewSupplier =
             ObservableSuppliers.createNullable();
     private final Callback<Boolean> mVisibilityObserver = this::onVisibilityChanged;
@@ -147,11 +150,14 @@ public abstract class TabSwitcherPaneBase extends PaneBase
                 }
             };
 
+    private final NonNullObservableSupplier<Boolean> mXrSpaceModeObservableSupplier;
+    private final boolean mIsBottomBarEnabledOnGts;
+    private final int mBottomBarHeight;
+
     protected @Nullable Tracker mTracker;
-    private boolean mNativeInitialized;
     private @Nullable PaneHubController mPaneHubController;
     private @Nullable Long mWaitForTabStateInitializedStartTimeMs;
-    private final NonNullObservableSupplier<Boolean> mXrSpaceModeObservableSupplier;
+    private boolean mNativeInitialized;
 
     /**
      * @param context The activity context.
@@ -175,7 +181,8 @@ public abstract class TabSwitcherPaneBase extends PaneBase
             MonotonicObservableSupplier<EdgeToEdgeController> edgeToEdgeSupplier,
             MonotonicObservableSupplier<CompositorViewHolder> compositorViewHolderSupplier,
             TabGroupCreationUiDelegate tabGroupCreationUiDelegate,
-            NonNullObservableSupplier<Boolean> xrSpaceModeObservableSupplier) {
+            NonNullObservableSupplier<Boolean> xrSpaceModeObservableSupplier,
+            OnClickListener newTabButtonClickListener) {
         super(paneId, context, onToolbarAlphaChange);
         mMenuButtonVisible = shouldShowMenuButton(context);
         mFactory = factory;
@@ -186,6 +193,11 @@ public abstract class TabSwitcherPaneBase extends PaneBase
         mCompositorViewHolderSupplier = compositorViewHolderSupplier;
         mUiFlow = tabGroupCreationUiDelegate;
         mXrSpaceModeObservableSupplier = xrSpaceModeObservableSupplier;
+        mNewTabButtonClickListener = newTabButtonClickListener;
+        mIsBottomBarEnabledOnGts =
+                BottomBarConfigUtils.isBottomBarEnabled(context)
+                        && BottomBarConfigUtils.shouldShowOnGts();
+        mBottomBarHeight = BottomBarUtils.getBottomBarHeight(context);
 
         mMenuOrKeyboardActionHandler =
                 new MenuOrKeyboardActionHandler() {
@@ -217,6 +229,15 @@ public abstract class TabSwitcherPaneBase extends PaneBase
         mSearchBoxVisibilityFractionSupplier =
                 mTabSwitcherPaneCoordinatorSupplier.createTransitiveNonNull(
                         0.0f, TabSwitcherPaneCoordinator::getSearchBoxVisibilityFractionSupplier);
+    }
+
+    @Override
+    public boolean createNewTab() {
+        if (mNewTabButtonClickListener != null) {
+            mNewTabButtonClickListener.onClick(null);
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -497,6 +518,16 @@ public abstract class TabSwitcherPaneBase extends PaneBase
                     // crbug.com/40942799.
                     initialRect.offset(-initialLeftOffset, -initialTopOffset);
                     finalRect.offset(-finalLeftOffset, -finalTopOffset);
+
+                    int bottomMargin = 0;
+                    if (mIsBottomBarEnabledOnGts) {
+                        EdgeToEdgeController edgeToEdgeController = mEdgeToEdgeSupplier.get();
+                        if (edgeToEdgeController != null) {
+                            bottomMargin += edgeToEdgeController.getSystemBottomInsetPx();
+                        }
+                        bottomMargin += mBottomBarHeight;
+                    }
+
                     animationDataSupplier.set(
                             ShrinkExpandAnimationData.createHubShrinkExpandAnimationData(
                                     initialRect,
@@ -507,7 +538,8 @@ public abstract class TabSwitcherPaneBase extends PaneBase
                                     finalBottomCornerRadius,
                                     coordinator.getThumbnailSize(),
                                     isTopToolbar,
-                                    useFallbackAnimation));
+                                    useFallbackAnimation,
+                                    bottomMargin));
                 };
         coordinator.waitForLayoutWithTab(tabId, provideAnimationData);
         return animationDataSupplier;
@@ -591,6 +623,19 @@ public abstract class TabSwitcherPaneBase extends PaneBase
         } else {
             return false;
         }
+    }
+
+    /**
+     * Delegates touch point hit testing to {@link TabSwitcherPaneCoordinator}. Ensures touches on
+     * interactive elements (such as tab cards in the RecyclerView) are preserved for tab
+     * interactions (like swipe-to-close) rather than intercepted as Hub pane swipes.
+     */
+    @Override
+    public boolean isTouchOnInteractiveElement(float x, float y) {
+        @Nullable TabSwitcherPaneCoordinator coordinator =
+                mTabSwitcherPaneCoordinatorSupplier.get();
+        if (coordinator == null) return false;
+        return coordinator.isTouchOnInteractiveElement(x, y);
     }
 
     /**

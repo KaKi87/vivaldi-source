@@ -27,7 +27,6 @@
 #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/web_applications/extensions_manager.h"
-#include "chrome/browser/web_applications/isolated_web_apps/commands/garbage_collect_storage_partitions_command.h"
 #include "chrome/browser/web_applications/isolated_web_apps/commands/install_isolated_web_app_command.h"
 #include "chrome/browser/web_applications/isolated_web_apps/install/isolated_web_app_install_source.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_features.h"
@@ -46,6 +45,7 @@
 #include "components/webapps/isolated_web_apps/types/source.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/isolated_web_apps_policy.h"
+#include "content/public/browser/storage_partition.h"
 #include "services/network/public/cpp/is_potentially_trustworthy.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "third_party/abseil-cpp/absl/functional/overload.h"
@@ -210,7 +210,6 @@ void IsolatedWebAppDevInstallManager::SetProvider(base::PassKey<WebAppProvider>,
 }
 
 void IsolatedWebAppDevInstallManager::Start() {
-  MaybeScheduleGarbageCollection();
 #if BUILDFLAG(IS_CHROMEOS)
   auto& command_line = *base::CommandLine::ForCurrentProcess();
   if (!are_isolated_web_apps_enabled_ || !HasIwaInstallSwitch(command_line)) {
@@ -555,26 +554,8 @@ void IsolatedWebAppDevInstallManager::ReportInstallationResult(
     LOG(ERROR) << "Isolated Web App command line installation failed: "
                << result.error();
   }
+  last_installation_result_ = result;
   on_report_installation_result_.Run(std::move(result));
-}
-
-void IsolatedWebAppDevInstallManager::MaybeScheduleGarbageCollection() {
-  if (profile_->GetPrefs()->GetBoolean(
-          prefs::kShouldGarbageCollectStoragePartitions)) {
-    provider_->command_manager().ScheduleCommand(
-        std::make_unique<web_app::GarbageCollectStoragePartitionsCommand>(
-            &profile_.get(),
-            base::BindOnce(
-                [](base::WeakPtr<IsolatedWebAppDevInstallManager> weak_this) {
-                  if (!weak_this) {
-                    return;
-                  }
-                  weak_this
-                      ->on_garbage_collect_storage_partitions_done_for_testing_
-                      .Signal();
-                },
-                weak_ptr_factory_.GetWeakPtr())));
-  }
 }
 
 void IsolatedWebAppDevInstallManager::DownloadWebBundleToFile(
@@ -584,8 +565,9 @@ void IsolatedWebAppDevInstallManager::DownloadWebBundleToFile(
     std::optional<web_package::SignedWebBundleId> expected_bundle_id,
     ScopedTempWebBundleFile bundle) {
   base::FilePath path = bundle.path();
-  auto downloader = std::make_unique<IsolatedWebAppDownloader>(
-      profile()->GetURLLoaderFactory());
+  auto downloader = IsolatedWebAppDownloader::Create(
+      profile()->GetURLLoaderFactory(),
+      profile()->GetDefaultStoragePartition()->GetNetworkContext());
   auto* downloader_ptr = downloader.get();
   base::OnceClosure downloader_keep_alive =
       base::DoNothingWithBoundArgs(std::move(downloader));

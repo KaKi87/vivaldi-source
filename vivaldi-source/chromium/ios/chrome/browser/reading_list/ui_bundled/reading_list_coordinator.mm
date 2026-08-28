@@ -40,8 +40,6 @@
 #import "ios/chrome/browser/metrics/model/new_tab_page_uma.h"
 #import "ios/chrome/browser/net/model/crurl.h"
 #import "ios/chrome/browser/policy/model/policy_util.h"
-#import "ios/chrome/browser/reading_list/model/offline_page_tab_helper.h"
-#import "ios/chrome/browser/reading_list/model/offline_url_utils.h"
 #import "ios/chrome/browser/reading_list/model/reading_list_model_factory.h"
 #import "ios/chrome/browser/reading_list/ui_bundled/reading_list_list_item.h"
 #import "ios/chrome/browser/reading_list/ui_bundled/reading_list_list_item_factory.h"
@@ -81,6 +79,7 @@
 #import "ios/chrome/grit/ios_strings.h"
 #import "ios/web/common/features.h"
 #import "ios/web/public/navigation/referrer.h"
+#import "ios/web/public/web_state.h"
 #import "ui/base/l10n/l10n_util.h"
 #import "ui/strings/grit/ui_strings.h"
 #import "url/gurl.h"
@@ -96,11 +95,12 @@ using vivaldi::IsVivaldiRunning;
 // to the view.
 @interface ReadingListCoordinator () <AccountSettingsPresenter,
                                       AuthenticationServiceObserving,
-                                      IdentityManagerObserverBridgeDelegate,
+                                      IdentityManagerObserving,
                                       ReadingListMenuProvider,
                                       ReadingListListItemFactoryDelegate,
                                       ReadingListListViewControllerAudience,
                                       ReadingListListViewControllerDelegate,
+                                      ReadingListMenuProvider,
                                       SigninPromoViewConsumer,
                                       SigninPromoViewMediatorDelegate,
                                       UIAdaptivePresentationControllerDelegate>
@@ -341,10 +341,7 @@ using vivaldi::IsVivaldiRunning;
     [self.tableViewController reloadData];
     return;
   }
-  [self loadEntryURL:entry->URL()
-      loadOfflineVersion:NO
-                inNewTab:NO
-               incognito:NO];
+  [self loadEntryURL:entry->URL() inNewTab:NO incognito:NO];
 }
 
 - (void)readingListListViewController:(UIViewController*)viewController
@@ -357,16 +354,7 @@ using vivaldi::IsVivaldiRunning;
     [self.tableViewController reloadData];
     return;
   }
-  [self loadEntryURL:entry->URL()
-      loadOfflineVersion:NO
-                inNewTab:YES
-               incognito:incognito];
-}
-
-- (void)readingListListViewController:(UIViewController*)viewController
-              openItemOfflineInNewTab:(id<ReadingListListItem>)item {
-  CHECK_EQ(self.tableViewController, viewController);
-  [self openItemOfflineInNewTab:item];
+  [self loadEntryURL:entry->URL() inNewTab:YES incognito:incognito];
 }
 
 - (void)readingListListViewController:(UIViewController*)viewController
@@ -411,13 +399,10 @@ using vivaldi::IsVivaldiRunning;
 
 #pragma mark - URL Loading Helpers
 
-// Loads reading list URLs. If `offlineURL` is valid and `loadOfflineVersion` is
-// true, the item will be loaded offline; otherwise `entryURL` is loaded.
-// `newTab` and `incognito` can be used to optionally open the URL in a new tab
-// or in incognito.  The coordinator is also stopped after the load is
-// requested.
+// Loads reading list URLs. `newTab` and `incognito` can be used to optionally
+// open the URL in a new tab or in incognito. The coordinator is also stopped
+// after the load is requested.
 - (void)loadEntryURL:(const GURL&)entryURL
-    loadOfflineVersion:(BOOL)loadOfflineVersion
               inNewTab:(BOOL)newTab
              incognito:(BOOL)incognito {
   // Override incognito opening using enterprise policy.
@@ -437,7 +422,6 @@ using vivaldi::IsVivaldiRunning;
           authenticateIncognitoContentWithCompletionBlock:^(BOOL success) {
             if (success) {
               [weakSelf loadEntryURL:copyEntryURL
-                  loadOfflineVersion:YES
                             inNewTab:newTab
                            incognito:incognito];
             }
@@ -458,17 +442,7 @@ using vivaldi::IsVivaldiRunning;
   // Prepare the table for dismissal.
   [self.tableViewController willBeDismissed];
 
-  if (loadOfflineVersion) {
-    DCHECK(!newTab);
-    OfflinePageTabHelper* offlinePageTabHelper =
-        OfflinePageTabHelper::FromWebState(activeWebState);
-    if (offlinePageTabHelper &&
-        offlinePageTabHelper->CanHandleErrorLoadingURL(entryURL)) {
-      offlinePageTabHelper->LoadOfflinePage(entryURL);
-    }
-    // Use a referrer with a specific URL to signal that this entry should not
-    // be taken into account for the Most Visited tiles.
-  } else if (newTab) {
+  if (newTab) {
     UrlLoadParams params = UrlLoadParams::InNewTab(entryURL, entryURL);
     params.in_incognito = incognito;
     params.web_params.referrer = web::Referrer(GURL(kReadingListReferrerURL),
@@ -485,23 +459,6 @@ using vivaldi::IsVivaldiRunning;
   [_delegate closeReadingList];
 }
 
-- (void)openItemOfflineInNewTab:(id<ReadingListListItem>)item {
-  scoped_refptr<const ReadingListEntry> entry =
-      [self.mediator entryFromItem:item];
-  if (!entry) {
-    return;
-  }
-
-  BOOL offTheRecord = self.isOffTheRecord;
-
-  if (entry->DistilledState() == ReadingListEntry::PROCESSED) {
-    const GURL entryURL = entry->URL();
-    [self loadEntryURL:entryURL
-        loadOfflineVersion:YES
-                  inNewTab:NO
-                 incognito:offTheRecord];
-  }
-}
 
 #pragma mark - ReadingListMenuProvider
 
@@ -537,7 +494,6 @@ using vivaldi::IsVivaldiRunning;
       }
 
       [weakSelf loadEntryURL:item.entryURL
-          loadOfflineVersion:NO
                     inNewTab:YES
                    incognito:NO];
     }];
@@ -566,7 +522,6 @@ using vivaldi::IsVivaldiRunning;
           }
 
           [weakSelf loadEntryURL:item.entryURL
-              loadOfflineVersion:NO
                         inNewTab:YES
                        incognito:YES];
         }];
@@ -575,14 +530,7 @@ using vivaldi::IsVivaldiRunning;
     }
     [menuElements addObject:openInNewIncognitoTab];
 
-    scoped_refptr<const ReadingListEntry> entry =
-        [self.mediator entryFromItem:item];
-    if (entry && entry->DistilledState() == ReadingListEntry::PROCESSED) {
-      [menuElements addObject:[actionFactory
-                                  actionToOpenOfflineVersionInNewTabWithBlock:^{
-                                    [weakSelf openItemOfflineInNewTab:item];
-                                  }]];
-    }
+
 
     if (base::ios::IsMultipleScenesSupported()) {
       [menuElements
@@ -686,10 +634,10 @@ using vivaldi::IsVivaldiRunning;
 
 // TODO(crbug.com/40898970): This delegate's implementation will be moved to
 // SigninPromoViewMediator.
-#pragma mark - IdentityManagerObserverBridgeDelegate
+#pragma mark - IdentityManagerObserving
 
 // Called when a user changes the syncing state.
-- (void)onPrimaryAccountChanged:
+- (void)primaryAccountDidChange:
     (const signin::PrimaryAccountChangeEvent&)event {
   switch (event.GetEventTypeFor(signin::ConsentLevel::kSignin)) {
     case signin::PrimaryAccountChangeEvent::Type::kSet:
@@ -790,7 +738,7 @@ using vivaldi::IsVivaldiRunning;
   if (shouldShowSignInPromo) {
     [_signinPromoViewMediator signinPromoViewIsVisible];
   } else {
-    if (!_signinPromoViewMediator.invalidClosedOrNeverVisible) {
+    if (_signinPromoViewMediator.isUsable) {
       [_signinPromoViewMediator signinPromoViewIsHidden];
     }
   }
@@ -805,6 +753,7 @@ using vivaldi::IsVivaldiRunning;
       [[SharingParams alloc] initWithURL:URL
                                    title:title
                                 scenario:SharingScenario::ReadingListEntry];
+  [self.sharingCoordinator stop];
   self.sharingCoordinator = [[SharingCoordinator alloc]
       initWithBaseViewController:self.tableViewController
                          browser:self.browser
@@ -883,7 +832,7 @@ using vivaldi::IsVivaldiRunning;
           authenticateIncognitoContentWithCompletionBlock:^(BOOL success) {
             if (success) {
               [weakSelf loadEntryURL:copyEntryURL
-                  loadOfflineVersion:YES
+                  loadOfflineVersion:loadOfflineVersion
                             inNewTab:newTab
                            incognito:incognito
                     openInBackground:openInBackground];
@@ -897,19 +846,7 @@ using vivaldi::IsVivaldiRunning;
   // Prepare the table for dismissal.
   [self.tableViewController willBeDismissed];
 
-  if (loadOfflineVersion) {
-    DCHECK(!newTab);
-    web::WebState* activeWebState =
-        self.browser->GetWebStateList()->GetActiveWebState();
-    OfflinePageTabHelper* offlinePageTabHelper =
-        OfflinePageTabHelper::FromWebState(activeWebState);
-    if (offlinePageTabHelper &&
-        offlinePageTabHelper->CanHandleErrorLoadingURL(entryURL)) {
-      offlinePageTabHelper->LoadOfflinePage(entryURL);
-    }
-    // Use a referrer with a specific URL to signal that this entry should not
-    // be taken into account for the Most Visited tiles.
-  } else if (newTab) {
+  if (newTab) {
     UrlLoadParams params = UrlLoadParams::InNewTab(entryURL, entryURL);
     params.in_incognito = incognito;
     params.web_params.referrer = web::Referrer(GURL(kReadingListReferrerURL),

@@ -56,7 +56,10 @@ class ContentAnnotatorTabHelper;
 
 namespace autofill {
 class BubbleManager;
+class OmniboxAutofillBubbleController;
 class OmniboxAutofillPageActionController;
+class PaymentsChurnedUsersBubbleController;
+class PaymentsChurnedUsersPageActionController;
 }  // namespace autofill
 
 namespace actor {
@@ -87,6 +90,7 @@ class WebContents;
 }  // namespace content
 
 namespace contextual_cueing {
+class ContextualCueingController;
 class ContextualCueingWebContentsObserver;
 }  // namespace contextual_cueing
 
@@ -184,6 +188,7 @@ namespace tabs {
 
 class ContextHighlightTabFeature;
 class InactiveWindowMouseEventController;
+class PageContextEligibilityHelper;
 class TabAlertController;
 class TabAttachmentTracker;
 class TabCreationMetricsController;
@@ -323,6 +328,11 @@ class TabFeatures {
     return tab_creation_metrics_controller_.get();
   }
 
+  autofill::PaymentsChurnedUsersPageActionController*
+  payments_churned_users_page_action_controller() {
+    return payments_churned_users_page_action_controller_.get();
+  }
+
   autofill::BubbleManager* autofill_bubble_manager() {
     return autofill_bubble_manager_.get();
   }
@@ -344,6 +354,11 @@ class TabFeatures {
 
   NewTabPagePreloadPipelineManager* new_tab_page_preload_pipeline_manager() {
     return new_tab_page_preload_pipeline_manager_.get();
+  }
+
+  contextual_cueing::ContextualCueingController*
+  contextual_cueing_controller() {
+    return contextual_cueing_controller_.get();
   }
 
   // Called exactly once to initialize features.
@@ -515,6 +530,9 @@ class TabFeatures {
 
   std::unique_ptr<ContextHighlightTabFeature> context_highlight_tab_feature_;
 
+  std::unique_ptr<contextual_cueing::ContextualCueingController>
+      contextual_cueing_controller_;
+
   std::unique_ptr<contextual_cueing::ContextualCueingWebContentsObserver>
       contextual_cueing_web_contents_observer_;
 
@@ -530,9 +548,23 @@ class TabFeatures {
 
   std::unique_ptr<autofill::BubbleManager> autofill_bubble_manager_;
 
+  // Responsible for managing the "Payments Churned Users" page action.
+  std::unique_ptr<autofill::PaymentsChurnedUsersPageActionController>
+      payments_churned_users_page_action_controller_;
+
   // Responsible for managing the "Autofill payment" page action.
   std::unique_ptr<autofill::OmniboxAutofillPageActionController>
       omnibox_autofill_page_action_controller_;
+
+  // Responsible for managing the bubble that displays after the
+  // "Autofill payment" chip is clicked.
+  std::unique_ptr<autofill::OmniboxAutofillBubbleController>
+      omnibox_autofill_bubble_controller_;
+
+  // Responsible for managing the bubble that prompts a user to turn on payments
+  // autofill if they have turned it off.
+  std::unique_ptr<autofill::PaymentsChurnedUsersBubbleController>
+      payments_churned_users_bubble_controller_;
 
   std::unique_ptr<AskBeforeHttpDialogController>
       ask_before_http_dialog_controller_;
@@ -561,6 +593,9 @@ class TabFeatures {
   std::unique_ptr<skills::SkillsUiTabControllerInterface>
       skills_ui_tab_controller_;
 
+  std::unique_ptr<tabs::PageContextEligibilityHelper>
+      page_context_eligibility_helper_;
+
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
     BUILDFLAG(IS_CHROMEOS)
   std::unique_ptr<wallet::ChromeWalletablePassClient> walletable_pass_client_;
@@ -573,7 +608,8 @@ class TabFeatures {
   std::unique_ptr<skills::SkillsUpdateObserver> skills_update_observer_;
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_ANDROID) // Vivaldi keep disabled
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || \
+    BUILDFLAG(IS_CHROMEOS)
   std::unique_ptr<enterprise_reporting::SaasUsageNavigationObserver>
       saas_usage_navigation_observer_;
 #endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)

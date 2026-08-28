@@ -112,7 +112,9 @@ using F5 = void*(void* p0, void* p1, int p2, int p3, int p4);
 #define UTEST_R1_FORM_WITH_RES_C(instr_name, in_type, out_type, rs1_val, \
                                  expected_res)                           \
   TEST_F(AssemblerRISCV64Test, RISCV_UTEST_##instr_name) {               \
-    if (!CpuFeatures::IsSupported(RVC)) return;                          \
+    if (!CpuFeatures::IsSupported(RVC)) {                                \
+      return;                                                            \
+    }                                                                    \
                                                                          \
     auto fn = [](MacroAssembler& assm) { __ instr_name(a0, a0); };       \
     auto res = GenAndRunTest<out_type, in_type>(rs1_val, fn);            \
@@ -1644,6 +1646,379 @@ TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fcvthd) {
   }
 }
 
+namespace {
+
+struct H {
+  static uint16_t bits(float f) { return Float16::FromFloat32(f).get_bits(); }
+};
+
+template <typename F>
+uint16_t RunHalfUnary(uint16_t input, F&& op) {
+  auto fn = [&op](MacroAssembler& assm) {
+    __ fmv_h_x(fa0, a0);
+    op(assm);
+    __ fmv_x_h(a0, fa0);
+  };
+  return static_cast<uint16_t>(
+      GenAndRunTest<uint64_t, uint64_t>(static_cast<uint64_t>(input), fn));
+}
+
+template <typename F>
+uint16_t RunHalfBinary(uint16_t a, uint16_t b, F&& op) {
+  auto fn = [&op](MacroAssembler& assm) {
+    __ fmv_h_x(fa0, a0);
+    __ fmv_h_x(fa1, a1);
+    op(assm);
+    __ fmv_x_h(a0, fa0);
+  };
+  return static_cast<uint16_t>(GenAndRunTest<uint64_t, uint64_t>(
+      static_cast<uint64_t>(a), static_cast<uint64_t>(b), fn));
+}
+
+template <typename F>
+uint16_t RunHalfTernary(uint16_t a, uint16_t b, uint16_t c, F&& op) {
+  auto fn = [&op](MacroAssembler& assm) {
+    __ fmv_h_x(fa0, a0);
+    __ fmv_h_x(fa1, a1);
+    __ fmv_h_x(fa2, a2);
+    op(assm);
+    __ fmv_x_h(a0, fa0);
+  };
+  return static_cast<uint16_t>(GenAndRunTest<uint64_t, uint64_t>(
+      static_cast<uint64_t>(a), static_cast<uint64_t>(b),
+      static_cast<uint64_t>(c), fn));
+}
+
+template <typename F>
+int32_t RunHalfCompare(uint16_t a, uint16_t b, F&& op) {
+  auto fn = [&op](MacroAssembler& assm) {
+    __ fmv_h_x(fa0, a0);
+    __ fmv_h_x(fa1, a1);
+    op(assm);
+  };
+  return GenAndRunTest<int32_t, uint64_t>(static_cast<uint64_t>(a),
+                                          static_cast<uint64_t>(b), fn);
+}
+
+constexpr uint16_t kFP16NegZero = 0x8000u;
+constexpr uint16_t kFP16NegInfinity = 0xFC00u;
+
+}  // namespace
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fadd_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto op = [](MacroAssembler& assm) { __ fadd_h(fa0, fa0, fa1); };
+  FOR_FLOAT32_INPUTS(i) {
+    FOR_FLOAT32_INPUTS(j) {
+      Float16 hi = Float16::FromFloat32(i);
+      Float16 hj = Float16::FromFloat32(j);
+      float sum = hi.ToFloat32() + hj.ToFloat32();
+      if (std::isnan(sum)) sum = std::numeric_limits<float>::quiet_NaN();
+      uint16_t expected = Float16::FromFloat32(sum).get_bits();
+      CHECK_EQ(expected, RunHalfBinary(hi.get_bits(), hj.get_bits(), op));
+    }
+  }
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fsub_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto op = [](MacroAssembler& assm) { __ fsub_h(fa0, fa0, fa1); };
+  auto check = [&op](float a, float b) {
+    Float16 ha = Float16::FromFloat32(a);
+    Float16 hb = Float16::FromFloat32(b);
+    float result = ha.ToFloat32() - hb.ToFloat32();
+    if (std::isnan(result)) result = std::numeric_limits<float>::quiet_NaN();
+    uint16_t expected = Float16::FromFloat32(result).get_bits();
+    CHECK_EQ(expected, RunHalfBinary(ha.get_bits(), hb.get_bits(), op));
+  };
+  check(3.0f, 2.0f);
+  check(0.1f, 1.0f);
+  check(1.0f, 1.0f);
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fmul_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto op = [](MacroAssembler& assm) { __ fmul_h(fa0, fa0, fa1); };
+  auto check = [&op](float a, float b) {
+    Float16 ha = Float16::FromFloat32(a);
+    Float16 hb = Float16::FromFloat32(b);
+    float result = ha.ToFloat32() * hb.ToFloat32();
+    if (std::isnan(result)) result = std::numeric_limits<float>::quiet_NaN();
+    uint16_t expected = Float16::FromFloat32(result).get_bits();
+    CHECK_EQ(expected, RunHalfBinary(ha.get_bits(), hb.get_bits(), op));
+  };
+  check(2.2f, 3.7f);
+  check(1.4f, -2.13f);
+  check(0.07f, 5.12f);
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fdiv_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto op = [](MacroAssembler& assm) { __ fdiv_h(fa0, fa0, fa1); };
+  auto check = [&op](float a, float b) {
+    Float16 ha = Float16::FromFloat32(a);
+    Float16 hb = Float16::FromFloat32(b);
+    float result = ha.ToFloat32() / hb.ToFloat32();
+    if (std::isnan(result)) result = std::numeric_limits<float>::quiet_NaN();
+    uint16_t expected = Float16::FromFloat32(result).get_bits();
+    CHECK_EQ(expected, RunHalfBinary(ha.get_bits(), hb.get_bits(), op));
+  };
+  check(3.0f, 2.0f);
+  check(4.0f, -2.0f);
+  check(1.0f, 0.0f);
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fsqrt_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto op = [](MacroAssembler& assm) { __ fsqrt_h(fa0, fa0); };
+  CHECK_EQ(H::bits(2.0f), RunHalfUnary(H::bits(4.0f), op));
+  CHECK_EQ(H::bits(1.0f), RunHalfUnary(H::bits(1.0f), op));
+  CHECK_EQ(H::bits(0.0f), RunHalfUnary(H::bits(0.0f), op));
+  CHECK_EQ(kFP16qNaN, RunHalfUnary(H::bits(-1.0f), op) & kFP16qNaN);
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fcvt_h_s) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto fn = [](MacroAssembler& assm) {
+    __ fcvt_h_s(fa0, fa0);
+    __ fmv_x_h(a0, fa0);
+  };
+  CHECK_EQ(H::bits(1.0f), (GenAndRunTest<uint16_t, float>(1.0f, fn)));
+  CHECK_EQ(H::bits(-2.0f), (GenAndRunTest<uint16_t, float>(-2.0f, fn)));
+  CHECK_EQ(H::bits(0.0f), (GenAndRunTest<uint16_t, float>(0.0f, fn)));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fcvt_d_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto fn = [](MacroAssembler& assm) {
+    __ fmv_h_x(fa0, a0);
+    __ fcvt_d_h(fa0, fa0);
+  };
+  CHECK_EQ(1.0, (GenAndRunTest<double, uint64_t>(
+                    static_cast<uint64_t>(H::bits(1.0f)), fn)));
+  CHECK_EQ(-2.0, (GenAndRunTest<double, uint64_t>(
+                     static_cast<uint64_t>(H::bits(-2.0f)), fn)));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fcvt_w_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto fn = [](MacroAssembler& assm) {
+    __ fmv_h_x(fa0, a0);
+    __ fcvt_w_h(a0, fa0);
+  };
+  CHECK_EQ(3, (GenAndRunTest<int32_t, uint64_t>(
+                  static_cast<uint64_t>(H::bits(3.0f)), fn)));
+  CHECK_EQ(-1, (GenAndRunTest<int32_t, uint64_t>(
+                   static_cast<uint64_t>(H::bits(-1.0f)), fn)));
+  CHECK_EQ(0, (GenAndRunTest<int32_t, uint64_t>(
+                  static_cast<uint64_t>(H::bits(0.0f)), fn)));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fcvt_wu_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto fn = [](MacroAssembler& assm) {
+    __ fmv_h_x(fa0, a0);
+    __ fcvt_wu_h(a0, fa0);
+  };
+  CHECK_EQ(3u, (GenAndRunTest<uint32_t, uint64_t>(
+                   static_cast<uint64_t>(H::bits(3.0f)), fn)));
+  CHECK_EQ(0u, (GenAndRunTest<uint32_t, uint64_t>(
+                   static_cast<uint64_t>(H::bits(-1.0f)), fn)));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fcvt_l_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto fn = [](MacroAssembler& assm) {
+    __ fmv_h_x(fa0, a0);
+    __ fcvt_l_h(a0, fa0);
+  };
+  CHECK_EQ(int64_t(3), (GenAndRunTest<int64_t, uint64_t>(
+                           static_cast<uint64_t>(H::bits(3.0f)), fn)));
+  CHECK_EQ(int64_t(-1), (GenAndRunTest<int64_t, uint64_t>(
+                            static_cast<uint64_t>(H::bits(-1.0f)), fn)));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fcvt_lu_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto fn = [](MacroAssembler& assm) {
+    __ fmv_h_x(fa0, a0);
+    __ fcvt_lu_h(a0, fa0);
+  };
+  CHECK_EQ(uint64_t(3), (GenAndRunTest<uint64_t, uint64_t>(
+                            static_cast<uint64_t>(H::bits(3.0f)), fn)));
+  CHECK_EQ(uint64_t(0), (GenAndRunTest<uint64_t, uint64_t>(
+                            static_cast<uint64_t>(H::bits(-1.0f)), fn)));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fsgnj_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto op = [](MacroAssembler& assm) { __ fsgnj_h(fa0, fa0, fa1); };
+  CHECK_EQ(H::bits(2.0f), RunHalfBinary(H::bits(2.0f), H::bits(1.0f), op));
+  CHECK_EQ(H::bits(-2.0f), RunHalfBinary(H::bits(2.0f), H::bits(-1.0f), op));
+  CHECK_EQ(H::bits(-2.0f), RunHalfBinary(H::bits(-2.0f), H::bits(-1.0f), op));
+  CHECK_EQ(H::bits(2.0f), RunHalfBinary(H::bits(-2.0f), H::bits(1.0f), op));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fsgnjn_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto op = [](MacroAssembler& assm) { __ fsgnjn_h(fa0, fa0, fa1); };
+  CHECK_EQ(H::bits(-2.0f), RunHalfBinary(H::bits(2.0f), H::bits(1.0f), op));
+  CHECK_EQ(H::bits(2.0f), RunHalfBinary(H::bits(2.0f), H::bits(-1.0f), op));
+  CHECK_EQ(H::bits(-2.0f), RunHalfBinary(H::bits(-2.0f), H::bits(1.0f), op));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fsgnjx_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto op = [](MacroAssembler& assm) { __ fsgnjx_h(fa0, fa0, fa1); };
+  CHECK_EQ(H::bits(2.0f), RunHalfBinary(H::bits(2.0f), H::bits(1.0f), op));
+  CHECK_EQ(H::bits(-2.0f), RunHalfBinary(H::bits(2.0f), H::bits(-1.0f), op));
+  CHECK_EQ(H::bits(2.0f), RunHalfBinary(H::bits(-2.0f), H::bits(-1.0f), op));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_feq_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto op = [](MacroAssembler& assm) { __ feq_h(a0, fa0, fa1); };
+  CHECK_EQ(1, RunHalfCompare(H::bits(1.0f), H::bits(1.0f), op));
+  CHECK_EQ(0, RunHalfCompare(H::bits(1.0f), H::bits(2.0f), op));
+  CHECK_EQ(0, RunHalfCompare(kFP16qNaN, kFP16qNaN, op));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_flt_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto op = [](MacroAssembler& assm) { __ flt_h(a0, fa0, fa1); };
+  CHECK_EQ(1, RunHalfCompare(H::bits(1.0f), H::bits(2.0f), op));
+  CHECK_EQ(0, RunHalfCompare(H::bits(2.0f), H::bits(1.0f), op));
+  CHECK_EQ(0, RunHalfCompare(H::bits(1.0f), H::bits(1.0f), op));
+  CHECK_EQ(0, RunHalfCompare(kFP16qNaN, H::bits(1.0f), op));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fle_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto op = [](MacroAssembler& assm) { __ fle_h(a0, fa0, fa1); };
+  CHECK_EQ(1, RunHalfCompare(H::bits(1.0f), H::bits(2.0f), op));
+  CHECK_EQ(1, RunHalfCompare(H::bits(1.0f), H::bits(1.0f), op));
+  CHECK_EQ(0, RunHalfCompare(H::bits(2.0f), H::bits(1.0f), op));
+  CHECK_EQ(0, RunHalfCompare(kFP16qNaN, H::bits(1.0f), op));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fmin_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto op = [](MacroAssembler& assm) { __ fmin_h(fa0, fa0, fa1); };
+  CHECK_EQ(H::bits(1.0f), RunHalfBinary(H::bits(1.0f), H::bits(2.0f), op));
+  CHECK_EQ(H::bits(-1.0f), RunHalfBinary(H::bits(1.0f), H::bits(-1.0f), op));
+  CHECK_EQ(H::bits(1.0f), RunHalfBinary(H::bits(1.0f), kFP16qNaN, op));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fmax_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto op = [](MacroAssembler& assm) { __ fmax_h(fa0, fa0, fa1); };
+  CHECK_EQ(H::bits(2.0f), RunHalfBinary(H::bits(1.0f), H::bits(2.0f), op));
+  CHECK_EQ(H::bits(1.0f), RunHalfBinary(H::bits(1.0f), H::bits(-1.0f), op));
+  CHECK_EQ(H::bits(1.0f), RunHalfBinary(H::bits(1.0f), kFP16qNaN, op));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fmadd_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto op = [](MacroAssembler& assm) { __ fmadd_h(fa0, fa0, fa1, fa2); };
+  CHECK_EQ(H::bits(7.0f),
+           RunHalfTernary(H::bits(2.0f), H::bits(3.0f), H::bits(1.0f), op));
+  CHECK_EQ(H::bits(0.0f),
+           RunHalfTernary(H::bits(1.0f), H::bits(1.0f), H::bits(-1.0f), op));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fmsub_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto op = [](MacroAssembler& assm) { __ fmsub_h(fa0, fa0, fa1, fa2); };
+  CHECK_EQ(H::bits(5.0f),
+           RunHalfTernary(H::bits(2.0f), H::bits(3.0f), H::bits(1.0f), op));
+  CHECK_EQ(H::bits(2.0f),
+           RunHalfTernary(H::bits(3.0f), H::bits(2.0f), H::bits(4.0f), op));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fnmsub_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto op = [](MacroAssembler& assm) { __ fnmsub_h(fa0, fa0, fa1, fa2); };
+  CHECK_EQ(H::bits(-5.0f),
+           RunHalfTernary(H::bits(2.0f), H::bits(3.0f), H::bits(1.0f), op));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fnmadd_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto op = [](MacroAssembler& assm) { __ fnmadd_h(fa0, fa0, fa1, fa2); };
+  CHECK_EQ(H::bits(-7.0f),
+           RunHalfTernary(H::bits(2.0f), H::bits(3.0f), H::bits(1.0f), op));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fcvt_s_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto fn = [](MacroAssembler& assm) {
+    __ fmv_h_x(fa0, a0);
+    __ fcvt_s_h(fa0, fa0);
+  };
+  CHECK_EQ(1.0f, (GenAndRunTest<float, uint64_t>(
+                     static_cast<uint64_t>(H::bits(1.0f)), fn)));
+  CHECK_EQ(-2.0f, (GenAndRunTest<float, uint64_t>(
+                      static_cast<uint64_t>(H::bits(-2.0f)), fn)));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fcvt_h_w) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto fn = [](MacroAssembler& assm) {
+    __ fcvt_h_w(fa0, a0);
+    __ fmv_x_h(a0, fa0);
+  };
+  CHECK_EQ(H::bits(3.0f), (GenAndRunTest<uint16_t, int32_t>(3, fn)));
+  CHECK_EQ(H::bits(-1.0f), (GenAndRunTest<uint16_t, int32_t>(-1, fn)));
+  CHECK_EQ(H::bits(0.0f), (GenAndRunTest<uint16_t, int32_t>(0, fn)));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fcvt_h_wu) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto fn = [](MacroAssembler& assm) {
+    __ fcvt_h_wu(fa0, a0);
+    __ fmv_x_h(a0, fa0);
+  };
+  CHECK_EQ(H::bits(3.0f), (GenAndRunTest<uint16_t, uint32_t>(3u, fn)));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fcvt_h_l) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto fn = [](MacroAssembler& assm) {
+    __ fcvt_h_l(fa0, a0);
+    __ fmv_x_h(a0, fa0);
+  };
+  CHECK_EQ(H::bits(3.0f), (GenAndRunTest<uint16_t, int64_t>(3, fn)));
+  CHECK_EQ(H::bits(-1.0f), (GenAndRunTest<uint16_t, int64_t>(-1, fn)));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fcvt_h_lu) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto fn = [](MacroAssembler& assm) {
+    __ fcvt_h_lu(fa0, a0);
+    __ fmv_x_h(a0, fa0);
+  };
+  CHECK_EQ(H::bits(3.0f), (GenAndRunTest<uint16_t, uint64_t>(3u, fn)));
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_fclass_h) {
+  if (!CpuFeatures::IsSupported(ZFH)) return;
+  auto op = [](MacroAssembler& assm) { __ fclass_h(a0, fa0); };
+  auto run = [&op](uint16_t input) {
+    auto fn = [&op](MacroAssembler& assm) {
+      __ fmv_h_x(fa0, a0);
+      op(assm);
+    };
+    return GenAndRunTest<uint64_t, uint64_t>(static_cast<uint64_t>(input), fn);
+  };
+  CHECK_EQ(FClassFlag::kPositiveNormalNumber, run(H::bits(1.0f)));
+  CHECK_EQ(FClassFlag::kNegativeNormalNumber, run(H::bits(-1.0f)));
+  CHECK_EQ(FClassFlag::kPositiveZero, run(H::bits(0.0f)));
+  CHECK_EQ(FClassFlag::kNegativeZero, run(kFP16NegZero));
+  CHECK_EQ(FClassFlag::kPositiveInfinity, run(kFP16Infinity));
+  CHECK_EQ(FClassFlag::kNegativeInfinity, run(kFP16NegInfinity));
+  CHECK_EQ(FClassFlag::kQuietNaN, run(kFP16qNaN));
+}
+
 // -- RV64C Standard Extension --
 UTEST_R1_FORM_WITH_RES_C(c_mv, int64_t, int64_t, 0x0f5600ab123400,
                          0x0f5600ab123400)
@@ -1811,7 +2186,7 @@ TEST_F(AssemblerRISCV64Test, RISCVLiEstimate) {
   Isolate* isolate = i_isolate();
   FOR_INT64_INPUTS(i) {
     HandleScope scope(isolate);
-    MacroAssembler assm(isolate, v8::internal::CodeObjectRequired::kYes);
+    MacroAssembler assm(isolate, v8::internal::CodeObjectRequired{true});
     Label a, b;
     assm.bind(&a);
     assm.RecordComment("V8 RV_li");
@@ -2367,7 +2742,7 @@ TEST_F(AssemblerRISCV64Test, RISCV9) {
   Isolate* isolate = i_isolate();
   HandleScope scope(isolate);
 
-  MacroAssembler assm(isolate, v8::internal::CodeObjectRequired::kYes);
+  MacroAssembler assm(isolate, v8::internal::CodeObjectRequired{true});
   Label exit, exit2, exit3;
 
   __ Branch(&exit, ge, a0, Operand(zero_reg));
@@ -2840,7 +3215,7 @@ TEST_F(AssemblerRISCV64Test, TARGET_ADDR) {
 #ifdef RISCV_USE_SV39
   // This is the series of instructions to load 39 bit address 0x00304abfe961
   uint32_t buffer[4] = {0x304ac537, 0xfe950513, 0x851513, 0x6156513};
-  MacroAssembler assm(isolate, v8::internal::CodeObjectRequired::kYes);
+  MacroAssembler assm(isolate, v8::internal::CodeObjectRequired{true});
 
   uintptr_t addr = reinterpret_cast<uintptr_t>(&buffer[0]);
   Address res = __ target_constant_address_at(static_cast<Address>(addr));
@@ -2849,7 +3224,7 @@ TEST_F(AssemblerRISCV64Test, TARGET_ADDR) {
   // This is the series of instructions to load 48 bit address 0x0123456789ab
   uint32_t buffer[6] = {0x091ab37,  0x2b330213, 0x00b21213,
                         0x62626213, 0x00621213, 0x02b26213};
-  MacroAssembler assm(isolate, v8::internal::CodeObjectRequired::kYes);
+  MacroAssembler assm(isolate, v8::internal::CodeObjectRequired{true});
 
   uintptr_t addr = reinterpret_cast<uintptr_t>(&buffer[0]);
   Address res = __ target_constant_address_at(static_cast<Address>(addr));
@@ -2865,7 +3240,7 @@ TEST_F(AssemblerRISCV64Test, SET_TARGET_ADDR) {
   // This is the series of instructions to load 39 bit address 0x00304abfe961
   uint32_t buffer[4] = {0x304ac537, 0xfe950513, 0x851513, 0x6156513};
 
-  MacroAssembler assm(isolate, v8::internal::CodeObjectRequired::kYes);
+  MacroAssembler assm(isolate, v8::internal::CodeObjectRequired{true});
 
   uintptr_t addr = reinterpret_cast<uintptr_t>(&buffer[0]);
   __ set_target_value_at(static_cast<Address>(addr), 0x00304abfe961L, nullptr,
@@ -2879,7 +3254,7 @@ TEST_F(AssemblerRISCV64Test, SET_TARGET_ADDR) {
   uint32_t buffer[6] = {0x091ab37,  0x2b330213, 0x00b21213,
                         0x62626213, 0x00621213, 0x02b26213};
 
-  MacroAssembler assm(isolate, v8::internal::CodeObjectRequired::kYes);
+  MacroAssembler assm(isolate, v8::internal::CodeObjectRequired{true});
 
   uintptr_t addr = reinterpret_cast<uintptr_t>(&buffer[0]);
   __ set_target_value_at(static_cast<Address>(addr), 0xba9876543210L, nullptr,
@@ -3233,7 +3608,7 @@ TEST_F(AssemblerRISCV64Test, li_estimate) {
 
   Isolate* isolate = i_isolate();
   HandleScope scope(isolate);
-  MacroAssembler assm(isolate, v8::internal::CodeObjectRequired::kYes);
+  MacroAssembler assm(isolate, v8::internal::CodeObjectRequired{true});
   for (auto p : immediates) {
     Label a;
     assm.bind(&a);
@@ -3599,7 +3974,7 @@ UTEST_RVV_VI_VX_FORM_WITH_FN(vminu_vx, 32, ARRAY_INT32, std::min<uint32_t>)
 
 // Tests for vector single-width floating-point arithmetic instructions between
 // vector and vector
-#define UTEST_RVV_VF_VV_FORM_WITH_RES(instr_name, expect_res)              \
+#define UTEST_RVV_VF_VV_FORM_WITH_RES(instr_name, expect_op)               \
   TEST_F(AssemblerRISCV64Test, RISCV_UTEST_FLOAT_##instr_name) {           \
     if (!CpuFeatures::IsSupported(RVV)) {                                  \
       return;                                                              \
@@ -3619,14 +3994,16 @@ UTEST_RVV_VI_VX_FORM_WITH_FN(vminu_vx, 32, ARRAY_INT32, std::min<uint32_t>)
       for (float rs2_fval : compiler::ValueHelper::GetVector<float>()) {   \
         GenAndRunTest<float, float>(rs1_fval, rs2_fval, fn);               \
         for (unsigned i = 0; i < CpuFeatures::vlen() / 32; i++) {          \
-          CHECK_FLOAT_EQ(UseCanonicalNan<float>(expect_res), result[i]);   \
+          CHECK_FLOAT_EQ(                                                  \
+              UseCanonicalNan<float>((rs1_fval)expect_op(rs2_fval)),       \
+              result[i]);                                                  \
           result[i] = 0.0;                                                 \
         }                                                                  \
       }                                                                    \
     }                                                                      \
   }                                                                        \
   TEST_F(AssemblerRISCV64Test, RISCV_UTEST_DOUBLE_##instr_name) {          \
-    if (!CpuFeatures::IsSupported(RVV)) {                           \
+    if (!CpuFeatures::IsSupported(RVV)) {                                  \
       return;                                                              \
     }                                                                      \
                                                                            \
@@ -3644,7 +4021,41 @@ UTEST_RVV_VI_VX_FORM_WITH_FN(vminu_vx, 32, ARRAY_INT32, std::min<uint32_t>)
       for (double rs2_fval : compiler::ValueHelper::GetVector<double>()) { \
         GenAndRunTest<double, double>(rs1_fval, rs2_fval, fn);             \
         for (unsigned i = 0; i < CpuFeatures::vlen() / 64; i++) {          \
-          CHECK_DOUBLE_EQ(UseCanonicalNan<double>(expect_res), result[i]); \
+          CHECK_DOUBLE_EQ(                                                 \
+              UseCanonicalNan<double>((rs1_fval)expect_op(rs2_fval)),      \
+              result[i]);                                                  \
+          result[i] = 0.0;                                                 \
+        }                                                                  \
+      }                                                                    \
+    }                                                                      \
+  }                                                                        \
+  TEST_F(AssemblerRISCV64Test, RISCV_UTEST_FP16_##instr_name) {            \
+    if (!CpuFeatures::IsSupported(RVV)) {                                  \
+      return;                                                              \
+    }                                                                      \
+                                                                           \
+    uint16_t result[kMaxElements] = {0};                                   \
+    auto fn = [&result](MacroAssembler& assm) {                            \
+      __ VU.set(t0, zero_reg, VSew::E16, m1);                              \
+      __ vmv_vx(v0, a0);                                                   \
+      __ vmv_vx(v1, a1);                                                   \
+      __ instr_name(v0, v0, v1);                                           \
+      __ vmv_xs(a0, v0);                                                   \
+      __ li(a3, Operand(int64_t(result)));                                 \
+      __ vs(v0, a3, 0, E16);                                               \
+    };                                                                     \
+    for (float rs1_fval : compiler::ValueHelper::GetVector<float>()) {     \
+      for (float rs2_fval : compiler::ValueHelper::GetVector<float>()) {   \
+        Float16 rs1_f16 = Float16::FromFloat32(rs1_fval);                  \
+        Float16 rs2_f16 = Float16::FromFloat32(rs2_fval);                  \
+        GenAndRunTest<uint32_t, uint32_t>(rs1_f16.get_bits(),              \
+                                          rs2_f16.get_bits(), fn);         \
+        for (unsigned i = 0; i < CpuFeatures::vlen() / 16; i++) {          \
+          auto res_f16 = Float16::FromBits(result[i]);                     \
+          float expect = UseCanonicalNan<float>(                           \
+              (rs1_f16.ToFloat32())expect_op(rs2_f16.ToFloat32()));        \
+          CHECK_EQ(Float16::FromFloat32(expect).get_bits(),                \
+                   res_f16.get_bits());                                    \
           result[i] = 0.0;                                                 \
         }                                                                  \
       }                                                                    \
@@ -3673,22 +4084,19 @@ UTEST_RVV_VI_VX_FORM_WITH_FN(vminu_vx, 32, ARRAY_INT32, std::min<uint32_t>)
     }                                                                   \
   }
 
-#define UTEST_RVV_VF_VV_FORM_WITH_OP(instr_name, tested_op) \
-  UTEST_RVV_VF_VV_FORM_WITH_RES(instr_name, ((rs1_fval)tested_op(rs2_fval)))
-
 #define UTEST_RVV_VF_VF_FORM_WITH_OP(instr_name, array, tested_op) \
   UTEST_RVV_VF_VF_FORM_WITH_RES(instr_name, array,                 \
                                 ((rs1_fval)tested_op(rs2_fval)))
 
 #define ARRAY_FLOAT compiler::ValueHelper::GetVector<float>()
 
-UTEST_RVV_VF_VV_FORM_WITH_OP(vfadd_vv, +)
+UTEST_RVV_VF_VV_FORM_WITH_RES(vfadd_vv, +)
 UTEST_RVV_VF_VF_FORM_WITH_OP(vfadd_vf, ARRAY_FLOAT, +)
-UTEST_RVV_VF_VV_FORM_WITH_OP(vfsub_vv, -)
+UTEST_RVV_VF_VV_FORM_WITH_RES(vfsub_vv, -)
 // UTEST_RVV_VF_VF_FORM_WITH_OP(vfsub_vf, ARRAY_FLOAT, -)
-UTEST_RVV_VF_VV_FORM_WITH_OP(vfmul_vv, *)
+UTEST_RVV_VF_VV_FORM_WITH_RES(vfmul_vv, *)
 // UTEST_RVV_VF_VF_FORM_WITH_OP(vfmul_vf, ARRAY_FLOAT, *)
-UTEST_RVV_VF_VV_FORM_WITH_OP(vfdiv_vv, /)
+UTEST_RVV_VF_VV_FORM_WITH_RES(vfdiv_vv, /)
 // UTEST_RVV_VF_VF_FORM_WITH_OP(vfdiv_vf, ARRAY_FLOAT, /)
 
 #undef ARRAY_FLOAT
@@ -4583,6 +4991,119 @@ TEST_F(AssemblerRISCV64Test, RISCV_UTEST_WasmRvvS128const) {
       CHECK_EQ(result[1], y);
     }
   }
+}
+
+TEST_F(AssemblerRISCV64Test, RISCV_UTEST_FP16_Round) {
+  if (!CpuFeatures::IsSupported(RVV)) return;
+
+  uint16_t result[kMaxElements] = {0};
+
+  auto test_round = [&result](float input_f, float expected_f,
+                              FPURoundingMode mode) {
+    Float16 input_f16 = Float16::FromFloat32(input_f);
+    Float16 expected_f16 = Float16::FromFloat32(expected_f);
+    auto fn = [&result, mode](MacroAssembler& assm) {
+      __ Push(kScratchReg);
+      __ VU.set(t0, zero_reg, VSew::E16, m1);
+      __ vmv_vx(v1, a0);  // src data in v1 (test dst==src case)
+      __ vmv_vx(v2, a0);  // v_scratch
+      switch (mode) {
+        case RNE:
+          __ Round(v1, v1, kScratchReg, v2);
+          break;
+        case RTZ:
+          __ Trunc(v1, v1, kScratchReg, v2);
+          break;
+        case RDN:
+          __ Floor(v1, v1, kScratchReg, v2);
+          break;
+        case RUP:
+          __ Ceil(v1, v1, kScratchReg, v2);
+          break;
+        default:
+          UNREACHABLE();
+      }
+      __ Pop(kScratchReg);
+      __ vmv_xs(a0, v1);
+      __ li(a3, Operand(int64_t(result)));
+      __ vs(v1, a3, 0, E16);
+    };
+    auto res = GenAndRunTest<uint32_t, uint32_t>(input_f16.get_bits(), fn);
+    for (unsigned i = 0; i < CpuFeatures::vlen() / 16; i++) {
+      CHECK_EQ(expected_f16.get_bits(), result[i]);
+      result[i] = 0;
+    }
+    CHECK_EQ(expected_f16.get_bits(), static_cast<uint16_t>(res));
+  };
+
+  // Round (RNE)
+  test_round(1.5f, 2.0f, RNE);
+  test_round(2.5f, 2.0f, RNE);
+  test_round(-1.5f, -2.0f, RNE);
+  // Trunc (RTZ)
+  test_round(1.5f, 1.0f, RTZ);
+  test_round(-1.5f, -1.0f, RTZ);
+  // Floor (RDN)
+  test_round(1.5f, 1.0f, RDN);
+  test_round(-1.5f, -2.0f, RDN);
+  // Ceil (RUP)
+  test_round(1.5f, 2.0f, RUP);
+  test_round(-1.5f, -1.0f, RUP);
+  // Integers / zero
+  test_round(3.0f, 3.0f, RNE);
+  test_round(-3.0f, -3.0f, RTZ);
+  test_round(0.0f, 0.0f, RDN);
+  test_round(-0.0f, -0.0f, RUP);
+
+  // Infinities and NaN (same result regardless of rounding mode)
+  auto test_special = [&result](float input_f, auto check_fn) {
+    Float16 f16 = Float16::FromFloat32(input_f);
+    for (int mode = 0; mode < 4; mode++) {
+      FPURoundingMode frm = static_cast<FPURoundingMode>(mode);
+      auto fn = [&result, frm](MacroAssembler& assm) {
+        __ Push(kScratchReg);
+        __ VU.set(t0, zero_reg, VSew::E16, m1);
+        __ vmv_vx(v1, a0);
+        __ vmv_vx(v2, a0);
+        switch (frm) {
+          case RNE:
+            __ Round(v1, v1, kScratchReg, v2);
+            break;
+          case RTZ:
+            __ Trunc(v1, v1, kScratchReg, v2);
+            break;
+          case RDN:
+            __ Floor(v1, v1, kScratchReg, v2);
+            break;
+          case RUP:
+            __ Ceil(v1, v1, kScratchReg, v2);
+            break;
+          default:
+            UNREACHABLE();
+        }
+        __ Pop(kScratchReg);
+        __ vmv_xs(a0, v1);
+        __ li(a3, Operand(int64_t(result)));
+        __ vs(v1, a3, 0, E16);
+      };
+      auto res = GenAndRunTest<uint32_t, uint32_t>(f16.get_bits(), fn);
+      check_fn(res);
+      for (unsigned i = 0; i < CpuFeatures::vlen() / 16; i++) {
+        check_fn(result[i]);
+        result[i] = 0;
+      }
+    }
+  };
+
+  test_special(1.0f / 0.0f, [](uint16_t val) {
+    CHECK_EQ(Float16::FromFloat32(1.0f / 0.0f).get_bits(), val);
+  });
+  test_special(-1.0f / 0.0f, [](uint16_t val) {
+    CHECK_EQ(Float16::FromFloat32(-1.0f / 0.0f).get_bits(), val);
+  });
+  test_special(std::numeric_limits<float>::quiet_NaN(), [](uint16_t val) {
+    CHECK(std::isnan(Float16::FromBits(val).ToFloat32()));
+  });
 }
 
 #undef UTEST_VCPOP_M_WITH_WIDTH

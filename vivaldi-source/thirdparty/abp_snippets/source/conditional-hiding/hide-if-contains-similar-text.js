@@ -14,17 +14,17 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 
 import {$$, $closest, hideElement} from "../utils/dom.js";
-import {formatArguments} from "../utils/general.js";
+import {formatArguments, sendSnippetHitEvent} from "../utils/general.js";
 import {raceWinner} from "../introspection/race.js";
 import {getDebugger} from "../introspection/log.js";
 import {profile} from "../introspection/profile.js";
 
 const {parseFloat, Math, MutationObserver, WeakSet} = $(window);
 const {min} = Math;
+const hitFilters = new Set();
 
 // https://webreflection.blogspot.com/2009/02/levenshtein-algorithm-revisited-25.html
 const ld = (a, b) => {
@@ -53,9 +53,10 @@ const ld = (a, b) => {
 };
 
 /**
- * Hides any HTML element matching a CSS selector if the text content
- * contains someting similar to the string to search for.
- * @alias module:content/snippets.hide-if-contains-similar-text
+ * @description Hides any HTML element matching a CSS selector
+ * if the text content contains someting similar to the
+ * string to search for.
+ * @memberof module:snippets/conditional-hiding
  *
  * @param {string} search The string to look for, such as "Sponsored" or
  *   similar.
@@ -73,8 +74,15 @@ const ld = (a, b) => {
  *   an integer to never perform more than X searches per node. As example,
  *   if the word to look for is usually at the beginning, use 1 or 2 to
  *   improve performance while surfing.
+ * @example
+ * hide-if-contains-similar-text FAQ nav => Hides any nav element whose
+ * similar text content contains the word FAQ. Remember that the word FAQ
+ * doesn't need to be found inside the direct children of the nav element,
+ * it can be anywhere in its subtree.
  *
- * @since @eyeo/snippets 0.5.2
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69960642/hide-if-contains-similar-text} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/conditional-hiding-snippets/hide-if-contains-similar-text} for external documentation.
+ * @since Adblock Plus 3.14.2
  */
 export function hideIfContainsSimilarText(
   search, selector,
@@ -111,14 +119,21 @@ export function hideIfContainsSimilarText(
         const distance = ld(find, $([...str]).sort()) - ignoreChars;
         if (distance <= 0) {
           const closest = $closest($(element), selector, rootParents);
-          debugLog("success",
-                   "Found similar text: " + $search,
-                   closest,
-                   "\nFILTER: hide-if-contains-similar-text",
-                   formattedArguments);
           if (closest) {
             win();
             hideElement(closest);
+            debugLog("success",
+                     "Found similar text: " + $search,
+                     closest,
+                     "\nFILTER: hide-if-contains-similar-text",
+                     formattedArguments);
+            const filter =
+              "hide-if-contains-similar-text " +
+              formattedArguments;
+            if (!hitFilters.has(filter)) {
+              hitFilters.add(filter);
+              sendSnippetHitEvent(filter);
+            }
             break;
           }
         }

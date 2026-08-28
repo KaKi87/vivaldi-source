@@ -155,7 +155,7 @@ public class IncognitoReauthCoordinatorFactory {
             return () -> {
                 mTabModelSelector.selectModel(/* incognito= */ false);
                 assumeNonNull(mLayoutManager);
-                if (mLayoutManager.isLayoutVisible(LayoutType.TAB_SWITCHER)) {
+                if (mLayoutManager.isLayoutVisible(LayoutType.HUB)) {
                     assumeNonNull(mHubManagerSupplier);
                     mHubManagerSupplier.runSyncOrOnAvailable(
                             hubManager -> {
@@ -167,9 +167,9 @@ public class IncognitoReauthCoordinatorFactory {
 
                 if (BuildConfig.IS_VIVALDI){
                     mLayoutManager.showLayout(LayoutType.BROWSING, /*animate= */ false);
-                } else {
-                mLayoutManager.showLayout(LayoutType.TAB_SWITCHER, /* animate= */ false);
-                }
+                } else { // Vivaldi
+                mLayoutManager.showLayout(LayoutType.HUB, /* animate= */ false);
+                } // End Vivaldi
             };
         } else {
             return () -> mContext.startActivity(mShowRegularOverviewIntent);

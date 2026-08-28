@@ -24,9 +24,6 @@ update_target("//components/input:input") {
       "//services/cert_verifier/public/mojom",
       "//vivaldi/renderer/mojo:frame_service",
     ]
-    if (is_linux) {
-      deps += [ "//content/services/auction_worklet/public/mojom" ]
-    }
   }
 }
 
@@ -132,7 +129,7 @@ update_target("//chrome/browser/ui:ui") {
 }
 
 if (is_win) {
-  update_target("//chrome/browser/ui/dialogs:impl") {
+  update_target("//chrome/browser/ui/dialogs:dialogs") {
     sources -= [ "outdated_upgrade_bubble.cc" ]
   }
 }

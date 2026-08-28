@@ -1,4 +1,4 @@
-# Copyright (c) 2015 The Chromium Authors. All rights reserved.
+# Copyright 2015 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -11,31 +11,31 @@ import config_util  # pylint: disable=import-error
 # pylint: disable=no-init
 class Website(config_util.Config):
     """Basic Config class for Chromium."""
+
     @staticmethod
     def fetch_spec(props):
-        url = 'https://chromium.googlesource.com/website.git'
+        url = "https://chromium.googlesource.com/website.git"
         solution = {
-            'name': 'website',
-            'url': url,
-            'managed': False,
-            'custom_deps': {},
+            "name": "website",
+            "url": url,
+            "custom_deps": {},
         }
         spec = {
-            'solutions': [solution],
+            "solutions": [solution],
         }
         return {
-            'type': 'gclient_git',
-            'gclient_git_spec': spec,
+            "type": "gclient_git",
+            "gclient_git_spec": spec,
         }
 
     @staticmethod
     def expected_root(_props):
-        return 'website'
+        return "website"
 
 
 def main(argv=None):
     return Website().handle_args(argv)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main(sys.argv))

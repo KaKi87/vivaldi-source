@@ -6,6 +6,7 @@
 #         fuchsia
 #         linux ubuntu
 #         mac highsierra mojave catalina bigsur monterey ventura sonoma sequoia
+#             macos26
 #         win win8 win10 win11 ]
 # Devices
 # tags: [ android-pixel-2 android-pixel-4 android-pixel-6 android-pixel-10
@@ -28,8 +29,8 @@
 #         web-engine-shell
 #         cros-chrome ]
 # GPU
-# tags: [ amd amd-0x150e amd-0x1900 amd-0x6613 amd-0x679e amd-0x67ef amd-0x6821
-#             amd-0x7340 amd-0x7480 amd-0x7550
+# tags: [ amd amd-0x150e amd-0x1900 amd-0x6613 amd-0x67ef amd-0x6821 amd-0x7340
+#             amd-0x7480 amd-0x7550
 #         apple apple-apple-m1 apple-apple-m2 apple-apple-m3
 #             apple-angle-metal-renderer:-apple-m1
 #             apple-angle-metal-renderer:-apple-m2
@@ -445,12 +446,7 @@ crbug.com/443182226 [ angle-vulkan arm fuchsia ] conformance/uniforms/no-over-op
 ####################
 
 
-# Consistent failures in functions.control_flow.return_in_nested_loop_vertex and functions.control_flow.return_in_nested_loop_fragment
-# Possible HLSL compiler bug.
-crbug.com/478572 [ win angle-d3d9 passthrough ] deqp/data/gles2/shaders/functions.html [ Failure ]
 
-# The functions test have been persistently flaky on D3D9
-crbug.com/956134 [ angle-d3d9 intel-0x9bc5 release-x64 target-cpu-64 win ] conformance/extensions/webgl-depth-texture.html [ Failure ]
 
 ## Win / AMD RX 5500 XT failures ##
 
@@ -458,17 +454,10 @@ crbug.com/956134 [ angle-d3d9 intel-0x9bc5 release-x64 target-cpu-64 win ] confo
 
 ## D3D9 / AMD RX 5500 XT / Passthrough command decoder ##
 
-# Random GPU process hangs on this bot are causing random D3D9 test faiures. Retry
-# all tests for the moment so that the test suite can remain enabled on this bot.
-crbug.com/1446091 [ win amd-0x7340 angle-d3d9 passthrough ] conformance/* [ RetryOnFailure ]
 
-crbug.com/1159126 [ win amd-0x7340 angle-d3d9 passthrough ] conformance/uniforms/* [ RetryOnFailure ]
 crbug.com/1361088 [ win amd-0x7340 angle-d3d9 passthrough ] conformance/textures/webgl_canvas/tex-2d-rgb-rgb-unsigned_byte.html [ Skip ]
 crbug.com/1361088 [ win amd-0x7340 angle-d3d9 passthrough ] conformance/textures/webgl_canvas/tex-2d-rgba-rgba-unsigned_byte.html [ Skip ]
 
-## D3D9 / AMD / Passthrough
-crbug.com/40864619 [ win amd angle-d3d9 passthrough ] conformance/uniforms/uniform-default-values.html [ Failure ]
-crbug.com/402989074 [ win amd-0x7480 angle-d3d9 passthrough ] conformance/uniforms/uniform-values-per-program.html [ Failure ]
 # Commented out until full procurement is ready since UAT is done.
 # crbug.com/402989074 [ win amd-0x1900 angle-d3d9 passthrough ] conformance/uniforms/uniform-values-per-program.html [ Failure ]
 # crbug.com/402989074 [ win amd-0x150e angle-d3d9 passthrough ] conformance/uniforms/uniform-values-per-program.html [ Failure ]
@@ -483,14 +472,16 @@ crbug.com/415086850 [ win11 nvidia-0x2184 angle-vulkan passthrough ] conformance
 crbug.com/41496016 [ win11 qualcomm-0x36334330 angle-d3d11 ] conformance/textures/misc/mipmap-fbo.html [ Failure ]
 crbug.com/452924810 [ win11 qualcomm-0x36334330 angle-vulkan ] conformance/extensions/webgl-blend-func-extended.html [ Failure ]
 
-## Win / Intel / D3D9
-crbug.com/498951069 [ angle-d3d9 intel-0x9bc5 passthrough win ] conformance/uniforms/out-of-bounds-uniform-array-access.html [ Failure ]
 
 ####################
 # Mac failures     #
 ####################
 
 crbug.com/844311 [ angle-opengl mac ] conformance/glsl/misc/fragcolor-fragdata-invariant.html [ Failure ]
+
+## Mac Intel failures ##
+
+crbug.com/527353878 [ mac intel-0x3e9b angle-metal ] conformance/extensions/khr-parallel-shader-compile.html [ RetryOnFailure ]
 
 ## Mac AMD failures ##
 
@@ -508,11 +499,7 @@ crbug.com/436522727 [ amd-0x7340 debug graphite-enabled no-clang-coverage sonoma
 
 ## Apple M2 ##
 
-
-# WebGL: INVALID_ENUM: getShaderParameter
-crbug.com/444250724 [ angle-metal debug graphite-enabled intel-0x3e9b no-clang-coverage sonoma ] conformance/extensions/khr-parallel-shader-compile.html [ Failure ]
-crbug.com/444250724 [ angle-metal graphite-enabled intel-0x3e9b no-clang-coverage release sequoia ] conformance/extensions/khr-parallel-shader-compile.html [ Failure ]
-
+crbug.com/537387984 [ mac apple-angle-metal-renderer:-apple-m2 asan ] conformance/glsl/misc/shader-with-for-loop.html [ Slow ]
 
 ####################
 # Linux failures   #
@@ -522,8 +509,6 @@ crbug.com/444250724 [ angle-metal graphite-enabled intel-0x3e9b no-clang-coverag
 
 crbug.com/1021428 [ linux angle-vulkan passthrough intel ] WebglExtension_WEBGL_depth_texture [ Failure ]  # finder:disable-unused Not tested in Chromium, but tested by Intel.
 
-## Linux / OpenGL / GTX 1660 ##
-crbug.com/498282277 [ linux angle-opengl nvidia-0x2184 ] conformance/textures/canvas/tex-2d-rgba-rgba-unsigned_byte.html [ RetryOnFailure ]
 
 
 ####################
@@ -568,7 +553,6 @@ crbug.com/1287280 [ android android-pixel-6 no-passthrough ] WebglExtension_WEBG
 crbug.com/1288603 [ android android-pixel-6 passthrough angle-opengles ] conformance/extensions/angle-instanced-arrays-out-of-bounds.html [ Failure ]
 crbug.com/40236526 [ android android-pixel-6 no-passthrough ] conformance/rendering/blending.html [ Failure ]
 crbug.com/465162387 [ android android-pixel-6 angle-opengles passthrough ] conformance/extensions/oes-element-index-uint.html [ Failure ]
-crbug.com/465162387 [ android-14 android-pixel-6 angle-disabled graphite-disabled no-passthrough renderer-skia-vulkan ] conformance/extensions/oes-element-index-uint.html [ Failure ]
 
 ## Pixel 10 ##
 

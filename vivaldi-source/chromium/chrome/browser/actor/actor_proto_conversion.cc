@@ -21,6 +21,7 @@
 #include "base/strings/to_string.h"
 #include "base/trace_event/trace_event.h"
 #include "base/types/expected.h"
+#include "base/types/expected_macros.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/actor/actor_metrics.h"
 #include "chrome/browser/actor/actor_task.h"
@@ -56,12 +57,16 @@
 #include "components/actor/core/journal_details_builder.h"
 #include "components/actor/core/shared_types.h"
 #include "components/actor/public/mojom/actor_types.mojom.h"
+#include "components/autofill/core/common/autofill_features.h"
 #include "components/optimization_guide/content/browser/page_content_proto_provider.h"
 #include "components/optimization_guide/proto/features/actions_data.pb.h"
+#include "components/optimization_guide/proto/features/common_quality_data.pb.h"
+#include "components/origin_gating/core/actor_container_config.h"
 #include "components/password_manager/core/browser/features/password_features.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_features.h"
+#include "net/base/schemeful_site.h"
 #include "ui/base/window_open_disposition.h"
 
 #if !BUILDFLAG(SKIP_ANDROID_UNMIGRATED_ACTOR_FILES)
@@ -148,21 +153,38 @@ std::optional<PageTarget> ToPageTarget(
                     target.document_identifier().serialized_token()});
   }
 }
-std::variant<std::unique_ptr<ToolRequest>, mojom::ActionResultCode>
+
+AttemptOtpFillingToolRequest::OtpType ToActorOtpType(
+    optimization_guide::proto::AttemptOtpFillingAction::OtpType proto_enum) {
+  using OtpType = AttemptOtpFillingToolRequest::OtpType;
+  switch (proto_enum) {
+    case optimization_guide::proto::AttemptOtpFillingAction::OTP_TYPE_SMS:
+      return OtpType::kSms;
+    case optimization_guide::proto::AttemptOtpFillingAction::OTP_TYPE_EMAIL:
+      return OtpType::kEmail;
+    case optimization_guide::proto::AttemptOtpFillingAction::
+        OTP_TYPE_AUTHENTICATOR_APP:
+      return OtpType::kAuthenticatorApp;
+    default:
+      return OtpType::kUnknown;
+  }
+}
+
+base::expected<std::unique_ptr<ToolRequest>, mojom::ActionResultCode>
 CreateClickRequest(const ClickAction& action) {
   TabHandle tab_handle = GetTabHandle(action);
 
   if (tab_handle == TabHandle::Null()) {
-    return mojom::ActionResultCode::kTabWentAway;
+    return base::unexpected(mojom::ActionResultCode::kTabWentAway);
   }
   if (!action.has_target()) {
-    return mojom::ActionResultCode::kClickMissingTarget;
+    return base::unexpected(mojom::ActionResultCode::kClickMissingTarget);
   }
   if (!action.has_click_type()) {
-    return mojom::ActionResultCode::kClickMissingType;
+    return base::unexpected(mojom::ActionResultCode::kClickMissingType);
   }
   if (!action.has_click_count()) {
-    return mojom::ActionResultCode::kClickInvalidCount;
+    return base::unexpected(mojom::ActionResultCode::kClickInvalidCount);
   }
 
   mojom::ClickCount count;
@@ -191,6 +213,11 @@ CreateClickRequest(const ClickAction& action) {
     case apc::ClickAction_ClickType_RIGHT:
       type = mojom::ClickType::kRight;
       break;
+    case apc::ClickAction_ClickType_LEFT_ON_OCCLUDED_TARGET:
+      // The model-side action explicitly asked for click-behind activation.
+      // The renderer still performs the stricter live occluder validation.
+      type = mojom::ClickType::kLeftOnOccludedTarget;
+      break;
     case apc::
         ClickAction_ClickType_ClickAction_ClickType_INT_MIN_SENTINEL_DO_NOT_USE_:
     case apc::
@@ -203,7 +230,7 @@ CreateClickRequest(const ClickAction& action) {
 
   auto target = ToPageTarget(action.target());
   if (!target.has_value()) {
-    return mojom::ActionResultCode::kArgumentsInvalid;
+    return base::unexpected(mojom::ActionResultCode::kArgumentsInvalid);
   }
 
   return std::make_unique<ClickToolRequest>(tab_handle, target.value(), type,
@@ -250,14 +277,20 @@ std::unique_ptr<ToolRequest> CreateTypeRequest(const TypeAction& action) {
                                            action.follow_by_enter(), mode);
 }
 
-std::unique_ptr<ToolRequest> CreateScrollRequest(const ScrollAction& action) {
+base::expected<std::unique_ptr<ToolRequest>, mojom::ActionResultCode>
+CreateScrollRequest(const ScrollAction& action) {
   using Direction = ScrollToolRequest::Direction;
 
   TabHandle tab_handle = GetTabHandle(action);
 
-  if (!action.has_direction() || !action.has_distance() ||
-      tab_handle == TabHandle::Null()) {
-    return nullptr;
+  if (tab_handle == TabHandle::Null()) {
+    return base::unexpected(mojom::ActionResultCode::kTabWentAway);
+  }
+  if (!action.has_direction()) {
+    return base::unexpected(mojom::ActionResultCode::kScrollMissingDirection);
+  }
+  if (!action.has_distance()) {
+    return base::unexpected(mojom::ActionResultCode::kScrollMissingDistance);
   }
 
   std::optional<PageTarget> target;
@@ -543,7 +576,7 @@ std::unique_ptr<ToolRequest> CreateAttemptFormFillingRequest(
 #ifdef VIVALDI_BUILD
   return nullptr;
 #else
-  if (!base::FeatureList::IsEnabled(features::kGlicActorAutofill)) {
+  if (!base::FeatureList::IsEnabled(autofill::features::kGlicActorAutofill)) {
     return nullptr;
   }
 
@@ -645,7 +678,8 @@ std::unique_ptr<ToolRequest> CreateAttemptOtpFillingRequest(
   }
 
   return std::make_unique<AttemptOtpFillingToolRequest>(
-      tab_handle, std::move(trigger_fields), action.for_signin());
+      tab_handle, std::move(trigger_fields), action.for_signin(),
+      ToActorOtpType(action.predicted_otp_type()));
 }
 
 std::unique_ptr<ToolRequest> CreateScriptToolRequest(
@@ -757,7 +791,7 @@ class ActorJournalFetchPageProgressListener
   std::unique_ptr<AggregatedJournal::PendingAsyncEntry> apc_entry_;
 };
 
-std::variant<std::unique_ptr<ToolRequest>, mojom::ActionResultCode>
+base::expected<std::unique_ptr<ToolRequest>, mojom::ActionResultCode>
 CreateToolRequest(const optimization_guide::proto::Action& action) {
   TRACE_EVENT1("actor", "CreateToolRequest", "action_type",
                static_cast<int>(action.action_case()));
@@ -874,7 +908,7 @@ CreateToolRequest(const optimization_guide::proto::Action& action) {
       break;
   }
 
-  return mojom::ActionResultCode::kArgumentsInvalid;
+  return base::unexpected(mojom::ActionResultCode::kArgumentsInvalid);
 }
 
 }  // namespace
@@ -887,12 +921,11 @@ BuildToolRequest(const optimization_guide::proto::Actions& actions) {
   requests.reserve(actions.actions_size());
   for (int i = 0; i < actions.actions_size(); ++i) {
     auto result = CreateToolRequest(actions.actions().at(i));
-    if (std::holds_alternative<mojom::ActionResultCode>(result)) {
+    if (!result.has_value()) {
       return base::unexpected(
-          std::make_pair(base::checked_cast<size_t>(i),
-                         std::get<mojom::ActionResultCode>(result)));
+          std::make_pair(base::checked_cast<size_t>(i), result.error()));
     }
-    auto& tool_request = std::get<std::unique_ptr<ToolRequest>>(result);
+    auto& tool_request = result.value();
     if (!tool_request) {
       return base::unexpected(
           std::make_pair(base::checked_cast<size_t>(i),
@@ -918,6 +951,10 @@ void FillInTabObservation(
     }
   }
 
+  if (fetch_result.screenshot_info.has_value()) {
+    *tab_observation.mutable_screenshot_info() = *fetch_result.screenshot_info;
+  }
+
   if (fetch_result.annotated_page_content_result.has_value()) {
     *tab_observation.mutable_annotated_page_content() =
         fetch_result.annotated_page_content_result->proto;
@@ -939,6 +976,110 @@ void FillInTabObservation(
 }
 
 namespace {
+
+base::expected<std::string_view, std::string_view> ConvertProtocol(
+    optimization_guide::proto::Protocol protocol) {
+  switch (protocol) {
+    case optimization_guide::proto::Protocol::PROTOCOL_HTTPS:
+      return base::ok(url::kHttpsScheme);
+    case optimization_guide::proto::Protocol::PROTOCOL_HTTP:
+      return base::ok(url::kHttpScheme);
+    case optimization_guide::proto::Protocol::PROTOCOL_WSS:
+      return base::ok(url::kWssScheme);
+    case optimization_guide::proto::Protocol::PROTOCOL_WS:
+      return base::ok(url::kWsScheme);
+    case optimization_guide::proto::Protocol::PROTOCOL_UNKNOWN:
+    default:
+      return base::unexpected("Unknown protocol");
+  }
+}
+
+base::expected<net::SchemefulSite, std::string_view> ConvertSite(
+    const optimization_guide::proto::Site& site) {
+  if (!site.has_domain()) {
+    return base::unexpected("Site message is missing domain");
+  }
+  ASSIGN_OR_RETURN(std::string_view protocol, ConvertProtocol(site.protocol()));
+  net::SchemefulSite converted_site(GURL(
+      base::StrCat({protocol, url::kStandardSchemeSeparator, site.domain()})));
+  if (converted_site.GetURL().host() != site.domain()) {
+    return base::unexpected("SchemefulSite domain does not match the message");
+  }
+  return converted_site;
+}
+
+base::expected<url::Origin, std::string_view> ConvertOrigin(
+    const optimization_guide::proto::Origin& origin) {
+  if (!origin.has_host()) {
+    return base::unexpected("Origin message is missing host");
+  }
+  ASSIGN_OR_RETURN(std::string_view protocol,
+                   ConvertProtocol(origin.protocol()));
+  std::string port =
+      origin.has_port()
+          ? base::StrCat({":", base::NumberToString(origin.port())})
+          : "";
+  return url::Origin::Create(GURL(base::StrCat(
+      {protocol, url::kStandardSchemeSeparator, origin.host(), port})));
+}
+
+base::expected<origin_gating::ActorContainerConfig::Location, std::string_view>
+ConvertLocation(const optimization_guide::proto::Location& location) {
+  switch (location.identifier_oneof_case()) {
+    case optimization_guide::proto::Location::kWildcard:
+      return origin_gating::ActorContainerConfig::Location(
+          origin_gating::ActorContainerConfig::Wildcard());
+    case optimization_guide::proto::Location::kSite: {
+      ASSIGN_OR_RETURN(net::SchemefulSite site, ConvertSite(location.site()));
+      return origin_gating::ActorContainerConfig::Location(std::move(site));
+    }
+    case optimization_guide::proto::Location::kOrigin: {
+      ASSIGN_OR_RETURN(url::Origin origin, ConvertOrigin(location.origin()));
+      return origin_gating::ActorContainerConfig::Location(std::move(origin));
+    }
+    case optimization_guide::proto::Location::IDENTIFIER_ONEOF_NOT_SET:
+      return base::unexpected("Location missing value");
+    default:
+      return base::unexpected("Unknown location type");
+  }
+}
+
+base::expected<origin_gating::ActorContainerConfig::Rule, std::string_view>
+ConvertRule(const optimization_guide::proto::LocationRule& location_rule) {
+  std::vector<origin_gating::ActorContainerConfig::Location> navigation_sources;
+  for (const auto& nav_source : location_rule.navigation_sources()) {
+    if (!nav_source.has_source()) {
+      return base::unexpected("NavigationSource has no source location set");
+    }
+    ASSIGN_OR_RETURN(origin_gating::ActorContainerConfig::Location source,
+                     ConvertLocation(nav_source.source()));
+    navigation_sources.emplace_back(source);
+  }
+  origin_gating::ActorContainerConfig::Rule::ResourceSet resources;
+  for (const auto& resource : location_rule.metadata().accessible_resources()) {
+    switch (resource) {
+      case optimization_guide::proto::RuleMetadata::RESOURCE_SESSION:
+        resources.Put(
+            origin_gating::ActorContainerConfig::Rule::Resource::kSession);
+        break;
+      case optimization_guide::proto::RuleMetadata::RESOURCE_UNKNOWN:
+        break;
+    }
+  }
+  origin_gating::ActorContainerConfig::Rule::CapabilitySet capabilities;
+  for (const auto& capability : location_rule.metadata().capabilities()) {
+    switch (capability) {
+      case optimization_guide::proto::RuleMetadata::CAPABILITY_ALL:
+        capabilities.Put(
+            origin_gating::ActorContainerConfig::Rule::Capability::kAll);
+        break;
+      case optimization_guide::proto::RuleMetadata::CAPABILITY_UNKNOWN:
+        break;
+    }
+  }
+  return origin_gating::ActorContainerConfig::Rule(
+      std::move(navigation_sources), resources, capabilities);
+}
 
 apc::TabObservation::TabObservationResult ToTabObservationResult(
     FetchPageContextError error) {
@@ -1226,6 +1367,15 @@ void BuildActionsResultWithObservations(
   }
   CopyScriptToolResults(*response, action_results);
 
+  for (const auto& action_result : action_results) {
+    if (IsOk(*action_result.result)) {
+      response->add_extra_information(action_result.result->message);
+    } else {
+      // In case of an error, the message is copied to `error_message` instead.
+      response->add_extra_information(std::string());
+    }
+  }
+
   apc::ActionsResult_LatencyInformation* latency_info =
       response->mutable_latency_information();
   for (size_t i = 0; i < action_results.size(); ++i) {
@@ -1436,9 +1586,38 @@ CreateActorJournalFetchPageProgressListener(
                                                                  task_id);
 }
 
+origin_gating::ActorContainerConfig ConvertAgentContainerConfig(
+    const optimization_guide::proto::AgentContainerConfig& config) {
+  origin_gating::ActorContainerConfig::LocationRules location_rules;
+  for (const auto& rule_proto : config.location_rules()) {
+    base::expected<origin_gating::ActorContainerConfig::Location,
+                   std::string_view>
+        destination_result = ConvertLocation(rule_proto.location());
+    if (!destination_result.has_value()) {
+      DLOG(ERROR) << destination_result.error();
+      continue;
+    }
+    base::expected<origin_gating::ActorContainerConfig::Rule, std::string_view>
+        rule = ConvertRule(rule_proto);
+    if (!rule.has_value()) {
+      DLOG(ERROR) << rule.error();
+      continue;
+    }
+    const origin_gating::ActorContainerConfig::Location& destination =
+        destination_result.value();
+    auto [_, inserted] =
+        location_rules.insert_or_assign(destination, std::move(rule.value()));
+    if (!inserted) {
+      DLOG(ERROR) << "Duplicate rule for " << destination.ToDebugString();
+    }
+  }
+  return origin_gating::ActorContainerConfig(std::move(location_rules));
+}
+
 std::optional<mojom::ActionResultCode> MaybeGetErrorCodeForTab(
     tabs::TabInterface* tab_interface) {
-  if (!tab_interface || tab_interface->GetContents()->IsBeingDestroyed()) {
+  if (!tab_interface || !tab_interface->GetContents() ||
+      tab_interface->GetContents()->IsBeingDestroyed()) {
     return mojom::ActionResultCode::kTabWentAway;
   } else if (tab_interface->GetContents()->IsCrashed()) {
     return mojom::ActionResultCode::kRendererCrashed;

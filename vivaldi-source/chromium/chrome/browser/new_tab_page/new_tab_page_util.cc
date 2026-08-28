@@ -13,7 +13,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/new_tab_page/modules/modules_constants.h"
 #include "chrome/browser/new_tab_page/modules/modules_switches.h"
-#include "chrome/browser/new_tab_page/ntp_pref_names.h"
+#include "chrome/browser/new_tab_page/prefs/ntp_pref_names.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/sync/sync_service_factory.h"
@@ -55,10 +55,10 @@ bool IsOsSupportedForCart() {
 }
 
 bool IsOsSupportedForDrive() {
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
-  return true;
-#else
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
   return false;
+#else
+  return true;
 #endif
 }
 
@@ -94,6 +94,16 @@ bool IsDriveModuleEnabled() {
 bool IsDriveModuleEnabledForProfile(bool is_managed_profile, Profile* profile) {
   if (!IsDriveModuleEnabled()) {
     return false;
+  }
+
+  // Allow loading fake data in test environments.
+  if (!base::GetFieldTrialParamValueByFeature(
+           ntp_features::kNtpDriveModule,
+           ntp_features::kNtpDriveModuleDataParam)
+           .empty() &&
+      base::CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kSignedOutNtpModulesSwitch)) {
+    return true;
   }
 
   if (!IsProfileSignedIn(profile)) {

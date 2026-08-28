@@ -1,8 +1,26 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="bn">
+<translation id="1328749518742029305"><ph name="TAB_GROUP_TITLE" /> স্তূপীকৃত ট্যাব বন্ধ এবং সংরক্ষিত হয়েছে</translation>
+<translation id="2951071800649516099">পরবর্তীতে পড়ার জন্য আপনার পাঠ্য তালিকায় পৃষ্ঠাগুলো যোগ করুন</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> টি বুকমার্}
           other {<ph name="BOOKMARKS_COUNT_MANY" /> টি বুকমার্ক}}</translation>
-<translation id="3076631378407175873">কপিরাইট <ph name="YEAR" /> Vivaldi Technologies AS. সর্বস্বত্ব সংরক্ষিত৷</translation>
+<translation id="3076631378407175873">কপিরাইট <ph name="YEAR" /> Vivaldi Technologies AS. সর্বস্বত্ব সংরক্ষিত।</translation>
+<translation id="3518985090088779359">গ্রহণ করুন এবং চালিয়ে যান</translation>
+<translation id="4137746084635924146">ডিভাইসের বর্তমান ভাষা</translation>
+<translation id="4291407919474070700"><ph name="BEGIN_LINK" />অ্যান্ড্রয়েড সেটিংসে স্ক্রিন লক চালু করুন<ph name="END_LINK" /></translation>
+<translation id="4445802392779002787">স্তূপে ট্যাব যোগ করুন</translation>
+<translation id="454284936014822050"><ph name="GROUP_TITLE" /> ট্যাব স্ট্যাক</translation>
+<translation id="5118676864324397542">Vivaldi <ph name="APP_NAME" /> জায়গা</translation>
+<translation id="5210689723585747462"><ph name="TAB_GROUP_TITLE" /> স্তূপীকৃত ট্যাব বন্ধ করা হয়েছে</translation>
+<translation id="6610147964972079463">ব্যক্তিগত ট্যাবগুলো বন্ধ করুন</translation>
+<translation id="7359002509206457351">অর্থপ্রদানের পদ্ধতিগুলি অ্যাক্সেস করুন</translation>
+<translation id="7419565702166471774">সর্বদা সুরক্ষিত সংযোগ ব্যবহার করুন</translation>
+<translation id="7427132068601343474">ভিভাল্দি সম্পর্কে</translation>
+<translation id="7465104139234185284">সমস্ত ব্যক্তিগত ট্যাব বন্ধ করুন</translation>
+<translation id="759273611317559136"><ph name="TAB_GROUP_TITLE" /> স্তূপীকৃত ট্যাব মুছে ফেলা হয়েছে</translation>
+<translation id="7764225426217299476">ঠিকানা যোগ করুন</translation>
+<translation id="7968014550143838305">পড়ার তালিকায় যোগ করা হয়েছে</translation>
+<translation id="8543049482641423692">নতুন স্তূপে ট্যাব যোগ করুন</translation>
 </translationbundle>

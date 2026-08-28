@@ -15,9 +15,11 @@
 #include "chrome/browser/prefs/session_startup_pref.h"
 #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
 #include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
+#include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/waap/initial_webui_window_metrics_manager.h"
 #include "chrome/browser/ui/waap/waap_utils.h"
@@ -26,6 +28,7 @@
 #include "chrome/browser/ui/webui/webui_toolbar/webui_toolbar_test_utils.h"
 #include "chrome/browser/ui/webui/webui_toolbar/webui_toolbar_ui.h"
 #include "chrome/common/chrome_features.h"
+#include "chrome/common/chrome_switches.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/common/webui_url_utils.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -35,6 +38,7 @@
 #include "components/metrics/content/subprocess_metrics_provider.h"
 #include "components/metrics/mapping/metrics_mapping_features.h"
 #include "components/metrics/mapping/metrics_name_mapping.pb.h"
+#include "components/startup_metric_utils/browser/startup_metric_utils.h"
 #include "components/ukm/gmock_matchers.h"
 #include "components/ukm/test_ukm_recorder.h"
 #include "components/viz/common/features.h"
@@ -93,7 +97,11 @@ class ToolbarDependencyProvider : public WebUIToolbarUI::DependencyProvider {
  public:
   explicit ToolbarDependencyProvider(Browser* browser) : browser_(browser) {}
 
-  ~ToolbarDependencyProvider() = default;
+  ~ToolbarDependencyProvider() override = default;
+
+  base::WeakPtr<DependencyProvider> GetWeakPtr() override {
+    return weak_factory_.GetWeakPtr();
+  }
 
   // This might blow up in the future. We are implicitly assuming that the
   // delegate isn't going to be used in this test.
@@ -126,6 +134,7 @@ class ToolbarDependencyProvider : public WebUIToolbarUI::DependencyProvider {
 
  private:
   raw_ptr<BrowserWindowInterface> browser_;
+  base::WeakPtrFactory<DependencyProvider> weak_factory_{this};
 };
 
 class WebUIToolbarInitializer : public WebUIControllerInitalizer {
@@ -156,8 +165,7 @@ class InitialWebUIBrowserTestBase : public InProcessBrowserTest {
         {features::kWebUIReloadButton, {}},
         {features::kInitialWebUIMetrics, {}},
         {features::kSkipIPCChannelPausingForNonGuests, {}},
-        {features::kWebUIInProcessResourceLoadingV2, {}},
-        {features::kInitialWebUISyncNavStartToCommit, {}}};
+        {features::kWebUIInProcessResourceLoadingV2, {}}};
 
     std::vector<base::test::FeatureRefAndParams> features;
     features.reserve(base_features.size() + additional_features.size());
@@ -370,8 +378,7 @@ class InitialWebUINavigationTimelineBrowserTest : public InProcessBrowserTest {
         {features::kWebUIReloadButton, {{"prewarm_webui", "false"}}},
         {features::kInitialWebUIMetrics, {}},
         {features::kSkipIPCChannelPausingForNonGuests, {}},
-        {features::kWebUIInProcessResourceLoadingV2, {}},
-        {features::kInitialWebUISyncNavStartToCommit, {}}};
+        {features::kWebUIInProcessResourceLoadingV2, {}}};
     scoped_feature_list_.InitWithFeaturesAndParameters(
         features, {features::kSpareRendererForSitePerProcess});
   }
@@ -475,8 +482,7 @@ class PrewarmedWebUINavigationTimelineBrowserTest
         {features::kWebUIReloadButton, {{"prewarm_webui", "true"}}},
         {features::kInitialWebUIMetrics, {}},
         {features::kSkipIPCChannelPausingForNonGuests, {}},
-        {features::kWebUIInProcessResourceLoadingV2, {}},
-        {features::kInitialWebUISyncNavStartToCommit, {}}};
+        {features::kWebUIInProcessResourceLoadingV2, {}}};
     scoped_feature_list_.InitWithFeaturesAndParameters(
         features, {features::kSpareRendererForSitePerProcess});
   }
@@ -520,7 +526,7 @@ IN_PROC_BROWSER_TEST_F(PrewarmedWebUINavigationTimelineBrowserTest,
 
   // 2) Create a new browser window. This should trigger pre-warming of the
   // toolbar WebUI.
-  Browser::CreateParams params(browser()->profile(), true);
+  Browser::CreateParams params(browser()->GetProfile(), true);
   Browser::Create(params);
 
   // Wait for the navigation to commit and record UKM.
@@ -556,15 +562,15 @@ IN_PROC_BROWSER_TEST_F(InitialWebUINavigationBrowserTest,
   // perfectly.
   const std::string expected_metric = base::StrCat(
       {"InitialWebUI.NewWindow.AllSources.",
-       ProfileBrowserCollection::GetForProfile(browser()->profile())
+       ProfileBrowserCollection::GetForProfile(browser()->GetProfile())
                    ->GetSize() > 0
            ? "WithExistingWindow"
            : "WithoutExistingWindow",
-       ".BrowserWindowToReloadButton.FirstPaintGap"});
+       ".BrowserWindowToReloadButton.FirstPaintGap2"});
   base::StatisticsRecorder::HistogramWaiter waiter(expected_metric);
 
   // Create a new browser window without actively showing/painting it yet.
-  Browser::CreateParams params(browser()->profile(), true);
+  Browser::CreateParams params(browser()->GetProfile(), true);
   Browser* new_browser = Browser::Create(params);
 
   if (auto* manager = InitialWebUIWindowMetricsManager::From(new_browser)) {
@@ -583,11 +589,11 @@ IN_PROC_BROWSER_TEST_F(InitialWebUINavigationBrowserTest,
 
   histogram_tester.ExpectTotalCount(
       "InitialWebUI.NewWindow.AllSources.WithExistingWindow."
-      "BrowserWindowToReloadButton.FirstPaintGap",
+      "BrowserWindowToReloadButton.FirstPaintGap2",
       1);
   histogram_tester.ExpectTotalCount(
       "InitialWebUI.NewWindow.BrowserInitiated.WithExistingWindow."
-      "BrowserWindowToReloadButton.FirstPaintGap",
+      "BrowserWindowToReloadButton.FirstPaintGap2",
       1);
 }
 
@@ -648,8 +654,8 @@ IN_PROC_BROWSER_TEST_F(InitialWebUIMetricsMappingBrowserTest,
   EXPECT_GE(total_webium_count, 1);
 }
 
-// TODO(crbug.com/491012584): Flaky on ChromeOS MSan.
-#if BUILDFLAG(IS_CHROMEOS) && defined(MEMORY_SANITIZER)
+// TODO(crbug.com/491012584): Flaky on ChromeOS MSan and Win.
+#if (BUILDFLAG(IS_CHROMEOS) && defined(MEMORY_SANITIZER)) || BUILDFLAG(IS_WIN)
 #define MAYBE_NormalRendererMetricsAreNotMapped \
   DISABLED_NormalRendererMetricsAreNotMapped
 #else
@@ -833,12 +839,12 @@ IN_PROC_BROWSER_TEST_F(InitialWebUISurfaceSyncBrowserTest,
   // We need to wait for the histogram.
   const std::string expected_metric =
       "InitialWebUI.NewWindow.AllSources.WithExistingWindow."
-      "BrowserWindowToReloadButton.FirstPaintGap";
+      "BrowserWindowToReloadButton.FirstPaintGap2";
 
   base::StatisticsRecorder::HistogramWaiter waiter(expected_metric);
 
   // Create a new window.
-  Browser::CreateParams params(browser()->profile(), true);
+  Browser::CreateParams params(browser()->GetProfile(), true);
   Browser* new_browser = Browser::Create(params);
 
   if (auto* manager = InitialWebUIWindowMetricsManager::From(new_browser)) {
@@ -869,7 +875,7 @@ IN_PROC_BROWSER_TEST_F(InitialWebUINavigationBrowserTest,
   base::HistogramTester histogram_tester;
 
   // Create a minimized browser window.
-  Browser::CreateParams params(browser()->profile(), true);
+  Browser::CreateParams params(browser()->GetProfile(), true);
   params.initial_show_state = ui::mojom::WindowShowState::kMinimized;
   Browser* new_browser = Browser::Create(params);
 
@@ -881,12 +887,12 @@ IN_PROC_BROWSER_TEST_F(InitialWebUINavigationBrowserTest,
   }
 
   // Show the window which should be shown minimized, and verify it.
-  new_browser->window()->Show();
-  EXPECT_TRUE(new_browser->window()->IsMinimized());
+  new_browser->GetWindow()->Show();
+  EXPECT_TRUE(new_browser->GetWindow()->IsMinimized());
 
   // Restore (open) the window.
-  new_browser->window()->Restore();
-  EXPECT_FALSE(new_browser->window()->IsMinimized());
+  new_browser->GetWindow()->Restore();
+  EXPECT_FALSE(new_browser->GetWindow()->IsMinimized());
 
   // Simulate presentation and paint events (which now happen after the window
   // is opened).
@@ -899,13 +905,13 @@ IN_PROC_BROWSER_TEST_F(InitialWebUINavigationBrowserTest,
   // Verify ShowRequestedToFirstPaint was not recorded.
   histogram_tester.ExpectTotalCount(
       "InitialWebUI.NewWindow.AllSources.WithoutExistingWindow.BrowserWindow."
-      "ShowRequestedToFirstPaint.FromConstructor",
+      "ShowRequestedToFirstPaint.FromConstructor2",
       0);
 
   // Verify FirstPaintGap was not recorded.
   histogram_tester.ExpectTotalCount(
       "InitialWebUI.NewWindow.AllSources.WithoutExistingWindow."
-      "BrowserWindowToReloadButton.FirstPaintGap",
+      "BrowserWindowToReloadButton.FirstPaintGap2",
       0);
 }
 
@@ -913,13 +919,13 @@ IN_PROC_BROWSER_TEST_F(InitialWebUINavigationBrowserTest,
 // restored as minimized.
 IN_PROC_BROWSER_TEST_F(InitialWebUINavigationBrowserTest,
                        SessionRestoreMinimizedWindow) {
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
 
   // Enable session restore and minimize the current window.
   SessionStartupPref pref(SessionStartupPref::LAST);
   SessionStartupPref::SetStartupPref(profile, pref);
-  browser()->window()->Minimize();
-  EXPECT_TRUE(browser()->window()->IsMinimized());
+  browser()->GetWindow()->Minimize();
+  EXPECT_TRUE(browser()->GetWindow()->IsMinimized());
 
   // Keep the profile and process alive when we close the window.
   auto keep_alive = std::make_unique<ScopedKeepAlive>(
@@ -943,11 +949,11 @@ IN_PROC_BROWSER_TEST_F(InitialWebUINavigationBrowserTest,
   ASSERT_TRUE(restored_browser);
 
   // Verify the restored window is minimized.
-  EXPECT_TRUE(restored_browser->window()->IsMinimized());
+  EXPECT_TRUE(restored_browser->GetWindow()->IsMinimized());
 
   // Restore (open) the window.
-  restored_browser->window()->Restore();
-  EXPECT_FALSE(restored_browser->window()->IsMinimized());
+  restored_browser->GetWindow()->Restore();
+  EXPECT_FALSE(restored_browser->GetWindow()->IsMinimized());
 
   // Simulate paint events (which now happen after the window is opened).
   if (auto* manager =
@@ -974,5 +980,87 @@ IN_PROC_BROWSER_TEST_F(InitialWebUINavigationBrowserTest,
 }
 
 #endif  // BUILDFLAG(IS_WIN)
+
+class InitialWebUISameStartupPopupBrowserTest
+    : public InitialWebUIBrowserTestBase {
+ public:
+  InitialWebUISameStartupPopupBrowserTest() {
+    set_exit_when_last_browser_closes(false);
+  }
+
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    InitialWebUIBrowserTestBase::SetUpCommandLine(command_line);
+    command_line->AppendSwitch(switches::kNoStartupWindow);
+    command_line->AppendSwitch(switches::kKeepAliveForTest);
+  }
+};
+
+// Verify that startup metrics are not incorrectly hijacked by a popup window
+// when both a popup and a normal window are created during startup.
+// Popups do not have reload buttons and thus cannot report complete startup
+// metrics, so they should be ignored by the InitialWebUIWindowMetricsManager.
+IN_PROC_BROWSER_TEST_F(InitialWebUISameStartupPopupBrowserTest,
+                       PopupPaintsFirstConsistentMetrics) {
+  ASSERT_EQ(0u, GlobalBrowserCollection::GetInstance()->GetSize());
+
+  Profile* profile = ProfileManager::GetLastUsedProfile();
+  ASSERT_TRUE(profile);
+
+  // Create popup browser.
+  Browser::CreateParams popup_params(Browser::TYPE_POPUP, profile, true);
+  Browser* popup_browser = Browser::Create(popup_params);
+  ASSERT_TRUE(popup_browser);
+
+  // Create normal browser.
+  Browser::CreateParams normal_params(Browser::TYPE_NORMAL, profile, true);
+  Browser* normal_browser = Browser::Create(normal_params);
+  ASSERT_TRUE(normal_browser);
+
+  auto* popup_manager = InitialWebUIWindowMetricsManager::From(popup_browser);
+  auto* normal_manager = InitialWebUIWindowMetricsManager::From(normal_browser);
+
+  // After the fix, the popup manager should NOT be instantiated.
+  ASSERT_EQ(nullptr, popup_manager);
+  ASSERT_NE(nullptr, normal_manager);
+
+  base::HistogramTester histogram_tester;
+
+  base::TimeTicks t0 = base::TimeTicks::Now();
+
+  // Reset startup metrics utility state to enable logging even with
+  // kNoStartupWindow.
+  startup_metric_utils::GetBrowser().ResetSessionForTesting();
+
+#if BUILDFLAG(IS_CHROMEOS)
+  // On ChromeOS, startup metrics logging requires the time origin to be
+  // initialized via RecordWebContentsStartTime(). Since this test uses
+  // kNoStartupWindow, the normal browser launch flow is bypassed and we must
+  // initialize it manually.
+  startup_metric_utils::GetBrowser().RecordWebContentsStartTime(t0);
+#endif
+
+  // Reset static state of the manager.
+  InitialWebUIWindowMetricsManager::ResetForTesting();
+
+  // Simulate normal window events.
+  normal_manager->OnBrowserWindowShowRequested(t0);
+  normal_manager->OnBrowserWindowFirstPresentation(t0 +
+                                                   base::Milliseconds(100));
+  normal_manager->OnReloadButtonFirstPaint(t0 + base::Milliseconds(150));
+
+  // Verify histograms.
+  // We expect all startup metrics to be recorded from the normal window.
+  histogram_tester.ExpectTotalCount(
+      "InitialWebUI.Startup.BrowserWindow.FirstPaint", 1);
+
+  histogram_tester.ExpectTotalCount(
+      "InitialWebUI.Startup.ReloadButton.FirstPaint", 1);
+
+  histogram_tester.ExpectTotalCount(
+      "InitialWebUI.Startup.BrowserWindowToReloadButton.FirstPaintGap", 1);
+
+  histogram_tester.ExpectTotalCount(
+      "InitialWebUI.Startup.BrowserWindow.ShowRequestedToFirstPaint", 1);
+}
 
 }  // namespace waap

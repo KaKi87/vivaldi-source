@@ -4,7 +4,6 @@
 
 #include "chrome/browser/ui/views/extensions/extensions_menu_site_permissions_page_view.h"
 
-#include "base/feature_list.h"
 #include "chrome/browser/extensions/chrome_test_extension_loader.h"
 #include "chrome/browser/ui/views/extensions/extensions_menu_coordinator.h"
 #include "chrome/browser/ui/views/extensions/extensions_menu_delegate_desktop.h"
@@ -316,7 +315,7 @@ TEST_F(ExtensionsSitePermissionsPageViewUnitTest,
   // Directly change the show access requests pref for extension, since it can
   // be changed when menu is open, and verify toggle is updated and extension is
   // not requesting access in the toolbar.
-  SitePermissionsHelper(browser()->profile())
+  SitePermissionsHelper(browser()->GetProfile())
       .SetShowAccessRequestsInToolbar(extension->id(), false);
   EXPECT_FALSE(
       site_permissions_page()->GetShowRequestsToggleForTesting()->GetIsOn());
@@ -352,7 +351,7 @@ TEST_F(ExtensionsSitePermissionsPageViewUnitTest, SiteAccessUpdated) {
   EXPECT_TRUE(on_all_sites_button->GetChecked());
 
   extensions::PermissionsManagerWaiter waiter(
-      PermissionsManager::Get(browser()->profile()));
+      PermissionsManager::Get(browser()->GetProfile()));
   ClickButton(on_click_button);
   waiter.WaitForExtensionPermissionsUpdate();
 
@@ -522,4 +521,56 @@ TEST_F(ExtensionsSitePermissionsPageViewUnitTest,
   // Menu should navigate back to main page.
   EXPECT_TRUE(IsMainPageOpened());
   EXPECT_FALSE(IsSitePermissionsPageOpened(extension->id()));
+}
+
+// Tests that the site access radio buttons are mutually exclusive, and focusing
+// a radio button does not result in multiple selected radio buttons.
+TEST_F(ExtensionsSitePermissionsPageViewUnitTest,
+       RadioButtonsAreMutuallyExclusive) {
+  auto extension =
+      InstallExtensionWithHostPermissions("Extension", {"<all_urls>"});
+
+  NavigateAndCommit("http://www.url.com");
+  ShowSitePermissionsPage(extension->id());
+  EXPECT_TRUE(IsSitePermissionsPageOpened(extension->id()));
+
+  // Activate the widget so focus changes are processed.
+  auto* widget = site_permissions_page()->GetWidget();
+  ASSERT_TRUE(widget);
+  widget->Activate();
+
+  // RunScheduledLayout() is needed due to widget auto-resize.
+  views::test::RunScheduledLayout(site_permissions_page());
+
+  auto* on_click_button =
+      site_permissions_page()->GetSiteAccessButtonForTesting(
+          PermissionsManager::UserSiteAccess::kOnClick);
+  auto* on_site_button = site_permissions_page()->GetSiteAccessButtonForTesting(
+      PermissionsManager::UserSiteAccess::kOnSite);
+  auto* on_all_sites_button =
+      site_permissions_page()->GetSiteAccessButtonForTesting(
+          PermissionsManager::UserSiteAccess::kOnAllSites);
+
+  // By default, the "always on all sites" option is checked.
+  EXPECT_FALSE(on_click_button->GetChecked());
+  EXPECT_FALSE(on_site_button->GetChecked());
+  EXPECT_TRUE(on_all_sites_button->GetChecked());
+
+  // Focus the "always on site" button. Since `select_on_focus_` is true for
+  // RadioButton, focusing it checks the button.
+  on_site_button->OnFocus();
+
+  // Verify that only the focused button is checked, and the previously checked
+  // one is now unchecked.
+  EXPECT_FALSE(on_click_button->GetChecked());
+  EXPECT_TRUE(on_site_button->GetChecked());
+  EXPECT_FALSE(on_all_sites_button->GetChecked());
+
+  // Focus the "ask on every visit" button.
+  on_click_button->OnFocus();
+
+  // Verify that only the newly focused button is checked.
+  EXPECT_TRUE(on_click_button->GetChecked());
+  EXPECT_FALSE(on_site_button->GetChecked());
+  EXPECT_FALSE(on_all_sites_button->GetChecked());
 }

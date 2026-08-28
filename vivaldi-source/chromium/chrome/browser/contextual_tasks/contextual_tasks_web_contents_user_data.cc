@@ -4,12 +4,15 @@
 
 #include "chrome/browser/contextual_tasks/contextual_tasks_web_contents_user_data.h"
 
+#include "base/metrics/field_trial_params.h"
 #include "chrome/browser/autocomplete/aim_eligibility_service_factory.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_ui_service.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_ui_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
+#include "components/contextual_tasks/public/account_utils.h"
 #include "components/omnibox/browser/aim_eligibility_service.h"
+#include "components/omnibox/common/omnibox_features.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "content/public/browser/web_contents.h"
 #include "url/gurl.h"
@@ -26,16 +29,29 @@ ContextualTasksWebContentsUserData::~ContextualTasksWebContentsUserData() =
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(ContextualTasksWebContentsUserData);
 
+void ContextualTasksWebContentsUserData::set_input_state_model(
+    std::unique_ptr<contextual_search::InputStateModel> input_state_model) {
+  if (!input_state_model) {
+    return;
+  }
+  if (auto* handle = input_state_model->session_handle()) {
+    last_active_model_ = input_state_model->AsWeakPtr();
+    input_state_models_[handle->session_id()] = std::move(input_state_model);
+  }
+}
+
 base::WeakPtr<contextual_search::InputStateModel>
 ContextualTasksWebContentsUserData::GetOrCreateInputStateModel(
     contextual_search::ContextualSearchSessionHandle& session_handle) {
-  if (input_state_model_) {
-    if (input_state_model_->session_handle() == &session_handle) {
-      return input_state_model_->AsWeakPtr();
-    }
-    // The session handle changed (e.g. task switched). Destroy the old model
-    // to start fresh and avoid using a stale session handle.
-    input_state_model_.reset();
+  // Garbage collect models whose session handles have been destroyed
+  base::EraseIf(input_state_models_, [](const auto& pair) {
+    return !pair.second->session_handle();
+  });
+
+  auto it = input_state_models_.find(session_handle.session_id());
+  if (it != input_state_models_.end()) {
+    last_active_model_ = it->second->AsWeakPtr();
+    return last_active_model_;
   }
 
   content::WebContents* web_contents = &GetWebContents();
@@ -51,17 +67,36 @@ ContextualTasksWebContentsUserData::GetOrCreateInputStateModel(
                                GetForBrowserContext(profile)
                          : nullptr;
   GURL url = web_contents->GetLastCommittedURL();
-  bool browser_identity_matches_aim_identity =
-      ui_service && ui_service->IsSignedInToBrowserWithValidCredentials() &&
-      ui_service->IsUrlForPrimaryAccount(url);
+  bool browser_identity_matches_aim_identity = false;
+  if (ui_service) {
+    browser_identity_matches_aim_identity =
+        ui_service->IsSignedInToBrowserWithValidCredentials() &&
+        ui_service->IsUrlForPrimaryAccount(url);
+  } else if (profile &&
+             omnibox::kComposeboxDriveIdentityFallback.Get()) {
+    if (auto* identity_manager =
+            IdentityManagerFactory::GetForProfile(profile)) {
+      if (identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSignin)) {
+        CoreAccountId account_id = identity_manager->GetPrimaryAccountId(
+            signin::ConsentLevel::kSignin);
+        if (!identity_manager->HasAccountWithRefreshTokenInPersistentErrorState(
+                account_id)) {
+          browser_identity_matches_aim_identity =
+              contextual_tasks::IsUrlForPrimaryAccount(identity_manager, url);
+        }
+      }
+    }
+  }
 
   bool is_off_the_record = profile->IsOffTheRecord();
 
-  input_state_model_ = std::make_unique<contextual_search::InputStateModel>(
+  auto model = std::make_unique<contextual_search::InputStateModel>(
       session_handle, config ? *config : omnibox::SearchboxConfig(), url,
       is_off_the_record, browser_identity_matches_aim_identity);
 
-  return input_state_model_->AsWeakPtr();
+  last_active_model_ = model->AsWeakPtr();
+  input_state_models_[session_handle.session_id()] = std::move(model);
+  return last_active_model_;
 }
 
 }  // namespace contextual_tasks

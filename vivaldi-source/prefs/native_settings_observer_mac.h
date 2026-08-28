@@ -5,6 +5,8 @@
 
 #include "prefs/native_settings_observer.h"
 
+#include "prefs/appkit_settings_types.h"
+
 class Profile;
 @class AppkitSettingsObserver;
 
@@ -17,6 +19,8 @@ class NativeSettingsObserverMac : public NativeSettingsObserver {
 
  private:
   AppkitSettingsObserver* appkitObserver;
+
+  void OnSettingChanged(AppkitSettingsType type);
 };
 
 }  // namespace vivaldi

@@ -818,6 +818,19 @@ base::DictValue DictFromBadgeData(const BadgeData badgeData) {
     if (OverflowMenuAction* overflowMenuAction =
             [self.actionProvider actionForActionType:action]) {
       [sortedActions addObject:overflowMenuAction];
+
+      if (IsVivaldiRunning()) {
+        overflowMenuAction.submenuChild = NO;
+        if (overflowMenuAction.submenuExpanded) {
+          for (OverflowMenuAction* submenuAction in
+               overflowMenuAction.submenuActions) {
+            submenuAction.submenuChild = YES;
+          }
+          // Keep expanded submenu actions as real list rows so SwiftUI exposes
+          // the same row order visually and in the accessibility tree.
+          [sortedActions addObjectsFromArray:overflowMenuAction.submenuActions];
+        }
+      } // End Vivaldi
     }
   }
 

@@ -5,9 +5,14 @@
 #ifndef IOS_CHROME_BROWSER_PASSWORDS_BOTTOM_SHEET_COORDINATOR_CREDENTIAL_SUGGESTION_BOTTOM_SHEET_MEDIATOR_BASE_SUBCLASSING_H_
 #define IOS_CHROME_BROWSER_PASSWORDS_BOTTOM_SHEET_COORDINATOR_CREDENTIAL_SUGGESTION_BOTTOM_SHEET_MEDIATOR_BASE_SUBCLASSING_H_
 
+#import "base/memory/weak_ptr.h"
 #import "ios/chrome/browser/passwords/bottom_sheet/coordinator/credential_suggestion_bottom_sheet_mediator_base.h"
 
 @class FormSuggestion;
+
+namespace webauthn {
+class IOSWebAuthnCredentialsDelegate;
+}
 
 @interface CredentialSuggestionBottomSheetMediatorBase (Subclassing)
 
@@ -28,6 +33,11 @@
 - (void)selectSuggestion:(FormSuggestion*)suggestion
                  atIndex:(NSInteger)index
               completion:(ProceduralBlock)completion;
+
+// Delegate used to fetch and select passkey suggestions.
+@property(nonatomic, assign)
+    base::WeakPtr<webauthn::IOSWebAuthnCredentialsDelegate>
+        webAuthnCredentialsDelegate;
 
 @end
 

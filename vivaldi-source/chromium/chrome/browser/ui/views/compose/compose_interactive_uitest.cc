@@ -124,9 +124,8 @@ class MAYBE_ComposeInteractiveUiTest : public InteractiveBrowserTest {
     return Steps(
         WaitForElementToLoad(kTextarea),
         MoveMouseTo(kContentPageTabId, kTextarea),
-        MayInvolveNativeContextMenu(
-            ClickMouse(ui_controls::RIGHT),
-            SelectMenuItem(RenderViewContextMenu::kComposeMenuItem)),
+        ClickMouse(ui_controls::RIGHT),
+        SelectMenuItem(RenderViewContextMenu::kComposeMenuItem),
         WaitForShow(ComposeDialogView::kComposeDialogId),
         InstrumentNonTabWebView(kComposeWebContents, kComposeWebviewElementId));
   }
@@ -160,7 +159,7 @@ class MAYBE_ComposeInteractiveUiTest : public InteractiveBrowserTest {
     compose::ResetConfigForTesting();
     identity_test_environment_adaptor_ =
         std::make_unique<IdentityTestEnvironmentProfileAdaptor>(
-            browser()->profile());
+            browser()->GetProfile());
     host_resolver()->AddRule("*", "127.0.0.1");
 
     // Add content/test/data for cross_site_iframe_factory.html
@@ -187,7 +186,7 @@ class MAYBE_ComposeInteractiveUiTest : public InteractiveBrowserTest {
     mock_optimization_guide_keyed_service_ =
         static_cast<testing::NiceMock<MockOptimizationGuideKeyedService>*>(
             OptimizationGuideKeyedServiceFactory::GetForProfile(
-                browser()->profile()));
+                browser()->GetProfile()));
     ASSERT_TRUE(mock_optimization_guide_keyed_service_);
     ON_CALL(
         *mock_optimization_guide_keyed_service_,
@@ -212,7 +211,7 @@ class MAYBE_ComposeInteractiveUiTest : public InteractiveBrowserTest {
 
   void SetUpAccount() {
     // Turn on MSBB.
-    PrefService* prefs = browser()->profile()->GetPrefs();
+    PrefService* prefs = browser()->GetProfile()->GetPrefs();
     prefs->SetBoolean(
         unified_consent::prefs::kUrlKeyedAnonymizedDataCollectionEnabled, true);
   }

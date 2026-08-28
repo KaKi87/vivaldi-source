@@ -16,6 +16,17 @@
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "components/omnibox/browser/jni_headers/OmniboxActionFactory_jni.h"
 
+base::android::ScopedJavaGlobalRef<jobject> BuildCrossDeviceTabAction(
+    JNIEnv* env,
+    intptr_t instance,
+    const std::u16string& hint,
+    const std::u16string& accessibility_hint) {
+  return base::android::ScopedJavaGlobalRef<jobject>(
+      Java_OmniboxActionFactory_buildCrossDeviceTabAction(
+          env, instance, base::android::ConvertUTF16ToJavaString(env, hint),
+          base::android::ConvertUTF16ToJavaString(env, accessibility_hint)));
+}
+
 base::android::ScopedJavaGlobalRef<jobject> BuildOmniboxPedal(
     JNIEnv* env,
     intptr_t instance,
@@ -34,10 +45,11 @@ base::android::ScopedJavaGlobalRef<jobject> BuildSiteSearchAction(
     intptr_t instance,
     const std::u16string& hint,
     const std::u16string& accessibility_hint,
-    const std::u16string& keyword) {
+    const std::u16string& keyword,
+    int starter_pack_id) {
   return base::android::ScopedJavaGlobalRef<jobject>(
       Java_OmniboxActionFactory_buildSiteSearchAction(
-          env, instance, hint, accessibility_hint, keyword));
+          env, instance, hint, accessibility_hint, keyword, starter_pack_id));
 }
 
 base::android::ScopedJavaGlobalRef<jobject> BuildOmniboxActionInSuggest(
@@ -55,6 +67,17 @@ base::android::ScopedJavaGlobalRef<jobject> BuildOmniboxActionInSuggest(
           base::android::ConvertUTF16ToJavaString(env, accessibility_hint),
           action_type, base::android::ConvertUTF8ToJavaString(env, action_uri),
           tab_id, static_cast<int>(presentation_mode)));
+}
+
+base::android::ScopedJavaGlobalRef<jobject> BuildOmniboxLensOverlayAction(
+    JNIEnv* env,
+    intptr_t instance,
+    const std::u16string& hint,
+    const std::u16string& accessibility_hint) {
+  return base::android::ScopedJavaGlobalRef<jobject>(
+      Java_OmniboxActionFactory_buildOmniboxLensOverlayAction(
+          env, instance, base::android::ConvertUTF16ToJavaString(env, hint),
+          base::android::ConvertUTF16ToJavaString(env, accessibility_hint)));
 }
 
 // Convert a vector of OmniboxActions to Java counterpart.

@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "./centipede/feature.h"
 #include "./common/defs.h"
@@ -191,6 +192,9 @@ class MmapNoReserveArray {
  private:
   uint8_t *array_;
 };
+
+// Converts `timeout` to an integer value of milliseconds suitable for `poll()`.
+int PollTimeoutMs(absl::Duration timeout);
 
 }  // namespace fuzztest::internal
 

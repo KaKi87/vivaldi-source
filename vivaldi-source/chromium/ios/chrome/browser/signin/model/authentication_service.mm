@@ -579,15 +579,33 @@ bool AuthenticationService::HasCachedMDMErrorForIdentity(
 
 bool AuthenticationService::ShowMDMErrorDialogForIdentity(
     id<SystemIdentity> identity) {
-  id<RefreshAccessTokenError> cached_error = GetCachedMDMError(identity);
-  if (!cached_error) {
+  if (!identity) {
     return false;
   }
 
-  GetApplicationContext()->GetSystemIdentityManager()->HandleMDMNotification(
-      identity, ActiveIdentities(), cached_error, base::DoNothing());
+  if (base::FeatureList::IsEnabled(
+          switches::kHandleMdmErrorsForDasherAccounts)) {
+    GoogleServiceAuthError error =
+        identity_manager_->GetErrorStateOfRefreshTokenForAccount(
+            CoreAccountId::FromGaiaId(identity.gaiaId));
+    if (error.state() ==
+        GoogleServiceAuthError::State::DEVICE_MANAGEMENT_ERROR) {
+      GetApplicationContext()
+          ->GetSystemIdentityManager()
+          ->DisplayMDMNotification(identity, error, base::DoNothing());
+      return true;
+    }
+    return false;
+  }
 
-  return true;
+  id<RefreshAccessTokenError> cached_error = GetCachedMDMError(identity);
+  if (cached_error) {
+    GetApplicationContext()->GetSystemIdentityManager()->HandleMDMNotification(
+        identity, ActiveIdentities(), cached_error, base::DoNothing());
+    return true;
+  }
+
+  return false;
 }
 
 base::WeakPtr<AuthenticationService> AuthenticationService::GetWeakPtr() {
@@ -782,7 +800,7 @@ void AuthenticationService::HandleForgottenIdentityCallback(
     FirePrimaryAccountRestricted();
   } else if (should_prompt &&
              IsFirstSessionAfterDeviceRestore() != signin::Tribool::kTrue) {
-    // If the device is restored, the restore shorty UI will be shown.
+    // If the device is restored, the restore shortly UI will be shown.
     // Therefore, the reauth UI should be skipped.
     SetReauthPromptForSignInAndSync();
   }

@@ -26,6 +26,12 @@
 
 namespace fuzztest::internal {
 
+// Weak dummy definition of LSan interface in case LSan is missing.
+__attribute__((weak)) void __lsan_register_root_region(const void* p,
+                                                       size_t size) {}
+__attribute__((weak)) void __lsan_unregister_root_region(const void* p,
+                                                         size_t size) {}
+
 void PrintErrorAndExitIf(bool condition, const char* absl_nonnull error) {
   if (!condition) return;
   fprintf(stderr, "error: %s\n", error);

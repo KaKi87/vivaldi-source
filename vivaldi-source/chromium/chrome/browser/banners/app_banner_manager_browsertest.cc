@@ -34,6 +34,7 @@
 
 #include "chrome/browser/banners/app_banner_manager_browsertest_base.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/omnibox/omnibox_next_features.h"
 #include "chrome/common/chrome_features.h"
 #include "components/webapps/browser/banners/app_banner_metrics.h"
 #include "components/webapps/browser/banners/app_banner_settings_helper.h"
@@ -64,8 +65,9 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
-#include "extensions/browser/extension_registry.h"
+#include "extensions/browser/extension_registrar.h"
 #include "extensions/common/extension_builder.h"
+#include "extensions/common/mojom/manifest.mojom-shared.h"
 #endif
 
 namespace webapps {
@@ -175,9 +177,23 @@ class AppBannerManagerBrowserTest
 
   void SetUpCommandLine(base::CommandLine* command_line) override {
     if (GetParam() == CheckWebAppExistence::kAsync) {
-      feature_list_.InitAndEnableFeature(features::kCheckWebAppExistenceAsync);
+      feature_list_.InitWithFeatures(
+          /*enabled_features=*/
+          {features::kCheckWebAppExistenceAsync},
+          /*disabled_features=*/
+          // TODO(crbug.com/452061489): Fix tests that fail when the WebUI
+          // Omnibox is enabled and then remove these two Features.
+          {omnibox::internal::kWebUIOmniboxPopup,
+           omnibox::internal::kWebUIOmniboxAimPopup});
     } else {
-      feature_list_.InitAndDisableFeature(features::kCheckWebAppExistenceAsync);
+      feature_list_.InitWithFeatures(
+          /*enabled_features=*/{},
+          /*disabled_features=*/
+          {features::kCheckWebAppExistenceAsync,
+           // TODO(crbug.com/452061489): Fix tests that fail when the WebUI
+           // Omnibox is enabled and then remove these two Features.
+           omnibox::internal::kWebUIOmniboxPopup,
+           omnibox::internal::kWebUIOmniboxAimPopup});
     }
   }
 
@@ -317,8 +333,10 @@ IN_PROC_BROWSER_TEST_P(AppBannerManagerBrowserTest,
                 std::nullopt);
 }
 
+// TODO(crbug.com/538642992): DelayedManifestTriggersPipeline is consistently
+// failing.
 IN_PROC_BROWSER_TEST_P(AppBannerManagerBrowserTest,
-                       DelayedManifestTriggersPipeline) {
+                       DISABLED_DelayedManifestTriggersPipeline) {
   auto observer = CreateAppBannerManagerObserver();
   RunBannerTest(
       web_contents(), observer.get(),
@@ -402,6 +420,12 @@ IN_PROC_BROWSER_TEST_P(AppBannerManagerBrowserTest,
   })) << "Timed out waiting for installable result to become kNo";
   // No histogram recorded since state was already COMPLETE.
   histograms.ExpectTotalCount(kInstallableStatusCodeHistogram, 0);
+
+  // Dismiss the banner so it does not stay open during test teardown.
+  base::RunLoop run_loop;
+  observer->PrepareDone(run_loop.QuitClosure());
+  observer->app_banner_manager()->SendBannerDismissed();
+  run_loop.Run();
 }
 
 // Verify that after removing manifest and then re-adding it, the installable
@@ -546,7 +570,7 @@ IN_PROC_BROWSER_TEST_P(AppBannerManagerBrowserTest, WebAppBannerInIFrame) {
 #if !BUILDFLAG(IS_ANDROID)
 IN_PROC_BROWSER_TEST_P(AppBannerManagerBrowserTest, DoesNotShowInIncognito) {
   Browser* incognito_browser =
-      OpenURLOffTheRecord(browser()->profile(), GURL("about:blank"));
+      OpenURLOffTheRecord(browser()->GetProfile(), GURL("about:blank"));
   content::WebContents* web_contents =
       incognito_browser->tab_strip_model()->GetActiveWebContents();
   // AppBannerManager is not even set up for incognito WebContents.
@@ -737,13 +761,19 @@ IN_PROC_BROWSER_TEST_P(AppBannerManagerBrowserTest,
   // be separate OS-specific versions of this test for AppBannerManagerDesktop
   // and AppBannerManagerAndroid.
 #if !BUILDFLAG(IS_ANDROID)
-  auto* extension_registry =
-      extensions::ExtensionRegistry::Get(browser()->profile());
   // Corresponds to the id listed in manifest_listing_related_chrome_app.json.
-  const auto extension = extensions::ExtensionBuilder("installed-extension-id")
-                             .SetID("installed-extension-id")
-                             .Build();
-  extension_registry->AddEnabled(extension);
+  const auto extension =
+      extensions::ExtensionBuilder("installed related chrome app")
+          .SetID("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+          .SetLocation(extensions::mojom::ManifestLocation::kInternal)
+          .Build();
+  // Install the extension via ExtensionRegistrar so the full load path runs and
+  // notifies RendererStartupHelper. Adding it straight to the ExtensionRegistry
+  // enabled set leaves RendererStartupHelper's bookkeeping out of sync and
+  // trips a DCHECK when a new renderer process initializes
+  // (crbug.com/515192463).
+  extensions::ExtensionRegistrar::Get(browser()->GetProfile())
+      ->AddExtension(extension);
 #endif
 
   GURL test_url = embedded_test_server()->GetURL(

@@ -30,10 +30,13 @@
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/cdm/renderer/key_system_support_update.h"
 #include "components/js_injection/renderer/js_communication.h"
+#include "components/metrics/call_stacks/call_stack_profile_builder.h"
+#include "components/metrics/public/mojom/call_stack_profile_collector.mojom.h"
 #include "components/network_hints/renderer/web_prescient_networking_impl.h"
 #include "components/page_load_metrics/renderer/metrics_render_frame_observer.h"
 #include "components/printing/renderer/print_render_frame_helper.h"
 #include "components/security_interstitials/content/renderer/security_interstitial_page_controller_delegate_impl.h"
+#include "components/visitedlink/common/visitedlink_common.h"
 #include "components/visitedlink/renderer/visitedlink_reader.h"
 #include "content/public/child/child_thread.h"
 #include "content/public/common/url_constants.h"
@@ -72,6 +75,9 @@ void AwContentRendererClient::RenderThreadStarted() {
   thread->AddObserver(aw_render_thread_observer_.get());
 
   visited_link_reader_ = std::make_unique<visitedlink::VisitedLinkReader>();
+  if (base::FeatureList::IsEnabled(features::kWebViewMigrateVisitedLinks)) {
+    visited_link_reader_->SetIsPseudoPartitioned(true);
+  }
 
   browser_interface_broker_ =
       blink::Platform::Current()->GetBrowserInterfaceBroker();
@@ -93,6 +99,15 @@ void AwContentRendererClient::RenderThreadStarted() {
   if (!spellcheck_)
     spellcheck_ = std::make_unique<SpellCheck>(this);
 #endif
+
+  // Set up the profile collector pipe that the renderer process uses to send
+  // profiles to the browser_process.
+  if (base::FeatureList::IsEnabled(features::kWebViewMemoryProfilingClient)) {
+    mojo::PendingRemote<metrics::mojom::CallStackProfileCollector> collector;
+    thread->BindHostReceiver(collector.InitWithNewPipeAndPassReceiver());
+    metrics::CallStackProfileBuilder::SetParentProfileCollectorForChildProcess(
+        std::move(collector));
+  }
 }
 
 void AwContentRendererClient::ExposeInterfacesToBrowser(
@@ -244,6 +259,10 @@ void AwContentRendererClient::PrepareErrorPage(
 
 uint64_t AwContentRendererClient::VisitedLinkHash(
     std::string_view canonical_url) {
+  if (base::FeatureList::IsEnabled(features::kWebViewMigrateVisitedLinks)) {
+    return visitedlink::VisitedLinkCommon::ComputePseudoPartitionedFingerprint(
+        canonical_url);
+  }
   return visited_link_reader_->ComputeURLFingerprint(canonical_url);
 }
 
@@ -251,8 +270,10 @@ uint64_t AwContentRendererClient::PartitionedVisitedLinkFingerprint(
     std::string_view canonical_link_url,
     const net::SchemefulSite& top_level_site,
     const url::Origin& frame_origin) {
-  // Android WebView does not support partitioned :visited links, so we return
-  // the null fingerprint value for all queries.
+  if (base::FeatureList::IsEnabled(features::kWebViewMigrateVisitedLinks)) {
+    return visitedlink::VisitedLinkCommon::ComputePseudoPartitionedFingerprint(
+        canonical_link_url);
+  }
   return 0;
 }
 
@@ -260,9 +281,10 @@ bool AwContentRendererClient::IsLinkVisited(uint64_t link_hash) {
   return visited_link_reader_->IsVisited(link_hash);
 }
 
-// Android WebView does not support partitioned :visited links. Since per-origin
-// salts are only used in the partitioned hashtable, AndroidWebView clients do
-// not need to take any action if a per-origin salt is received.
+// Android WebView uses a static salt in :visited links. Since per-origin
+// salts are only used in non-WebView uses of the partitioned hashtable,
+// Android WebView clients do not need to take any action if a per-origin salt
+// is received.
 void AwContentRendererClient::AddOrUpdateVisitedLinkSalt(
     const url::Origin& origin,
     uint64_t salt) {}

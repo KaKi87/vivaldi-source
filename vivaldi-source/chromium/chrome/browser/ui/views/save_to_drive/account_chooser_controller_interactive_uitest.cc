@@ -8,7 +8,6 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/browser/ui/test/test_browser_dialog.h"
 #include "chrome/browser/ui/views/save_to_drive/account_chooser_controller.h"
 #include "chrome/browser/ui/views/save_to_drive/account_chooser_test_util.h"
 #include "chrome/browser/ui/views/save_to_drive/account_chooser_view.h"
@@ -20,9 +19,7 @@
 #include "components/sync/test/test_sync_service.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
-#include "testing/gmock/include/gmock/gmock.h"
 #include "ui/gfx/image/image.h"
-#include "ui/gfx/image/image_unittest_util.h"
 
 namespace save_to_drive {
 namespace {
@@ -31,6 +28,7 @@ using ::save_to_drive::testing::GetTestAccount;
 using ::save_to_drive::testing::GetTestAccounts;
 
 constexpr char kAvatarUrl[] = "https://avatar.com/avatar.png";
+constexpr char16_t kTestUploadTitle[] = u"test.pdf";
 
 AccountChosenCallback GetOnAccountChosenCallback(
     const AccountInfo& expected_account,
@@ -75,7 +73,7 @@ class AccountChooserControllerInteractiveUiTest
     InteractiveBrowserTest::SetUpOnMainThread();
     identity_test_environment_adaptor_ =
         std::make_unique<IdentityTestEnvironmentProfileAdaptor>(
-            browser()->profile());
+            browser()->GetProfile());
   }
 
   // InteractiveBrowserTest:
@@ -91,7 +89,8 @@ class AccountChooserControllerInteractiveUiTest
       account_chooser_controller_ = std::make_unique<AccountChooserController>(
           browser()->tab_strip_model()->GetActiveWebContents(),
           identity_test_environment_adaptor_->identity_test_env()
-              ->identity_manager());
+              ->identity_manager(),
+          kTestUploadTitle);
     });
   }
 

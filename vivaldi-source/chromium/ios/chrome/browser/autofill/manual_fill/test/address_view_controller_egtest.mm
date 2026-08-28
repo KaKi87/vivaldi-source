@@ -117,7 +117,7 @@ void CheckAutofillSuggestionAcceptedIndexMetricsCount(
           expectUniqueSampleWithCount:1
                             forBucket:suggestion_index
                          forHistogram:
-                             @"Autofill.SuggestionAcceptedIndex.Profile"],
+                             @"Autofill.SuggestionAcceptedIndex.Address"],
       @"Unexpected histogram count for accepted address suggestion index.");
 
   GREYAssertNil(
@@ -231,18 +231,6 @@ void OpenAddressManualFillViewWithNoSavedAddresses() {
 
 - (AppLaunchConfiguration)appConfigurationForTestCase {
   AppLaunchConfiguration config;
-
-  if ([self isRunningTest:@selector
-            (testDoNotEditHomeAndWorkAddressFromOverflowMenu)]) {
-    config.features_enabled.push_back(
-        autofill::features::kAutofillEnableSupportForHomeAndWork);
-  }
-
-  if ([self isRunningTest:@selector(testDoNotEditNamEmailFromOverflowMenu)]) {
-    config.features_enabled.push_back(
-        autofill::features::kAutofillEnableSupportForNameAndEmail);
-  }
-
   return config;
 }
 

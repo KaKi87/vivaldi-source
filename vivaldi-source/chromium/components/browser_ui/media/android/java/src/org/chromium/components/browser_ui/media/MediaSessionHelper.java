@@ -39,6 +39,7 @@ import org.chromium.content_public.browser.NavigationHandle;
 import org.chromium.content_public.browser.Visibility;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsObserver;
+import org.chromium.media_session.mojom.MediaSession.SuspendType;
 import org.chromium.media_session.mojom.MediaSessionAction;
 import org.chromium.services.media_session.MediaImage;
 import org.chromium.services.media_session.MediaMetadata;
@@ -99,9 +100,9 @@ public class MediaSessionHelper implements MediaImageCallback {
     // static getter {@link MediaSession#fromWebContents()}.
     @VisibleForTesting public static @Nullable MediaSession sOverriddenMediaSession;
 
-    public static void setOverriddenMediaSessionForTesting(@Nullable MediaSession session) {
-        sOverriddenMediaSession = session;
-        if (session != null) {
+    public static void setOverriddenMediaSessionForTesting(@Nullable MediaSession mediaSession) {
+        sOverriddenMediaSession = mediaSession;
+        if (mediaSession != null) {
             ResettersForTesting.register(() -> sOverriddenMediaSession = null);
         }
     }
@@ -161,7 +162,7 @@ public class MediaSessionHelper implements MediaImageCallback {
                             && mMediaSessionObserver != null
                             && mMediaSessionObserver.getMediaSession() != null) {
                         MediaSessionUma.recordPause(MediaSessionActionSource.SYSTEM_SLEEP);
-                        mMediaSessionObserver.getMediaSession().suspend();
+                        mMediaSessionObserver.getMediaSession().suspend(SuspendType.SYSTEM);
                     }
                 }
             };
@@ -190,7 +191,9 @@ public class MediaSessionHelper implements MediaImageCallback {
                                     mTimeOfLastUnplugPauseMs = TimeUtils.elapsedRealtimeMillis();
                                     MediaSessionUma.recordPause(
                                             MediaSessionActionSource.HEADSET_UNPLUG);
-                                    mMediaSessionObserver.getMediaSession().suspend();
+                                    mMediaSessionObserver
+                                            .getMediaSession()
+                                            .suspend(SuspendType.SYSTEM);
                                 }
                             }
                         }
@@ -207,7 +210,7 @@ public class MediaSessionHelper implements MediaImageCallback {
 
                     if (mMediaSessionObserver.getMediaSession() == null) return;
 
-                    mMediaSessionObserver.getMediaSession().resume();
+                    mMediaSessionObserver.getMediaSession().resume(SuspendType.UI);
                 }
 
                 @Override
@@ -221,7 +224,11 @@ public class MediaSessionHelper implements MediaImageCallback {
 
                     if (mMediaSessionObserver.getMediaSession() == null) return;
 
-                    mMediaSessionObserver.getMediaSession().suspend();
+                    int suspendType =
+                            (actionSource == MediaNotificationListener.ACTION_SOURCE_HEADSET_UNPLUG)
+                                    ? SuspendType.SYSTEM
+                                    : SuspendType.UI;
+                    mMediaSessionObserver.getMediaSession().suspend(suspendType);
                 }
 
                 @Override

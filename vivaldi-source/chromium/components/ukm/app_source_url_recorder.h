@@ -42,11 +42,7 @@ class WebApkUkmRecorder;
 
 namespace ukm {
 
-#if defined(VIVALDI_BUILD)
-BASE_FEATURE(kUkmAppLogging, "UkmAppLogging", base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi - disable UKM
-#else
-BASE_FEATURE(kUkmAppLogging, "UkmAppLogging", base::FEATURE_ENABLED_BY_DEFAULT);
-#endif
+BASE_FEATURE(kUkmAppLogging, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi - disable UKM
 
 class AppSourceUrlRecorder {
  private:

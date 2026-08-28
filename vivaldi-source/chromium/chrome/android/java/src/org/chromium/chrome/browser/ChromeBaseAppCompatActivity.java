@@ -302,6 +302,13 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         BundleUtils.restoreLoadedSplits(savedInstanceState);
+        if (savedInstanceState != null) {
+            Bundle fragmentsState = savedInstanceState.getBundle("android:support:fragments");
+            if (fragmentsState != null) {
+                setRecursiveClassLoader(
+                        fragmentsState, BundleUtils.getSplitCompatClassLoader());
+            }
+        }
         mInMultiWindowMode = isInMultiWindowMode();
 
         mEdgeToEdgeStateProvider = new EdgeToEdgeStateProvider(getWindow());
@@ -337,9 +344,10 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
                         mEdgeToEdgeStateProvider,
                         createSystemBarColorHelperSupplier(),
                         shouldDrawEdgeToEdgeOnCreate(),
-                        EdgeToEdgeUtils.isEdgeToEdgeEverywhereEnabled());
+                        canColorStatusBarWithEdgeToEdgeHelper(),
+                        canSetTransparentStatusBarWithoutDelegate());
 
-        if (EdgeToEdgeUtils.isEdgeToEdgeEverywhereEnabled()) {
+        if (canColorStatusBarWithEdgeToEdgeHelper()) {
             initializeSystemBarColors(mEdgeToEdgeManager.getEdgeToEdgeSystemBarColorHelper());
         }
 
@@ -421,6 +429,16 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
         } else if (VivaldiUtils.inAppDriverDistractionHandlingEnabled()) {
             enableInAppDriverDistractionHandling();
         } // Vivaldi
+    }
+
+    /** Returns whether the edge-to-edge system bar helper may update the status bar color. */
+    protected boolean canColorStatusBarWithEdgeToEdgeHelper() {
+        return EdgeToEdgeUtils.isEdgeToEdgeEverywhereEnabled();
+    }
+
+    /** Returns whether the helper may make the status bar transparent without a delegate helper. */
+    protected boolean canSetTransparentStatusBarWithoutDelegate() {
+        return false;
     }
 
     /**
@@ -993,6 +1011,24 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
         }
     }
 
+    // Recursively sets the classloader on the given bundle and all nested bundles.
+    // Note: Iterating through a bundle can cause early unmarshalling, which can have side
+    // effects on framework-redirected data like intents (see crbug.com/527604007).
+    // It is safer to only call this on targeted nested bundles (like "android:support:fragments").
+    private static void setRecursiveClassLoader(Bundle bundle, ClassLoader classLoader) {
+        bundle.setClassLoader(classLoader);
+        for (String key : bundle.keySet()) {
+            try {
+                Object value = bundle.get(key);
+                if (value instanceof Bundle) {
+                    setRecursiveClassLoader((Bundle) value, classLoader);
+                }
+            } catch (Exception e) {
+                // Ignore any unmarshalling errors for unknown types.
+            }
+        }
+    }
+
     // Vivaldi OEM (Lynk&Co)
     private void requestAllPermissions() {
         assert BuildConfig.IS_OEM_LYNKCO_BUILD;
@@ -1170,4 +1206,5 @@ public class ChromeBaseAppCompatActivity extends AppCompatActivity
      * @return true if launched from a Car Head Unit (Android Auto).
      */
     public boolean isLaunchedFromCarHeadUnit() { return mIsLaunchedFromCarHeadUnit; }
+    // End Vivaldi
 }

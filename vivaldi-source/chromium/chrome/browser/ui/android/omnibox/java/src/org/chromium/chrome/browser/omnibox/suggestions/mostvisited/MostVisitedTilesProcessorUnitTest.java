@@ -84,9 +84,10 @@ public final class MostVisitedTilesProcessorUnitTest {
     private MostVisitedTilesProcessor mProcessor;
     private List<AutocompleteMatch> mMatches;
 
-    private @Captor ArgumentCaptor<Callback<Bitmap>> mFavIconCallbackCaptor;
-    private @Captor ArgumentCaptor<Callback<Bitmap>> mGenIconCallbackCaptor;
+    private @Captor ArgumentCaptor<Callback<Drawable>> mFavIconCallbackCaptor;
+    private @Captor ArgumentCaptor<Callback<Drawable>> mGenIconCallbackCaptor;
     private @Mock Bitmap mFaviconBitmap;
+    private @Mock Drawable mFallbackDrawable;
     private @Mock SuggestionHost mSuggestionHost;
     private @Mock OmniboxImageSupplier mImageSupplier;
     private @Mock AutocompleteInput mInput;
@@ -239,7 +240,9 @@ public final class MostVisitedTilesProcessorUnitTest {
                 populateMatchesForHorizontalRenderGroup(0, new TileData("title", NAV_URL, false));
 
         verify(mImageSupplier, times(1)).fetchFavicon(eq(NAV_URL), any());
-        mFavIconCallbackCaptor.getValue().onResult(mFaviconBitmap);
+        mFavIconCallbackCaptor
+                .getValue()
+                .onResult(new BitmapDrawable(mContext.getResources(), mFaviconBitmap));
         verifyNoMoreInteractions(mImageSupplier);
 
         // Since we "retrieved" an icon from LargeIconBridge, we should not generate a fallback.
@@ -262,8 +265,8 @@ public final class MostVisitedTilesProcessorUnitTest {
         mFavIconCallbackCaptor.getValue().onResult(null);
 
         // We should now observe a request to generate bitmap.
-        verify(mImageSupplier).generateFavicon(eq(NAV_URL), mFavIconCallbackCaptor.capture());
-        mFavIconCallbackCaptor.getValue().onResult(mFaviconBitmap);
+        verify(mImageSupplier).generateFavicon(eq(NAV_URL), mGenIconCallbackCaptor.capture());
+        mGenIconCallbackCaptor.getValue().onResult(mFallbackDrawable);
         verifyNoMoreInteractions(mImageSupplier);
 
         // Since we "retrieved" an icon from LargeIconBridge, we should not generate a fallback.
@@ -272,9 +275,7 @@ public final class MostVisitedTilesProcessorUnitTest {
 
         Drawable drawable = tileModel.get(TileViewProperties.ICON);
         assertEquals(BaseCarouselSuggestionItemViewBuilder.ViewType.TILE_VIEW, tileItem.type);
-        assertThat(drawable, instanceOf(BitmapDrawable.class));
-        Bitmap bitmap = ((BitmapDrawable) drawable).getBitmap();
-        assertEquals(mFaviconBitmap, bitmap);
+        assertEquals(mFallbackDrawable, drawable);
     }
 
     @Test
@@ -287,8 +288,8 @@ public final class MostVisitedTilesProcessorUnitTest {
         mFavIconCallbackCaptor.getValue().onResult(null);
 
         // We should now observe a request to generate bitmap. Return null.
-        verify(mImageSupplier).generateFavicon(eq(NAV_URL), mFavIconCallbackCaptor.capture());
-        mFavIconCallbackCaptor.getValue().onResult(null);
+        verify(mImageSupplier).generateFavicon(eq(NAV_URL), mGenIconCallbackCaptor.capture());
+        mGenIconCallbackCaptor.getValue().onResult(null);
         verifyNoMoreInteractions(mImageSupplier);
 
         // Since we failed all retrieve attempts, we should keep using fallback icons.
@@ -337,15 +338,15 @@ public final class MostVisitedTilesProcessorUnitTest {
         // on the list, rather than placement of the tile.
         tileList.get(1).model.get(TileViewProperties.ON_CLICK).onClick(null);
         ordered.verify(mSuggestionHost, times(1))
-                .onSuggestionClicked(eq(mMatches.get(1)), eq(3), eq(NAV_URL));
+                .onSuggestionClicked(eq(mMatches.get(1)), eq(3), eq(NAV_URL), eq(0));
 
         tileList.get(2).model.get(TileViewProperties.ON_CLICK).onClick(null);
         ordered.verify(mSuggestionHost, times(1))
-                .onSuggestionClicked(eq(mMatches.get(2)), eq(3), eq(NAV_URL_2));
+                .onSuggestionClicked(eq(mMatches.get(2)), eq(3), eq(NAV_URL_2), eq(0));
 
         tileList.get(0).model.get(TileViewProperties.ON_CLICK).onClick(null);
         ordered.verify(mSuggestionHost, times(1))
-                .onSuggestionClicked(eq(mMatches.get(0)), eq(3), eq(SEARCH_URL));
+                .onSuggestionClicked(eq(mMatches.get(0)), eq(3), eq(SEARCH_URL), eq(0));
 
         verifyNoMoreInteractions(mSuggestionHost);
 
@@ -388,15 +389,15 @@ public final class MostVisitedTilesProcessorUnitTest {
         // on the list, rather than placement of the tile.
         tileList.get(1).model.get(TileViewProperties.ON_CLICK).onClick(null);
         ordered.verify(mSuggestionHost, times(1))
-                .onSuggestionClicked(eq(mMatches.get(1)), eq(3), eq(NAV_URL));
+                .onSuggestionClicked(eq(mMatches.get(1)), eq(3), eq(NAV_URL), eq(0));
 
         tileList.get(2).model.get(TileViewProperties.ON_CLICK).onClick(null);
         ordered.verify(mSuggestionHost, times(1))
-                .onSuggestionClicked(eq(mMatches.get(2)), eq(3), eq(NAV_URL_2));
+                .onSuggestionClicked(eq(mMatches.get(2)), eq(3), eq(NAV_URL_2), eq(0));
 
         tileList.get(0).model.get(TileViewProperties.ON_CLICK).onClick(null);
         ordered.verify(mSuggestionHost, times(1))
-                .onSuggestionClicked(eq(mMatches.get(0)), eq(3), eq(SEARCH_URL));
+                .onSuggestionClicked(eq(mMatches.get(0)), eq(3), eq(SEARCH_URL), eq(0));
 
         verifyNoMoreInteractions(mSuggestionHost);
 

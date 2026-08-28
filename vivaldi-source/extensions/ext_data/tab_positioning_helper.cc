@@ -50,6 +50,10 @@ TabPositioningParams GetTabPositioningParamsFromCreateProperties(
     case VivaldiInvokedBy::kCommand:
       params.invoked_by = TabInvokedBy::kCommand;
       break;
+
+    case VivaldiInvokedBy::kVivaldiUi:
+      params.invoked_by = TabInvokedBy::kVivaldiUi;
+      break;
   }
 
   params.invoked_by_extra_arg = create_properties.invoked_by_extra_arg;

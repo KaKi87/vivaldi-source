@@ -152,11 +152,6 @@ NSString* TabGroupCellAccessibilityIdentifier(NSUInteger index) {
   ]];
 }
 
-- (void)viewDidLayoutSubviews {
-  [super viewDidLayoutSubviews];
-  [_collectionView.collectionViewLayout invalidateLayout];
-}
-
 #pragma mark Public
 
 - (CGFloat)remainingScrollDistanceTop {

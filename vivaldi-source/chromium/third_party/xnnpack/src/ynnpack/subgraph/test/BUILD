@@ -12,7 +12,7 @@ cc_library(
     testonly = True,
     srcs = ["scheduler.cc"],
     hdrs = ["scheduler.h"],
-    visibility = ["//ynnpack/subgraph:__subpackages__"],
+    visibility = ["//ynnpack:__subpackages__"],
     deps = [
         "//ynnpack:ynnpack_h",
         "@slinky//slinky/base:thread_pool_impl",
@@ -84,6 +84,20 @@ cc_test(
     ] + ynn_test_deps(),
 )
 
+cc_test(
+    name = "tensor",
+    srcs = ["tensor.cc"],
+    linkopts = ynn_binary_linkopts(),
+    malloc = ynn_binary_malloc(),
+    deps = [
+        ":matchers",
+        ":subgraph_builder",
+        "//ynnpack:ynnpack_h",
+        "//ynnpack/base",
+        "//ynnpack/subgraph",
+    ] + ynn_test_deps(),
+)
+
 TEST_DEPS = [
     ":matchers",
     ":subgraph_builder",
@@ -123,6 +137,7 @@ cc_test(
     linkopts = ynn_binary_linkopts(),
     malloc = ynn_binary_malloc(),
     shard_count = 24,
+    tags = ["nowasm"],  # b/525770952
     deps = TEST_DEPS,
 )
 
@@ -141,6 +156,7 @@ cc_test(
     linkopts = ynn_binary_linkopts(),
     malloc = ynn_binary_malloc(),
     deps = TEST_DEPS + [
+        "//ynnpack/kernels/dequantize_dot",
         "//ynnpack/kernels/ternary",
         "//ynnpack/subgraph",
     ],
@@ -181,14 +197,15 @@ cc_test(
 ) for name in [
     "concatenate",
     "copy",
+    "dynamic_quantization",
     "broadcast_like",
     "errors",
     "even_split",
     "fuse_dim",
     "fuse_dims",
+    "gather",
     "get_tensor_shape",
     "iota",
-    "lut",
     "reduce",
     "reduce_dot",
     "runtime",
@@ -204,6 +221,7 @@ cc_test(
     "stencil_copy",
     "polynomial",
     "partial_reduce_dot",
+    "sub_byte_types",
 ]]
 
 cc_test(
@@ -215,11 +233,44 @@ cc_test(
 )
 
 cc_test(
+    name = "loop_fusion",
+    srcs = ["loop_fusion.cc"],
+    linkopts = ynn_binary_linkopts(),
+    malloc = ynn_binary_malloc(),
+    deps = TEST_DEPS + [
+        "//ynnpack/subgraph",
+        "@slinky//slinky/runtime",
+    ],
+)
+
+cc_test(
     name = "utils",
     srcs = ["utils.cc"],
     linkopts = ynn_binary_linkopts(),
     malloc = ynn_binary_malloc(),
     deps = TEST_DEPS + ["//ynnpack/subgraph"],
+)
+
+cc_test(
+    name = "attention_bench",
+    srcs = [
+        "attention_bench.cc",
+        "attention_graph.cc",
+        "attention_graph.h",
+    ],
+    args = ["--benchmark_min_time=1x"],
+    linkopts = ynn_binary_linkopts(),
+    malloc = ynn_binary_malloc(),
+    tags = [
+        "manual",
+        "notap",
+    ],
+    deps = [
+        ":scheduler",
+        "//ynnpack",
+        "//ynnpack/base",
+        "//ynnpack/composites",
+    ] + ynn_benchmark_deps(),
 )
 
 cc_test(
@@ -259,5 +310,66 @@ cc_test(
         "//ynnpack",
         "//ynnpack/base",
         "//ynnpack/subgraph",
+    ] + ynn_benchmark_deps(),
+)
+
+cc_test(
+    name = "gather_bench",
+    srcs = ["gather_bench.cc"],
+    args = ["--benchmark_min_time=1x"],
+    linkopts = ynn_binary_linkopts(),
+    malloc = ynn_binary_malloc(),
+    deps = [
+        "//ynnpack",
+        "//ynnpack/base",
+        "//ynnpack/base/test:buffer",
+        "//ynnpack/base/test:random",
+        "//ynnpack/base/test:tensor",
+    ] + ynn_benchmark_deps(),
+)
+
+cc_test(
+    name = "transpose_bench",
+    srcs = ["transpose_bench.cc"],
+    args = ["--benchmark_min_time=1x"],
+    linkopts = ynn_binary_linkopts(),
+    malloc = ynn_binary_malloc(),
+    deps = [
+        ":subgraph_builder",
+        "//ynnpack",
+        "//ynnpack/base",
+        "//ynnpack/base/test:tensor",
+    ] + ynn_benchmark_deps(),
+)
+
+cc_test(
+    name = "concatenated_mixed_dot_bench",
+    srcs = ["concatenated_mixed_dot_bench.cc"],
+    args = ["--benchmark_min_time=1x"],
+    linkopts = ynn_binary_linkopts(),
+    malloc = ynn_binary_malloc(),
+    tags = ["noemulator"],
+    deps = [
+        ":scheduler",
+        ":subgraph_builder",
+        "//ynnpack",
+        "//ynnpack/base",
+        "//ynnpack/base/test:tensor",
+    ] + ynn_benchmark_deps(),
+)
+
+cc_test(
+    name = "reduce_bench",
+    srcs = ["reduce_bench.cc"],
+    args = ["--benchmark_min_time=1x"],
+    linkopts = ynn_binary_linkopts(),
+    malloc = ynn_binary_malloc(),
+    deps = [
+        ":scheduler",
+        ":subgraph_builder",
+        "//ynnpack",
+        "//ynnpack/base",
+        "//ynnpack/base/test:tensor",
+        "//ynnpack/base/test:util",
     ] + ynn_benchmark_deps(),
 )

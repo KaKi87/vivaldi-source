@@ -41,6 +41,7 @@ static void JNI_SendTabToSelfMetricsRecorder_RecordHasScrollPositionOnOpened(
 static void JNI_SendTabToSelfMetricsRecorder_RecordNotificationOpened(
     JNIEnv* env) {
   RecordNotificationOpened();
+  RecordAutoOpenOutcome(AutoOpenOutcome::kTabOpenedViaNotification);
 }
 
 static void JNI_SendTabToSelfMetricsRecorder_RecordNotificationDismissed(
@@ -71,6 +72,14 @@ static void JNI_SendTabToSelfMetricsRecorder_RecordScrollPositionSelectorLength(
     JNIEnv* env,
     jint length) {
   RecordScrollPositionSelectorLength(static_cast<size_t>(length));
+}
+
+static void JNI_SendTabToSelfMetricsRecorder_RecordEntryPointInvoked(
+    JNIEnv* env,
+    int32_t entry_point) {
+  CHECK_LE(0, entry_point);
+  CHECK_LE(entry_point, static_cast<int>(ShareEntryPoint::kMaxValue));
+  RecordEntryPointInvoked(static_cast<ShareEntryPoint>(entry_point));
 }
 
 }  // namespace send_tab_to_self

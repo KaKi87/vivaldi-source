@@ -30,6 +30,8 @@ class MlInstallOperationTracker;
 }  // namespace webapps
 namespace web_app {
 
+class WebAppProvider;
+
 // A fake implementation of WebAppUiManager used in unit tests to prevent
 // actually opening browser windows or showing UI dialogs.
 // It allows tests to track UI interactions (like tab reparenting and window
@@ -132,6 +134,15 @@ class FakeWebAppUiManager : public WebAppUiManager {
       const GURL& last_committed_url,
       InstallCallback callback) override;
 
+  void TriggerInstallDialogForManifestInstall(
+      content::WebContents* initiating_web_contents,
+      base::WeakPtr<content::Page> initiating_page,
+      std::unique_ptr<webapps::MlInstallOperationTracker> tracker,
+      blink::mojom::ManifestPtr manifest,
+      const GURL& manifest_url,
+      const GURL& requesting_page_url,
+      InstallCallback callback) override;
+
   void TriggerLaunchDialogForBackgroundInstall(
       content::WebContents* initiating_web_contents,
       const webapps::AppId& app_id,
@@ -191,6 +202,9 @@ class FakeWebAppUiManager : public WebAppUiManager {
   FakeWebAppUiManager* AsFakeWebAppUiManagerForTesting() override;
 
   void SetCanAddAppToQuickLaunchBar(bool can_add);
+  void SetProvider(WebAppProvider* provider);
+
+  void UninstallAppSilentlyForMigration(const webapps::AppId& app_id) override;
 
  private:
   base::flat_map<webapps::AppId, size_t> app_id_to_num_windows_map_;
@@ -209,6 +223,7 @@ class FakeWebAppUiManager : public WebAppUiManager {
 
   bool can_add_to_quick_launch_bar_ = false;
   base::flat_set<webapps::AppId> quick_launch_bar_apps_;
+  raw_ptr<WebAppProvider> provider_ = nullptr;
 };
 
 }  // namespace web_app

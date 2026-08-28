@@ -22,6 +22,7 @@
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/send_tab_to_self/features.h"
+#include "components/send_tab_to_self/metrics_util.h"
 #include "components/send_tab_to_self/send_tab_to_self_model.h"
 #include "components/send_tab_to_self/send_tab_to_self_sync_service.h"
 #include "components/sync_device_info/device_info.h"
@@ -32,8 +33,6 @@
 namespace send_tab_to_self {
 
 namespace {
-
-constexpr size_t kMaxDevices = 5;
 
 static_assert(IDC_CONTENT_CONTEXT_SEND_TAB_TO_SELF_DEVICE_LAST -
                       IDC_CONTENT_CONTEXT_SEND_TAB_TO_SELF_DEVICE1 + 1 ==
@@ -65,17 +64,48 @@ void OnSendTabToDeviceComplete(base::WeakPtr<content::WebContents> web_contents,
     case SendTabToSelfResult::kFailureEntryRemoved:
     case SendTabToSelfResult::kFailureCommitTimeout:
     case SendTabToSelfResult::kFailureNoInternetConnection:
-      ShowTabSentFailure(web_contents.get(), result);
+      ShowTabSentFailure(web_contents.get(), result, GURL());
       break;
   }
+}
+
+// Returns `target_url` if valid; otherwise falls back to the last committed URL
+// of `web_contents`. Since `web_contents` is null if unavailable, subsequent
+// queries will fail anyway so falling back to `GURL()` is alright.
+GURL ResolveTargetUrl(const GURL& target_url,
+                      content::WebContents* web_contents) {
+  if (target_url.is_valid()) {
+    return target_url;
+  }
+  return web_contents ? web_contents->GetLastCommittedURL() : GURL();
+}
+
+// Returns `target_title` if non-empty; otherwise falls back to the active page
+// title of `web_contents`.
+// TODO(crbug.com/530097533): Investigate improved title handling when the user
+// interacts with the right-click flow on a hyperlink (e.g., avoiding parent
+// page title fallback when link anchor text is empty).
+std::string ResolveTargetTitle(const std::string& target_title,
+                               content::WebContents* web_contents) {
+  if (!target_title.empty()) {
+    return target_title;
+  }
+  return web_contents ? base::UTF16ToUTF8(web_contents->GetTitle())
+                      : std::string();
 }
 
 }  // namespace
 
 SendTabToSelfContextMenuDelegate::SendTabToSelfContextMenuDelegate(
-    content::WebContents* web_contents)
+    content::WebContents* web_contents,
+    ShareEntryPoint entry_point,
+    const GURL& target_url,
+    const std::string& target_title)
     : web_contents_(web_contents ? web_contents->GetWeakPtr() : nullptr),
-      devices_(GetDevicesForDisplay()) {}
+      devices_(GetDevicesForDisplay()),
+      entry_point_(entry_point),
+      target_url_(ResolveTargetUrl(target_url, web_contents)),
+      target_title_(ResolveTargetTitle(target_title, web_contents)) {}
 
 SendTabToSelfContextMenuDelegate::~SendTabToSelfContextMenuDelegate() = default;
 
@@ -166,20 +196,47 @@ void SendTabToSelfContextMenuDelegate::ExecuteCommand(int command_id,
       return;
     }
 
+    const base::Feature& stts_feature =
+        (entry_point_ == ShareEntryPoint::kLinkMenu ||
+         base::FeatureList::IsEnabled(
+             send_tab_to_self::kSendTabToSelfEnhancedDesktopUIv2))
+            ? send_tab_to_self::kSendTabToSelfEnhancedDesktopUIv2
+            : send_tab_to_self::kSendTabToSelfEnhancedDesktopUI;
+
     UserEducationService::MaybeNotifyNewBadgeFeatureUsed(
-        web_contents_->GetBrowserContext(),
-        send_tab_to_self::kSendTabToSelfEnhancedDesktopUI);
+        web_contents_->GetBrowserContext(), stts_feature);
+
+    RecordEntryPointInvoked(entry_point_);
 
     SendTabToSelfPageHandler* handler =
         SendTabToSelfPageHandler::GetOrCreateForWebContents(
             web_contents_.get());
     handler->SendTabToDevice(
-        devices_[device_index].cache_guid, web_contents_->GetLastCommittedURL(),
-        base::UTF16ToUTF8(web_contents_->GetTitle()),
+        devices_[device_index].cache_guid, target_url_, target_title_,
         base::BindOnce(&OnSendTabToDeviceComplete, web_contents_,
                        devices_[device_index].device_name,
-                       devices_[device_index].form_factor));
+                       devices_[device_index].form_factor),
+        entry_point_);
   }
+}
+
+void SendTabToSelfContextMenuDelegate::OnMenuWillShow(
+    ui::SimpleMenuModel* source) {
+  if (!web_contents_) {
+    return;
+  }
+  Profile* profile =
+      Profile::FromBrowserContext(web_contents_->GetBrowserContext());
+  SendTabToSelfSyncService* service =
+      SendTabToSelfSyncServiceFactory::GetForProfile(profile);
+  if (!service) {
+    return;
+  }
+
+  size_t device_count =
+      service->GetSendTabToSelfModel()->GetTargetDeviceInfoSortedList().size();
+  RecordTargetDeviceCount(entry_point_, EntryPointDisplayReason::kOfferFeature,
+                          device_count);
 }
 
 }  // namespace send_tab_to_self

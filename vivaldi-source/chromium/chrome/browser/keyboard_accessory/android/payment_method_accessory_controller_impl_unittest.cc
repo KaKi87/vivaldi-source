@@ -38,6 +38,7 @@
 #include "components/autofill/core/browser/test_utils/autofill_form_test_utils.h"
 #include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/browser/test_utils/valuables_data_test_utils.h"
+#include "components/autofill/core/common/aliases.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/autofill_payments_features.h"
 #include "components/autofill/core/common/autofill_test_utils.h"
@@ -62,8 +63,7 @@ namespace {
 
 AccessorySheetData::Builder PaymentMethodAccessorySheetDataBuilder() {
   return AccessorySheetData::Builder(AccessoryTabType::CREDIT_CARDS,
-                                     /*user_info_title=*/std::u16string(),
-                                     /*plus_address_title=*/std::u16string())
+                                     /*user_info_title=*/std::u16string())
       .AppendFooterCommand(
           l10n_util::GetStringUTF16(
               IDS_MANUAL_FILLING_CREDIT_CARD_SHEET_ALL_ADDRESSES_LINK),
@@ -557,8 +557,7 @@ TEST_F(PaymentMethodAccessoryControllerTest,
   paydm().AddAutofillOfferData(promo_code_origin_mismatch);
   paydm().AddAutofillOfferData(promo_code_expired);
   AccessorySheetData result(autofill::AccessoryTabType::CREDIT_CARDS,
-                            /*user_info_title=*/std::u16string(),
-                            /*plus_address_title=*/std::u16string());
+                            /*user_info_title=*/std::u16string());
 
   EXPECT_CALL(filling_source_observer_,
               Run(controller(), IsFillingSourceAvailable(true)));
@@ -665,6 +664,7 @@ TEST_F(PaymentMethodAccessoryControllerTest, FetchLocalIban) {
       .WillOnce([&iban](const Suggestion::Payload& payload,
                         IbanAccessManager::OnIbanFetchedCallback callback) {
         std::move(callback).Run(iban.value());
+        return IsAsync(false);
       });
 
   EXPECT_CALL(autofill_driver(),
@@ -718,8 +718,7 @@ TEST_F(PaymentMethodAccessoryControllerTest,
           AccessoryTabType::CREDIT_CARDS,
           /*user_info_title=*/
           l10n_util::GetStringUTF16(
-              IDS_MANUAL_FILLING_CREDIT_CARD_SHEET_EMPTY_MESSAGE),
-          /*plus_address_title=*/std::u16string())
+              IDS_MANUAL_FILLING_CREDIT_CARD_SHEET_EMPTY_MESSAGE))
           .AddLoyaltyCardInfo(
               loyalty_card.merchant_name(), loyalty_card.program_logo(),
               base::UTF8ToUTF16(loyalty_card.loyalty_card_number()))
@@ -753,8 +752,7 @@ TEST_F(PaymentMethodAccessoryControllerTest, LoyaltyCardDataIsChangedBySync) {
           AccessoryTabType::CREDIT_CARDS,
           /*user_info_title=*/
           l10n_util::GetStringUTF16(
-              IDS_MANUAL_FILLING_CREDIT_CARD_SHEET_EMPTY_MESSAGE),
-          /*plus_address_title=*/std::u16string())
+              IDS_MANUAL_FILLING_CREDIT_CARD_SHEET_EMPTY_MESSAGE))
           .AppendFooterCommand(
               l10n_util::GetStringUTF16(
                   IDS_MANUAL_FILLING_CREDIT_CARD_SHEET_ALL_ADDRESSES_LINK),
@@ -771,8 +769,7 @@ TEST_F(PaymentMethodAccessoryControllerTest, LoyaltyCardDataIsChangedBySync) {
           AccessoryTabType::CREDIT_CARDS,
           /*user_info_title=*/
           l10n_util::GetStringUTF16(
-              IDS_MANUAL_FILLING_CREDIT_CARD_SHEET_EMPTY_MESSAGE),
-          /*plus_address_title=*/std::u16string())
+              IDS_MANUAL_FILLING_CREDIT_CARD_SHEET_EMPTY_MESSAGE))
           .AddLoyaltyCardInfo(
               loyalty_card.merchant_name(), loyalty_card.program_logo(),
               base::UTF8ToUTF16(loyalty_card.loyalty_card_number()))
@@ -835,8 +832,8 @@ TEST_F(PaymentMethodAccessoryControllerTestForBnpl,
   autofill_manager().OnAskForValuesToFillTest(
       form, form.fields().front().global_id());
   autofill_manager().FillOrPreviewForm(
-      mojom::ActionPersistence::kFill, form, form.fields().front().global_id(),
-      FillingPayload(&bnpl_card),
+      mojom::ActionPersistence::kFill, form.global_id(),
+      form.fields().front().global_id(), FillingPayload(&bnpl_card),
       AutofillTriggerSource::kKeyboardAccessoryOrBottomSheet,
       /*blocked_fields=*/{});
 

@@ -5,12 +5,21 @@ source_set("vivaldi_policy_handlers") {
     "vivaldi_policy_handlers.cc",
     "vivaldi_policy_handlers.h",
   ]
+  if (!is_android) {
+    sources += [
+      "vivaldi_vpn_policy_handler.cc",
+      "vivaldi_vpn_policy_handler.h",
+    ]
+  }
   deps = [
     "//base",
     "//components/policy:generated",
     "//components/policy/core/browser",
     "//components/policy/core/common",
     "//components/prefs",
-    "//vivaldi/prefs:prefs_files_generator",
+    "//components/strings",
   ]
+  if (!is_android) {
+    deps += [ "//vivaldi/prefs:prefs_files_generator" ]
+  }
 }

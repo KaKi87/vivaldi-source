@@ -10,7 +10,6 @@
 #include "android_webview/common/aw_features.h"
 #include "base/check_op.h"
 #include "base/location.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/no_destructor.h"
 #include "base/notreached.h"
 #include "base/synchronization/waitable_event.h"
@@ -72,11 +71,10 @@ void VizCompositorThreadRunnerWebView::InitFrameSinkManagerOnViz() {
 
   auto init_params = viz::FrameSinkManagerImpl::InitParams();
 
-  if (::features::UseWebViewNewInvalidateHeuristic()) {
-    // HWUI has 2 frames pipelineing and we need another one because we force
-    // client to be frame behind.
-    init_params.max_uncommitted_frames = 3;
-  }
+  // HWUI has 2 frames pipelineing and we need another one because we force
+  // client to be frame behind.
+  init_params.max_uncommitted_frames = 3;
+
   init_params.use_direct_receiver = base::FeatureList::IsEnabled(
       android_webview::features::
           kWebViewVizDirectCompositorThreadIpcFrameSinkManager);
@@ -103,8 +101,6 @@ void VizCompositorThreadRunnerWebView::ScheduleOnVizAndBlock(
 void VizCompositorThreadRunnerWebView::PostTaskAndBlock(
     const base::Location& from_here,
     base::OnceClosure task) {
-  SCOPED_UMA_HISTOGRAM_TIMER_MICROS(
-      "Android.WebView.VizCompositorRunnerPostTaskBlockTime");
   base::ScopedAllowBaseSyncPrimitivesOutsideBlockingScope allow_wait;
   base::WaitableEvent e;
   task_runner()->PostTask(from_here,

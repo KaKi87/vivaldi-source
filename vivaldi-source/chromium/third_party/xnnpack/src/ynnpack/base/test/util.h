@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 #include "ynnpack/base/base.h"
 #include "ynnpack/base/bfloat16.h"
+#include "ynnpack/base/fp8.h"
 #include "ynnpack/base/half.h"
 #include "ynnpack/base/type.h"
 
@@ -65,17 +66,30 @@ enum class multi_type {
   int8,
   uint8,
   int32,
+  fp8_e5m2,
+  fp8_e4m3,
 
   fp16_fp32,
   bf16_fp32,
   int8_int32,
   uint8_int32,
+  int4_int32,
+  uint4_int32,
+  int2_int32,
+  uint2_int32,
+  fp8_e5m2_fp32,
+  fp8_e4m3_fp32,
 
   fp16_fp16_fp32,
   bf16_bf16_fp32,
   int8_int8_int32,
-  int8_int4_int32,
   uint8_int8_int32,
+  int8_int4_int32,
+  uint8_int4_int32,
+  int8_int2_int32,
+  uint8_int2_int32,
+  fp8_e5m2_fp8_e5m2_fp32,
+  fp8_e4m3_fp8_e4m3_fp32,
 };
 
 inline multi_type multi_type_of(double, double) { return multi_type::fp64; }
@@ -85,6 +99,12 @@ inline multi_type multi_type_of(half, half) { return multi_type::fp16; }
 inline multi_type multi_type_of(int8_t, int8_t) { return multi_type::int8; }
 inline multi_type multi_type_of(uint8_t, uint8_t) { return multi_type::uint8; }
 inline multi_type multi_type_of(int32_t, int32_t) { return multi_type::int32; }
+inline multi_type multi_type_of(fp8_e5m2, fp8_e5m2) {
+  return multi_type::fp8_e5m2;
+}
+inline multi_type multi_type_of(fp8_e4m3, fp8_e4m3) {
+  return multi_type::fp8_e4m3;
+}
 inline multi_type multi_type_of(bfloat16, float) {
   return multi_type::bf16_fp32;
 }
@@ -94,6 +114,24 @@ inline multi_type multi_type_of(int8_t, int32_t) {
 }
 inline multi_type multi_type_of(uint8_t, int32_t) {
   return multi_type::uint8_int32;
+}
+inline multi_type multi_type_of(int4x2, int32_t) {
+  return multi_type::int4_int32;
+}
+inline multi_type multi_type_of(uint4x2, int32_t) {
+  return multi_type::uint4_int32;
+}
+inline multi_type multi_type_of(int2x4, int32_t) {
+  return multi_type::int2_int32;
+}
+inline multi_type multi_type_of(uint2x4, int32_t) {
+  return multi_type::uint2_int32;
+}
+inline multi_type multi_type_of(fp8_e5m2, float) {
+  return multi_type::fp8_e5m2_fp32;
+}
+inline multi_type multi_type_of(fp8_e4m3, float) {
+  return multi_type::fp8_e4m3_fp32;
 }
 
 inline multi_type multi_type_of(float, float, float) {
@@ -115,8 +153,23 @@ inline multi_type multi_type_of(int8_t, int8_t, int32_t) {
 inline multi_type multi_type_of(uint8_t, int8_t, int32_t) {
   return multi_type::uint8_int8_int32;
 }
+inline multi_type multi_type_of(uint8_t, int4x2, int32_t) {
+  return multi_type::uint8_int4_int32;
+}
 inline multi_type multi_type_of(int8_t, int4x2, int32_t) {
   return multi_type::int8_int4_int32;
+}
+inline multi_type multi_type_of(uint8_t, int2x4, int32_t) {
+  return multi_type::uint8_int2_int32;
+}
+inline multi_type multi_type_of(int8_t, int2x4, int32_t) {
+  return multi_type::int8_int2_int32;
+}
+inline multi_type multi_type_of(fp8_e5m2, fp8_e5m2, float) {
+  return multi_type::fp8_e5m2_fp8_e5m2_fp32;
+}
+inline multi_type multi_type_of(fp8_e4m3, fp8_e4m3, float) {
+  return multi_type::fp8_e4m3_fp8_e4m3_fp32;
 }
 
 template <typename F>
@@ -136,6 +189,10 @@ constexpr decltype(auto) SwitchOneType(multi_type type, F&& f) {
       return std::forward<F>(f)(uint8_t());
     case multi_type::int32:
       return std::forward<F>(f)(int32_t());
+    case multi_type::fp8_e5m2:
+      return std::forward<F>(f)(fp8_e5m2());
+    case multi_type::fp8_e4m3:
+      return std::forward<F>(f)(fp8_e4m3());
     default:
       YNN_UNREACHABLE;
   }
@@ -158,6 +215,10 @@ constexpr decltype(auto) SwitchTwoTypes(multi_type type, F&& f) {
       return std::forward<F>(f)(uint8_t(), uint8_t());
     case multi_type::int32:
       return std::forward<F>(f)(int32_t(), int32_t());
+    case multi_type::fp8_e5m2:
+      return std::forward<F>(f)(fp8_e5m2(), fp8_e5m2());
+    case multi_type::fp8_e4m3:
+      return std::forward<F>(f)(fp8_e4m3(), fp8_e4m3());
     case multi_type::fp16_fp32:
       return std::forward<F>(f)(half(), float());
     case multi_type::bf16_fp32:
@@ -166,6 +227,18 @@ constexpr decltype(auto) SwitchTwoTypes(multi_type type, F&& f) {
       return std::forward<F>(f)(int8_t(), int32_t());
     case multi_type::uint8_int32:
       return std::forward<F>(f)(uint8_t(), int32_t());
+    case multi_type::int4_int32:
+      return std::forward<F>(f)(int4x2(), int32_t());
+    case multi_type::uint4_int32:
+      return std::forward<F>(f)(uint4x2(), int32_t());
+    case multi_type::int2_int32:
+      return std::forward<F>(f)(int2x4(), int32_t());
+    case multi_type::uint2_int32:
+      return std::forward<F>(f)(uint2x4(), int32_t());
+    case multi_type::fp8_e5m2_fp32:
+      return std::forward<F>(f)(fp8_e5m2(), float());
+    case multi_type::fp8_e4m3_fp32:
+      return std::forward<F>(f)(fp8_e4m3(), float());
     default:
       YNN_UNREACHABLE;
   }
@@ -194,8 +267,18 @@ constexpr decltype(auto) SwitchThreeTypes(multi_type type, F&& f) {
       return std::forward<F>(f)(int8_t(), int8_t(), int32_t());
     case multi_type::uint8_int8_int32:
       return std::forward<F>(f)(uint8_t(), int8_t(), int32_t());
+    case multi_type::uint8_int4_int32:
+      return std::forward<F>(f)(uint8_t(), int4x2(), int32_t());
     case multi_type::int8_int4_int32:
       return std::forward<F>(f)(int8_t(), int4x2(), int32_t());
+    case multi_type::uint8_int2_int32:
+      return std::forward<F>(f)(uint8_t(), int2x4(), int32_t());
+    case multi_type::int8_int2_int32:
+      return std::forward<F>(f)(int8_t(), int2x4(), int32_t());
+    case multi_type::fp8_e5m2_fp8_e5m2_fp32:
+      return std::forward<F>(f)(fp8_e5m2(), fp8_e5m2(), float());
+    case multi_type::fp8_e4m3_fp8_e4m3_fp32:
+      return std::forward<F>(f)(fp8_e4m3(), fp8_e4m3(), float());
     default:
       YNN_UNREACHABLE;
   }
@@ -217,6 +300,10 @@ inline const char* to_string(multi_type type) {
       return "uint8";
     case multi_type::int32:
       return "int32";
+    case multi_type::fp8_e5m2:
+      return "fp8_e5m2";
+    case multi_type::fp8_e4m3:
+      return "fp8_e4m3";
     case multi_type::fp16_fp32:
       return "fp16_fp32";
     case multi_type::bf16_fp32:
@@ -225,6 +312,18 @@ inline const char* to_string(multi_type type) {
       return "int8_int32";
     case multi_type::uint8_int32:
       return "uint8_int32";
+    case multi_type::int4_int32:
+      return "int4_int32";
+    case multi_type::uint4_int32:
+      return "uint4_int32";
+    case multi_type::int2_int32:
+      return "int2_int32";
+    case multi_type::uint2_int32:
+      return "uint2_int32";
+    case multi_type::fp8_e5m2_fp32:
+      return "fp8_e5m2_fp32";
+    case multi_type::fp8_e4m3_fp32:
+      return "fp8_e4m3_fp32";
     case multi_type::fp16_fp16_fp32:
       return "fp16_fp16_fp32";
     case multi_type::bf16_bf16_fp32:
@@ -233,8 +332,18 @@ inline const char* to_string(multi_type type) {
       return "int8_int8_int32";
     case multi_type::uint8_int8_int32:
       return "uint8_int8_int32";
+    case multi_type::uint8_int4_int32:
+      return "uint8_int4_int32";
     case multi_type::int8_int4_int32:
       return "int8_int4_int32";
+    case multi_type::uint8_int2_int32:
+      return "uint8_int2_int32";
+    case multi_type::int8_int2_int32:
+      return "int8_int2_int32";
+    case multi_type::fp8_e5m2_fp8_e5m2_fp32:
+      return "fp8_e5m2_fp8_e5m2_fp32";
+    case multi_type::fp8_e4m3_fp8_e4m3_fp32:
+      return "fp8_e4m3_fp8_e4m3_fp32";
   }
   YNN_UNREACHABLE;
   return nullptr;

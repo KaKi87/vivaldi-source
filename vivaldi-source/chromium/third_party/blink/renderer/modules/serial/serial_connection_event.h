@@ -1,36 +1,41 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2026 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_SERIAL_SERIAL_CONNECTION_EVENT_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_SERIAL_SERIAL_CONNECTION_EVENT_H_
 
-#include "third_party/blink/renderer/modules/event_modules.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/core/dom/events/event.h"
+#include "third_party/blink/renderer/modules/modules_export.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 
 namespace blink {
 
-class SerialConnectionEventInit;
-class SerialPort;
+class DOMWrapperWorld;
 
-class SerialConnectionEvent final : public Event {
-  DEFINE_WRAPPERTYPEINFO();
-
+// Represents a connection or disconnection event for WebSerial.
+// This class is used internally in C++ to restrict the event dispatch
+// to the specific V8 world it was created for, preventing duplicate events
+// and cross-world leaks (e.g. into extensions). In JavaScript, this event
+// is exposed as a plain `Event` object to match the Web Serial specification
+// (since Chrome 89 removed the `SerialConnectionEvent` interface).
+class MODULES_EXPORT SerialConnectionEvent final : public Event {
  public:
-  static SerialConnectionEvent* Create(const AtomicString& type,
-                                       const SerialConnectionEventInit*);
-  static SerialConnectionEvent* Create(const AtomicString& type, SerialPort*);
+  SerialConnectionEvent(const AtomicString& type, const DOMWrapperWorld* world);
 
-  SerialConnectionEvent(const AtomicString& type,
-                        const SerialConnectionEventInit*);
-  SerialConnectionEvent(const AtomicString& type, SerialPort*);
-
-  SerialPort* port() const { return port_; }
-
+  // Returns true if the event is allowed to be dispatched in the given `world`.
+  // Restricts dispatch to the world the event was created in, unless `world_`
+  // is null.
+  bool CanBeDispatchedInWorld(const DOMWrapperWorld& world) const override;
   void Trace(Visitor*) const override;
 
  private:
-  Member<SerialPort> port_;
+  // The V8 world in which this event's port wrapper was created.
+  // Used to restrict the event dispatch to this world only.
+  // When `WebSerialWorldIsolatedCache` is disabled, this is `nullptr`,
+  // in which case `CanBeDispatchedInWorld` will always return true (legacy
+  // behavior).
+  Member<const DOMWrapperWorld> world_;
 };
 
 }  // namespace blink

@@ -60,13 +60,8 @@ class GlicSidePanelUi
   std::unique_ptr<GlicUiEmbedder> CreateInactiveEmbedder() const override;
 
   // Host::EmbedderDelegate:
-  void Resize(const gfx::Size& size,
-              base::TimeDelta duration,
-              base::OnceClosure callback) override;
-  void EnableDragResize(bool enabled) override;
   void Attach() override;
   void Detach() override;
-  void SetMinimumWidgetSize(const gfx::Size& size) override;
   void SwitchConversation(
       glic::mojom::ConversationInfoPtr info,
       mojom::WebClientHandler::SwitchConversationCallback callback) override;
@@ -88,10 +83,10 @@ class GlicSidePanelUi
   bool HasFocus() override;
   bool ActivateBrowser() override;
   void Zoom(mojom::ZoomAction zoom_action) override;
-  void ShowTitleBarContextMenuAt(gfx::Point event_loc) override;
   bool HasSelectionOverlay() override;
   void CloseSelectionOverlay() override;
   base::WeakPtr<views::View> GetView() override;
+  BrowserWindowInterface* GetBrowserWindowInterface() override;
 
   // web_modal::WebContentsModalDialogManagerDelegate:
   web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHost(

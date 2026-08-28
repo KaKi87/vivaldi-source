@@ -22,7 +22,6 @@
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/menu_manager.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/global_error/global_error_service.h"
 #include "chrome/browser/ui/global_error/global_error_service_factory.h"
@@ -34,7 +33,7 @@
 #include "content/public/browser/context_menu_params.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
-#include "extensions/api/tabs/tabs_private_api.h"
+#include "extensions/api/tabs_private/tabs_private_api.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/extension_action.h"
 #include "extensions/browser/extension_action_manager.h"
@@ -666,7 +665,7 @@ ExtensionActionUtilsRemoveExtensionFunction::Run() {
   if (!browser)
     return RespondNow(Error(NoSuchWindow(params->window_id)));
 
-  static_cast<VivaldiBrowserWindow*>(browser->window())
+  static_cast<VivaldiBrowserWindow*>(browser->GetWindow())
       ->UninstallExtensionViaDialog(extension);
 
   return RespondNow(NoArguments());

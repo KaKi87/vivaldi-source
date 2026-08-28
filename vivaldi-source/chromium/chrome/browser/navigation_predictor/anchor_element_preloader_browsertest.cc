@@ -4,6 +4,10 @@
 
 #include "chrome/browser/navigation_predictor/anchor_element_preloader.h"
 
+#include <optional>
+#include <string>
+#include <vector>
+
 #include "base/metrics/field_trial_params.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
@@ -33,9 +37,12 @@
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
+#include "services/network/public/cpp/features.h"
 #include "third_party/blink/public/common/features.h"
+#include "third_party/blink/public/common/features_generated.h"
 #include "third_party/blink/public/common/input/web_mouse_event.h"
 #include "ui/gfx/geometry/point_conversions.h"
+#include "url/gurl.h"
 
 namespace {
 
@@ -53,11 +60,14 @@ class AnchorElementPreloaderBrowserTest
     return {};
   }
 
+  virtual std::vector<base::test::FeatureRefAndParams> GetEnabledFeatures() {
+    return {{blink::features::kNavigationPredictor,
+             GetNavigationPredictorFieldTrialParams()}};
+  }
+
   void SetUp() override {
-    feature_list_.InitWithFeaturesAndParameters(
-        {{blink::features::kNavigationPredictor,
-          GetNavigationPredictorFieldTrialParams()}},
-        {});
+    feature_list_.InitWithFeaturesAndParameters(GetEnabledFeatures(),
+                                                /*disabled_features=*/{});
     https_server_ = std::make_unique<net::EmbeddedTestServer>(
         net::EmbeddedTestServer::TYPE_HTTPS);
     https_server_->ServeFilesFromSourceDirectory("chrome/test/data/preload");
@@ -77,7 +87,7 @@ class AnchorElementPreloaderBrowserTest
     host_resolver()->AddRule("*", "127.0.0.1");
     auto* loading_predictor =
         predictors::LoadingPredictorFactory::GetForProfile(
-            browser()->profile());
+            browser()->GetProfile());
     histogram_tester_ = std::make_unique<base::HistogramTester>();
     test_ukm_recorder_ = std::make_unique<ukm::TestAutoSetUkmRecorder>();
     ukm_entry_builder_ =
@@ -128,6 +138,7 @@ class AnchorElementPreloaderBrowserTest
           observer,
       bool success) override {
     last_network_anonymization_key_ = network_anonymization_key;
+    last_preresolve_success_ = success;
     if (url != GURL(kOrigin1) && url != GURL(kOrigin2)) {
       return;
     }
@@ -157,6 +168,7 @@ class AnchorElementPreloaderBrowserTest
  protected:
   int preresolve_count_;
   net::NetworkAnonymizationKey last_network_anonymization_key_;
+  std::optional<bool> last_preresolve_success_;
   // Disable sampling of UKM preloading logs.
   content::test::PreloadingConfigOverride preloading_config_override_;
   std::unique_ptr<net::EmbeddedTestServer> https_server_;
@@ -323,7 +335,7 @@ IN_PROC_BROWSER_TEST_F(AnchorElementPreloaderBrowserTest, DISABLED_IframeTest) {
 
 IN_PROC_BROWSER_TEST_F(AnchorElementPreloaderBrowserTest,
                        UserSettingDisabledTest) {
-  prefetch::SetPreloadPagesState(browser()->profile()->GetPrefs(),
+  prefetch::SetPreloadPagesState(browser()->GetProfile()->GetPrefs(),
                                  prefetch::PreloadPagesState::kNoPreloading);
   const GURL& url = GetTestURL("/one_anchor.html");
   EXPECT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
@@ -506,6 +518,42 @@ IN_PROC_BROWSER_TEST_F(AnchorElementPreloaderBrowserTest,
   EXPECT_NE(last_network_anonymization_key_,
             main_frame->GetIsolationInfoForSubresources()
                 .network_anonymization_key());
+}
+
+class AnchorElementPreloaderConnectionAllowlistBrowserTest
+    : public AnchorElementPreloaderBrowserTest {
+ public:
+  AnchorElementPreloaderConnectionAllowlistBrowserTest() = default;
+  ~AnchorElementPreloaderConnectionAllowlistBrowserTest() override = default;
+
+  std::vector<base::test::FeatureRefAndParams> GetEnabledFeatures() override {
+    std::vector<base::test::FeatureRefAndParams> enabled =
+        AnchorElementPreloaderBrowserTest::GetEnabledFeatures();
+    enabled.push_back({network::features::kConnectionAllowlists, {}});
+    return enabled;
+  }
+};
+
+IN_PROC_BROWSER_TEST_F(AnchorElementPreloaderConnectionAllowlistBrowserTest,
+                       PreconnectAllowedByConnectionAllowlist) {
+  const GURL& url = GetTestURL("/connection_allowlist_allowed.html");
+  EXPECT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  SimulateMouseDownElementWithId("anchor1");
+
+  WaitForPreresolveCountForURL(1);
+  EXPECT_EQ(1, preresolve_count_);
+  EXPECT_EQ(last_preresolve_success_, true);
+}
+
+IN_PROC_BROWSER_TEST_F(AnchorElementPreloaderConnectionAllowlistBrowserTest,
+                       PreconnectBlockedByConnectionAllowlist) {
+  const GURL& url = GetTestURL("/connection_allowlist_blocked.html");
+  EXPECT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
+  SimulateMouseDownElementWithId("anchor1");
+
+  WaitForPreresolveCountForURL(1);
+  EXPECT_EQ(1, preresolve_count_);
+  EXPECT_EQ(last_preresolve_success_, false);
 }
 
 }  // namespace

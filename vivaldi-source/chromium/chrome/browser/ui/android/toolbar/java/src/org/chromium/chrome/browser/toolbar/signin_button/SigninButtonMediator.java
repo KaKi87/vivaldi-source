@@ -10,6 +10,8 @@ import static org.chromium.build.NullUtil.assumeNonNull;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.ColorStateList;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.InsetDrawable;
 import android.view.View;
 
 import androidx.appcompat.content.res.AppCompatResources;
@@ -28,6 +30,8 @@ import org.chromium.chrome.browser.signin.services.DisplayableProfileData;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.chrome.browser.signin.services.ProfileDataCache;
 import org.chromium.chrome.browser.signin.services.SigninManager;
+import org.chromium.chrome.browser.subscription_eligibility.SubscriptionEligibilityService;
+import org.chromium.chrome.browser.subscription_eligibility.SubscriptionEligibilityServiceFactory;
 import org.chromium.chrome.browser.sync.SyncServiceFactory;
 import org.chromium.chrome.browser.theme.ThemeColorProvider;
 import org.chromium.chrome.browser.theme.ThemeColorProvider.TintObserver;
@@ -50,6 +54,8 @@ import org.chromium.components.browser_ui.settings.SettingsNavigation;
 import org.chromium.components.feature_engagement.EventConstants;
 import org.chromium.components.feature_engagement.Tracker;
 import org.chromium.components.signin.SigninFeatureMap;
+import org.chromium.components.signin.SigninFeatures;
+import org.chromium.components.signin.base.AccountInfo;
 import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.identitymanager.PrimaryAccountChangeEvent;
@@ -76,6 +82,10 @@ final class SigninButtonMediator
                 SigninManager.SignInStateObserver,
                 BottomSheetSigninAndHistorySyncCoordinator.Delegate,
                 TintObserver {
+    // TODO(crbug.com/475816843): Make this non-static and non-final when re-introducing the sign-in
+    // text button.
+    private static final boolean SHOW_AVATAR_WHEN_SIGNED_OUT = true;
+
     private final Context mContext;
     private final PropertyModel mModel;
     private final MonotonicObservableSupplier<Profile> mProfileSupplier;
@@ -87,6 +97,9 @@ final class SigninButtonMediator
     private final ModalDialogManager mModalDialogManager;
     private final SnackbarManager mSnackbarManager;
     private final ThemeColorProvider mThemeColorProvider;
+    private final SigninAndHistorySyncActivityLauncher mSigninAndHistorySyncActivityLauncher;
+    private final Runnable mOnSigninTapped;
+
     private @Nullable Profile mProfile;
     private @Nullable BottomSheetSigninAndHistorySyncCoordinator mSigninCoordinator;
     private @Nullable SigninManager mSigninManager;
@@ -104,13 +117,9 @@ final class SigninButtonMediator
 
     private @Nullable ColorStateList mActivityFocusTint;
 
-    private boolean mShowAvatarWhenSignedOut;
-
     private boolean mHasSpaceToShow = true;
 
     private boolean mShouldShowOnPage;
-
-    private final SigninAndHistorySyncActivityLauncher mSigninAndHistorySyncActivityLauncher;
 
     /**
      * @param context The {@link Context} to retrieve resources.
@@ -127,6 +136,7 @@ final class SigninButtonMediator
      * @param modalDialogManager The {@link ModalDialogManager} to manage the dialog.
      * @param snackbarManager The {@link SnackbarManager} to show sign-in/sign-out snackbars.
      * @param themeColorProvider The {@link ThemeColorProvider} to get toolbar tint changes.
+     * @param onSigninTapped Runnable to be called when the sign-in button is tapped.
      */
     public SigninButtonMediator(
             Context context,
@@ -139,7 +149,8 @@ final class SigninButtonMediator
             BottomSheetController bottomSheetController,
             ModalDialogManager modalDialogManager,
             SnackbarManager snackbarManager,
-            ThemeColorProvider themeColorProvider) {
+            ThemeColorProvider themeColorProvider,
+            Runnable onSigninTapped) {
         mContext = context;
         mModel = model;
         mProfileSupplier = profileSupplier;
@@ -152,6 +163,7 @@ final class SigninButtonMediator
         mBottomSheetController = bottomSheetController;
         mSigninAndHistorySyncActivityLauncher = signinAndHistorySyncActivityLauncher;
         mThemeColorProvider = themeColorProvider;
+        mOnSigninTapped = onSigninTapped;
         mActivityFocusTint = mThemeColorProvider.getActivityFocusTint();
         mThemeColorProvider.addTintObserver(this);
         mModel.set(
@@ -188,6 +200,7 @@ final class SigninButtonMediator
                 updateButtonState();
                 break;
             case PrimaryAccountChangeEvent.Type.CLEARED:
+                mIdentityError = UserActionableError.NONE;
                 updateButtonState();
                 break;
             case PrimaryAccountChangeEvent.Type.NONE:
@@ -226,9 +239,8 @@ final class SigninButtonMediator
         }
     }
 
-    void showAvatarWhenSignedOut(boolean showAvatarWhenSignedOut) {
-        mShowAvatarWhenSignedOut = showAvatarWhenSignedOut;
-        updateButtonState();
+    boolean hasSpaceToShow() {
+        return mHasSpaceToShow;
     }
 
     void setHasSpaceToShow(boolean hasSpaceToShow) {
@@ -258,11 +270,11 @@ final class SigninButtonMediator
                         ? UserActionableError.NONE
                         : mSyncService.getUserActionableError();
 
-        CoreAccountInfo coreAccountInfo = assumeNonNull(mIdentityManager).getPrimaryAccountInfo();
-        if (coreAccountInfo != null) {
+        @Nullable AccountInfo accountInfo = assumeNonNull(mIdentityManager).getPrimaryAccountInfo();
+        if (accountInfo != null) {
             assumeNonNull(mProfileDataCache)
                     .setBadge(
-                            coreAccountInfo.getId(),
+                            accountInfo.getId(),
                             mIdentityError == UserActionableError.NONE
                                     ? null
                                     : BadgeConfig.create(R.drawable.ic_error_badge_16dp)
@@ -270,7 +282,7 @@ final class SigninButtonMediator
                                             .build(mContext));
         }
 
-        @Nullable CoreAccountId id = CoreAccountInfo.getIdFrom(coreAccountInfo);
+        @Nullable CoreAccountId id = AccountInfo.getIdFrom(accountInfo);
         DisplayableProfileData profileData =
                 id == null ? null : assumeNonNull(mProfileDataCache).getById(id);
         setButton(profileData);
@@ -280,14 +292,15 @@ final class SigninButtonMediator
         boolean showSigninText =
                 profileData == null
                         && assumeNonNull(mSigninManager).isSigninAllowed()
-                        && !mShowAvatarWhenSignedOut;
+                        && !SHOW_AVATAR_WHEN_SIGNED_OUT;
 
         if (!showSigninText) {
-            mModel.set(
-                    SigninButtonProperties.BUTTON_AVATAR,
-                    profileData != null
-                            ? profileData.getImage()
-                            : AppCompatResources.getDrawable(mContext, R.drawable.account_circle));
+            Drawable avatar = profileData != null ? profileData.getImage() : getPlaceholderImage();
+            if (profileData != null) {
+                avatar = maybeApplyErrorBadgeInset(avatar);
+            }
+
+            mModel.set(SigninButtonProperties.BUTTON_AVATAR, avatar);
             mModel.set(
                     SigninButtonProperties.AVATAR_TINT,
                     profileData != null ? null : mActivityFocusTint);
@@ -332,9 +345,28 @@ final class SigninButtonMediator
         mSigninManager = IdentityServicesProvider.get().getSigninManager(profile);
         assumeNonNull(mSigninManager).addSignInStateObserver(this);
 
-        mProfileDataCache =
-                ProfileDataCache.createWithoutBadge(
-                        mContext, mIdentityManager, R.dimen.toolbar_identity_disc_size);
+        if (SigninFeatureMap.isEnabled(SigninFeatures.ENABLE_AI_SUBSCRIPTION_AVATAR_RING)) {
+            SubscriptionEligibilityService subscriptionEligibilityService =
+                    SubscriptionEligibilityServiceFactory.getForProfile(profile);
+
+            int aiTierRingThicknessPx =
+                    mContext.getResources()
+                            .getDimensionPixelSize(R.dimen.ai_tier_ring_thickness_identity_disc);
+            int aiTierImageSizePx =
+                    mContext.getResources()
+                            .getDimensionPixelSize(R.dimen.toolbar_identity_disc_size_with_ring);
+            mProfileDataCache =
+                    ProfileDataCache.createWithAiTierRing(
+                            mContext,
+                            mIdentityManager,
+                            subscriptionEligibilityService,
+                            aiTierImageSizePx,
+                            aiTierRingThicknessPx);
+        } else {
+            mProfileDataCache =
+                    ProfileDataCache.createWithoutBadge(
+                            mContext, mIdentityManager, R.dimen.toolbar_identity_disc_size);
+        }
         mProfileDataCache.addObserver(this);
         mSyncService = SyncServiceFactory.getForProfile(profile);
         if (mSyncService != null) {
@@ -350,6 +382,8 @@ final class SigninButtonMediator
         if (mProfile == null || mProfile.isOffTheRecord()) {
             return;
         }
+
+        mOnSigninTapped.run();
         recordSigninButtonUsed(mProfile);
 
         Profile originalProfile = mProfile.getOriginalProfile();
@@ -443,5 +477,46 @@ final class SigninButtonMediator
         setProfile(null);
         mProfileSupplier.removeObserver(mProfileSupplierObserver);
         mThemeColorProvider.removeTintObserver(this);
+    }
+
+    // TODO(crbug.com/522145863): Remove when AI tier is launched.
+    private Drawable maybeApplyErrorBadgeInset(Drawable avatar) {
+        if (mIdentityError == UserActionableError.NONE
+                || SigninFeatureMap.isEnabled(SigninFeatures.ENABLE_AI_SUBSCRIPTION_AVATAR_RING)) {
+            return avatar;
+        }
+
+        // The error badge makes the avatar bigger by adding to the bottom and right. Since the
+        // button is centered, this pushes it up and left. Adding an inset makes it symmetric again.
+        int badgePositionX =
+                mContext.getResources()
+                        .getDimensionPixelSize(R.dimen.toolbar_identity_disc_badge_position_x);
+        int badgeSize =
+                mContext.getResources()
+                        .getDimensionPixelSize(R.dimen.toolbar_identity_disc_badge_size);
+        int avatarSize =
+                mContext.getResources().getDimensionPixelSize(R.dimen.toolbar_identity_disc_size);
+        int insetPx = badgePositionX + badgeSize - avatarSize;
+        if (insetPx <= 0) {
+            return avatar;
+        }
+        return new InsetDrawable(avatar, /* insetLeft= */ insetPx, /* insetTop= */ insetPx, 0, 0);
+    }
+
+    private Drawable getPlaceholderImage() {
+        Drawable accountCircle =
+                AppCompatResources.getDrawable(mContext, R.drawable.account_circle);
+        if (SigninFeatureMap.isEnabled(SigninFeatures.ENABLE_AI_SUBSCRIPTION_AVATAR_RING)) {
+            int aiTierRingThicknessPx =
+                    mContext.getResources()
+                            .getDimensionPixelSize(R.dimen.ai_tier_ring_thickness_identity_disc);
+            int aiTierImageSizePx =
+                    mContext.getResources()
+                            .getDimensionPixelSize(R.dimen.toolbar_identity_disc_size_with_ring);
+
+            return ProfileDataCache.getPlaceholderImageWithAiTierRingPadding(
+                    mContext, accountCircle, aiTierImageSizePx, aiTierRingThicknessPx);
+        }
+        return accountCircle;
     }
 }

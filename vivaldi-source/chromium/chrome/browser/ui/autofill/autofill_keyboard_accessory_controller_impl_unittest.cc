@@ -110,16 +110,16 @@ TEST_F(AutofillKeyboardAccessoryControllerImplTest,
 
   ShowSuggestions(manager(), {SuggestionType::kAddressEntry});
   client().suggestion_controller(manager()).AcceptSuggestion(
-      /*index=*/0, autofill::AutofillMetrics::SuggestionAcceptedMethod::kTap);
+      /*index=*/0, AutofillMetrics::SuggestionAcceptedMethod::kTap);
   task_environment()->FastForwardBy(base::Milliseconds(100));
   client().suggestion_controller(manager()).AcceptSuggestion(
-      /*index=*/0, autofill::AutofillMetrics::SuggestionAcceptedMethod::kTap);
+      /*index=*/0, AutofillMetrics::SuggestionAcceptedMethod::kTap);
   task_environment()->FastForwardBy(base::Milliseconds(400));
 
   // Only now suggestions should be accepted.
   check.Call();
   client().suggestion_controller(manager()).AcceptSuggestion(
-      /*index=*/0, autofill::AutofillMetrics::SuggestionAcceptedMethod::kTap);
+      /*index=*/0, AutofillMetrics::SuggestionAcceptedMethod::kTap);
 }
 
 // Tests that reshowing the suggestions resets the accept threshold.
@@ -136,23 +136,23 @@ TEST_F(AutofillKeyboardAccessoryControllerImplTest,
   ShowSuggestions(manager(), {SuggestionType::kAddressEntry});
   // Calls before the threshold are ignored.
   client().suggestion_controller(manager()).AcceptSuggestion(
-      /*index=*/0, autofill::AutofillMetrics::SuggestionAcceptedMethod::kTap);
+      /*index=*/0, AutofillMetrics::SuggestionAcceptedMethod::kTap);
   task_environment()->FastForwardBy(base::Milliseconds(100));
   client().suggestion_controller(manager()).AcceptSuggestion(
-      /*index=*/0, autofill::AutofillMetrics::SuggestionAcceptedMethod::kTap);
+      /*index=*/0, AutofillMetrics::SuggestionAcceptedMethod::kTap);
   task_environment()->FastForwardBy(base::Milliseconds(400));
 
   // Show the suggestions again (simulating, e.g., a click somewhere slightly
   // different).
   ShowSuggestions(manager(), {SuggestionType::kAddressEntry});
   client().suggestion_controller(manager()).AcceptSuggestion(
-      /*index=*/0, autofill::AutofillMetrics::SuggestionAcceptedMethod::kTap);
+      /*index=*/0, AutofillMetrics::SuggestionAcceptedMethod::kTap);
 
   // After waiting again, suggestions become acceptable.
   task_environment()->FastForwardBy(base::Milliseconds(500));
   check.Call();
   client().suggestion_controller(manager()).AcceptSuggestion(
-      /*index=*/0, autofill::AutofillMetrics::SuggestionAcceptedMethod::kTap);
+      /*index=*/0, AutofillMetrics::SuggestionAcceptedMethod::kTap);
 }
 
 // Tests that calling `Show()` on the controller shows the view.
@@ -163,57 +163,6 @@ TEST_F(AutofillKeyboardAccessoryControllerImplTest, ShowCallsView) {
   EXPECT_CALL(*client().popup_view(), Show());
   ShowSuggestions(manager(), {Suggestion(u"Autocomplete entry",
                                          SuggestionType::kAutocompleteEntry)});
-}
-
-TEST_F(AutofillKeyboardAccessoryControllerImplTest,
-       ShowAtMemoryBottomSheetDoesNotShowPopupView) {
-  // Ensure that controller and view have been created.
-  client().suggestion_controller(manager());
-
-  EXPECT_CALL(*client().popup_view(), Show()).Times(0);
-
-  std::vector<Suggestion> suggestions = {
-      Suggestion(u"test", SuggestionType::kAddressEntry)};
-  client().suggestion_controller(manager()).Show(
-      AutofillSuggestionController::GenerateSuggestionUiSessionId(),
-      suggestions, AutofillSuggestionTriggerSource::kAtMemory,
-      AutoselectFirstSuggestion(false),
-      AutofillSuggestionsIgnoreFocusLoss(false));
-}
-
-TEST_F(AutofillKeyboardAccessoryControllerImplTest,
-       ShowAtMemoryBottomSheetPassesSuggestions) {
-  client().suggestion_controller(manager());
-
-  std::vector<Suggestion> suggestions = {
-      Suggestion(u"test", SuggestionType::kAddressEntry)};
-
-  EXPECT_CALL(client(), ShowAtMemoryBottomSheet(ElementsAreArray(suggestions)));
-
-  client().suggestion_controller(manager()).Show(
-      AutofillSuggestionController::GenerateSuggestionUiSessionId(),
-      suggestions, AutofillSuggestionTriggerSource::kAtMemory,
-      AutoselectFirstSuggestion(false),
-      AutofillSuggestionsIgnoreFocusLoss(false));
-}
-
-TEST_F(AutofillKeyboardAccessoryControllerImplTest,
-       HideDoesNotHideForAtMemoryWhenReasonIsEndEditing) {
-  client().suggestion_controller(manager());
-
-  std::vector<Suggestion> suggestions = {
-      Suggestion(u"test", SuggestionType::kAddressEntry)};
-
-  client().suggestion_controller(manager()).Show(
-      AutofillSuggestionController::GenerateSuggestionUiSessionId(),
-      suggestions, AutofillSuggestionTriggerSource::kAtMemory,
-      AutoselectFirstSuggestion(false),
-      AutofillSuggestionsIgnoreFocusLoss(false));
-
-  EXPECT_CALL(manager().external_delegate(), OnSuggestionsHidden).Times(0);
-
-  client().suggestion_controller(manager()).Hide(
-      SuggestionHidingReason::kEndEditing);
 }
 
 // Tests that calling `Hide()` on the controller hides and destroys the view.
@@ -236,10 +185,10 @@ TEST_F(AutofillKeyboardAccessoryControllerImplTest,
                                          SuggestionType::kAutocompleteEntry)});
 
   EXPECT_CALL(manager().external_delegate(),
-              OnSuggestionsHidden(SuggestionHidingReason::kNavigation));
+              OnSuggestionsHidden(SuggestionHidingReason::kRendererEvent));
 
   client().suggestion_controller(manager()).Hide(
-      SuggestionHidingReason::kNavigation);
+      SuggestionHidingReason::kRendererEvent);
 }
 
 TEST_F(AutofillKeyboardAccessoryControllerImplTest,
@@ -454,6 +403,46 @@ TEST_F(AutofillKeyboardAccessoryControllerImplTest, RemoveAfterConfirmation) {
       AutofillMetrics::SingleEntryRemovalMethod::kKeyboardAccessory));
 }
 
+// Tests that if suggestions are updated while a deletion confirmation dialog is
+// open, confirming the deletion of the old suggestion does not result in
+// deleting a wrong suggestion at a stale index.
+TEST_F(AutofillKeyboardAccessoryControllerImplTest,
+       RemoveSuggestion_StaleIndexDeletesWrongSuggestion) {
+  const auto suggestion1 =
+      Suggestion(u"Autocomplete entry 1", SuggestionType::kAutocompleteEntry);
+  const auto suggestion2 =
+      Suggestion(u"Autocomplete entry 2", SuggestionType::kAutocompleteEntry);
+
+  ShowSuggestions(manager(), {suggestion1, suggestion2});
+  ASSERT_TRUE(client().popup_view());
+
+  base::OnceCallback<void(bool)> captured_deletion_callback;
+  EXPECT_CALL(*client().popup_view(), ConfirmDeletion)
+      .WillOnce([&](const std::u16string& title, const std::u16string& body,
+                    const std::u16string& body_link,
+                    const std::u16string& confirm_button_text,
+                    base::OnceCallback<void(bool)> deletion_callback) {
+        captured_deletion_callback = std::move(deletion_callback);
+      });
+
+  // User long-presses suggestion at index 0
+  EXPECT_TRUE(client().suggestion_controller(manager()).RemoveSuggestion(
+      /*index=*/0,
+      AutofillMetrics::SingleEntryRemovalMethod::kKeyboardAccessory));
+  ASSERT_FALSE(captured_deletion_callback.is_null());
+
+  // While dialog is pending, suggestions list changes
+  const auto suggestion3 =
+      Suggestion(u"Autocomplete entry 3", SuggestionType::kAutocompleteEntry);
+  ShowSuggestions(manager(), {suggestion2, suggestion3});
+
+  // When user confirms deletion dialog, suggestion1 is no longer in
+  // suggestions_, so RemoveSuggestion is NEVER called.
+  EXPECT_CALL(manager().external_delegate(), RemoveSuggestion).Times(0);
+
+  std::move(captured_deletion_callback).Run(/*confirmed=*/true);
+}
+
 // When a suggestion is accepted, the popup is hidden inside
 // `delegate->DidAcceptSuggestion()`. On Android, some code is still being
 // executed after hiding. This test makes sure no use-after-free, null pointer
@@ -469,7 +458,7 @@ TEST_F(AutofillKeyboardAccessoryControllerImplTest,
             SuggestionHidingReason::kAcceptSuggestion);
       });
   client().suggestion_controller(manager()).AcceptSuggestion(
-      /*index=*/0, autofill::AutofillMetrics::SuggestionAcceptedMethod::kTap);
+      /*index=*/0, AutofillMetrics::SuggestionAcceptedMethod::kTap);
 }
 
 TEST_F(AutofillKeyboardAccessoryControllerImplTest,
@@ -484,7 +473,7 @@ TEST_F(AutofillKeyboardAccessoryControllerImplTest,
 
   // This should not call manual_filling_controller->Hide().
   client().suggestion_controller(manager()).AcceptSuggestion(
-      /*index=*/0, autofill::AutofillMetrics::SuggestionAcceptedMethod::kTap);
+      /*index=*/0, AutofillMetrics::SuggestionAcceptedMethod::kTap);
 }
 
 TEST_F(AutofillKeyboardAccessoryControllerImplTest,
@@ -503,7 +492,7 @@ TEST_F(AutofillKeyboardAccessoryControllerImplTest,
 
   // This should call manual_filling_controller->Hide().
   client().suggestion_controller(manager()).AcceptSuggestion(
-      /*index=*/0, autofill::AutofillMetrics::SuggestionAcceptedMethod::kTap);
+      /*index=*/0, AutofillMetrics::SuggestionAcceptedMethod::kTap);
 }
 
 TEST_F(AutofillKeyboardAccessoryControllerImplTest,
@@ -531,7 +520,7 @@ TEST_F(AutofillKeyboardAccessoryControllerImplTest,
 
   EXPECT_CALL(manager().external_delegate(), DidAcceptSuggestion).Times(0);
   client().suggestion_controller(manager()).AcceptSuggestion(
-      /*index=*/0, autofill::AutofillMetrics::SuggestionAcceptedMethod::kTap);
+      /*index=*/0, AutofillMetrics::SuggestionAcceptedMethod::kTap);
 }
 
 // Tests that the `KeyboardAccessoryController` moves "clear form" suggestions
@@ -590,10 +579,10 @@ TEST_F(AutofillKeyboardAccessoryControllerImplTest, SelectInvalidSuggestion) {
   // The following should not crash:
   client().suggestion_controller(manager()).AcceptSuggestion(
       /*index=*/0,  // Non-acceptable type.
-      autofill::AutofillMetrics::SuggestionAcceptedMethod::kTap);
+      AutofillMetrics::SuggestionAcceptedMethod::kTap);
   client().suggestion_controller(manager()).AcceptSuggestion(
       /*index=*/1,  // Out of bounds!
-      autofill::AutofillMetrics::SuggestionAcceptedMethod::kTap);
+      AutofillMetrics::SuggestionAcceptedMethod::kTap);
 }
 
 // Tests that the profile deletion metric is recorded as true (accepted) when

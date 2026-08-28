@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Vivaldi Technologies AS. All rights reserved
+
+import("//mojo/public/tools/bindings/mojom.gni")
+
+mojom("mojom") {
+  sources = [ "vivaldi_user_agent_config.mojom" ]
+
+  input_root_override = "//vivaldi/"
+}

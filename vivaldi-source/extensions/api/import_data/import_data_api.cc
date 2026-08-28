@@ -50,7 +50,6 @@
 #include "extensions/common/url_pattern_set.h"
 
 #include "chrome/app/chrome_command_ids.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/menus/simple_menu_model.h"
 #include "ui/views/controls/menu/menu_runner.h"

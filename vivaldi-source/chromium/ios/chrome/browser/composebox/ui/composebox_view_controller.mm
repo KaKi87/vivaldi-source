@@ -20,11 +20,15 @@
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/common/ui/util/ui_util.h"
+#import "ui/base/device_form_factor.h"
 
 namespace {
 /// The padding for the close button.
 const CGFloat kCloseButtonTopMargin = 7.0f;
 const CGFloat kCloseButtonDefaultPadding = 10.0f;
+/// Offset to avoid macOS-style window controls (traffic lights) at the top-left
+/// of the window in compact horizontal size class on iPad.
+const CGFloat kInputPlateIpadWindowControlsOffset = 70.0f;
 /// The trailing and top padding for the input plate container.
 const CGFloat kInputPlateTrailingPadding = 8.0f;
 const CGFloat kInputPlateTopPadding = 4.0f;
@@ -56,9 +60,9 @@ UIImage* CloseButtonImage(UIColor* backgroundColor, BOOL highlighted) {
                           weight:UIImageSymbolWeightLight
                            scale:UIImageSymbolScaleMedium];
 
-  return SymbolWithPalette(DefaultSymbolWithConfiguration(
-                               kXMarkCircleFillSymbol, symbolConfiguration),
-                           palette);
+  return SymbolWithPalette(
+      SymbolWithConfiguration(SymbolXMarkCircleFill, symbolConfiguration),
+      palette);
 }
 
 }  // namespace
@@ -318,10 +322,12 @@ UIImage* CloseButtonImage(UIColor* backgroundColor, BOOL highlighted) {
   UILayoutGuide* safeAreaGuide = self.view.safeAreaLayoutGuide;
 
   // Close button.
+  NSLayoutConstraint* closeButtonTrailingConstraint =
+      [_closeButton.trailingAnchor
+          constraintEqualToAnchor:safeAreaGuide.trailingAnchor
+                         constant:-kCloseButtonDefaultPadding];
   NSMutableArray* closeButtonConstraints = [@[
-    [_closeButton.trailingAnchor
-        constraintEqualToAnchor:safeAreaGuide.trailingAnchor
-                       constant:-kCloseButtonDefaultPadding],
+    closeButtonTrailingConstraint,
     [_closeButton.heightAnchor constraintEqualToConstant:kCloseButtonSize],
     [_closeButton.widthAnchor constraintEqualToAnchor:_closeButton.heightAnchor]
   ] mutableCopy];
@@ -477,14 +483,29 @@ UIImage* CloseButtonImage(UIColor* backgroundColor, BOOL highlighted) {
                   ? -kReducedTransparencyInputPlateBottomMargin
                   : -kBlurBottomMargin,
               0));
+      AddSameConstraintsToSides(_progressiveBlurEffect, self.view,
+                                LayoutSides::kTop);
       AddSameConstraintsToSides(
           _progressiveBlurEffect, safeAreaGuide,
-          LayoutSides::kTop | LayoutSides::kLeading | LayoutSides::kTrailing);
+          LayoutSides::kLeading | LayoutSides::kTrailing);
+
+      CGFloat leadingMargin = kInputPlateIpadMargin;
+      if (!IsRegularXRegularSizeClass(self.traitCollection)) {
+        BOOL isRTL = [self.view effectiveUserInterfaceLayoutDirection] ==
+                     UIUserInterfaceLayoutDirectionRightToLeft;
+        if (isRTL) {
+          // Close button is on the trailing end in RTL, so update trailing end.
+          closeButtonTrailingConstraint.constant =
+              -kInputPlateIpadWindowControlsOffset;
+        } else {
+          leadingMargin = kInputPlateIpadWindowControlsOffset;
+        }
+      }
 
       [_constraintsForCurrentPosition addObjectsFromArray:@[
         [_inputViewController.view.leadingAnchor
             constraintEqualToAnchor:safeAreaGuide.leadingAnchor
-                           constant:kInputPlateIpadMargin],
+                           constant:leadingMargin],
         [_inputViewController.view.topAnchor
             constraintEqualToAnchor:safeAreaGuide.topAnchor
                            constant:kInputPlateIpadMargin],
@@ -503,9 +524,9 @@ UIImage* CloseButtonImage(UIColor* backgroundColor, BOOL highlighted) {
           [_inputViewController.view.trailingAnchor
               constraintEqualToAnchor:_closeButton.leadingAnchor
                              constant:-kInputPlateTrailingPadding],
-          [_closeButton.topAnchor
-              constraintEqualToAnchor:_inputViewController.view.topAnchor
-                             constant:0]
+          [_closeButton.centerYAnchor
+              constraintEqualToAnchor:_inputViewController.omniboxContainer
+                                          .centerYAnchor]
         ]];
 
         _closeButton.hidden = NO;
@@ -643,7 +664,7 @@ UIImage* CloseButtonImage(UIColor* backgroundColor, BOOL highlighted) {
     (id<UIContentContainer>)container {
   [super preferredContentSizeDidChangeForChildContentContainer:container];
   if (IsComposeboxIpadEnabled() &&
-      UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+      ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
     [self updatePreferredContentSize:container];
   }
 }
@@ -714,6 +735,13 @@ UIImage* CloseButtonImage(UIColor* backgroundColor, BOOL highlighted) {
 - (void)popupDidCloseForPresenter:(OmniboxPopupPresenter*)presenter {
   _incognitoView.hidden = NO;
   _omniboxPopupContainer.hidden = YES;
+  if ([self currentInputPlatePosition] == ComposeboxInputPlatePosition::kiPad) {
+    // When the omnibox popup is closed (e.g. because suggestion results went
+    // from some to none), the preferred content size must be updated to
+    // collapse the container and remove empty white space.
+    _omniboxPreferredContentHeight = 0;
+    [self updatePreferredContentSize:_inputViewController];
+  }
   [self.proxiedPresenterDelegate popupDidCloseForPresenter:presenter];
 }
 

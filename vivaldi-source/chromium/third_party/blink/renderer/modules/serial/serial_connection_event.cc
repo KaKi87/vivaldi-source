@@ -1,36 +1,28 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2026 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/serial/serial_connection_event.h"
 
-#include "third_party/blink/renderer/bindings/modules/v8/v8_serial_connection_event_init.h"
-#include "third_party/blink/renderer/modules/serial/serial_port.h"
+#include "third_party/blink/renderer/platform/bindings/dom_wrapper_world.h"
 
 namespace blink {
 
-SerialConnectionEvent* SerialConnectionEvent::Create(
-    const AtomicString& type,
-    const SerialConnectionEventInit* initializer) {
-  return MakeGarbageCollected<SerialConnectionEvent>(type, initializer);
-}
-
-SerialConnectionEvent* SerialConnectionEvent::Create(const AtomicString& type,
-                                                     SerialPort* port) {
-  return MakeGarbageCollected<SerialConnectionEvent>(type, port);
-}
-
-SerialConnectionEvent::SerialConnectionEvent(
-    const AtomicString& type,
-    const SerialConnectionEventInit* initializer)
-    : Event(type, initializer), port_(initializer->port()) {}
-
 SerialConnectionEvent::SerialConnectionEvent(const AtomicString& type,
-                                             SerialPort* port)
-    : Event(type, Bubbles::kNo, Cancelable::kNo), port_(port) {}
+                                             const DOMWrapperWorld* world)
+    // Note: Bubbles::kYes is required here because in Web Serial, connection
+    // and disconnection events are dispatched directly onto the originating
+    // SerialPort instances. They must bubble up to the frame-level Serial
+    // (navigator.serial) parent object to support global event listeners.
+    : Event(type, Bubbles::kYes, Cancelable::kNo), world_(world) {}
+
+bool SerialConnectionEvent::CanBeDispatchedInWorld(
+    const DOMWrapperWorld& world) const {
+  return !world_ || &world == world_.Get();
+}
 
 void SerialConnectionEvent::Trace(Visitor* visitor) const {
-  visitor->Trace(port_);
+  visitor->Trace(world_);
   Event::Trace(visitor);
 }
 

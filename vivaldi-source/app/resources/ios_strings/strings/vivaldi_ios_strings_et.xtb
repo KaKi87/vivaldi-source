@@ -48,7 +48,6 @@
 <translation id="4772190485302020393">Sulge kõik kaardid ja virnad</translation>
 <translation id="4802185666270672526">Peida „Saidi arvutiversioon”</translation>
 <translation id="4828571836982833289">Kas lammutada kaardivirn?</translation>
-<translation id="4838250035189612538">Muuda virna nime</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 kaardivirn suletud ja salvestatud}
             other {{count} kaardivirna suletud ja salvestatud}}</translation>

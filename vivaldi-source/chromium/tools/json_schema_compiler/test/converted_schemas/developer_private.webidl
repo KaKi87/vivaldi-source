@@ -255,6 +255,7 @@ dictionary ExtensionInfo {
   required boolean isAffectedByMV2Deprecation;
   required boolean didAcknowledgeMV2DeprecationNotice;
   required boolean canUploadAsAccountExtension;
+  required boolean isManifestV2;
 };
 
 dictionary ProfileInfo {

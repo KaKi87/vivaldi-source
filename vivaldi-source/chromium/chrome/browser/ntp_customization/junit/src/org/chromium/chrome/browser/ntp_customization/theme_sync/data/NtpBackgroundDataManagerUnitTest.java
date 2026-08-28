@@ -5,11 +5,13 @@
 package org.chromium.chrome.browser.ntp_customization.theme_sync.data;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.view.ContextThemeWrapper;
 
 import androidx.test.core.app.ApplicationProvider;
@@ -21,9 +23,12 @@ import org.junit.runner.RunWith;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.RobolectricUtil;
+import org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils;
 import org.chromium.chrome.browser.ntp_customization.R;
 import org.chromium.chrome.browser.ntp_customization.theme.chrome_colors.NtpThemeColorInfo.NtpThemeColorId;
-import org.chromium.chrome.browser.ntp_customization.theme_sync.data.NtpBackgroundDataBase.PlatformType;
+
+import java.io.File;
 
 /** Tests for {@link NtpBackgroundDataManager}. */
 @RunWith(BaseRobolectricTestRunner.class)
@@ -70,6 +75,7 @@ public class NtpBackgroundDataManagerUnitTest {
 
         // Save first data.
         mManager.saveRemoteSyncDataToSharedPreference(data1);
+        RobolectricUtil.runAllBackgroundAndUi();
         NtpBackgroundDataGroup group =
                 mManager.getBackgroundDataGroupFromSharedPreference(platformType);
         assertEquals(1, group.size());
@@ -77,6 +83,7 @@ public class NtpBackgroundDataManagerUnitTest {
 
         // Save second data. It should be moved to the first.
         mManager.saveRemoteSyncDataToSharedPreference(data2);
+        RobolectricUtil.runAllBackgroundAndUi();
         group = mManager.getBackgroundDataGroupFromSharedPreference(platformType);
         assertEquals(2, group.size());
         assertEquals(data2, group.get(0));
@@ -84,6 +91,7 @@ public class NtpBackgroundDataManagerUnitTest {
 
         // Save third data. It should remove the last one (MAXIMUM_REMOTE_HISTORY = 2).
         mManager.saveRemoteSyncDataToSharedPreference(data3);
+        RobolectricUtil.runAllBackgroundAndUi();
         group = mManager.getBackgroundDataGroupFromSharedPreference(platformType);
         assertEquals(2, group.size());
         assertEquals(data3, group.get(0));
@@ -91,6 +99,7 @@ public class NtpBackgroundDataManagerUnitTest {
 
         // Save first data again. It should move to the first.
         mManager.saveRemoteSyncDataToSharedPreference(data2);
+        RobolectricUtil.runAllBackgroundAndUi();
         group = mManager.getBackgroundDataGroupFromSharedPreference(platformType);
         assertEquals(2, group.size());
         assertEquals(data2, group.get(0));
@@ -101,7 +110,7 @@ public class NtpBackgroundDataManagerUnitTest {
     public void testSaveRemoteSyncDataListToSharedPreference() {
         @PlatformType int platformType1 = PlatformType.IOS;
         @PlatformType int platformType2 = PlatformType.DESKTOP;
-        @PlatformType int platformType3 = PlatformType.ANDROID_LOCAL;
+        @PlatformType int platformType3 = PlatformType.ANDROID;
         NtpBackgroundDataColor data1 =
                 new NtpBackgroundDataColor(
                         mContext,
@@ -126,6 +135,7 @@ public class NtpBackgroundDataManagerUnitTest {
         dataGroup.add(data3);
 
         mManager.saveRemoteSyncDataToSharedPreference(dataGroup);
+        RobolectricUtil.runAllBackgroundAndUi();
         NtpBackgroundDataGroup group1 =
                 mManager.getBackgroundDataGroupFromSharedPreference(platformType1);
         assertNotNull(group1);
@@ -145,7 +155,7 @@ public class NtpBackgroundDataManagerUnitTest {
 
     @Test
     public void testSaveUserSelectedBackgroundTypeToSharedPreference() {
-        @PlatformType int localPlatform = PlatformType.ANDROID_LOCAL;
+        @PlatformType int localPlatform = PlatformType.ANDROID;
         NtpBackgroundDataColor localData1 =
                 new NtpBackgroundDataColor(
                         mContext,
@@ -220,7 +230,91 @@ public class NtpBackgroundDataManagerUnitTest {
     }
 
     @Test
+    public void testSaveUserSelectedBackgroundTypeToSharedPreference_Duplicate() {
+        @PlatformType int localPlatform = PlatformType.ANDROID;
+        NtpBackgroundDataColor localData1 =
+                new NtpBackgroundDataColor(
+                        mContext,
+                        localPlatform,
+                        NtpThemeColorId.NTP_COLORS_BLUE,
+                        /* isChromeColorDailyRefreshEnabled= */ true);
+        NtpBackgroundDataColor localData2 =
+                new NtpBackgroundDataColor(
+                        mContext,
+                        localPlatform,
+                        NtpThemeColorId.NTP_COLORS_AQUA,
+                        /* isChromeColorDailyRefreshEnabled= */ true);
+
+        // Save local selections.
+        mManager.saveUserSelectedBackgroundTypeToSharedPreference(localData1);
+        mManager.saveUserSelectedBackgroundTypeToSharedPreference(localData2);
+        NtpBackgroundDataGroup group =
+                mManager.getBackgroundDataGroupFromSharedPreference(localPlatform);
+        assertEquals(2, group.size());
+        assertEquals(localData2, group.get(0));
+        assertEquals(localData1, group.get(1));
+
+        // Save localData1 again. It should move to the front and size remains 2.
+        mManager.saveUserSelectedBackgroundTypeToSharedPreference(localData1);
+        group = mManager.getBackgroundDataGroupFromSharedPreference(localPlatform);
+        assertEquals(2, group.size());
+        assertEquals(localData1, group.get(0));
+        assertEquals(localData2, group.get(1));
+    }
+
+    @Test
+    public void testSaveUserSelectedBackgroundType_EvictsUploadImage() {
+        @PlatformType int localPlatform = PlatformType.ANDROID;
+        Bitmap bitmap = Bitmap.createBitmap(10, 10, Bitmap.Config.ARGB_8888);
+        String fileHash = "evictedFileHash";
+
+        NtpBackgroundDataUploadImage uploadImage =
+                new NtpBackgroundDataUploadImage(
+                        localPlatform,
+                        /* backgroundImageInfo= */ null,
+                        bitmap,
+                        /* primaryColor= */ null,
+                        fileHash);
+
+        File savedFile = new File(uploadImage.getLastUploadImageFilePath());
+        NtpCustomizationUtils.saveBitmapImageToFile(bitmap, savedFile);
+        RobolectricUtil.runAllBackgroundAndUi();
+        assertTrue(savedFile.exists());
+
+        // Save local selection.
+        mManager.saveUserSelectedBackgroundTypeToSharedPreference(uploadImage);
+
+        // Fill up history to exceed MAXIMUM_LOCAL_HISTORY (which is 3).
+        for (int i = 0; i < 3; i++) {
+            NtpBackgroundDataColor colorData =
+                    new NtpBackgroundDataColor(
+                            mContext,
+                            localPlatform,
+                            NtpThemeColorId.NTP_COLORS_BLUE + i,
+                            /* isChromeColorDailyRefreshEnabled= */ true);
+            mManager.saveUserSelectedBackgroundTypeToSharedPreference(colorData);
+        }
+
+        // Verify that the uploadImage was evicted and its local file was deleted.
+        NtpBackgroundDataGroup group =
+                mManager.getBackgroundDataGroupFromSharedPreference(localPlatform);
+        assertEquals(3, group.size());
+        boolean containsUploadImage = false;
+        for (int j = 0; j < group.size(); j++) {
+            if (group.get(j).equals(uploadImage)) {
+                containsUploadImage = true;
+                break;
+            }
+        }
+        assertFalse(containsUploadImage);
+        assertFalse(savedFile.exists());
+
+        // Clean up
+        NtpCustomizationUtils.deleteThemeImageFileDir(NtpCustomizationUtils.NTP_UPLOAD_IMAGES_DIR);
+    }
+
+    @Test
     public void testGetJsonArrayFromSharedPreferenceImpl_Empty() {
-        assertNull(mManager.getJsonArrayFromSharedPreferenceImpl(PlatformType.ANDROID_LOCAL));
+        assertNull(mManager.getJsonArrayFromSharedPreferenceImpl(PlatformType.ANDROID));
     }
 }

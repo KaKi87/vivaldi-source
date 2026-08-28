@@ -6,6 +6,7 @@
 
 #include <optional>
 
+#include "src/base/strong-alias.h"
 #include "src/builtins/builtins-constructor-gen.h"
 #include "src/builtins/builtins-string-gen.h"
 #include "src/builtins/builtins-utils-gen.h"
@@ -557,7 +558,7 @@ RegExpBuiltinsAssembler::InitializeMatchInfoFromRegisters(
                               smi_value);
           Increment(&var_to_offset, kTaggedSize);
         },
-        kInt32Size, LoopUnrollingMode::kYes, IndexAdvanceMode::kPost);
+        kInt32Size, kLoopUnrolling, IndexAdvanceMode::kPost);
   }
 
   return var_match_info.value();
@@ -852,7 +853,9 @@ TNode<UintPtrT> RegExpBuiltinsAssembler::RegExpExecInternal(
         TrustedCast<IrRegExpData>(data, "type checked above");
 
 #ifdef V8_ENABLE_SANDBOX
-    TNode<Code> code = ResolveCodePointerHandle(var_code.value());
+    TNode<Code> code = TrustedCast<Code>(
+        ResolveIndirectPointerHandle(var_code.value(), kCodeIndirectPointerTag),
+        "from trusted table");
 #else
     TNode<Code> code = TrustedCast<Code>(var_code.value(), "no sandbox");
 #endif
@@ -917,7 +920,7 @@ TNode<UintPtrT> RegExpBuiltinsAssembler::RegExpExecInternal(
     static_assert(
         Internals::IsValidSmi(Isolate::kJSRegexpStaticOffsetsVectorSize));
     TNode<Smi> result_as_smi = CAST(CallRuntime(
-        Runtime::kRegExpExperimentalOneshotExec, context, regexp, string,
+        Runtime::kRegExpExperimentalOneshotExec, context, data, string,
         last_index, SmiFromInt32(result_offsets_vector_length)));
     var_result = UncheckedCast<UintPtrT>(SmiUntag(result_as_smi));
 #ifdef DEBUG
@@ -937,7 +940,7 @@ TNode<UintPtrT> RegExpBuiltinsAssembler::RegExpExecInternal(
     static_assert(
         Internals::IsValidSmi(Isolate::kJSRegexpStaticOffsetsVectorSize));
     TNode<Smi> result_as_smi = CAST(
-        CallRuntime(Runtime::kRegExpExec, context, regexp, string, last_index,
+        CallRuntime(Runtime::kRegExpExec, context, data, string, last_index,
                     SmiFromInt32(result_offsets_vector_length)));
     var_result = UncheckedCast<UintPtrT>(SmiUntag(result_as_smi));
 #ifdef DEBUG
@@ -1600,7 +1603,8 @@ TNode<Number> RegExpBuiltinsAssembler::AdvanceStringIndex(
     // Must be in Smi range on the fast path. We control the value of {index}
     // on all call-sites and can never exceed the length of the string.
     static_assert(String::kMaxLength + 2 < Smi::kMaxValue);
-    CSA_DCHECK(this, TaggedIsPositiveSmi(index_plus_one));
+    // TODO(532595489): Hard CHECK for now as a quick fix.
+    CSA_CHECK(this, TaggedIsPositiveSmi(index_plus_one));
   }
 
   Label if_isunicode(this), out(this);
@@ -2085,8 +2089,8 @@ TNode<IntPtrT> RegExpBuiltinsAssembler::RegExpExecInternal_Batched(
             var_start_of_last_match = start;
             var_last_index = end;
           },
-          inner_loop_increment, LoopUnrollingMode::kYes,
-          IndexAdvanceMode::kPost, IndexAdvanceDirection::kUp);
+          inner_loop_increment, kLoopUnrolling, IndexAdvanceMode::kPost,
+          IndexAdvanceDirection::kUp);
     }
 
     GotoIf(
@@ -2178,7 +2182,7 @@ TNode<String> RegExpBuiltinsAssembler::AppendStringSlice(
   TNode<String> slice = CAST(CallBuiltin(Builtin::kSubString, context,
                                          from_string, slice_start, slice_end));
   return CAST(
-      CallBuiltin(Builtin::kStringAdd_CheckNone, context, to_string, slice));
+      CallBuiltin(Builtin::kStringAdd_NoMapCheck, context, to_string, slice));
 }
 
 TNode<String> RegExpBuiltinsAssembler::RegExpReplaceGlobalSimpleString(
@@ -2216,7 +2220,7 @@ TNode<String> RegExpBuiltinsAssembler::RegExpReplaceGlobalSimpleString(
           Label next(this);
           GotoIf(SmiEqual(replace_string_length, SmiConstant(0)), &next);
 
-          var_result = CAST(CallBuiltin(Builtin::kStringAdd_CheckNone, context,
+          var_result = CAST(CallBuiltin(Builtin::kStringAdd_NoMapCheck, context,
                                         var_result.value(), replace_string));
           Goto(&next);
 

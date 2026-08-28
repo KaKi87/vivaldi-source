@@ -1018,7 +1018,8 @@ void WindowState::UpdateWindowPropertiesFromStateType() {
                          should_round_window);
   }
 
-  if (window_->GetProperty(ash::kWindowManagerManagesOpacityKey)) {
+  if (!window_->is_destroying() &&
+      window_->GetProperty(ash::kWindowManagerManagesOpacityKey)) {
     const gfx::Size& size = window_->bounds().size();
     if (ShouldSetExplicitOpaqueRegionsForOcclusion(this)) {
       window_->SetTransparent(true);
@@ -1032,8 +1033,14 @@ void WindowState::UpdateWindowPropertiesFromStateType() {
 
 void WindowState::NotifyPreStateTypeChange(
     WindowStateType old_window_state_type) {
-  for (auto& observer : observer_list_)
-    observer.OnPreWindowStateTypeChange(this, old_window_state_type);
+  // Allow reentrancy here. If there are any ongoing drag events when tablet
+  // mode is exited (which triggers the first state change), the drag events are
+  // forced to complete. This could potentially trigger a second state change,
+  // such as window snapping or maximizing.
+  observer_list_.NotifyAllowReentrancy(
+      &WindowStateObserver::OnPreWindowStateTypeChange, this,
+      old_window_state_type);
+
   OnPrePipStateChange(old_window_state_type);
 }
 
@@ -1506,7 +1513,7 @@ void WindowState::OnWindowBoundsChanged(aura::Window* window,
                                         const gfx::Rect& new_bounds,
                                         ui::PropertyChangeReason reason) {
   CHECK_EQ(window_, window);
-  if (window_->GetTransparent() &&
+  if (!window->is_destroying() && window_->GetTransparent() &&
       ShouldSetExplicitOpaqueRegionsForOcclusion(this)) {
     window_->SetOpaqueRegionsForOcclusion({gfx::Rect(new_bounds.size())});
   }

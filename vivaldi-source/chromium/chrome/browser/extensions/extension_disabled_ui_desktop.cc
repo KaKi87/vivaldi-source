@@ -34,7 +34,9 @@
 #include "extensions/common/extension.h"
 #include "extensions/common/icons/extension_icon_set.h"
 #include "extensions/common/permissions/permission_message.h"
+#include "extensions/common/permissions/permission_set.h"
 #include "extensions/common/permissions/permissions_data.h"
+#include "extensions/strings/grit/extensions_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -165,6 +167,13 @@ ExtensionDisabledGlobalError::GetBubbleViewMessages() {
 
   std::unique_ptr<const PermissionSet> granted_permissions =
       ExtensionPrefs::Get(profile_)->GetGrantedPermissions(extension_->id());
+  // The granted-permissions pref may be missing or malformed (observed during
+  // install/uninstall/update races and on corrupted profiles). Fall back to an
+  // empty set so all current permissions are treated as newly granted, rather
+  // than dereferencing a null pointer.
+  if (!granted_permissions) {
+    granted_permissions = std::make_unique<PermissionSet>();
+  }
 
   PermissionMessages permission_warnings =
       extension_->permissions_data()->GetNewPermissionMessages(
@@ -221,7 +230,7 @@ void ExtensionDisabledGlobalError::BubbleViewAcceptButtonPressed(
 void ExtensionDisabledGlobalError::BubbleViewCancelButtonPressed(
     Browser* browser) {
   uninstall_dialog_ = ExtensionUninstallDialog::Create(
-      profile_, browser->window()->GetNativeWindow(), this);
+      profile_, browser->GetWindow()->GetNativeWindow(), this);
   // Delay showing the uninstall dialog, so that this function returns
   // immediately, to close the bubble properly. See crbug.com/40184398.
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(

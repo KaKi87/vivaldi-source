@@ -49,12 +49,27 @@
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/simple_url_loader.h"
 #include "url/gurl.h"
+#include "url/origin.h"
 
 namespace reporting {
 
 namespace {
 const base::FilePath* g_allowed_directory_for_testing = nullptr;
 constexpr char kTargetDir[] = "/var/spool/support";
+
+bool IsUrlAllowed(const GURL& url) {
+  if (!url.is_valid()) {
+    return false;
+  }
+  if (url.DomainIs("googleapis.com")) {
+    return true;
+  }
+  if (g_allowed_directory_for_testing &&
+      (url.host() == "127.0.0.1" || url.DomainIs("localhost"))) {
+    return true;
+  }
+  return false;
+}
 }  // namespace
 
 constexpr char kAuthorizationPrefix[] = "Bearer ";
@@ -382,6 +397,14 @@ class FileUploadDelegate::InitContext
           base::unexpected(Status(error::DATA_LOSS, "No upload URL returned")));
       return;
     }
+    if (!delegate() ||
+        !delegate()->IsResumableUploadUrlAllowed(GURL(*upload_url))) {
+      Complete(base::unexpected(
+          Status(error::INVALID_ARGUMENT,
+                 base::StrCat(
+                     {"Resumable upload URL is not allowed=", *upload_url}))));
+      return;
+    }
 
     Complete(std::make_pair(total_,
                             base::StrCat({origin_path_, "\n", *upload_url})));
@@ -466,10 +489,16 @@ class FileUploadDelegate::NextStepContext
     }
     origin_path_ = tokens[0];
     resumable_upload_url_ = GURL(tokens[1]);
-    if (!resumable_upload_url_.is_valid()) {
+    if (!IsUrlAllowed(resumable_upload_url_)) {
       Complete(base::unexpected(
           Status(error::DATA_LOSS,
                  base::StrCat({"Corrupt resumable upload URL=", tokens[1]}))));
+      return;
+    }
+    if (!delegate()->IsResumableUploadUrlAllowed(resumable_upload_url_)) {
+      Complete(base::unexpected(Status(
+          error::INVALID_ARGUMENT,
+          base::StrCat({"Resumable upload URL is not allowed=", tokens[1]}))));
       return;
     }
 
@@ -786,7 +815,7 @@ class FileUploadDelegate::FinalContext
     }
     origin_path_ = tokens[0];
     resumable_upload_url_ = GURL(tokens[1]);
-    if (!resumable_upload_url_.is_valid()) {
+    if (!IsUrlAllowed(resumable_upload_url_)) {
       base::UmaHistogramEnumeration(
           reporting::kUmaDataLossErrorReason,
           DataLossErrorReason::CORRUPT_RESUMABLE_UPLOAD_URL,
@@ -794,6 +823,12 @@ class FileUploadDelegate::FinalContext
       Complete(base::unexpected(
           Status(error::DATA_LOSS,
                  base::StrCat({"Corrupt resumable upload URL=", tokens[1]}))));
+      return;
+    }
+    if (!delegate()->IsResumableUploadUrlAllowed(resumable_upload_url_)) {
+      Complete(base::unexpected(Status(
+          error::INVALID_ARGUMENT,
+          base::StrCat({"Resumable upload URL is not allowed=", tokens[1]}))));
       return;
     }
 
@@ -974,6 +1009,11 @@ bool FileUploadDelegate::IsPathAllowed(const base::FilePath& path) {
   return path.DirName() == allowed_dir;
 }
 
+bool FileUploadDelegate::IsResumableUploadUrlAllowed(const GURL& url) const {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  return url.is_valid() && url::IsSameOriginWith(url, upload_url_);
+}
+
 FileUploadDelegate::FileUploadDelegate() {
   DETACH_FROM_SEQUENCE(sequence_checker_);
 }
@@ -1058,6 +1098,10 @@ FileUploadDelegate::CreatePostLoader(
     std::unique_ptr<::network::ResourceRequest> resource_request) const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   resource_request->method = "POST";
+  // Traffic annotation declares cookies_allowed: NO. Enforce kOmit for every
+  // request issued by this delegate so SameSite=None cookies are never
+  // attached to the (potentially missived-supplied) resumable_upload_url_.
+  resource_request->credentials_mode = network::mojom::CredentialsMode::kOmit;
   if (resource_request->url.is_empty()) {
     resource_request->url = upload_url_;
   }

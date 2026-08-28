@@ -30,6 +30,7 @@
 #include "components/autofill/core/browser/suggestions/suggestion.h"
 #include "components/autofill/core/browser/ui/popup_open_enums.h"
 #include "components/autofill/core/common/password_generation_util.h"
+#include "components/autofill/core/common/unique_ids.h"
 #include "components/input/native_web_keyboard_event.h"
 #include "components/password_manager/core/browser/password_bubble_experiment.h"
 #include "components/password_manager/core/browser/password_generation_frame_helper.h"
@@ -38,6 +39,7 @@
 #include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "components/strings/grit/components_strings.h"
+#include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/render_widget_host_view.h"
@@ -55,7 +57,8 @@ using autofill::password_generation::PasswordGenerationType;
 class PasswordGenerationPopupControllerImpl::KeyPressRegistrator {
  public:
   explicit KeyPressRegistrator(content::RenderFrameHost* frame)
-      : frame_(frame) {}
+      : frame_id_(frame ? frame->GetGlobalId()
+                        : content::GlobalRenderFrameHostId()) {}
   KeyPressRegistrator(const KeyPressRegistrator& rhs) = delete;
   KeyPressRegistrator& operator=(const KeyPressRegistrator& rhs) = delete;
 
@@ -64,7 +67,7 @@ class PasswordGenerationPopupControllerImpl::KeyPressRegistrator {
   void RegisterKeyPressHandler(
       content::RenderWidgetHost::KeyPressEventCallback handler) {
     DCHECK(callback_.is_null());
-    content::RenderWidgetHostView* view = frame_->GetView();
+    content::RenderWidgetHostView* view = GetView();
     if (!view) {
       return;
     }
@@ -74,8 +77,7 @@ class PasswordGenerationPopupControllerImpl::KeyPressRegistrator {
 
   void RemoveKeyPressHandler() {
     if (!callback_.is_null()) {
-      content::RenderWidgetHostView* view = frame_->GetView();
-      if (view) {
+      if (content::RenderWidgetHostView* view = GetView()) {
         view->GetRenderWidgetHost()->RemoveKeyPressEventCallback(callback_);
       }
       callback_.Reset();
@@ -83,7 +85,13 @@ class PasswordGenerationPopupControllerImpl::KeyPressRegistrator {
   }
 
  private:
-  const raw_ptr<content::RenderFrameHost, DanglingUntriaged> frame_;
+  content::RenderWidgetHostView* GetView() {
+    content::RenderFrameHost* frame =
+        content::RenderFrameHost::FromID(frame_id_);
+    return frame ? frame->GetView() : nullptr;
+  }
+
+  const content::GlobalRenderFrameHostId frame_id_;
   content::RenderWidgetHost::KeyPressEventCallback callback_;
 };
 
@@ -131,9 +139,11 @@ PasswordGenerationPopupControllerImpl::PasswordGenerationPopupControllerImpl(
           autofill::FormControlType::kInputPassword)),
       generation_element_id_(ui_data.generation_element_id),
       max_length_(ui_data.max_length),
-      controller_common_(bounds, ui_data.text_direction),
+      controller_common_(autofill::LocalFrameToken(*frame->GetFrameToken()),
+                         bounds,
+                         ui_data.text_direction),
       state_(kOfferGeneration),
-      key_press_handler_manager_(new KeyPressRegistrator(frame)) {
+      key_press_handler_manager_(std::make_unique<KeyPressRegistrator>(frame)) {
   // There may not always be a ZoomController, e.g. in tests.
   if (auto* zoom_controller =
           zoom::ZoomController::FromWebContents(web_contents)) {
@@ -244,8 +254,8 @@ void PasswordGenerationPopupControllerImpl::GeneratePasswordValue(
   if (current_generated_password_.empty() || state_ != kOfferGeneration) {
     current_generated_password_ =
         driver_->GetPasswordGenerationHelper()->GeneratePassword(
-            web_contents()->GetLastCommittedURL().DeprecatedGetOriginAsURL(),
-            generation_type, form_signature_, field_signature_, max_length_);
+            driver_->GetLastCommittedOrigin().GetURL(), generation_type,
+            form_signature_, field_signature_, max_length_);
   }
 }
 

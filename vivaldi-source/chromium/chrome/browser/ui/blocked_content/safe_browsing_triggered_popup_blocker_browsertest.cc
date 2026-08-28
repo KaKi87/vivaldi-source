@@ -315,7 +315,7 @@ IN_PROC_BROWSER_TEST_F(SafeBrowsingTriggeredPopupBlockerBrowserTest,
 
   // Open a new tab to make sure the SafeBrowsingTriggeredPopupBlocker gets
   // created for the new tab.
-  chrome::NewTab(browser());
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
 
   // Navigate to a_url, should trigger the popup blocker.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), a_url));
@@ -456,7 +456,7 @@ IN_PROC_BROWSER_TEST_F(SafeBrowsingTriggeredPopupBlockerBrowserTest,
 
   // Allow popups on |a_url|.
   HostContentSettingsMap* settings_map =
-      HostContentSettingsMapFactory::GetForProfile(browser()->profile());
+      HostContentSettingsMapFactory::GetForProfile(browser()->GetProfile());
   settings_map->SetContentSettingDefaultScope(
       a_url, a_url, ContentSettingsType::POPUPS, CONTENT_SETTING_ALLOW);
 
@@ -579,7 +579,7 @@ IN_PROC_BROWSER_TEST_F(SafeBrowsingTriggeredPopupBlockerBrowserTest,
 
   // Allow popups on |a_url|.
   HostContentSettingsMap* settings_map =
-      HostContentSettingsMapFactory::GetForProfile(browser()->profile());
+      HostContentSettingsMapFactory::GetForProfile(browser()->GetProfile());
   settings_map->SetContentSettingDefaultScope(
       a_url, a_url, ContentSettingsType::POPUPS, CONTENT_SETTING_ALLOW);
 

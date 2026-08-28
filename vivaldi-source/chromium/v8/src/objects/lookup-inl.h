@@ -113,24 +113,6 @@ LookupIterator::LookupIterator(Isolate* isolate, DirectHandle<JSAny> receiver,
   }
 }
 
-LookupIterator::LookupIterator(Isolate* isolate, Configuration configuration,
-                               DirectHandle<JSAny> receiver,
-                               DirectHandle<Symbol> name)
-    : configuration_(configuration),
-      isolate_(isolate),
-      name_(name),
-      receiver_(receiver),
-      lookup_start_object_(receiver),
-      index_(kInvalidIndex) {
-  // This is the only lookup configuration allowed by this constructor because
-  // it's special case allowing lookup of the private symbols on the prototype
-  // chain. Usually private symbols are limited to OWN_SKIP_INTERCEPTOR lookups.
-  DCHECK(*name_ == *isolate->factory()->error_stack_symbol() ||
-         *name_ == *isolate->factory()->error_message_symbol());
-  DCHECK_EQ(configuration, PROTOTYPE_CHAIN_SKIP_INTERCEPTOR);
-  Start<false>();
-}
-
 PropertyKey::PropertyKey(Isolate* isolate, double index) {
   DCHECK_EQ(index, static_cast<uint64_t>(index));
 #if V8_TARGET_ARCH_32_BIT
@@ -416,6 +398,63 @@ inline DirectHandle<InterceptorInfo> LookupIterator::GetInterceptor() const {
                                        ? GetInterceptor<true>(holder)
                                        : GetInterceptor<false>(holder);
   return direct_handle(result, isolate_);
+}
+
+MaybeHandle<Object> Object::GetProperty(Isolate* isolate,
+                                        DirectHandle<JSAny> object,
+                                        DirectHandle<Name> name) {
+  LookupIterator it(isolate, object, name);
+  if (!it.IsFound()) return it.factory()->undefined_value();
+  return GetProperty(&it);
+}
+
+MaybeHandle<Object> Object::GetElement(Isolate* isolate,
+                                       DirectHandle<JSAny> object,
+                                       uint32_t index) {
+  LookupIterator it(isolate, object, index);
+  if (!it.IsFound()) return it.factory()->undefined_value();
+  return GetProperty(&it);
+}
+
+MaybeDirectHandle<Object> Object::SetElement(Isolate* isolate,
+                                             DirectHandle<JSAny> object,
+                                             uint32_t index,
+                                             DirectHandle<Object> value,
+                                             ShouldThrow should_throw) {
+  LookupIterator it(isolate, object, index);
+  MAYBE_RETURN_NULL(
+      SetProperty(&it, value, StoreOrigin::kMaybeKeyed, Just(should_throw)));
+  return value;
+}
+
+MaybeHandle<Object> Object::GetPropertyOrElement(Isolate* isolate,
+                                                 DirectHandle<JSAny> object,
+                                                 DirectHandle<Name> name) {
+  return GetPropertyOrElement(isolate, object, PropertyKey(isolate, name));
+}
+
+MaybeDirectHandle<Object> Object::SetPropertyOrElement(
+    Isolate* isolate, DirectHandle<JSAny> object, DirectHandle<Name> name,
+    DirectHandle<Object> value, Maybe<ShouldThrow> should_throw,
+    StoreOrigin store_origin) {
+  return SetPropertyOrElement(isolate, object, PropertyKey(isolate, name),
+                              value, should_throw, store_origin);
+}
+
+MaybeHandle<Object> Object::GetPropertyOrElement(Isolate* isolate,
+                                                 DirectHandle<JSAny> object,
+                                                 PropertyKey key) {
+  LookupIterator it(isolate, object, key);
+  return GetProperty(&it);
+}
+
+MaybeDirectHandle<Object> Object::SetPropertyOrElement(
+    Isolate* isolate, DirectHandle<JSAny> object, PropertyKey key,
+    DirectHandle<Object> value, Maybe<ShouldThrow> should_throw,
+    StoreOrigin store_origin) {
+  LookupIterator it(isolate, object, key);
+  MAYBE_RETURN_NULL(SetProperty(&it, value, store_origin, should_throw));
+  return value;
 }
 
 }  // namespace internal

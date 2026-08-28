@@ -34,7 +34,7 @@
 #include "components/ext_data/tab_ext_data.h"
 #include "components/extensions/vivaldi_panel_utils.h"
 #include "components/tabs/tab_helpers.h"
-#include "extensions/api/guest_view/parent_tab_user_data.h"
+#include "extensions/api/web_view_private/parent_tab_user_data.h"
 #include "extensions/vivaldi_associated_tabs.h"
 #include "extensions/vivaldi_browser_component_wrapper.h"
 #include "ui/vivaldi_ui_utils.h"
@@ -712,7 +712,6 @@ void TabsEventRouter::OnHighlightedTabsChanged(
   highlight_info.tab_ids.reserve(highlighted_tabs.size());
   highlight_info.window_id = -1;
   Profile* profile = nullptr;
-
 
   if (highlighted_tabs.empty()) {
     // The highlighted tabs could be empty, such as during window shutdown when

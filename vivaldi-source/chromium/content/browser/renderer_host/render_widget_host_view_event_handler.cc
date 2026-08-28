@@ -123,7 +123,7 @@ RenderWidgetHostViewEventHandler::RenderWidgetHostViewEventHandler(
       mouse_wheel_phase_handler_(host_view) {}
 
 RenderWidgetHostViewEventHandler::~RenderWidgetHostViewEventHandler() {
-  DCHECK(!mouse_locked_);
+  CHECK(!mouse_locked_, base::NotFatalUntil::M152);
 }
 
 void RenderWidgetHostViewEventHandler::SetPopupChild(
@@ -150,6 +150,7 @@ blink::mojom::PointerLockResult RenderWidgetHostViewEventHandler::LockPointer(
   }
   mouse_locked_ = true;
 
+  aura::Window::ScopedDeleteBlocker delete_blocker(window_);
   window_->GetHost()->LockMouse(window_);
 
   if (ShouldMoveToCenter(unlocked_global_mouse_position_))
@@ -194,12 +195,17 @@ RenderWidgetHostViewEventHandler::ChangePointerLock(
 void RenderWidgetHostViewEventHandler::UnlockPointer() {
   delegate_->SetTooltipsEnabled(true);
 
-  aura::Window* root_window = window_->GetRootWindow();
-  if (!mouse_locked_ || !root_window)
+  if (!mouse_locked_) {
     return;
+  }
 
   mouse_locked_ = false;
   mouse_locked_unadjusted_movement_.reset();
+
+  aura::Window* root_window = window_ ? window_->GetRootWindow() : nullptr;
+  if (!root_window) {
+    return;
+  }
 
   window_->GetHost()->UnlockMouse(window_);
 
@@ -208,7 +214,9 @@ void RenderWidgetHostViewEventHandler::UnlockPointer() {
   // after the cursor is moved ends up getting a large movement delta which is
   // not what sites expect. The delta is computed in the
   // ModifyEventMovementAndCoords function.
-  window_->MoveCursorTo(gfx::ToFlooredPoint(unlocked_mouse_position_));
+  if (window_) {
+    window_->MoveCursorTo(gfx::ToFlooredPoint(unlocked_mouse_position_));
+  }
   synthetic_move_position_ =
       gfx::ToFlooredPoint(unlocked_global_mouse_position_);
 
@@ -277,8 +285,9 @@ void RenderWidgetHostViewEventHandler::OnKeyEvent(ui::KeyEvent* event) {
 
 void RenderWidgetHostViewEventHandler::HandleMouseWheelEvent(
     ui::MouseEvent* event) {
-  DCHECK(event);
-  DCHECK_EQ(event->type(), ui::EventType::kMousewheel);
+  CHECK(event, base::NotFatalUntil::M152);
+  CHECK_EQ(event->type(), ui::EventType::kMousewheel,
+           base::NotFatalUntil::M152);
 
 #if BUILDFLAG(IS_WIN)
   if (!mouse_locked_) {
@@ -318,6 +327,11 @@ void RenderWidgetHostViewEventHandler::HandleMouseWheelEvent(
 
 void RenderWidgetHostViewEventHandler::OnMouseEvent(ui::MouseEvent* event) {
   TRACE_EVENT0("input", "RenderWidgetHostViewBase::OnMouseEvent");
+
+  // A synthesized event may be generated during window destruction.
+  if (!window_) {
+    return;
+  }
 
   // CrOS will send a mouse exit event to update hover state when mouse is
   // hidden which we want to filter out in renderer. crbug.com/723535.
@@ -464,8 +478,8 @@ void RenderWidgetHostViewEventHandler::OnScrollEvent(ui::ScrollEvent* event) {
       mouse_wheel_phase_handler_.ResetTouchpadScrollSequence();
     } else if (event->type() == ui::EventType::kScrollFlingCancel) {
       // The user has put their fingers down.
-      DCHECK_EQ(blink::WebGestureDevice::kTouchpad,
-                gesture_event.SourceDevice());
+      CHECK_EQ(blink::WebGestureDevice::kTouchpad, gesture_event.SourceDevice(),
+               base::NotFatalUntil::M152);
       mouse_wheel_phase_handler_.TouchpadScrollingMayBegin();
     }
   }
@@ -764,6 +778,8 @@ void RenderWidgetHostViewEventHandler::HandleMouseEventWhileLocked(
   aura::client::CursorClient* cursor_client =
       aura::client::GetCursorClient(window_->GetRootWindow());
 
+  // TODO(crbug.com/532557323): CHECK-exclusion: Convert to a CHECK once we are
+  // confident it won't be triggered.
   DCHECK(!cursor_client || !cursor_client->IsCursorVisible());
 
   if (event->type() == ui::EventType::kMousewheel) {
@@ -832,7 +848,7 @@ void RenderWidgetHostViewEventHandler::ModifyEventMovementAndCoords(
 
 void RenderWidgetHostViewEventHandler::MoveCursorToCenter(
     ui::MouseEvent* event) {
-  DCHECK(!window_->GetHost()->SupportsMouseLock());
+  CHECK(!window_->GetHost()->SupportsMouseLock(), base::NotFatalUntil::M152);
 
   gfx::Point center(gfx::Rect(window_->bounds().size()).CenterPoint());
   gfx::Point center_in_screen(window_->GetBoundsInScreen().CenterPoint());

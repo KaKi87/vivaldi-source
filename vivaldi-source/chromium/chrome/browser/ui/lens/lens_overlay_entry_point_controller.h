@@ -8,7 +8,6 @@
 #include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
-#include "chrome/browser/ui/lens/lens_url_matcher.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/search_engines/template_url_service.h"
 #include "components/search_engines/template_url_service_observer.h"
@@ -19,6 +18,8 @@
 
 class BrowserWindowInterface;
 class CommandUpdater;
+
+class Profile;
 
 namespace optimization_guide {
 class OptimizationGuideDecider;
@@ -45,6 +46,9 @@ class LensOverlayEntryPointController : public TemplateURLServiceObserver,
   DECLARE_USER_DATA(LensOverlayEntryPointController);
   static LensOverlayEntryPointController* From(
       BrowserWindowInterface* browser_window_interface);
+
+  // Returns true if the Lens Overlay is enabled at the profile level.
+  static bool IsEnabledOnInit(Profile* profile);
 
   explicit LensOverlayEntryPointController(
       BrowserWindowInterface* browser_window_interface);
@@ -129,9 +133,6 @@ class LensOverlayEntryPointController : public TemplateURLServiceObserver,
   PrefChangeRegistrar pref_change_registrar_;
 
   raw_ptr<views::View> location_bar_;
-
-  // URL matcher for entrypoints with EDU promos.
-  std::unique_ptr<LensUrlMatcher> edu_url_matcher_;
 
   // Optimization guide decider used for determining EDU action chip
   // eligibility.

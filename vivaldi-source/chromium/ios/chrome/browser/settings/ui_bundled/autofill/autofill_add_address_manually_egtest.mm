@@ -93,8 +93,17 @@ id<GREYMatcher> EditProfileBottomSheet() {
 // Helper to open the address settings page.
 void OpenAddressSettings() {
   [ChromeEarlGreyUI openSettingsMenu];
-  [ChromeEarlGreyUI
-      tapSettingsMenuButton:chrome_test_util::AddressesAndMoreButton()];
+  if ([ChromeEarlGrey isYourSavedInfoSettingsPageIosEnabled]) {
+    [ChromeEarlGreyUI
+        tapSettingsMenuButton:grey_accessibilityID(
+                                  @"kSettingsAutofillAndPasswordsCellId")];
+    [[EarlGrey
+        selectElementWithMatcher:chrome_test_util::AddressesAndMoreButton()]
+        performAction:grey_tap()];
+  } else {
+    [ChromeEarlGreyUI
+        tapSettingsMenuButton:chrome_test_util::AddressesAndMoreButton()];
+  }
 }
 
 // Gets the top presented view controller, in this case the bottom sheet view
@@ -121,8 +130,6 @@ UIViewController* TopPresentedViewController() {
   AppLaunchConfiguration config;
   config.features_disabled.push_back(
       autofill::features::kAutofillAiWithDataSchema);
-  config.features_disabled.push_back(
-      autofill::features::kAutofillAiCreateEntityDataManager);
   return config;
 }
 

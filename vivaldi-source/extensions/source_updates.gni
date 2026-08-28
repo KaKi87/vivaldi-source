@@ -3,7 +3,7 @@ import("//vivaldi/testing/testing.gni")
 if (vivaldi_build_tests) {
   update_target("//chrome/test:browser_tests") {
     sources += [
-      "//vivaldi/extensions/api/tabs/tests/tabs_mediastate_apitest.cc",
+      "//vivaldi/extensions/api/tabs_private/tests/tabs_mediastate_apitest.cc",
       "//vivaldi/extensions/api/webview/chrome_web_view_mediastate_apitest.cc",
     ]
   }
@@ -53,11 +53,11 @@ update_target("//extensions/browser:browser_sources") {
     "//vivaldi/extensions/api/events/vivaldi_ui_events_keys.cc",
     "//vivaldi/extensions/api/extension_action_utils/vivaldi_extension_host.cc",
     "//vivaldi/extensions/api/extension_action_utils/vivaldi_extension_host.h",
-    "//vivaldi/extensions/api/guest_view/parent_tab_user_data.cpp",
-    "//vivaldi/extensions/api/guest_view/parent_tab_user_data.h",
-    "//vivaldi/extensions/api/guest_view/vivaldi_web_view_constants.cpp",
-    "//vivaldi/extensions/api/guest_view/vivaldi_web_view_constants.h",
-    "//vivaldi/extensions/api/guest_view/vivaldi_web_view_guest.cpp",
+    "//vivaldi/extensions/api/web_view_private/parent_tab_user_data.cpp",
+    "//vivaldi/extensions/api/web_view_private/parent_tab_user_data.h",
+    "//vivaldi/extensions/api/web_view_private/vivaldi_web_view_constants.cpp",
+    "//vivaldi/extensions/api/web_view_private/vivaldi_web_view_constants.h",
+    "//vivaldi/extensions/api/web_view_private/vivaldi_web_view_guest.cpp",
     "//vivaldi/extensions/vivaldi_extension_prefs.cc",
     "//vivaldi/extensions/vivaldi_extensions_guest_view.cc",
   ]

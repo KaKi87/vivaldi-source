@@ -7,8 +7,8 @@
 #import "base/functional/bind.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/task/sequenced_task_runner.h"
-#import "components/search_engines/template_url.h"
 #import "components/search_engines/template_url_service.h"
+#import "components/search_engines/util.h"
 #import "ios/chrome/browser/cobrowse/model/cobrowse_context.h"
 #import "ios/chrome/browser/shared/model/url/url_util.h"
 #import "ios/chrome/browser/shared/public/commands/scene_commands.h"
@@ -43,12 +43,6 @@ void CobrowseTabHelper::WasShown(web::WebState* web_state) {
   }
 
   GURL url = web_state->GetVisibleURL();
-  if (ShouldCloseAssistant(url)) {
-    [scene_handler_ closeAssistant];
-    delegate_->SetSessionActive(false);
-    return;
-  }
-
   if (ShouldHideAssistant(url)) {
     [scene_handler_ hideAssistant];
     return;
@@ -64,6 +58,14 @@ void CobrowseTabHelper::WasShown(web::WebState* web_state) {
   }
 }
 
+void CobrowseTabHelper::WasHidden(web::WebState* web_state) {
+  if (!scene_handler_) {
+    return;
+  }
+
+  [scene_handler_ hideAssistant];
+}
+
 void CobrowseTabHelper::DidStartNavigation(
     web::WebState* web_state,
     web::NavigationContext* navigation_context) {
@@ -71,15 +73,10 @@ void CobrowseTabHelper::DidStartNavigation(
     return;
   }
 
-  const GURL& url = navigation_context->GetUrl();
-  if (ShouldCloseAssistant(url)) {
-    [scene_handler_ closeAssistant];
-    delegate_->SetSessionActive(false);
-    return;
-  }
-
-  if (ShouldHideAssistant(url)) {
-    [scene_handler_ hideAssistant];
+  // Do not trigger the assistant when the web state is not currently visible.
+  // This could happen e.g. for navigations indirectly caused by the APC
+  // extraction process in the tab picker.
+  if (!web_state->IsVisible()) {
     return;
   }
 
@@ -89,9 +86,27 @@ void CobrowseTabHelper::DidStartNavigation(
     return;
   }
 
+  const GURL& url = navigation_context->GetUrl();
+
+  // If the session is active and we navigate to an AIM URL, update the context
+  // before `ShouldHideAssistant` hides the UI and returns early. This ensures
+  // follow-up AIM queries (which happen in the same tab) correctly sync their
+  // URL context. Note: We cannot use `ConfigureAssistantContextForWebState`
+  // here because it extracts the URL from the tab's opener, which would fail
+  // to capture the new URL of a same-tab navigation.
+  if (delegate_->IsSessionActive() &&
+      (IsAimURL(url) || IsAimZeroStateURL(url))) {
+    delegate_->SetCobrowseContext([[CobrowseContext alloc] initWithURL:url]);
+  }
+
+  if (ShouldHideAssistant(url)) {
+    [scene_handler_ hideAssistant];
+    return;
+  }
+
   if (delegate_->CanShowAssistantForWebState(web_state)) {
     delegate_->ConfigureAssistantContextForWebState(web_state);
-    [scene_handler_ showAssistant];
+    [scene_handler_ showAssistantInMinimizedState:YES];
     delegate_->SetSessionActive(true);
   }
 }
@@ -102,24 +117,6 @@ void CobrowseTabHelper::WebStateDestroyed(web::WebState* web_state) {
 
 #pragma mark - Private helpers
 
-bool CobrowseTabHelper::ShouldCloseAssistant(const GURL& url) {
-  if (IsUrlNtp(url)) {
-    return true;
-  }
-
-  // Do not show the cobrowse AIM assistant sheet if navigating to a search URL.
-  const TemplateURL* default_search_provider =
-      template_url_service_ ? template_url_service_->GetDefaultSearchProvider()
-                            : nullptr;
-  if (default_search_provider &&
-      default_search_provider->IsSearchURL(
-          url, template_url_service_->search_terms_data())) {
-    return true;
-  }
-
-  return false;
-}
-
 void CobrowseTabHelper::ShowAssistant() {
   [scene_handler_ showAssistant];
 }
@@ -128,5 +125,14 @@ bool CobrowseTabHelper::ShouldHideAssistant(const GURL& url) {
   if (delegate_ && delegate_->IsTabGridVisible()) {
     return true;
   }
+
+  if (IsAimURL(url) || IsAimZeroStateURL(url)) {
+    return true;
+  }
+
+  if (IsUrlNtp(url)) {
+    return true;
+  }
+
   return false;
 }

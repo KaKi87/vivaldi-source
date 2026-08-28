@@ -17,16 +17,16 @@
 #include "build/build_config.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "components/captive_portal/core/captive_portal_types.h"
-#include "components/webapps/browser/launch_queue/launch_params.h"
+#include "components/webapps/browser/navigation_data.h"
 #include "content/public/browser/child_process_host.h"
 #include "content/public/browser/global_request_id.h"
+#include "content/public/browser/initiator_navigation_state.h"
 #include "content/public/browser/reload_type.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/site_instance.h"
 #include "content/public/common/referrer.h"
 #include "services/network/public/cpp/resource_request_body.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
-#include "third_party/blink/public/common/navigation/impression.h"
 #include "third_party/blink/public/common/tokens/tokens.h"
 #include "third_party/blink/public/mojom/navigation/was_activated_option.mojom.h"
 #include "third_party/blink/public/mojom/window_features/window_features.mojom.h"
@@ -122,6 +122,11 @@ struct NavigateParams {
   // The base url of the initiator of the navigation. This is only set if the
   // url is about:blank or about:srcdoc.
   std::optional<GURL> initiator_base_url;
+
+  // A record of the state of the navigation initiator when the navigation
+  // started. This should be non-null for all web contents initiated
+  // navigations.
+  scoped_refptr<content::InitiatorNavigationState> initiator_navigation_state;
 
   // The frame name to be used for the main frame.
   std::string frame_name;
@@ -256,11 +261,6 @@ struct NavigateParams {
   captive_portal::CaptivePortalWindowType captive_portal_window_type =
       captive_portal::CaptivePortalWindowType::kNone;
 
-  // Whether the browser popup is being created as a tab modal. If true,
-  // `disposition` should be NEW_POPUP. Additionally, it prevents card saving
-  // and other prompts for payments autofill enrollment.
-  bool is_tab_modal_popup_deprecated = false;
-
   // If false then the navigation was not initiated by a user gesture. This
   // variable will be set to true for popups to get windows focus even if
   // the navigation was not triggered by user gesture.
@@ -361,11 +361,6 @@ struct NavigateParams {
   // Indicates the reload type of this navigation.
   content::ReloadType reload_type = content::ReloadType::NONE;
 
-  // Optional impression associated with this navigation. Only set on
-  // navigations that originate from links with impression attributes. Used for
-  // conversion measurement.
-  std::optional<blink::Impression> impression;
-
   // True if the navigation was initiated by typing in the omnibox but the typed
   // text didn't have a scheme such as http or https (e.g. google.com), and
   // https was used as the default scheme for the navigation. This is used by
@@ -376,14 +371,6 @@ struct NavigateParams {
   // True if the navigation was initiated by typing in the omnibox and the typed
   // text had an explicit http scheme.
   bool url_typed_with_http_scheme = false;
-
-  // This option forces PWA navigation capturing (which captures some
-  // navigations into PWA windows or tabs) off. This is only recommended to be
-  // used if the navigation MUST not be captured. See
-  // https://bit.ly/pwa-navigation-capturing for a description about what PWA
-  // navigation capturing does. Setting this field to `true` will disable all of
-  // the behaviors listed in that document.
-  bool pwa_navigation_capturing_force_off = false;
 
   // A text fragment selector (that uses the syntax defined in
   // https://wicg.github.io/scroll-to-text-fragment/#syntax) to scroll the
@@ -397,9 +384,9 @@ struct NavigateParams {
   // Indicates whether this navigation was started by an ad.
   bool started_by_ad = false;
 
-  // Optional launch parameters to be attached to the resulting navigation, once
-  // the navigation commits.
-  std::optional<webapps::LaunchParams> launch_params;
+  // An optional struct containing data webapps needs for navigation. Usually
+  // nullopt.
+  std::optional<webapps::NavigationData> web_app_navigation_data;
 
   // Ext data to assign to |contents_to_insert| on creation.
   std::string viv_ext_data;

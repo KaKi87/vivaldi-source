@@ -16,8 +16,10 @@ enum class AimEligibilityCheck {
   kIsEligibleByDse,
   kIsEligibleByServer,
   kIsServerEligibilityEnabled,
+  kIsCobrowseEligible,
+  kIsFuseboxEligible,
   kMinValue = kIsEligible,
-  kMaxValue = kIsServerEligibilityEnabled,
+  kMaxValue = kIsFuseboxEligible,
 };
 
 // Bitset holding eligibility status.

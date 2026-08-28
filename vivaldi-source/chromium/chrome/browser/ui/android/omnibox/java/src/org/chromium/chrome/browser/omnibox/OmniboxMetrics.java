@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.omnibox;
 import androidx.annotation.IntDef;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.TimingMetric;
 import org.chromium.build.annotations.NullMarked;
@@ -70,6 +69,14 @@ public class OmniboxMetrics {
      */
     public static final String HISTOGRAM_SEARCH_PREFETCH_TOUCH_DOWN_PROCESS_TIME =
             "Android.Omnibox.SearchPrefetch.TouchDownProcessTime.NavigationPrefetch";
+
+    /**
+     * The amount of time from touch down on an omnibox suggestion to when a prefetch may start.
+     * Specifically, this compares the event time of the first ACTION_DOWN event to when
+     * `AutocompleteMediator.onSuggestionTouchDown` is reached.
+     */
+    public static final String HISTOGRAM_SEARCH_PREFETCH_SUGGESTION_TOUCH_DOWN_DELAY =
+            "Android.Omnibox.SearchPrefetch.TouchDownDelay.NavigationPrefetch";
 
     /** The number of prefetches started in an omnibox session via the touch down trigger. */
     public static final String HISTOGRAM_SEARCH_PREFETCH_NUM_PREFETCHES_STARTED_IN_OMNIBOX_SESSION =
@@ -172,17 +179,83 @@ public class OmniboxMetrics {
         return TimingMetric.shortThreadTime("Android.Omnibox.SuggestionView.CreateTime3");
     }
 
-    /** Record thread time spent inflating the Suggestion dropdown on async background thread. */
-    public static @Nullable TimingMetric recordSuggestionsDropdownAsyncInflationThreadTime() {
-        if (ThreadUtils.runningOnUiThread()) return null;
-        return TimingMetric.shortThreadTime(
-                "Android.Omnibox.SuggestionsDropdown.AsyncInflationTime2");
+    /** Record thread time spent inflating the Suggestion dropdown. */
+    public static @Nullable TimingMetric recordSuggestionsDropdownInflationThreadTime() {
+        return TimingMetric.shortThreadTime("Android.Omnibox.SuggestionsDropdown.InflationTime2");
     }
 
-    /** Record wall time spent inflating the Suggestion dropdown on async background thread. */
-    public static @Nullable TimingMetric recordSuggestionsDropdownAsyncInflationWallTime() {
-        if (ThreadUtils.runningOnUiThread()) return null;
-        return TimingMetric.shortUptime("Android.Omnibox.SuggestionsDropdown.AsyncInflationTime3");
+    /** Record wall time spent inflating the Suggestion dropdown. */
+    public static @Nullable TimingMetric recordSuggestionsDropdownInflationWallTime() {
+        return TimingMetric.shortUptime("Android.Omnibox.SuggestionsDropdown.InflationTime3");
+    }
+
+    /** Record thread time spent inflating the suggestions container. */
+    public static TimingMetric recordSuggestionsContainerInflationThreadTime() {
+        return TimingMetric.shortThreadTime(
+                "Android.Omnibox.SuggestionsDropdown.ContainerInflationThreadTime");
+    }
+
+    /** Record wall time spent inflating the suggestions container. */
+    public static TimingMetric recordSuggestionsContainerInflationWallTime() {
+        return TimingMetric.shortUptime(
+                "Android.Omnibox.SuggestionsDropdown.ContainerInflationWallTime");
+    }
+
+    /**
+     * Record whether the background suggestion dropdown inflation completed before the UI thread
+     * required it.
+     */
+    public static void recordAsyncInflationDropdownAvailable(boolean dropdownAvailable) {
+        RecordHistogram.recordBooleanHistogram(
+                "Android.Omnibox.SuggestionsDropdown.AsyncInflationDropdownAvailable",
+                dropdownAvailable);
+    }
+
+    /** Record whether the SuggestionsDropdown inflation thread matches the expected thread. */
+    public static void recordSuggestionsDropdownInflationThreadMatchesExpectedThread(
+            boolean runsOnExpectedThread) {
+        RecordHistogram.recordBooleanHistogram(
+                "Android.Omnibox.SuggestionsDropdown.InflationThreadMatches", runsOnExpectedThread);
+    }
+
+    /** Record whether the prewarming thread matches the expected thread. */
+    public static void recordPreWarmingThreadMatchesExpectedThread(boolean runsOnExpectedThread) {
+        RecordHistogram.recordBooleanHistogram(
+                "Android.Omnibox.SuggestionsDropdown.PreWarmingThreadMatches",
+                runsOnExpectedThread);
+    }
+
+    /** Record whether forced synchronous inflation occurred for the suggestions container. */
+    public static void recordForcedSyncInflation(boolean isForced) {
+        RecordHistogram.recordBooleanHistogram(
+                "Android.Omnibox.SuggestionsDropdown.ForcedSyncInflation", isForced);
+    }
+
+    /**
+     * Record the total cumulative thread time spent creating all views in the PrewarmingRecycled
+     * View Pool when async view inflation is disabled.
+     */
+    public static void recordPreWarmingViewsThreadTime(long totalThreadTimeMs) {
+        RecordHistogram.recordMediumTimesHistogram(
+                "Android.Omnibox.SuggestionsDropdown.PreWarmingViewsThreadTime", totalThreadTimeMs);
+    }
+
+    /**
+     * Record the total cumulative wall time spent creating all views in the PrewarmingRecycled View
+     * Pool when async view inflation is disabled.
+     */
+    public static void recordPreWarmingViewsWallTime(long totalWallTimeMs) {
+        RecordHistogram.recordMediumTimesHistogram(
+                "Android.Omnibox.SuggestionsDropdown.PreWarmingViewsWallTime", totalWallTimeMs);
+    }
+
+    /**
+     * Record the number of views successfully pre-created in the PrewarmingRecycledViewPool when
+     * async view inflation is disabled.
+     */
+    public static void recordPreWarmedViewsCount(int count) {
+        RecordHistogram.recordExactLinearHistogram(
+                "Android.Omnibox.SuggestionsDropdown.PreWarmedViewsCount", count, 30);
     }
 
     /**
@@ -404,6 +477,15 @@ public class OmniboxMetrics {
      */
     public static TimingMetric recordTouchDownProcessTime() {
         return TimingMetric.shortThreadTime(HISTOGRAM_SEARCH_PREFETCH_TOUCH_DOWN_PROCESS_TIME);
+    }
+
+    /**
+     * Records the delay from physical touch down on a suggestion in the suggestions dropdown to the
+     * start of prefetch processing on the Java main thread.
+     */
+    public static void recordSuggestionTouchDownDelay(long delayMs) {
+        RecordHistogram.recordMediumTimesHistogram(
+                HISTOGRAM_SEARCH_PREFETCH_SUGGESTION_TOUCH_DOWN_DELAY, delayMs);
     }
 
     /**

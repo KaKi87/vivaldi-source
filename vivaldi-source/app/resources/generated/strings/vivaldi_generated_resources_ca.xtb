@@ -39,7 +39,6 @@
 <translation id="1601560923496285236">Aplica</translation>
 <translation id="1603914832182249871">(Incògnit)</translation>
 <translation id="1627276047960621195">Descriptors dels fitxers</translation>
-<translation id="1654713139320245449">No s'han trobat destinacions d'emissió. Necessites ajuda?</translation>
 <translation id="166278006618318542">Algoritme de clau pública del subjecte</translation>
 <translation id="1682548588986054654">Nova finestra privada</translation>
 <translation id="1708338024780164500">(Inactiva)</translation>
@@ -60,7 +59,6 @@
 <translation id="1906488504371069394">Descobreix més complements i temes a la <ph name="BEGIN_LINK" />Chrome Web Store<ph name="END_LINK" /></translation>
 <translation id="1921584744613111023"><ph name="DPI" /> ppp</translation>
 <translation id="1925021887439448749">Introdueix l'adreça web personalitzada</translation>
-<translation id="1932098463447129402">No abans</translation>
 <translation id="1936157145127842922">Mostra a la carpeta</translation>
 <translation id="1936931585862840749">Introdueix un número per indicar quantes còpies vols imprimir (entre 1 i <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">&amp;Obre l'àudio a una pestanya nova</translation>
@@ -102,7 +100,6 @@
 <translation id="253557089021624350">Nombre de processos actius</translation>
 <translation id="2550212893339833758">Memòria intercanviada</translation>
 <translation id="2553440850688409052">Amaga aquest complement</translation>
-<translation id="2607101320794533334">Informació de clau pública del subjecte</translation>
 <translation id="261305050785128654">Permet que els llocs web sàpiguen els idiomes que parles. Et mostraran el contingut en aquest idioma, quan sigui possible.</translation>
 <translation id="26224892172169984">No permetis que cap lloc gestioni els protocols</translation>
 <translation id="2653275834716714682">Substitució del text</translation>
@@ -112,7 +109,6 @@
 <translation id="2719936478972253983">S'han bloquejat les galetes següents</translation>
 <translation id="2721037002783622288">&amp;Cerca la imatge a <ph name="SEARCH_ENGINE" /></translation>
 <translation id="2722547199758472013">ID: <ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">No després</translation>
 <translation id="2749881179542288782">Comprova la gramàtica amb l'ortografia</translation>
 <translation id="2785873697295365461">Descriptors dels fitxers</translation>
 <translation id="2825758591930162672">Clau pública del subjecte</translation>
@@ -163,7 +159,6 @@
 <translation id="3387614642886316601">Fes servir el corrector ortogràfic millorat</translation>
 <translation id="3390013585654699824">Detalls de l'aplicació</translation>
 <translation id="345693547134384690">Obre la &amp;imatge a una pestanya nova</translation>
-<translation id="3493881266323043047">Validesa</translation>
 <translation id="3511307672085573050">Copia l'adr&amp;eça de l'enllaç</translation>
 <translation id="354068948465830244">Això pot llegir i modificar les dades dels llocs web</translation>
 <translation id="3555812735919707620">Suprimeix el complement</translation>
@@ -179,7 +174,6 @@
 <translation id="3760460896538743390">Inspecciona la pàgina en &amp;segon pla</translation>
 <translation id="3786224729726357296">Suprimeix les dades i els permisos per <ph name="SITE" /></translation>
 <translation id="3797900183766075808">&amp;Cerca <ph name="SEARCH_ENGINE" /> a "<ph name="SEARCH_TERMS" />"</translation>
-<translation id="3798449238516105146">Versió</translation>
 <translation id="3810973564298564668">Gestiona</translation>
 <translation id="3838085852053358637">No s'ha pogut carregar el complement</translation>
 <translation id="383891835335927981">No s'ha ampliat ni reduït cap lloc</translation>
@@ -266,12 +260,10 @@
 <translation id="5063480226653192405">Ús</translation>
 <translation id="5116628073786783676">De&amp;sa l'àudio com a...</translation>
 <translation id="5154108062446123722">Configuració avançada de <ph name="PRINTING_DESTINATION" /></translation>
-<translation id="5154702632169343078">Assumpte</translation>
 <translation id="5170568018924773124">Mostra a la carpeta</translation>
 <translation id="5171343362375269016">Memòria intercanviada</translation>
 <translation id="5233231016133573565">ID del procés</translation>
 <translation id="5233736638227740678">&amp;Enganxa</translation>
-<translation id="5244466461749935369">Mantenir per ara</translation>
 <translation id="5256861893479663409">A tots els llocs web</translation>
 <translation id="5260334392110301220">Cometes intel·ligents</translation>
 <translation id="5269977353971873915">Error d'impressió</translation>
@@ -310,7 +302,6 @@
 <translation id="5780973441651030252">Prioritat del procés</translation>
 <translation id="5804241973901381774">Permisos</translation>
 <translation id="5828633471261496623">Imprimint...</translation>
-<translation id="5851868085455377790">Emissor</translation>
 <translation id="5860491529813859533">Activa</translation>
 <translation id="5910363049092958439">De&amp;sa la imatge com a...</translation>
 <translation id="5914724413750400082">Mòdul (<ph name="MODULUS_NUM_BITS" /> bits):
@@ -459,7 +450,6 @@ Desa el fitxer de clau a una ubicació segura. El necessitaràs per crear versio
 <translation id="862750493060684461">Memòria cau CSS</translation>
 <translation id="8661290697478713397">Obre l'enllaç a una finestra pri&amp;vada</translation>
 <translation id="8664389313780386848">&amp;Visualitza el codi de la pàgina</translation>
-<translation id="8705331520020532516">Número de sèrie</translation>
 <translation id="8708000541097332489">Suprimeix en sortir</translation>
 <translation id="8714838604780058252">Gràfics de fons</translation>
 <translation id="8725066075913043281">Torna-ho a provar</translation>

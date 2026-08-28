@@ -165,8 +165,7 @@ IndigoImageReplacementManager::GetPrimaryTrackedElementId() const {
 
 void IndigoImageReplacementManager::ReplacementFrameAttached(
     const blink::LocalFrameToken& replacement_frame_token,
-    blink::mojom::ImageDataPtr original_image,
-    const std::optional<base::Token>& tracked_element_id) {
+    blink::mojom::ReplacementDataPtr replacement_data) {
   content::RenderFrameHost* image_replacement_subframe =
       content::RenderFrameHost::FromFrameToken(
           content::GlobalRenderFrameHostToken(
@@ -193,14 +192,21 @@ void IndigoImageReplacementManager::ReplacementFrameAttached(
   content::FrameTreeNodeId frame_tree_node_id =
       image_replacement_subframe->GetFrameTreeNodeId();
   std::vector<uint8_t> image_bytes_copy;
-  if (original_image) {
-    image_bytes_copy.assign_range(original_image->webp_bytes);
+  if (replacement_data->original_image) {
+    image_bytes_copy.assign_range(replacement_data->original_image->webp_bytes);
   }
   image_replacement.ReplacementFrameAttached(
-      frame_tree_node_id, std::move(image_bytes_copy), tracked_element_id);
+      frame_tree_node_id, std::move(image_bytes_copy),
+      replacement_data->tracked_element_id, replacement_data->object_fit);
 
   content::WebContents* web_contents =
       content::WebContents::FromRenderFrameHost(&page().GetMainDocument());
+
+  Profile* profile =
+      Profile::FromBrowserContext(web_contents->GetBrowserContext());
+  IndigoService* service = IndigoServiceFactory::GetForProfile(profile);
+  CHECK(service);
+  service->EnsureComponentExtensionRegistered();
 
   content::NavigationController::LoadURLParams params{
       extensions::Extension::GetResourceURL(
@@ -219,8 +225,9 @@ void IndigoImageReplacementManager::ReplacementFrameAttached(
 
   // Cache a copy of the primary replacement's original image bytes to use for
   // regeneration.
-  if (original_image) {
-    primary_original_image_webp_bytes_.assign_range(original_image->webp_bytes);
+  if (replacement_data->original_image) {
+    primary_original_image_webp_bytes_.assign_range(
+        replacement_data->original_image->webp_bytes);
   }
 
   GenerateReplacementImage();
@@ -270,13 +277,10 @@ void IndigoImageReplacementManager::OnReplacementImageGenerated(
 
   if (!result.has_value()) {
     DVLOG(1) << "Generate image failed: " << result.error().message;
-    base::UmaHistogramEnumeration(
-        "Indigo.Transformation.Result",
-        IndigoTransformationResult::kGenerateImageError);
     base::RecordAction(
         base::UserMetricsAction("Indigo.Transformation.Failure"));
     Reset(ResetType::kResetReplacementsAndContentScript);
-    ShowErrorToast();
+    ShowErrorToast(IndigoTransformationResult::kGenerateImageError);
     return;
   }
 
@@ -311,7 +315,7 @@ void IndigoImageReplacementManager::OnReceiverDisconnected() {
     DVLOG(1) << "Primary image replacement disconnected before receiving "
                 "generated image";
     Reset(ResetType::kResetReplacementsAndContentScript);
-    ShowErrorToast();
+    ShowErrorToast(IndigoTransformationResult::kPrimaryImageDisconnected);
   }
 }
 
@@ -321,9 +325,10 @@ void IndigoImageReplacementManager::Reset(ResetType reset_type) {
   }
 }
 
-void IndigoImageReplacementManager::ShowErrorToast() {
+void IndigoImageReplacementManager::ShowErrorToast(
+    IndigoTransformationResult result) {
   if (auto* controller = GetIndigoPageActionController()) {
-    controller->ShowInvocationErrorToast();
+    controller->ShowInvocationErrorToast(result);
   }
 }
 

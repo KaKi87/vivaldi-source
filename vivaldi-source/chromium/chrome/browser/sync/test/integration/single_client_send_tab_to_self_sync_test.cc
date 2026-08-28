@@ -39,6 +39,7 @@
 #include "components/history/core/browser/history_service.h"
 #include "components/keyed_service/core/service_access_type.h"
 #include "components/send_tab_to_self/features.h"
+#include "components/send_tab_to_self/metrics_util.h"
 #include "components/send_tab_to_self/page_context.h"
 #include "components/send_tab_to_self/send_tab_to_self_model.h"
 #include "components/send_tab_to_self/send_tab_to_self_sync_service.h"
@@ -262,7 +263,8 @@ IN_PROC_BROWSER_TEST_P(SingleClientSendTabToSelfSyncTest,
   SendTabToSelfSyncServiceFactory::GetForProfile(GetProfile(0))
       ->GetSendTabToSelfModel()
       ->SendEntry(kUrl, "example", target_guid, context,
-                  send_tab_to_self::NavigationHistory(), base::DoNothing());
+                  send_tab_to_self::NavigationHistory(), base::DoNothing(),
+                  send_tab_to_self::ShareEntryPoint::kShareSheet);
 
   // Wait for the entry to be committed to the server.
   ASSERT_TRUE(
@@ -383,7 +385,8 @@ IN_PROC_BROWSER_TEST_P(SingleClientSendTabToSelfSyncTest,
 
   ASSERT_TRUE(model->SendEntry(
       kUrl, kTitle, kTargetDeviceSyncCacheGuid, send_tab_to_self::PageContext(),
-      send_tab_to_self::NavigationHistory(), base::DoNothing()));
+      send_tab_to_self::NavigationHistory(), base::DoNothing(),
+      send_tab_to_self::ShareEntryPoint::kShareSheet));
 
   GetClient(0)->SignOutPrimaryAccount();
 
@@ -416,7 +419,8 @@ IN_PROC_BROWSER_TEST_P(SingleClientSendTabToSelfSyncTest,
 
   ASSERT_FALSE(model->SendEntry(
       kUrl, kTitle, kTargetDeviceSyncCacheGuid, send_tab_to_self::PageContext(),
-      send_tab_to_self::NavigationHistory(), base::DoNothing()));
+      send_tab_to_self::NavigationHistory(), base::DoNothing(),
+      send_tab_to_self::ShareEntryPoint::kShareSheet));
 
   EXPECT_FALSE(send_tab_to_self::ShouldDisplayEntryPoint(
       GetBrowser(0)->tab_strip_model()->GetActiveWebContents()));
@@ -653,6 +657,27 @@ IN_PROC_BROWSER_TEST_P(SingleClientSendTabToSelfTextFragmentSyncTest,
 
   // No scroll position since there's no text on the empty page.
   EXPECT_FALSE(specifics.page_context().has_scroll_position());
+}
+
+// Tests that after sync is set up, context menu display reason is valid
+// for HTTP/HTTPS URLs.
+IN_PROC_BROWSER_TEST_P(SingleClientSendTabToSelfSyncTest,
+                       ContextMenuDisplayReasonIsValidForHttpUrl) {
+  ASSERT_TRUE(SetupSync());
+
+  GURL test_url = embedded_test_server()->GetURL("/empty.html");
+  content::WebContents* web_contents =
+      chrome::AddAndReturnTabAt(GetBrowser(0), test_url, -1, true);
+  ASSERT_TRUE(content::WaitForLoadStop(web_contents));
+
+  // Verify that GetEntryPointDisplayReason() returns kInformNoTargetDevice
+  // (not nullopt) for HTTP/HTTPS URLs when Sync is enabled without target
+  // devices, allowing the context menu promo item to be shown.
+  std::optional<send_tab_to_self::EntryPointDisplayReason> reason =
+      send_tab_to_self::GetEntryPointDisplayReason(web_contents, test_url);
+  ASSERT_TRUE(reason.has_value());
+  EXPECT_EQ(*reason,
+            send_tab_to_self::EntryPointDisplayReason::kInformNoTargetDevice);
 }
 
 }  // namespace

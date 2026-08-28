@@ -43,12 +43,12 @@ class MockContextualTasksUiService : public ContextualTasksUiService {
               (override));
   MOCK_METHOD(
       void,
-      StartTaskUiInSidePanel,
+      StartTaskUiInSidePanelImpl,
       (BrowserWindowInterface*,
        tabs::TabInterface*,
        const GURL&,
        std::unique_ptr<contextual_search::ContextualSearchSessionHandle>,
-       bool),
+       StartTaskUiOptions),
       (override));
   MOCK_METHOD(GURL, GetDefaultAiPageUrl, (), (override));
   MOCK_METHOD(GURL,
@@ -88,22 +88,14 @@ class MockContextualTasksUiService : public ContextualTasksUiService {
               (const GURL&, BrowserWindowInterface*),
               (override));
   MOCK_METHOD(bool, IsAiUrl, (const GURL&), (override));
-  MOCK_METHOD(bool, IsTrustedAiUrl, (const GURL&), (override));
   MOCK_METHOD(bool, IsSearchResultsUrl, (const GURL&), (override));
+  MOCK_METHOD(bool, IsGoogleCaptchaUrl, (const GURL&), (override));
   MOCK_METHOD(bool, IsUrlForPrimaryAccount, (const GURL&), (override));
   MOCK_METHOD(bool, IsPendingErrorPage, (const base::Uuid&), (override));
   MOCK_METHOD(void,
               OpenFeedbackUi,
               (BrowserWindowInterface*, const GURL&),
               (override));
-  MOCK_METHOD(
-      void,
-      StartTaskUiInSidePanel,
-      (BrowserWindowInterface*,
-       tabs::TabInterface*,
-       const GURL&,
-       std::unique_ptr<contextual_search::ContextualSearchSessionHandle>),
-      (override));
   MOCK_METHOD(ContextualTasksEligibilityManager*,
               GetEligibilityManager,
               (),

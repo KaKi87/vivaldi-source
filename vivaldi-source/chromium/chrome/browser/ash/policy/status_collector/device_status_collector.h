@@ -13,7 +13,7 @@
 #include <utility>
 #include <vector>
 
-#include "base/byte_count.h"
+#include "base/byte_size.h"
 #include "base/callback_list.h"
 #include "base/check_deref.h"
 #include "base/containers/circular_deque.h"
@@ -61,9 +61,6 @@ namespace policy {
 class EnterpriseActivityStorage;
 class DeviceStatusCollectorState;
 class ReportingUserTracker;
-
-// TODO(b/216131674): Remove this.
-enum class CrosHealthdCollectionMode { kFull, kBattery };
 
 // Sampled hardware measurement data for single time point.
 class SampledData {
@@ -392,7 +389,7 @@ class DeviceStatusCollector : public StatusCollector,
   struct MemoryUsage {
     // Amount of free RAM (measures raw memory used by processes, not internal
     // memory waiting to be reclaimed by GC).
-    base::ByteCount bytes_of_ram_free;
+    base::ByteSize bytes_of_ram_free;
 
     // Sampling timestamp.
     base::Time timestamp;

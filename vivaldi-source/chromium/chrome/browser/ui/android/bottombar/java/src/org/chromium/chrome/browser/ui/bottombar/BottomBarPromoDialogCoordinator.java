@@ -7,15 +7,17 @@ package org.chromium.chrome.browser.ui.bottombar;
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.supplier.NonNullObservableSupplier;
-import org.chromium.base.supplier.NullableObservableSupplier;
+import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.ui.actions.ActionId;
 import org.chromium.components.feature_engagement.FeatureConstants;
 import org.chromium.components.feature_engagement.Tracker;
 import org.chromium.ui.modaldialog.DialogDismissalCause;
@@ -37,13 +39,13 @@ public class BottomBarPromoDialogCoordinator
     @SuppressWarnings("unused") // Vivaldi
     private final Context mContext;
     private final ModalDialogManager mModalDialogManager;
-    @SuppressWarnings("unused") // Vivaldi
-    private final NullableObservableSupplier<Profile> mProfileSupplier;
+    private final OneshotSupplier<String> mCountrySupplier;
 
     @SuppressWarnings("unused") // Vivaldi
     private @Nullable BottomBarPromoDialogListener mListener;
     private @Nullable PropertyModel mDialogModel;
     private @Nullable Tracker mTracker;
+    private @Nullable String mFeatureName;
 
     /**
      * Constructs a {@link BottomBarPromoDialogCoordinator} instance.
@@ -51,15 +53,15 @@ public class BottomBarPromoDialogCoordinator
      * @param context The {@link Context} used to retrieve resources and inflate the layout.
      * @param modalDialogManagerSupplier The supplier of {@link ModalDialogManager} used to display
      *     the dialog.
-     * @param profileSupplier The supplier of the active {@link Profile} used for feature tracking.
+     * @param countrySupplier The supplier for the latest variations country code.
      */
     public BottomBarPromoDialogCoordinator(
             Context context,
             NonNullObservableSupplier<ModalDialogManager> modalDialogManagerSupplier,
-            NullableObservableSupplier<Profile> profileSupplier) {
+            OneshotSupplier<String> countrySupplier) {
         mContext = context;
         mModalDialogManager = modalDialogManagerSupplier.get();
-        mProfileSupplier = profileSupplier;
+        mCountrySupplier = countrySupplier;
     }
 
     @Override
@@ -78,32 +80,69 @@ public class BottomBarPromoDialogCoordinator
     }
 
     /** Evaluates whether to show the introductory promo dialog and shows it if eligible. */
-    public boolean maybeShowPromoDialog() {
+    public boolean maybeShowPromoDialog(Profile profile) {
         /* Not needed in Vivaldi
         if (mDialogModel != null) {
             return true;
         }
 
-        Profile profile = mProfileSupplier.get();
         if (profile == null) {
             return false;
         }
 
-        Tracker tracker = TrackerFactory.getTrackerForProfile(profile);
-        if (!tracker.shouldTriggerHelpUi(FeatureConstants.ANDROID_BOTTOM_BAR_PROMO_DIALOG)) {
+        Profile originalProfile = profile.getOriginalProfile();
+        String country = mCountrySupplier.get();
+
+        if (!BottomBarActionEligibility.isCandidateResolutionReady(originalProfile, country)) {
+            return false;
+        }
+
+        @ActionId
+        int eligibleAction =
+                BottomBarActionEligibility.getCandidateExtraAction(originalProfile, country);
+        if (eligibleAction != ActionId.GLIC && eligibleAction != ActionId.AI_MODE) {
+            return false;
+        }
+
+        mFeatureName =
+                eligibleAction == ActionId.AI_MODE
+                        ? FeatureConstants.ANDROID_BOTTOM_BAR_AIM_PROMO_DIALOG
+                        : FeatureConstants.ANDROID_BOTTOM_BAR_PROMO_DIALOG;
+
+        Tracker tracker = TrackerFactory.getTrackerForProfile(originalProfile);
+        if (!tracker.shouldTriggerHelpUi(mFeatureName)) {
+            mFeatureName = null;
             return false;
         }
         mTracker = tracker;
 
         Context context = mContext;
         View dialogView =
-                LayoutInflater.from(context).inflate(R.layout.bottom_bar_promo_dialog_view, null);
+                LayoutInflater.from(context)
+                        .inflate(R.layout.bottom_bar_promo_dialog_view, /* root= */ null);
+        int titleResId;
+        int descriptionResId;
+        int illustrationResId;
+
+        if (eligibleAction == ActionId.AI_MODE) {
+            illustrationResId = R.drawable.bottom_bar_aim_promo_illustration;
+            titleResId = R.string.iph_android_bottom_bar_aim_dialog_title;
+            descriptionResId = R.string.iph_android_bottom_bar_aim_dialog_description;
+        } else {
+            assert eligibleAction == ActionId.GLIC;
+            illustrationResId = R.drawable.bottom_bar_promo_illustration;
+            titleResId = R.string.iph_android_bottom_bar_dialog_title;
+            descriptionResId = R.string.iph_android_bottom_bar_dialog_description;
+        }
+
+        ImageView illustrationView = dialogView.findViewById(R.id.illustration);
+        illustrationView.setImageResource(illustrationResId);
+
         TextView titleView = dialogView.findViewById(R.id.title);
         TextView descriptionView = dialogView.findViewById(R.id.description);
 
-        titleView.setText(context.getString(R.string.iph_android_bottom_bar_dialog_title));
-        descriptionView.setText(
-                context.getString(R.string.iph_android_bottom_bar_dialog_description));
+        titleView.setText(context.getString(titleResId));
+        descriptionView.setText(context.getString(descriptionResId));
 
         mDialogModel =
                 new PropertyModel.Builder(ModalDialogProperties.ALL_KEYS)
@@ -141,9 +180,10 @@ public class BottomBarPromoDialogCoordinator
     public void onDismiss(PropertyModel model, @DialogDismissalCause int dismissalCause) {
         mDialogModel = null;
 
-        if (mTracker != null) {
-            mTracker.dismissed(FeatureConstants.ANDROID_BOTTOM_BAR_PROMO_DIALOG);
+        if (mTracker != null && mFeatureName != null) {
+            mTracker.dismissed(mFeatureName);
             mTracker = null;
+            mFeatureName = null;
         }
 
         /* Not needed in Vivaldi
@@ -154,5 +194,10 @@ public class BottomBarPromoDialogCoordinator
             BottomBarMetrics.recordPromoEvent(BottomBarMetrics.PromoEvent.DISMISSED);
         }
         */ // Vivaldi
+    }
+
+    /** Returns whether the promo dialog is currently showing. */
+    public boolean isShowing() {
+        return mDialogModel != null;
     }
 }

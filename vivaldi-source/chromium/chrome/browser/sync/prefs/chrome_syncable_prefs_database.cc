@@ -10,7 +10,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/accessibility/tree_fixing/pref_names.h"
 #include "chrome/browser/desktop_to_mobile_promos/promos_pref_names.h"
-#include "chrome/browser/glic/glic_pref_names.h"
+//#include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/ui/read_anything/read_anything_prefs.h"
 #include "chrome/browser/ui/toolbar/toolbar_pref_names.h"
 #include "chrome/common/pref_names.h"
@@ -387,7 +387,7 @@ enum {
   kOfficeMoveConfirmationShownForCloudToOneDriveSyncable = 100322,
   kPinnedCastMigrationComplete = 100323,
   kAccessibilityAXTreeFixingEnabled = 100324,
-  kTabSearchMigrationComplete = 100325,
+  // kTabSearchMigrationComplete = 100325, (deprecated)
   kReadAloudPlaybackMode = 100326,
   kPinSplitTabButton = 100327,
   kGlicRolloutEligibility = 100328,
@@ -434,7 +434,7 @@ enum {
   kPinContextualTaskButton = 100369,
   kAccessibilityReadAnythingOmniboxChipIgnoredCount = 100370,
   kAccessibilityReadAnythingLineFocus = 100371,
-  kProjectsPanelEntrypointEnabled = 100372,
+  kOrganizerPanelEntrypointEnabled = 100372,
   kDesktopToiOSTabGroupsPromoLastImpressionTimestamp = 100373,
   kDesktopToiOSTabGroupsPromoImpressionsCounter = 100374,
   kDesktopToiOSTabGroupsPromoOptOut = 100375,
@@ -444,6 +444,11 @@ enum {
   kAccessibilityReadAnythingLastNonDisabledLineFocus = 100379,
   kAppRatingPromptShown = 100380,
   kAccessibilityReadAnythingLastOpenedPresentationState = 100381,
+  kProfileContentSettingsExceptionsInlineCueMenu = 100382,
+  kProfileContentSettingsPartitionedExceptionsInlineCueMenu = 100383,
+  kProfileDefaultContentSettingValuesInlineCueMenu = 100384,
+  kExtensionsPinnedByDefault = 100385,
+  kAudioFocusEnforcementEnabled = 100386,
   // See components/sync_preferences/README.md about adding new entries here.
   // vvvvv IMPORTANT! vvvvv
   // Note to the reviewer: IT IS YOUR RESPONSIBILITY to ensure that new syncable
@@ -644,12 +649,8 @@ constexpr auto kChromeSyncablePrefsAllowlist = base::MakeFixedFlatMap<
      {syncable_prefs_ids::kPinnedCastMigrationComplete, syncer::PREFERENCES,
       sync_preferences::PrefSensitivity::kNone,
       sync_preferences::MergeBehavior::kNone}},
-    {prefs::kTabSearchMigrationComplete,
-     {syncable_prefs_ids::kTabSearchMigrationComplete, syncer::PREFERENCES,
-      sync_preferences::PrefSensitivity::kNone,
-      sync_preferences::MergeBehavior::kNone}},
-    {prefs::kProjectsPanelEntrypointEnabled,
-     {syncable_prefs_ids::kProjectsPanelEntrypointEnabled, syncer::PREFERENCES,
+    {prefs::kOrganizerPanelEntrypointEnabled,
+     {syncable_prefs_ids::kOrganizerPanelEntrypointEnabled, syncer::PREFERENCES,
       sync_preferences::PrefSensitivity::kNone,
       sync_preferences::MergeBehavior::kNone}},
 #endif  // BUILDFLAG(IS_ANDROID)
@@ -846,6 +847,10 @@ constexpr auto kChromeSyncablePrefsAllowlist = base::MakeFixedFlatMap<
     {ash::prefs::kAppNotificationBadgingEnabled,
      {syncable_prefs_ids::kAppNotificationBadgingEnabled,
       syncer::OS_PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+      sync_preferences::MergeBehavior::kNone}},
+    {ash::prefs::kAudioFocusEnforcementEnabled,
+     {syncable_prefs_ids::kAudioFocusEnforcementEnabled, syncer::OS_PREFERENCES,
+      sync_preferences::PrefSensitivity::kNone,
       sync_preferences::MergeBehavior::kNone}},
     {ash::prefs::kClassManagementToolsOOBEAccessCountSetting,
      {syncable_prefs_ids::kClassManagementToolsOOBEAccessCountSetting,
@@ -1552,6 +1557,10 @@ constexpr auto kChromeSyncablePrefsAllowlist = base::MakeFixedFlatMap<
      {syncable_prefs_ids::kExtensionCommands, syncer::PREFERENCES,
       sync_preferences::PrefSensitivity::kNone,
       sync_preferences::MergeBehavior::kNone}},
+    {prefs::kExtensionsPinnedByDefault,
+     {syncable_prefs_ids::kExtensionsPinnedByDefault, syncer::PREFERENCES,
+      sync_preferences::PrefSensitivity::kNone,
+      sync_preferences::MergeBehavior::kNone}},
     {prefs::kExtensionsUIDeveloperMode,
      {syncable_prefs_ids::kExtensionsUIDeveloperMode, syncer::PREFERENCES,
       sync_preferences::PrefSensitivity::kNone,
@@ -1584,10 +1593,12 @@ constexpr auto kChromeSyncablePrefsAllowlist = base::MakeFixedFlatMap<
      {syncable_prefs_ids::kNetworkQualities, syncer::PREFERENCES,
       sync_preferences::PrefSensitivity::kNone,
       sync_preferences::MergeBehavior::kNone}},
-    {prefs::kPerformanceTracingEnabled,
+#if BUILDFLAG(IS_CHROMEOS)
+    {ash::prefs::kPerformanceTracingEnabled,
      {syncable_prefs_ids::kPerformanceTracingEnabled, syncer::PREFERENCES,
       sync_preferences::PrefSensitivity::kNone,
       sync_preferences::MergeBehavior::kNone}},
+#endif
     {prefs::kPluginsAlwaysOpenPdfExternally,
      {syncable_prefs_ids::kPluginsAlwaysOpenPdfExternally, syncer::PREFERENCES,
       sync_preferences::PrefSensitivity::kNone,
@@ -1657,6 +1668,11 @@ constexpr auto kChromeSyncablePrefsAllowlist = base::MakeFixedFlatMap<
       syncer::PREFERENCES,
       sync_preferences::PrefSensitivity::kSensitiveRequiresHistory,
       sync_preferences::MergeBehavior::kMergeableDict}},
+    {"profile.content_settings.exceptions.inline_cue_menu",
+     {syncable_prefs_ids::kProfileContentSettingsExceptionsInlineCueMenu,
+      syncer::PREFERENCES,
+      sync_preferences::PrefSensitivity::kSensitiveRequiresHistory,
+      sync_preferences::MergeBehavior::kMergeableDict}},
     {"profile.content_settings.exceptions.javascript",
      {syncable_prefs_ids::kProfileContentSettingsExceptionsJavascript,
       syncer::PREFERENCES,
@@ -1715,6 +1731,12 @@ constexpr auto kChromeSyncablePrefsAllowlist = base::MakeFixedFlatMap<
       syncer::PREFERENCES,
       sync_preferences::PrefSensitivity::kSensitiveRequiresHistory,
       sync_preferences::MergeBehavior::kMergeableDict}},
+    {"profile.content_settings.partitioned_exceptions.inline_cue_menu",
+     {syncable_prefs_ids::
+          kProfileContentSettingsPartitionedExceptionsInlineCueMenu,
+      syncer::PREFERENCES,
+      sync_preferences::PrefSensitivity::kSensitiveRequiresHistory,
+      sync_preferences::MergeBehavior::kMergeableDict}},
     {"profile.content_settings.partitioned_exceptions.javascript",
      {syncable_prefs_ids::
           kProfileContentSettingsPartitionedExceptionsJavascript,
@@ -1769,6 +1791,10 @@ constexpr auto kChromeSyncablePrefsAllowlist = base::MakeFixedFlatMap<
       sync_preferences::MergeBehavior::kNone}},
     {"profile.default_content_setting_values.images",
      {syncable_prefs_ids::kProfileDefaultContentSettingValuesImages,
+      syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+      sync_preferences::MergeBehavior::kNone}},
+    {"profile.default_content_setting_values.inline_cue_menu",
+     {syncable_prefs_ids::kProfileDefaultContentSettingValuesInlineCueMenu,
       syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
       sync_preferences::MergeBehavior::kNone}},
     {"profile.default_content_setting_values.javascript",

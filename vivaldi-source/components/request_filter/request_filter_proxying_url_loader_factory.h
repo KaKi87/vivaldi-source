@@ -57,8 +57,9 @@ class RequestFilterProxyingURLLoaderFactory
     // For usual requests
     InProgressRequest(
         RequestFilterProxyingURLLoaderFactory* factory,
-        uint64_t request_id,
-        int32_t network_service_request_id,
+        uint64_t profile_request_id,
+        int32_t request_id_for_network_service,
+        int32_t request_id_from_client,
         int32_t view_routing_id,
         int32_t frame_routing_id,
         uint32_t options,
@@ -70,7 +71,7 @@ class RequestFilterProxyingURLLoaderFactory
             navigation_response_task_runner);
     // For CORS preflights
     InProgressRequest(RequestFilterProxyingURLLoaderFactory* factory,
-                      uint64_t request_id,
+                      uint64_t profile_request_id,
                       int32_t frame_routing_id,
                       const network::ResourceRequest& request);
 
@@ -109,7 +110,8 @@ class RequestFilterProxyingURLLoaderFactory
             forwarding_header_client);
 
     // network::mojom::TrustedHeaderClient:
-    void OnBeforeSendHeaders(const net::HttpRequestHeaders& headers,
+    void OnBeforeSendHeaders(const GURL& request_url,
+                             const net::HttpRequestHeaders& headers,
                              OnBeforeSendHeadersCallback callback) override;
     void OnHeadersReceived(const std::string& headers,
                            const net::IPEndPoint& endpoint,
@@ -176,8 +178,18 @@ class RequestFilterProxyingURLLoaderFactory
     const raw_ptr<RequestFilterProxyingURLLoaderFactory> factory_;
     network::ResourceRequest request_;
     const std::optional<url::Origin> original_initiator_;
-    const uint64_t request_id_ = 0;
-    const int32_t network_service_request_id_ = 0;
+    // The request ID unique per BrowserContext. Used by the
+    // RequestFilterManager and Request filters to identify this request across
+    // event callbacks.
+    const uint64_t profile_request_id_ = 0;
+    // The request ID forwarded to `target_factory_`. Used to correlate
+    // network-stack callbacks (such as `TrustedHeaderClient` and auth events)
+    // with this request.
+    const int32_t request_id_for_network_service_ = 0;
+    // The request ID supplied by the caller of `CreateLoaderAndStart()`. Used
+    // solely to preserve the request-filter-visible ID across a request
+    // restart (e.g., via `ThrottlingURLLoader`).
+    const int32_t request_id_from_client_ = 0;
     const int32_t view_routing_id_ = IPC::mojom::kRoutingIdNone;
     const int32_t frame_routing_id_ = IPC::mojom::kRoutingIdNone;
     const uint32_t options_ = 0;
@@ -324,7 +336,8 @@ class RequestFilterProxyingURLLoaderFactory
  private:
   void OnTargetFactoryError();
   void OnProxyBindingError();
-  void RemoveRequest(int32_t network_service_request_id, uint64_t request_id);
+  void RemoveRequest(int32_t request_id_for_network_service,
+                     uint64_t profile_request_id);
   void MaybeRemoveProxy();
 
   const raw_ptr<content::BrowserContext> browser_context_;

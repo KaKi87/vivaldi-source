@@ -6,10 +6,8 @@
 #define CHROME_BROWSER_UI_VIEWS_TABS_TAB_STRIP_ACTION_CONTAINER_H_
 
 #include "base/memory/raw_ptr.h"
-//#include "chrome/browser/glic/browser_ui/glic_actor_nudge_delegate.h"
-//#include "chrome/browser/glic/browser_ui/glic_button_controller_delegate.h"
-//#include "chrome/browser/glic/browser_ui/glic_nudge_controller.h"
-//#include "chrome/browser/glic/browser_ui/glic_nudge_delegate.h"
+#include "base/memory/weak_ptr.h"
+//#include "chrome/browser/glic/browser_ui/glic_split_button_delegate.h"
 //#include "chrome/browser/ui/views/glic/glic_button_interface.h"
 //#include "chrome/browser/ui/views/tabs/glic/tab_strip_glic_actor_task_icon.h"
 //#include "chrome/browser/ui/views/tabs/glic/tab_strip_glic_button.h"
@@ -27,6 +25,7 @@ class Insets;
 }
 namespace glic {
 class TabStripGlicActorTaskIcon;
+class GlicSplitButtonController;
 }
 class BrowserWindowInterface;
 class GlicAndActorButtonsContainer;
@@ -41,9 +40,7 @@ class TabStripActionContainer : public views::View,
                                 public views::AnimationDelegateViews,
                                 public views::MouseWatcherListener
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-                                public glic::GlicNudgeDelegate,
-                                public glic::GlicActorNudgeDelegate,
-                                public glic::GlicButtonControllerDelegate
+                                public glic::GlicSplitButtonDelegate {
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 {
   METADATA_HEADER(TabStripActionContainer, views::View)
@@ -106,11 +103,7 @@ class TabStripActionContainer : public views::View,
   };
 
   explicit TabStripActionContainer(
-      BrowserWindowInterface* browser_window_interface
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-      , glic::GlicNudgeController* glic_nudge_controller
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-  );
+      BrowserWindowInterface* browser_window_interface);
   TabStripActionContainer(const TabStripActionContainer&) = delete;
   TabStripActionContainer& operator=(const TabStripActionContainer&) = delete;
   ~TabStripActionContainer() override;
@@ -134,21 +127,15 @@ class TabStripActionContainer : public views::View,
   void MouseMovedOutOfHost() override;
 
   #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-  // GlicNudgeDelegate:
+  // GlicSplitButtonDelegate:
+  void SetGlicShowState(bool show) override;
+  void SetGlicPanelIsOpen(bool open) override;
   void OnTriggerGlicNudgeUI(glic::NudgeParams params) override;
   void OnHideGlicNudgeUI() override;
   bool GetIsShowingGlicNudge() override;
-
-  // GlicButtonControllerDelegate:
-  void SetButtonController(glic::GlicButtonController* controller) override;
-  void SetGlicShowState(bool show) override;
-  void SetGlicPanelIsOpen(bool open) override;
-
-  // GlicActorNudgeDelegate:
   void ShowGlicActorTaskIcon() override;
   void HideGlicActorTaskIcon() override;
   bool GetIsShowingGlicActorTaskIconNudge() override;
-  bool IsGlicAdded() override;
   void SetGlicActorNudgeLabel(const std::u16string& nudge_label) override;
   void TriggerGlicActorNudge(const std::u16string& nudge_text) override;
   void SetGlicActorNudgePressedState(bool pressed) override;
@@ -232,8 +219,6 @@ class TabStripActionContainer : public views::View,
 
   // The button currently holding the lock to be shown/hidden.
   raw_ptr<TabStripNudgeButton> locked_expansion_button_ = nullptr;
-  raw_ptr<glic::GlicNudgeController> glic_nudge_controller_ = nullptr;
-  raw_ptr<glic::GlicButtonController> button_controller_ = nullptr;
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   raw_ptr<views::Separator> separator_ = nullptr;
@@ -245,6 +230,7 @@ class TabStripActionContainer : public views::View,
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   const raw_ptr<BrowserWindowInterface> browser_window_interface_ = nullptr;
+  base::WeakPtr<glic::GlicSplitButtonController> glic_split_button_controller_;
 
   // Timer for hiding tab_strip_nudge_button_ after show.
   base::OneShotTimer hide_tab_strip_nudge_timer_;

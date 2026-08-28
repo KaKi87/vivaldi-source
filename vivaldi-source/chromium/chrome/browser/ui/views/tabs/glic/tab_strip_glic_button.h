@@ -7,9 +7,7 @@
 
 #include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
-#include "chrome/browser/glic/browser_ui/glic_button_controller_delegate.h"
-//#include "chrome/browser/glic/fre/glic_fre.mojom.h"
-//#include "chrome/browser/ui/views/glic/glic_button.h"
+#include "chrome/browser/ui/views/glic/glic_button.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_nudge_button.h"
 #include "chrome/common/buildflags.h"
 #include "ui/base/class_property.h"
@@ -24,10 +22,7 @@ namespace glic {
 // TabStripGlicButton should leverage the look and feel of the existing
 // TabSearchButton for sizing and appropriate theming.
 
-class TabStripGlicButton :
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-						   public GlicButton<TabStripNudgeButton>,
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
+class TabStripGlicButton : public GlicButton<TabStripNudgeButton>,
                            public views::ContextMenuController {
   METADATA_HEADER(TabStripGlicButton, TabStripNudgeButton)
 

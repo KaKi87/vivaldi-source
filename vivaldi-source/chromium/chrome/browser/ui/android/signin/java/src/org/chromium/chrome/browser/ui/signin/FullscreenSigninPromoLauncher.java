@@ -14,6 +14,8 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
+import org.chromium.chrome.browser.signin.services.SigninManager;
 import org.chromium.chrome.browser.signin.services.SigninPreferencesManager;
 import org.chromium.components.signin.AccountManagerFacade;
 import org.chromium.components.signin.AccountManagerFacadeProvider;
@@ -104,7 +106,7 @@ public final class FullscreenSigninPromoLauncher {
             SigninAndHistorySyncActivityLauncher signinAndHistorySyncActivityLauncher,
             @SigninAccessPoint int accessPoint) {
         FullscreenSigninAndHistorySyncConfig config =
-                new FullscreenSigninAndHistorySyncConfig.Builder(
+                FullscreenSigninAndHistorySyncConfig.builder(
                                 context.getString(R.string.signin_fre_title),
                                 context.getString(R.string.signin_fre_subtitle),
                                 context.getString(R.string.signin_fre_stay_signed_out_button),
@@ -124,6 +126,12 @@ public final class FullscreenSigninPromoLauncher {
     private static boolean shouldLaunchPromo(
             Profile profile, SigninPreferencesManager prefManager, final int currentMajorVersion) {
         if (DeviceInfo.isAutomotive()) {
+            return false;
+        }
+
+        SigninManager signinManager = IdentityServicesProvider.get().getSigninManager(profile);
+        if (signinManager == null
+                || !signinManager.isSigninSupported(/* requireUpdatedPlayServices= */ true)) {
             return false;
         }
 

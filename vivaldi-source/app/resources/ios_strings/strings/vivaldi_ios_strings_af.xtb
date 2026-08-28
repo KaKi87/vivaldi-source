@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Vra om skakels van ander toeps in privaat modus te open</translation>
 <translation id="1624481300475123200">Outovul wagwoorde</translation>
 <translation id="1743244221910283364">Doen veranderinge weg</translation>
+<translation id="1972589975368876259">Wysig groep</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {voeg oortjie toe tot groep}
         other {voeg oortjie toe tot groep}}</translation>
@@ -48,7 +49,6 @@
 <translation id="4772190485302020393">Sluit alle oortjies en groepe</translation>
 <translation id="4802185666270672526">Versteek Versoek rekenaarwerf</translation>
 <translation id="4828571836982833289">Hef oortjiegroep op?</translation>
-<translation id="4838250035189612538">Hernoem groep</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 oortjiegroep afgesluit en bewaar}
             other {{count} oortjiegroepe afgesluit en bewaar}}</translation>

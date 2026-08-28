@@ -64,7 +64,6 @@ import org.chromium.chrome.browser.crash.LogcatExtractionRunnable;
 import org.chromium.chrome.browser.crash.MinidumpUploadServiceImpl;
 import org.chromium.chrome.browser.download.DownloadManagerService;
 import org.chromium.chrome.browser.download.OfflineContentAvailabilityStatusProvider;
-import org.chromium.chrome.browser.enterprise.util.EnterpriseInfo;
 import org.chromium.chrome.browser.feedback.FeedbackPolicyManager;
 import org.chromium.chrome.browser.firstrun.TosDialogBehaviorSharedPrefInvalidator;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
@@ -78,8 +77,6 @@ import org.chromium.chrome.browser.media.MediaCaptureNotificationServiceImpl;
 import org.chromium.chrome.browser.media.MediaViewerUtils;
 import org.chromium.chrome.browser.metrics.LaunchMetrics;
 import org.chromium.chrome.browser.metrics.PackageMetrics;
-import org.chromium.chrome.browser.metrics.StorageSystem;
-import org.chromium.chrome.browser.metrics.UmaSessionStats;
 import org.chromium.chrome.browser.metrics.UmaUtils;
 import org.chromium.chrome.browser.night_mode.GlobalNightModeStateProviderHolder;
 import org.chromium.chrome.browser.night_mode.NightModeStateProvider;
@@ -103,6 +100,7 @@ import org.chromium.chrome.browser.profiles.ProfileManagerUtils;
 import org.chromium.chrome.browser.quickactionsearchwidget.QuickActionSearchWidgetProvider;
 import org.chromium.chrome.browser.rlz.RevenueStats;
 import org.chromium.chrome.browser.searchwidget.SearchWidgetProvider;
+import org.chromium.chrome.browser.share.send_tab_to_self.OtherDevicesShortcutControllerFactory;
 import org.chromium.chrome.browser.signin.SigninCheckerProvider;
 import org.chromium.chrome.browser.tab.state.PersistedTabData;
 import org.chromium.chrome.browser.tab.state.ShoppingPersistedTabData;
@@ -128,12 +126,12 @@ import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.components.minidump_uploader.CrashFileManager;
 import org.chromium.components.optimization_guide.proto.HintsProto;
 import org.chromium.components.policy.CombinedPolicyProvider;
+import org.chromium.components.policy.EnterpriseInfo;
 import org.chromium.components.safe_browsing.SafeBrowsingApiBridge;
 import org.chromium.components.webapps.AppBannerManager;
 import org.chromium.components.webapps.AppDetailsDelegate;
 import org.chromium.content_public.browser.ChildProcessLauncherHelper;
 import org.chromium.content_public.browser.DeviceUtils;
-import org.chromium.content_public.browser.JavalessRenderersFeatureList;
 import org.chromium.content_public.browser.SpeechRecognition;
 import org.chromium.net.NetworkChangeNotifier;
 import org.chromium.net.RegistrationPolicyApplicationStatus;
@@ -497,13 +495,11 @@ public class ProcessInitializationHandler {
         SpeechRecognition.initialize();
         TrampolineActivityTracker.getInstance().onNativeInitialized();
 
-        JavalessRenderersFeatureList.setRegisterSyntheticFieldTrialCallback(
-                UmaSessionStats::registerSyntheticFieldTrial);
-
         /* Not needed in Vivaldi
         if (GlicEnabling.isEnabledByFlags()) {
             ActorForegroundServiceManager.initialize();
-        }*/
+        }
+        */ // Vivaldi
     }
 
     /**
@@ -665,8 +661,6 @@ public class ProcessInitializationHandler {
 
                     initAsyncDiskTask();
 
-                    StorageSystem.recordStorageType();
-
                     AfterStartupTaskUtils.setStartupComplete();
                     if (!BuildConfig.IS_VIVALDI) {
                     PartnerBrowserCustomizations.getInstance()
@@ -777,6 +771,9 @@ public class ProcessInitializationHandler {
 
         // Initialize the SigninChecker.
         tasks.add(() -> SigninCheckerProvider.get(profile));
+
+        // Initialize the OtherDevicesShortcutController.
+        tasks.add(() -> OtherDevicesShortcutControllerFactory.getForProfile(profile));
 
         tasks.add(
                 () -> {
@@ -995,8 +992,13 @@ public class ProcessInitializationHandler {
 
     private void startBindingManagementIfNeeded() {
         ChildProcessLauncherHelper.initialize();
+        // ProtectRecentlyVisibleTab feature disables BindingManager and ProcessRankPolicyAndroid in
+        // performance manager manages it instead.
+        // TODO(crbug.com/467504869): Remove desktop check once the feature is launched on Android.
+        boolean isProtectRecentlyVisibleTabEnabled =
+                DeviceInfo.isDesktop() || ChromeFeatureList.sProtectRecentlyVisibleTab.isEnabled();
         // Moderate binding doesn't apply to low end devices.
-        if (SysUtils.isLowEndDevice() || ChromeFeatureList.sProtectRecentlyVisibleTab.isEnabled()) {
+        if (SysUtils.isLowEndDevice() || isProtectRecentlyVisibleTabEnabled) {
             return;
         }
         ChildProcessLauncherHelper.startBindingManagement(ContextUtils.getApplicationContext());

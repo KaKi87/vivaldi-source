@@ -47,19 +47,14 @@ void SetUpButtonWithIcon(UIButton* button, NSString* iconName) {
   button.layer.shadowRadius = kButtonShadowRadius;
 }
 
-void SetUpButtonWithSymbol(UIButton* button,
-                           NSString* symbolName,
-                           BOOL isCustomSymbol) {
+void SetUpButtonWithSymbol(UIButton* button, Symbol symbol) {
   [button setTranslatesAutoresizingMaskIntoConstraints:NO];
   UIImageSymbolConfiguration* configuration = [UIImageSymbolConfiguration
       configurationWithPointSize:kOmniboxAssistiveKeyboardSymbolPointSize
                           weight:UIImageSymbolWeightSemibold
                            scale:UIImageSymbolScaleMedium];
 
-  UIImage* icon =
-      isCustomSymbol
-          ? CustomSymbolWithConfiguration(symbolName, configuration)
-          : DefaultSymbolWithConfiguration(symbolName, configuration);
+  UIImage* icon = SymbolWithConfiguration(symbol, configuration);
   if (UITraitCollection.currentTraitCollection.userInterfaceStyle ==
       UIUserInterfaceStyleDark) {
     icon = MakeSymbolMonochrome(icon);
@@ -88,7 +83,7 @@ void SetUpButtonWithSymbol(UIButton* button,
 }  // namespace
 
 void UpdateLensButtonAppearance(UIButton* button) {
-  SetUpButtonWithSymbol(button, kCameraLensSymbol, YES);
+  SetUpButtonWithSymbol(button, SymbolCameraLens);
 }
 
 NSArray<UIControl*>* OmniboxAssistiveKeyboardLeadingControls(
@@ -104,7 +99,7 @@ NSArray<UIControl*>* OmniboxAssistiveKeyboardLeadingControls(
       [[ExtendedTouchTargetButton alloc] initWithFrame:CGRectZero];
 
   if (GlassEffectEnabled()) {
-    SetUpButtonWithSymbol(voiceSearchButton, kVoiceSymbol, YES);
+    SetUpButtonWithSymbol(voiceSearchButton, SymbolVoice);
   } else {
     SetUpButtonWithIcon(voiceSearchButton, @"keyboard_accessory_voice_search");
   }
@@ -159,7 +154,7 @@ NSArray<UIControl*>* OmniboxAssistiveKeyboardLeadingControls(
   if (experimental_flags::IsOmniboxDebuggingEnabled()) {
     UIButton* debuggerButton =
         [[ExtendedTouchTargetButton alloc] initWithFrame:CGRectZero];
-    SetUpButtonWithSymbol(debuggerButton, kSettingsSymbol, NO);
+    SetUpButtonWithSymbol(debuggerButton, SymbolSettings);
     [debuggerButton addTarget:delegate
                        action:@selector(keyboardAccessoryDebuggerTapped)
              forControlEvents:UIControlEventTouchUpInside];

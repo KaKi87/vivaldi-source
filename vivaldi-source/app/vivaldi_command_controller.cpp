@@ -6,7 +6,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_command_controller.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "extensions/buildflags/buildflags.h"
@@ -18,7 +17,7 @@
 
 namespace chrome {
 void BrowserCommandController::InitVivaldiCommandState() {
-  vivaldi::UpdateCommandsForVivaldi(&command_updater_);
+  vivaldi::UpdateCommandsForVivaldi(command_updater_.get());
 }
 }  // namespace chrome
 
@@ -67,7 +66,7 @@ void UpdateCommandsForVivaldi(CommandUpdater* command_updater_) {
 
 bool ExecuteVivaldiCommands(Browser* browser, int id) {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  Profile* profile = browser->profile()->GetOriginalProfile();
+  Profile* profile = browser->GetProfile()->GetOriginalProfile();
   return extensions::MenubarAPI::HandleActionById(
       profile, browser->session_id().id(), id);
 #else

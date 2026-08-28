@@ -7,7 +7,7 @@ import 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js'
 import type {CrIconButtonElement} from '//resources/cr_elements/cr_icon_button/cr_icon_button.js';
 import {MENU_SHOW_DELAY_MS} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 import type {ReadAnythingToolbarElement, SettingsMenuElement} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
-import {SettingsOption} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
+import {SettingsOption, ToolbarEvent} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 import {assertFalse, assertNotEquals, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
 import {keyDownOn} from 'chrome-untrusted://webui-test/keyboard_mock_interactions.js';
 import {MockTimer} from 'chrome-untrusted://webui-test/mock_timer.js';
@@ -21,6 +21,8 @@ suite('Toolbar Settings Menu', () => {
   let shadowRoot: ShadowRoot;
   let menuButton: CrIconButtonElement;
   let settingsMenu: SettingsMenuElement;
+
+  const preventResizeClose = (e: Event) => e.stopImmediatePropagation();
 
   async function createToolbar(): Promise<void> {
     toolbar = document.createElement('read-anything-toolbar');
@@ -64,16 +66,14 @@ suite('Toolbar Settings Menu', () => {
     // test environments, the constrained viewport and deferred layout
     // calculations when opening a <dialog> often trigger phantom resize events,
     // causing the menu to close immediately and flake the test.
-    const preventResizeClose = (e: Event) => e.stopImmediatePropagation();
     window.addEventListener('resize', preventResizeClose, true);
 
     menuButton.click();
     await microtasksFinished();
-
-    window.removeEventListener('resize', preventResizeClose, true);
   });
 
   teardown(async () => {
+    window.removeEventListener('resize', preventResizeClose, true);
     if (settingsMenu) {
       const lazyMenu = settingsMenu.$.lazyMenu.getIfExists();
       if (lazyMenu && lazyMenu.open) {
@@ -103,6 +103,18 @@ suite('Toolbar Settings Menu', () => {
     targetItem.click();
     assertTrue(toolbar.$.fontMenu.$.menu.$.lazyMenu.get().open);
   });
+
+  test(
+      'settings menu opens appearance submenu on click when flag enabled',
+      async () => {
+        chrome.readingMode.isImprovedReadAloudEnabled = true;
+        toolbar.$.settingsMenu.isImmersiveMode = true;
+        await microtasksFinished();
+        const targetItem = getMenuItem(SettingsOption.APPEARANCE);
+        assertTrue(!!targetItem);
+        targetItem.click();
+        assertTrue(toolbar.$.appearanceMenu.$.menu.$.lazyMenu.get().open);
+      });
 
   test('settings menu opens submenus on hover', () => {
     const targetItem = getMenuItem(SettingsOption.FONT);
@@ -328,4 +340,15 @@ suite('Toolbar Settings Menu', () => {
         assertTrue(actionMenu.open);
         assertTrue(fontSubmenu.$.menu.$.lazyMenu.get().open);
       });
+
+  test('translate event from settings menu invokes readingMode', () => {
+    chrome.readingMode.isReadAnythingTranslateEntryPointEnabled = true;
+    let translateCalled = false;
+    chrome.readingMode.onTranslationRequested = () => {
+      translateCalled = true;
+    };
+    settingsMenu.dispatchEvent(
+        new CustomEvent(ToolbarEvent.TRANSLATION_REQUESTED));
+    assertTrue(translateCalled);
+  });
 });

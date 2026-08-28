@@ -14,22 +14,25 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
-import {formatArguments, toRegExp} from "../utils/general.js";
+import {
+  formatArguments, sendSnippetHitEvent, toRegExp
+} from "../utils/general.js";
 import {getDebugger} from "../introspection/log.js";
 import {profile} from "../introspection/profile.js";
+import {proxyToStringCalls} from "../utils/toString.js";
 
 const {Array, Blob, Error, Object, Reflect} = $(window);
 
 // Global array to store all active rules
 const blobRules = [];
+const hitFilters = new Set();
 
 /**
- * Traps calls to the Blob constructor, Replaces the blob
+ * @description Traps calls to the Blob constructor, Replaces the blob
  * content(blobParts) if the content matches a given
  * regular expression pattern.
- * @alias module:content/snippets.blob-override
+ * @memberof module:snippets/behavioral
  *
  * @param {string} search - The string or regex pattern to match
  * in the blob content.
@@ -37,6 +40,15 @@ const blobRules = [];
  * pattern with.
  * @param {?string} needle - An optional string or regex to check in the
  * blob parts before applying the replacement.
+ *
+ * @example
+ * blob-override '/config = \\{[^}]*\\}/' 'config = {}' '/Sponsored/'
+ * => Will override the config content matched via regex pattern with
+ * an empty object only if the blob contains also the string Sponsored.
+ *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/964657166/blob-override} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/behavioral-snippets/blob-override} for external documentation.
+ * @since Adblock Plus 4.22.2
  */
 
 export function blobOverride(search, replacement = "", needle = null) {
@@ -74,6 +86,12 @@ export function blobOverride(search, replacement = "", needle = null) {
         ) {
           combinedData = combinedData.replace(rule.match, rule.replaceWith);
           debugLog("success", `Replaced: ${rule.match} → ${rule.replaceWith},\nFILTER: blob-override ${rule.formattedArgs}`);
+          const filter =
+            "blob-override " + rule.formattedArgs;
+          if (!hitFilters.has(filter)) {
+            hitFilters.add(filter);
+            sendSnippetHitEvent(filter);
+          }
         }
       }
       data = [combinedData];
@@ -86,6 +104,7 @@ export function blobOverride(search, replacement = "", needle = null) {
 
   PatchedBlob.prototype = OriginalBlob.prototype; // For instances behaviour
   Object.setPrototypeOf(PatchedBlob, OriginalBlob); // For constructor
+  proxyToStringCalls(PatchedBlob, window.Blob);
   window.Blob = PatchedBlob;
   debugLog("info", "Wrapped Blob constructor in context ");
   end();

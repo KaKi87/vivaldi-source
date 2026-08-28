@@ -16,7 +16,6 @@
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
@@ -426,7 +425,7 @@ content::WebContents* VivaldiUIWebContentsDelegate::AddNewContents(
   // closed a restored session-window will be created in addition to the one
   // here.
   if (browser_created && (target_browser != params.browser)) {
-    target_browser->window()->Close();
+    target_browser->GetWindow()->Close();
   }
 
   return params.navigated_or_inserted_contents;

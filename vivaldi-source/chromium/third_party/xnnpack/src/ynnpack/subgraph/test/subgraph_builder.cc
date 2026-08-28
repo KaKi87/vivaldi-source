@@ -47,7 +47,7 @@ SubgraphBuilder& SubgraphBuilder::AddConvert(uint32_t input_id, ynn_type type,
                                              uint32_t flags) {
   assert(status_ == ynn_status_success);
   status_ =
-      ynn_define_convert_v2(subgraph_.get(), input_id, type, &output_id, flags);
+      ynn_define_convert(subgraph_.get(), input_id, type, &output_id, flags);
   return *this;
 }
 
@@ -103,11 +103,13 @@ SubgraphBuilder& SubgraphBuilder::AddDequantize(
 SubgraphBuilder& SubgraphBuilder::AddPolynomial(
     const std::vector<float>& coefficients, uint32_t input_id,
     uint32_t output_id, uint32_t flags) {
+  std::vector<double> coefficients_double(coefficients.begin(),
+                                          coefficients.end());
   assert(!coefficients.empty());
   assert(status_ == ynn_status_success);
-  status_ = ynn_define_unary_polynomial(subgraph_.get(), input_id,
-                                        coefficients.size() - 1,
-                                        coefficients.data(), &output_id, flags);
+  status_ = ynn_define_unary_polynomial(
+      subgraph_.get(), input_id, coefficients_double.size() - 1,
+      coefficients_double.data(), &output_id, flags);
   return *this;
 }
 
@@ -145,9 +147,9 @@ SubgraphBuilder& SubgraphBuilder::AddBroadcast(const std::vector<size_t>& shape,
 SubgraphBuilder& SubgraphBuilder::AddStaticBroadcast(
     const std::vector<size_t>& shape, uint32_t input_id, uint32_t output_id) {
   assert(status_ == ynn_status_success);
-  status_ = ynn_define_static_broadcast(
-      subgraph_.get(), shape.size(), shape.data(), input_id, &output_id,
-      /*flags=*/0);
+  status_ = ynn_define_static_broadcast(subgraph_.get(), shape.size(),
+                                        shape.data(), input_id, &output_id,
+                                        /*flags=*/0);
   return *this;
 }
 
@@ -175,6 +177,16 @@ SubgraphBuilder& SubgraphBuilder::AddCopy(uint32_t input_id, uint32_t output_id,
                                           uint32_t flags) {
   assert(status_ == ynn_status_success);
   status_ = ynn_define_copy(subgraph_.get(), input_id, &output_id, flags);
+  return *this;
+}
+
+SubgraphBuilder& SubgraphBuilder::AddGather(
+    const std::vector<int32_t>& axes, size_t output_rank, uint32_t input_id,
+    uint32_t index_id, uint32_t output_id, uint32_t flags) {
+  assert(status_ == ynn_status_success);
+  status_ =
+      ynn_define_gather(subgraph_.get(), axes.size(), axes.data(), output_rank,
+                        input_id, index_id, &output_id, flags);
   return *this;
 }
 
@@ -270,13 +282,13 @@ SubgraphBuilder& SubgraphBuilder::AddBroadcast(const std::vector<int32_t>& axes,
 }
 
 SubgraphBuilder& SubgraphBuilder::AddSliceLike(const std::vector<int32_t>& axes,
-                                              uint32_t input_id,
-                                              uint32_t template_id,
-                                              uint32_t output_id) {
+                                               uint32_t input_id,
+                                               uint32_t template_id,
+                                               uint32_t output_id,
+                                               uint32_t flags) {
   assert(status_ == ynn_status_success);
-  status_ =
-      ynn_define_slice_like(subgraph_.get(), axes.size(), axes.data(), input_id,
-                            template_id, &output_id, /*flags=*/0);
+  status_ = ynn_define_slice_like(subgraph_.get(), axes.size(), axes.data(),
+                                  input_id, template_id, &output_id, flags);
   return *this;
 }
 

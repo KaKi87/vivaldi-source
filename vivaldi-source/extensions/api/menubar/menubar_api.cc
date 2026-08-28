@@ -103,14 +103,15 @@ int getIdByAction(const menubar::MenuItem& item) {
                                 enabled};
   // Some menus
   else if (item.action == "MENU_APPLE_APP")
-    GetTagMap()[item.action] = {IDC_CHROME_MENU, item.with_no_window, enabled};
+    GetTagMap()[item.action] = {kMacChromeMenuId, item.with_no_window, enabled};
   else if (item.action == "MENU_EDIT")
-    GetTagMap()[item.action] = {IDC_EDIT_MENU, item.with_no_window, enabled};
+    GetTagMap()[item.action] = {kEditMenuId, item.with_no_window,
+                                enabled};
   else if (item.action == "MENU_BOOKMARKS")
-    GetTagMap()[item.action] = {IDC_BOOKMARKS_MENU, item.with_no_window,
+    GetTagMap()[item.action] = {kBookmarksMenuId, item.with_no_window,
                                 enabled};
   else if (item.action == "MENU_WINDOW")
-    GetTagMap()[item.action] = {IDC_WINDOW_MENU, item.with_no_window, enabled};
+    GetTagMap()[item.action] = {kMacWindowMenuId, item.with_no_window, enabled};
   else if (item.action == "MENU_HELP")
     GetTagMap()[item.action] = {IDC_VIV_HELP_MENU, item.with_no_window,
                                 enabled};

@@ -10,6 +10,7 @@
 
 #include "ash/constants/ash_pref_names.h"
 #include "base/compiler_specific.h"
+#include "base/containers/span.h"
 #include "base/feature_list.h"
 #include "base/functional/callback_helpers.h"
 #include "base/notreached.h"
@@ -362,6 +363,9 @@ std::string GenerateCertProvisioningId() {
   std::string result = base::UnguessableToken::Create().ToString();
   // Server-side stores the id and expects it to be <=32 characters long.
   CHECK_LE(result.size(), 32u);
+  if (result.empty()) {
+    LOG(ERROR) << "Failed to generate cert provisioning id";
+  }
   return result;
 }
 

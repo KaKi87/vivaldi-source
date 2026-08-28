@@ -10,7 +10,6 @@
 #include "chrome/browser/contextual_cueing/contextual_cueing_enums.h"
 #include "chrome/browser/contextual_cueing/contextual_cueing_service.h"
 #include "chrome/browser/contextual_cueing/contextual_cueing_service_factory.h"
-#include "chrome/grit/generated_resources.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/models/image_model.h"
@@ -50,14 +49,22 @@ ContextualCueingMenuModel::ContextualCueingMenuModel(
     Profile* profile,
     base::WeakPtr<ContextualCueingController> controller,
     CueTargetType cue_type,
+    optimization_guide::proto::ContextualCue cue,
+    std::vector<tabs::TabHandle> tabs_to_show,
+    std::vector<optimization_guide::proto::Tab> background_tabs,
     std::string cuj,
-    CueActionData data)
+    CueActionData data,
+    std::string cue_id)
     : ui::SimpleMenuModel(this),
       profile_(profile),
       controller_(controller),
       cue_type_(cue_type),
-      cuj_(cuj),
-      data_(std::move(data)) {
+      cue_(std::move(cue)),
+      tabs_to_show_(std::move(tabs_to_show)),
+      background_tabs_(std::move(background_tabs)),
+      cuj_(std::move(cuj)),
+      data_(std::move(data)),
+      cue_id_(std::move(cue_id)) {
   contextual_cueing_service_ =
       ContextualCueingServiceFactory::GetForProfile(profile_);
 
@@ -97,8 +104,9 @@ void ContextualCueingMenuModel::ExecuteCommand(int command_id,
     return;
   }
 
-  controller_->OnCueInteraction(*interaction, cue_type_, cuj_,
-                                std::move(data_));
+  controller_->OnCueInteraction(*interaction, cue_type_, cue_, tabs_to_show_,
+                                background_tabs_, cuj_, std::move(data_),
+                                cue_id_);
 }
 
 }  // namespace contextual_cueing

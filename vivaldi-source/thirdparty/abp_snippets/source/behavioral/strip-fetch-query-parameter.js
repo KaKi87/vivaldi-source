@@ -14,25 +14,34 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import {caller} from "proxy-pants/function";
 import {getDebugger} from "../introspection/log.js";
 import {profile} from "../introspection/profile.js";
-import {formatArguments, toRegExp} from "../utils/general.js";
+import {
+  formatArguments, sendSnippetHitEvent, toRegExp
+} from "../utils/general.js";
 import {addPreFetchCallback} from "../utils/fetchManipulation.js";
 
 // purposely a trap for the native URLSearchParams.prototype
 let {delete: deleteParam, has: hasParam} = caller(URLSearchParams.prototype);
 
 let parameters;
+const hitFilters = new Set();
 
 /**
- * Strips a query string parameter from `fetch()` calls.
- * @alias module:content/snippets.strip-fetch-query-parameter
+ * @description Strips a query string parameter from `fetch()` calls.
+ * @memberof module:snippets/behavioral
  *
  * @param {string} name The name of the parameter.
  * @param {?string} [urlPattern] An optional pattern that the URL must match.
  *
+ * @example
+ * strip-fetch-query-parameter ads someadsserver.com/get-ads => Strips the
+ * ads param from the fetch calls whose source matches the
+ * someadsserver.com/get-ads pattern.
+ *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69970862/strip-fetch-query-parameter} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/behavioral-snippets/strip-fetch-query-parameter} for external documentation.
  * @since Adblock Plus 3.5.1
  */
 export function stripFetchQueryParameter(name, urlPattern = null) {
@@ -47,6 +56,11 @@ export function stripFetchQueryParameter(name, urlPattern = null) {
       if (!reg || reg.test(url)) {
         if (hasParam(url.searchParams, key)) {
           debugLog("success", `${key} has been stripped from url ${url}`, `\nFILTER: strip-fetch-query-parameter ${args}`);
+          const filter = "strip-fetch-query-parameter " + args;
+          if (!hitFilters.has(filter)) {
+            hitFilters.add(filter);
+            sendSnippetHitEvent(filter);
+          }
           deleteParam(url.searchParams, key);
         }
       }

@@ -52,7 +52,6 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/tile_shading_positive.cpp
     unit/debug_extensions.cpp
     unit/debug_extensions_positive.cpp
-    unit/debug_descriptor.cpp
     unit/debug_printf.cpp
     unit/debug_printf_shader_debug_info.cpp
     unit/debug_printf_ray_tracing.cpp
@@ -125,6 +124,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/gpu_av_mesh.cpp
     unit/gpu_av_mesh_positive.cpp
     unit/gpu_av_positive.cpp
+    unit/gpu_av_scoped.cpp
+    unit/gpu_av_scoped_positive.cpp
     unit/gpu_av_shader_object_positive.cpp
     unit/gpu_av_shader_debug_info.cpp
     unit/gpu_av_shader_sanitizer.cpp
@@ -288,6 +289,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/video_encode_h265_positive.cpp
     unit/video_encode_intra_refresh.cpp
     unit/video_encode_intra_refresh_positive.cpp
+    unit/video_encode_feedback2.cpp
+    unit/video_encode_feedback2_positive.cpp
     unit/video_encode_quantization_map.cpp
     unit/video_encode_quantization_map_positive.cpp
     unit/viewport_inheritance.cpp
@@ -299,6 +302,10 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/ray_tracing_spheres_positive.cpp
     vvl_utils/small_vector.cpp
     vvl_utils/pnext_chain_extraction.cpp
+)
+
+target_include_directories(vk_layer_validation_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
 )
 
 get_target_property(TEST_SOURCES vk_layer_validation_tests SOURCES)

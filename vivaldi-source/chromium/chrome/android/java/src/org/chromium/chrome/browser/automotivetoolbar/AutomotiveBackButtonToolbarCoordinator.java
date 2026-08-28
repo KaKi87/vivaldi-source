@@ -30,6 +30,7 @@ import org.chromium.ui.display.DisplayUtil;
 
 // Vivaldi
 import org.chromium.build.BuildConfig;
+import org.vivaldi.browser.common.VivaldiUtils;
 
 /**
  * The automotive back button toolbar allows users to navigate backwards. This coordinator supports
@@ -234,6 +235,9 @@ public class AutomotiveBackButtonToolbarCoordinator {
      * @return Whether the back button bar should be streamlined.
      */
     public static boolean isAutomotiveBackButtonBarStreamlineSupported(Context context) {
+        // Vivaldi: when our back button toolbar setting is on, never streamline
+        // (always show it). When off, fall back to the default behavior.
+        if (BuildConfig.IS_VIVALDI && VivaldiUtils.isAutomotiveToolbarEnabled()) return false;
         return DisplayUtil.doesDeviceHaveCarmaPhase1Version2Compliance(context)
                 && ChromeFeatureList.sAutomotiveBackButtonBarStreamline.isEnabled();
     }

@@ -137,9 +137,8 @@ public class UndoTabModelTest {
         boolean shouldLeaveTabSwitcher =
                 ThreadUtils.runOnUiThreadBlocking(
                         () -> {
-                            return layoutManager.isLayoutVisible(LayoutType.TAB_SWITCHER)
-                                    && !layoutManager.isLayoutStartingToHide(
-                                            LayoutType.TAB_SWITCHER);
+                            return layoutManager.isLayoutVisible(LayoutType.HUB)
+                                    && !layoutManager.isLayoutStartingToHide(LayoutType.HUB);
                         });
         if (shouldLeaveTabSwitcher) {
             leaveTabSwitcher(cta);
@@ -592,9 +591,7 @@ public class UndoTabModelTest {
     private void selectTab(final TabModel model, final Tab tab) {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    model.setIndex(
-                            TabModelUtils.getTabIndexById(model, tab.getId()),
-                            TabSelectionType.FROM_USER);
+                    model.setIndex(model.indexOf(tab), TabSelectionType.FROM_USER);
                 });
     }
 

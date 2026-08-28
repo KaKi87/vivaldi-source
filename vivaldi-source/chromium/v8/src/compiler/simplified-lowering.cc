@@ -2741,7 +2741,7 @@ class RepresentationSelector {
             Type::BigInt(), Type::NumberOrOddball(), graph()->zone())));
         VisitInputs<T>(node);
         // TODO(bmeurer): Optimize somewhat based on input type?
-        if (truncation.IsUsedAsWord32()) {
+        if (truncation.IsUsedAsWord32() && !truncation.check_safe_integer()) {
           SetOutput<T>(node, MachineRepresentation::kWord32);
           if (lower<T>()) {
             lowering->DoJSToNumberOrNumericTruncatesToWord32(node, this);
@@ -4236,10 +4236,11 @@ class RepresentationSelector {
         return;
       }
       case IrOpcode::kLoadDictionaryField: {
-        ProcessInput<T>(node, 0, UseInfo::AnyTagged());  // receiver
-        ProcessInput<T>(node, 1, UseInfo::AnyTagged());  // context
-        ProcessInput<T>(node, 2, UseInfo::AnyTagged());  // frame_state
-        ProcessRemainingInputs<T>(node, 3);              // effect and control.
+        ProcessInput<T>(node, 0, UseInfo::AnyTagged());  // lookup start object
+        ProcessInput<T>(node, 1, UseInfo::AnyTagged());  // receiver
+        ProcessInput<T>(node, 2, UseInfo::AnyTagged());  // context
+        ProcessInput<T>(node, 3, UseInfo::AnyTagged());  // frame state
+        ProcessRemainingInputs<T>(node, 4);              // effect and control
         SetOutput<T>(node, MachineRepresentation::kTagged);
         return;
       }
@@ -4441,7 +4442,8 @@ class RepresentationSelector {
           if (lower<T>()) {
             ChangeOp(node, simplified()->StringToNumber());
           }
-        } else if (truncation.IsUsedAsWord32()) {
+        } else if (truncation.IsUsedAsWord32() &&
+                   !truncation.check_safe_integer()) {
           if (InputIs(node, Type::NumberOrOddball())) {
             VisitUnop<T>(node, UseInfo::TruncatingWord32(),
                          MachineRepresentation::kWord32);

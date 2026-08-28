@@ -7,9 +7,11 @@
 #include <utility>
 
 #include "base/android/jni_android.h"
+#include "base/check.h"
 #include "chrome/browser/context_sharing/tab_bottom_sheet/android/co_browse_container_type.h"
 #include "chrome/browser/context_sharing/tab_bottom_sheet/android/co_browse_views_bridge.h"
 #include "chrome/browser/context_sharing/tab_bottom_sheet/android/tab_bottom_sheet_client_type.h"
+#include "chrome/browser/contextual_tasks/android/contextual_tasks_toast.h"
 #include "chrome/browser/tab_list/tab_list_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/side_panel/android/side_panel_native_view_android.h"
@@ -19,6 +21,8 @@
 #include "chrome/browser/ui/side_panel/side_panel_registry.h"
 #include "chrome/browser/ui/side_panel/side_panel_ui.h"
 #include "chrome/browser/ui/side_panel/side_panel_ui_provider.h"
+#include "components/input/native_web_keyboard_event.h"
+#include "components/strings/grit/components_strings.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/android/window_android.h"
@@ -35,12 +39,18 @@ namespace contextual_tasks {
 ContextualTasksPanelHostDesktopAndroid::ContextualTasksPanelHostDesktopAndroid(
     BrowserWindowInterface* browser_window)
     : browser_window_(browser_window) {
+  CHECK(browser_window_);
   MaybeRegisterEntry();
   MaybeCreateBridge();
 }
 
 ContextualTasksPanelHostDesktopAndroid::
-    ~ContextualTasksPanelHostDesktopAndroid() = default;
+    ~ContextualTasksPanelHostDesktopAndroid() {
+  if (web_contents_) {
+    web_contents_->SetDelegate(nullptr);
+    web_contents_ = nullptr;
+  }
+}
 
 void ContextualTasksPanelHostDesktopAndroid::AddObserver(
     ContextualTasksPanelHost::Observer* observer) {
@@ -59,12 +69,17 @@ void ContextualTasksPanelHostDesktopAndroid::Show(AnimationStyle animation) {
   if (!side_panel_ui) {
     return;
   }
+  // TODO(crbug.com/526821301): Consider plumbing trigger from call site.
+  SidePanelOpenTrigger trigger = (animation == AnimationStyle::kNoAnimation)
+                                     ? SidePanelOpenTrigger::kTabChanged
+                                     : SidePanelOpenTrigger::kContextualTasks;
   side_panel_ui->Show(
-      SidePanelEntry::Key(SidePanelEntry::Id::kContextualTasks), std::nullopt,
+      SidePanelEntry::Key(SidePanelEntry::Id::kContextualTasks), trigger,
       /*suppress_animations=*/animation == AnimationStyle::kNoAnimation);
 }
 
 void ContextualTasksPanelHostDesktopAndroid::Close(AnimationStyle animation) {
+  resize_toast_.reset();
   auto* side_panel_ui = GetSidePanelUI();
   if (!side_panel_ui || !side_panel_ui->IsSidePanelShowing()) {
     return;
@@ -114,6 +129,11 @@ content::WebContents* ContextualTasksPanelHostDesktopAndroid::GetWebContents() {
   return web_contents_;
 }
 
+content::WebContents*
+ContextualTasksPanelHostDesktopAndroid::GetToolbarWebContents() {
+  return GetWebContents();
+}
+
 bool ContextualTasksPanelHostDesktopAndroid::MaybeCreateBridge() {
   // Reuse the bridge if it exists and the tab we created it with is still
   // alive.
@@ -132,7 +152,9 @@ bool ContextualTasksPanelHostDesktopAndroid::MaybeCreateBridge() {
       std::make_unique<context_sharing::CoBrowseViewsBridge>(
           *active_tab,
           context_sharing::TabBottomSheetClientType::kContextualTasks,
-          context_sharing::CoBrowseContainerType::kSidePanel);
+          context_sharing::CoBrowseContainerType::kSidePanel,
+          /*bottom_sheet_content_provider=*/nullptr,
+          /*enable_pinch_to_zoom=*/true);
   return co_browse_views_bridge_ != nullptr;
 }
 
@@ -166,12 +188,23 @@ void ContextualTasksPanelHostDesktopAndroid::OnEntryHiddenWithReason(
       reason == SidePanelEntryHideReason::kReplaced
           ? ContextualTasksPanelHost::StateChangeReason::kSystemAction
           : ContextualTasksPanelHost::StateChangeReason::kUserAction);
+
+  if (reason == SidePanelEntryHideReason::kWindowResized) {
+    tabs::TabInterface* active_tab =
+        TabListInterface::From(browser_window_)->GetActiveTab();
+    if (active_tab && active_tab->GetContents()) {
+      resize_toast_ = ContextualTasksToast::Show(
+          active_tab->GetContents(), IDS_CONTEXTUAL_TASKS_CHAT_HIDDEN_TITLE,
+          IDS_CONTEXTUAL_TASKS_CHAT_HIDDEN_DESCRIPTION);
+    }
+  }
 }
 
 void ContextualTasksPanelHostDesktopAndroid::OnEntryShown(
     SidePanelEntry* entry) {
   CHECK_EQ(entry->key().id(), SidePanelEntry::Id::kContextualTasks);
   is_open_ = true;
+  resize_toast_.reset();
   NotifySurfaceStateChanged(
       ContextualTasksPanelHost::SurfaceState::kVisible,
       ContextualTasksPanelHost::StateChangeReason::kUserAction);
@@ -210,7 +243,8 @@ SidePanelNativeView ContextualTasksPanelHostDesktopAndroid::CreateView(
     if (!MaybeCreateBridge()) {
       return nullptr;
     }
-    co_browse_views_bridge_->CreateCoBrowseViews(web_contents_);
+    co_browse_views_bridge_->CreateCoBrowseViews(web_contents_,
+                                                 /*request_focus=*/true);
   }
 
   auto view = context_sharing::CoBrowseViewsBridge::GetViewFromCoBrowseViews(
@@ -240,6 +274,19 @@ content::WebContents* ContextualTasksPanelHostDesktopAndroid::OpenURLFromTab(
                                     std::move(navigation_handle_callback));
   }
   return nullptr;
+}
+
+bool ContextualTasksPanelHostDesktopAndroid::HandleKeyboardEvent(
+    content::WebContents* source,
+    const input::NativeWebKeyboardEvent& event) {
+  tabs::TabInterface* active_tab =
+      TabListInterface::From(browser_window_)->GetActiveTab();
+  if (active_tab && active_tab->GetContents() &&
+      active_tab->GetContents()->GetDelegate()) {
+    return active_tab->GetContents()->GetDelegate()->HandleKeyboardEvent(source,
+                                                                         event);
+  }
+  return false;
 }
 
 }  // namespace contextual_tasks

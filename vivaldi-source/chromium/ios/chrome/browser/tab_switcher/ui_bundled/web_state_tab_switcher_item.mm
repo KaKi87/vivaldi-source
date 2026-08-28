@@ -84,7 +84,7 @@ const CGFloat kSymbolSize = 14.0;
   if (IsVivaldiRunning())
     return [UIImage imageNamed:vToolbarMenu]; // End Vivaldi
 
-  return CustomSymbolWithPointSize(kChromeProductSymbol, kSymbolSize);
+  return SymbolWithPointSize(SymbolChromeProduct, kSymbolSize);
 }
 
 #pragma mark - NSObject

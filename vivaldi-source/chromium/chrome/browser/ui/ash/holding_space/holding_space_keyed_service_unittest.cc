@@ -148,6 +148,7 @@ std::unique_ptr<KeyedService> BuildArcFileSystemBridge(
 std::unique_ptr<KeyedService> BuildVolumeManager(
     content::BrowserContext* context) {
   return std::make_unique<file_manager::VolumeManager>(
+      TestingBrowserProcess::GetGlobal()->local_state(),
       Profile::FromBrowserContext(context),
       nullptr /* drive_integration_service */,
       nullptr /* power_manager_client */,
@@ -594,9 +595,6 @@ class HoldingSpaceKeyedServiceTest : public BrowserWithTestWindowTest {
             FileSuggestKeyedServiceFactory::GetInstance(),
             base::BindRepeating(
                 &MockFileSuggestKeyedService::BuildMockFileSuggestKeyedService,
-                TestingBrowserProcess::GetGlobal()
-                    ->GetFeatures()
-                    ->application_locale_storage(),
                 temp_dir_.GetPath())}};
   }
 
@@ -3169,7 +3167,8 @@ class HoldingSpaceKeyedServicePrintToPdfIntegrationTest
     // Create the PDF printer handler.
     Browser* browser = GetBrowserForPdfPrinterHandler();
     pdf_printer_handler_ = std::make_unique<::printing::PdfPrinterHandler>(
-        browser->profile(), browser->tab_strip_model()->GetActiveWebContents(),
+        browser->GetProfile(),
+        browser->tab_strip_model()->GetActiveWebContents(),
         /*sticky_settings=*/nullptr);
   }
 

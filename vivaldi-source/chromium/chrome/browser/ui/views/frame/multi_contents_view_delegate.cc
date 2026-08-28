@@ -4,7 +4,6 @@
 
 #include "chrome/browser/ui/views/frame/multi_contents_view_delegate.h"
 
-#include "base/memory/weak_ptr.h"
 #include "chrome/browser/sessions/session_service.h"
 #include "chrome/browser/sessions/session_service_factory.h"
 #include "chrome/browser/ui/browser.h"
@@ -71,7 +70,7 @@ void MultiContentsViewDelegateImpl::ResizeWebContents(double start_ratio,
         tab_strip_model_->GetActiveTab()->GetSplit().value();
 
     SessionService* const session_service =
-        SessionServiceFactory::GetForProfile(browser_->profile());
+        SessionServiceFactory::GetForProfile(browser_->GetProfile());
 
     if (!session_service) {
       return;
@@ -107,9 +106,10 @@ void MultiContentsViewDelegateImpl::HandleLinkDrop(
       tab_strip_model_->active_index() +
       (side == MultiContentsDropTargetView::DropSide::START ? 0 : 1);
 
-  // TODO(crbug.com/406792273): Support entrypoint for horizontal splits.
   const split_tabs::SplitTabVisualData split_data(
-      split_tabs::SplitTabLayout::kSideBySide);
+      side == MultiContentsDropTargetView::DropSide::BOTTOM
+          ? split_tabs::SplitTabLayout::kStacked
+          : split_tabs::SplitTabLayout::kSideBySide);
 
   // We currently only support creating a split with one link; i.e., the first
   // link in the provided list.
@@ -143,9 +143,10 @@ void MultiContentsViewDelegateImpl::HandleTabDrop(
     TabDragTarget::DragController& drag_controller) {
   CHECK(!tab_strip_model_->GetActiveTab()->IsSplit());
 
-  // TODO(crbug.com/406792273): Support entrypoint for horizontal splits.
   const split_tabs::SplitTabVisualData split_data(
-      split_tabs::SplitTabLayout::kSideBySide);
+      side == MultiContentsDropTargetView::DropSide::BOTTOM
+          ? split_tabs::SplitTabLayout::kStacked
+          : split_tabs::SplitTabLayout::kSideBySide);
 
   std::unique_ptr<tabs::TabModel> detached_tab =
       drag_controller.DetachTabAtForInsertion(

@@ -1,16 +1,17 @@
 {
   "name": "@eyeo/snippets",
-  "version": "2.4.1",
+  "version": "2.14.0",
   "main": "./index.mjs",
   "module": "./index.mjs",
   "type": "module",
   "scripts": {
-    "build": "npm run build.clean && npm run rollup:isolated-lite && npm run rollup:main && npm run rollup:snippets && npm run rollup:isolated-full && npm run rollup:chromium-all && node ./bundle/callbacks.js && node ./bundle/chromium.js && node ./bundle/dependencies.js && npm run test",
+    "build": "npm run build.clean && npm run rollup:isolated-lite && npm run rollup:main && npm run rollup:snippets && npm run rollup:isolated-full && npm run rollup:dependency-snippets && npm run rollup:chromium-all && node ./bundle/callbacks.js && node ./bundle/chromium.js && node ./bundle/dependencies.js && npm run test",
     "build.assets": "node ./bundle/assets.js $1",
     "build.clean": "rm -rf dist webext; mkdir dist webext",
     "rollup:isolated-lite": "rollup --config rollup/isolated-lite.config.js",
     "rollup:main": "rollup --config rollup/main.config.js",
     "rollup:isolated-full": "rollup --config rollup/isolated-full.config.js",
+    "rollup:dependency-snippets": "rollup --config rollup/dependency-snippets.config.js",
     "rollup:snippets": "rollup --config rollup/snippets.config.js",
     "rollup:chromium-all": "rollup --config rollup/chromium-all.config.js",
     "test": "node ./test/webext.js && node ./test/callback.js"
@@ -27,6 +28,12 @@
     },
     "./isolated": {
       "import": "./webext/isolated-full.mjs"
+    },
+    "./isolated/lite": {
+      "import": "./webext/isolated.mjs"
+    },
+    "./isolated/heavy": {
+      "import": "./webext/isolated-heavy.mjs"
     },
     "./all": {
       "import": "./webext/snippets.mjs"
@@ -67,7 +74,7 @@
   "homepage": "https://gitlab.com/eyeo/snippets#readme",
   "devDependencies": {
     "@rollup/plugin-node-resolve": "^15.3.0",
-    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-terser": "^1.0.0",
     "proxy-pants": "^0.8.3",
     "rollup": "^4.22.4",
     "rollup-plugin-cleanup": "^3.2.1",

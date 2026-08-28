@@ -4,20 +4,13 @@
 vivaldi_generate_policy_templates.py
 =====================================
 Wraps around Chromium chromium/components/policy/resources/policy_templates.py
-and ads additional args, to generate a policy_templates.json, with all
+to generate a policy_templates.json, with all
 Chromium + Vivaldi policies, excluding policies not supported by Vivaldi.
-It adds additional arguments:
-* --extra-sources - points to the chromium/components/policy/resources/templates/policy_definitions/
-                    like structure.
-* --policies-file - points to Vivaldi policies.yaml file
-* --suppression-list - YAML list of policies not supported by Vivaldi
-
 
 It imports the policy_templates.py script directly and patches needed functions,
 then delages back to the original script.
 """
 
-import argparse
 import glob
 import importlib.util
 import os
@@ -54,11 +47,15 @@ _pt._original_GetPoliciesAndGroups = _pt._GetPoliciesAndGroups
 _pt._original_GetPolicyTemplates = _pt.GetPolicyTemplates
 _pt._original_WriteDepFile = _pt._WriteDepFile
 
+_POLICIES_FILE = os.path.join(_CURRENT_DIR, 'policies.yaml')
+_EXTRA_SOURCES = [os.path.join(_CURRENT_DIR, 'policy_definitions')]
+_SUPPRESSION_LIST = os.path.join(_CURRENT_DIR, 'suppression_list.yaml')
 
-def _GetMetadata(policies_file):
+
+def _GetMetadata():
   result = _pt._original_GetMetadata()
 
-  with open(policies_file, encoding='utf-8') as f:
+  with open(_POLICIES_FILE, encoding='utf-8') as f:
     vivaldi_policies = pyyaml.safe_load(f)
 
   # Merge Vivaldi policies.yaml with chromium
@@ -70,10 +67,10 @@ def _GetMetadata(policies_file):
   return result
 
 
-def _GetPoliciesAndGroups(extra_sources):
+def _GetPoliciesAndGroups():
   result = _pt._original_GetPoliciesAndGroups()
 
-  for source_dir in extra_sources:
+  for source_dir in _EXTRA_SOURCES:
     for group_name in _pt._SafeListDir(source_dir):
       group_path = os.path.join(source_dir, group_name)
       if not os.path.isdir(group_path):
@@ -126,12 +123,10 @@ def _is_desktop(policy):
   return any(_is_desktop_platform(p) for p in supported_on + future_on)
 
 
-def GetPolicyTemplates(suppression_list_path=None):
-  if suppression_list_path is None:
-    suppression_list_path = os.path.join(_CURRENT_DIR, 'suppression_list.yaml')
+def GetPolicyTemplates():
   result = _pt._original_GetPolicyTemplates()
 
-  with open(suppression_list_path, encoding='utf-8') as f:
+  with open(_SUPPRESSION_LIST, encoding='utf-8') as f:
     suppressed = pyyaml.safe_load(f)
 
   suppressed_set = set(suppressed or [])
@@ -145,32 +140,21 @@ def GetPolicyTemplates(suppression_list_path=None):
   return result
 
 
-def _WriteDepFile(extra_sources, dep_file, target, source_files):
+def _WriteDepFile(dep_file, target, source_files):
   extra_files = sorted(set(
     f.replace('\\', '/')
-    for source_dir in extra_sources
+    for source_dir in _EXTRA_SOURCES
     for f in glob.glob(source_dir + '/**/*.yaml', recursive=True)
   ))
   _pt._original_WriteDepFile(dep_file, target, source_files + extra_files)
 
 
+_pt._GetMetadata = _GetMetadata
+_pt._GetPoliciesAndGroups = _GetPoliciesAndGroups
+_pt.GetPolicyTemplates = GetPolicyTemplates
+_pt._WriteDepFile = _WriteDepFile
+
 def main():
-  parser = argparse.ArgumentParser(add_help=False)
-  parser.add_argument('--extra-sources', dest='extra_sources',
-                      action='append', required=True)
-  parser.add_argument('--policies-file', dest='policies_file', required=True)
-  parser.add_argument('--suppression-list', dest='suppression_list',
-                      required=True)
-  args, remaining_argv = parser.parse_known_args()
-
-  _pt._GetMetadata = lambda: _GetMetadata(args.policies_file)
-  _pt._GetPoliciesAndGroups = lambda: _GetPoliciesAndGroups(args.extra_sources)
-  _pt.GetPolicyTemplates = lambda: GetPolicyTemplates(args.suppression_list)
-  _pt._WriteDepFile = lambda dep_file, target, source_files: _WriteDepFile(
-      args.extra_sources, dep_file, target, source_files)
-
-  # Handle the rest, directly in policy_templates.py
-  sys.argv = [sys.argv[0]] + remaining_argv
   _pt.main()
 
 

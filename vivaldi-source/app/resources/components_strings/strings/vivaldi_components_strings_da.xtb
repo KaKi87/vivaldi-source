@@ -21,6 +21,7 @@
 <translation id="1728677426644403582">Du ser kilden for en webside</translation>
 <translation id="1734878702283171397">Prøv at kontakte systemadministratoren.</translation>
 <translation id="1768211456781949159"><ph name="BEGIN_LINK" />Prøv at køre Windows Netværksdiagnostik<ph name="END_LINK" />.</translation>
+<translation id="1932098463447129402">Ikke før</translation>
 <translation id="1974060860693918893">Avanceret</translation>
 <translation id="2032962459168915086"><ph name="BEGIN_LINK" />Kontrollerer din proxy og firewall<ph name="END_LINK" /></translation>
 <translation id="2048261947532620704">Oversætter side</translation>
@@ -39,11 +40,12 @@
 <translation id="2467694685043708798"><ph name="BEGIN_LINK" />Kører netværksdiagnostik<ph name="END_LINK" /></translation>
 <translation id="2491414235131909199">Denne side er blokeret af en udvidelse</translation>
 <translation id="255002559098805027"><ph name="HOST_NAME" /> sendte et ugyldigt svar.</translation>
+<translation id="2607101320794533334">Info om emnets offentlige nøgle</translation>
 <translation id="2634124572758952069">Kunne ikke finde <ph name="HOST_NAME" />’s server-IP-adresse.</translation>
-<translation id="2649204054376361687"><ph name="CITY" />, <ph name="COUNTRY" /></translation>
 <translation id="2650446666397867134">Adgang til filen blev nægtet</translation>
 <translation id="2705137772291741111">Den gemte (cachelagrede) kopi af denne side kunne ikke læses.</translation>
 <translation id="2730326759066348565"><ph name="BEGIN_LINK" />Kører forbindelsesdiagnostik<ph name="END_LINK" /></translation>
+<translation id="2738771556149464852">Ikke efter</translation>
 <translation id="2784949926578158345">Forbindelsen blev nulstillet.</translation>
 <translation id="2826760142808435982">Forbindelsen er krypteret og godkendt ved hjælp af <ph name="CIPHER" /> og bruger <ph name="KX" /> som nøgleudvekslingsmekanisme.</translation>
 <translation id="290376772003165898">Er siden ikke på <ph name="LANGUAGE" />?</translation>
@@ -69,8 +71,8 @@
 <translation id="3447884698081792621">Vis certifikat (udstedt af <ph name="ISSUER" />)</translation>
 <translation id="3462200631372590220">Skjul avanceret</translation>
 <translation id="3484560055331845446">Du kan miste adgangen til din Vivaldi-konto. Vi anbefaler, at du skifter din adgangskode nu. Du bliver bedt om at logge ind.</translation>
+<translation id="3493881266323043047">Gyldighed</translation>
 <translation id="3566021033012934673">Din forbindelse er ikke privat</translation>
-<translation id="3574305903863751447"><ph name="CITY" />, <ph name="STATE" />, <ph name="COUNTRY" /></translation>
 <translation id="3586931643579894722">Skjul detaljer</translation>
 <translation id="3614001939154393113">Hackere prøver muligvis at stjæle dine oplysninger fra <ph name="BEGIN_BOLD" /><ph name="SITE" /><ph name="END_BOLD" /> (f.eks. adgangskoder, beskeder eller kreditkort). <ph name="BEGIN_LEARN_MORE_LINK" />Lær mere om denne advarsel<ph name="END_LEARN_MORE_LINK" /></translation>
 <translation id="3630155396527302611">Hvis det allerede er listet som et program med netværksadgang, så prøv at
@@ -78,18 +80,17 @@
 <translation id="3658742229777143148">Revision</translation>
 <translation id="3681007416295224113">Certifikatoplysninger</translation>
 <translation id="3717027428350673159"><ph name="BEGIN_LINK" />Kontrollerer proxy-, firewall- og DNS-konfigurationen<ph name="END_LINK" /></translation>
+<translation id="3798449238516105146">Version</translation>
 <translation id="382518646247711829">Hvis du bruger en proxyserver...</translation>
 <translation id="3950820424414687140">Log ind</translation>
 <translation id="3973234410852337861"><ph name="HOST_NAME" /> er blokeret</translation>
 <translation id="3987940399970879459">Mindre end 1 MB</translation>
 <translation id="4075123085690634698">Åbn side i et nyt privat vindue (⇧⌘N)</translation>
 <translation id="4075732493274867456">Klienten og serveren understøtter ikke en fælles SSL-protokolversion eller et fælles krypteringsprogram.</translation>
-<translation id="4116663294526079822">Tillad altid på dette website</translation>
 <translation id="4130226655945681476">Kontrollerer netværkskabler, modem og router</translation>
 <translation id="4165986682804962316">Websiteindstillinger</translation>
 <translation id="4203896806696719780"><ph name="BEGIN_LINK" />Kontrollerer firewall- og antiviruskonfigurationer<ph name="END_LINK" /></translation>
 <translation id="4226937834893929579"><ph name="BEGIN_LINK" />Prøv at køre netværksdiagnostik<ph name="END_LINK" />.</translation>
-<translation id="4235360514405112390">Gyldigt</translation>
 <translation id="4241830393007970744">Hackere på siden, du forsøgte at besøge, kan narre dig til at installere software eller afsløre data som dine adgangskoder, telefon- eller kreditkortnumre.</translation>
 <translation id="4250431568374086873">Din forbindelse til denne side er ikke helt sikker</translation>
 <translation id="4265872034478892965">Tilladt af din administrator</translation>
@@ -112,11 +113,11 @@
 <translation id="5023310440958281426">Læs din administrators politikker</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Kontrollerer proxyadressen<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-bit)</translation>
+<translation id="5154702632169343078">Emne</translation>
 <translation id="5216942107514965959">Sidst besøgt i dag</translation>
 <translation id="5355557959165512791">Du kan ikke besøge <ph name="SITE" /> lige nu, da dets certifikat er blevet tilbagekaldt. Netværksfejl og angreb er normalt midlertidige, så siden virker sandsynligvis senere.</translation>
 <translation id="5386426401304769735">Certifikatkæden for dette website indeholder et certifikat signeret med SHA-1.</translation>
 <translation id="5452270690849572955">Siden <ph name="HOST_NAME" /> blev ikke fundet</translation>
-<translation id="5457113250005438886">Ugyldigt</translation>
 <translation id="5492298309214877701">Denne side på virksomhedens, organisationens eller skolens intranet har samme webadresse som et eksternt website.
     <ph name="LINE_BREAK" />
     Prøv at kontakte din systemadministrator.</translation>
@@ -129,6 +130,7 @@
 <translation id="5799902971440853357">Du kan ikke besøge <ph name="SITE" /> lige nu, da websitet sendte krypterede loginoplysninger, som Vivaldi ikke kan behandle. Netværksfejl og angreb er normalt midlertidige, så siden virker sandsynligvis senere.</translation>
 <translation id="5810442152076338065">Din forbindelse til <ph name="DOMAIN" /> er krypteret med en forældet krypteringspakke.</translation>
 <translation id="5838278095973806738">Du bør ikke indtaste følsomme oplysninger på dette website (f.eks. adgangskoder eller kreditkort), da de kan blive stjålet af hackere.</translation>
+<translation id="5851868085455377790">Udsteder</translation>
 <translation id="5863515189965725638">Rediger IBAN</translation>
 <translation id="5869405914158311789">Denne side er utilgængelig</translation>
 <translation id="5932224571077948991">Siden viser påtrængende eller vildledende annoncer</translation>
@@ -160,20 +162,16 @@
 <translation id="6957624206566198865">Åbn side i en ny privat fane</translation>
 <translation id="7096937462164235847">Websitets identitet er ikke verificeret.</translation>
 <translation id="7108819624672055576">Tilladt af en udvidelse</translation>
-<translation id="7111012039238467737">(gyldigt)</translation>
 <translation id="7126644664682723998">Indsæt og søg</translation>
 <translation id="7210863904660874423"><ph name="HOST_NAME" /> overholder ikke sikkerhedsstandarderne.</translation>
 <translation id="7219179957768738017">Forbindelsen bruger <ph name="SSL_VERSION" />.</translation>
 <translation id="7221855153210829124">Vis notifikationer</translation>
 <translation id="7353601530677266744">Kommandolinje</translation>
 <translation id="7419106976560586862">Profilsti</translation>
-<translation id="7455133967321480974">Brug global standard (bloker)</translation>
 <translation id="7518003948725431193">Ingen side blev fundet på webadressen: <ph name="URL" /></translation>
 <translation id="7549584377607005141">Denne side kræver data, som du har indtastet tidligere, for at kunne blive vist korrekt. Du kan sende disse data igen, men så gentages enhver handling, denne side har udført før.</translation>
 <translation id="759889825892636187"><ph name="HOST_NAME" /> kan i øjeblikket ikke behandle denne anmodning.</translation>
 <translation id="7662298039739062396">Indstillingen styres af en udvidelse</translation>
-<translation id="7663736086183791259">Certifikat <ph name="CERTIFICATE_VALIDITY" /></translation>
-<translation id="7714464543167945231">Certifikat</translation>
 <translation id="7716147886133743102">Blokeret af din administrator</translation>
 <translation id="7716424297397655342">Denne side kan ikke indlæses fra cachen</translation>
 <translation id="773466115871691567">Oversæt altid sider på <ph name="SOURCE_LANGUAGE" /></translation>
@@ -183,15 +181,12 @@
 <translation id="7878562273885520351">Din adgangskode kan være kompromitteret</translation>
 <translation id="7951415247503192394">(32-bit)</translation>
 <translation id="7953236668995583915">Genindlæs denne side for at anvende de nye indstillinger</translation>
-<translation id="8041940743680923270">Brug global standard (spørg)</translation>
 <translation id="8076492880354921740">Faner</translation>
 <translation id="808894953321890993">Skift adgangskode</translation>
 <translation id="8149426793427495338">Din computer gik i dvale.</translation>
 <translation id="8150722005171944719">Filen på <ph name="URL" /> kan ikke læses. Den kan være blevet fjernet eller flyttet, eller filrettighederne kan forhindre adgang.</translation>
-<translation id="8184538546369750125">Brug global standard (tillad)</translation>
 <translation id="8211406090763984747">Forbindelsen er sikker</translation>
 <translation id="8241707690549784388">Siden, du leder efter, brugte information, du indtastede. Hvis du vender tilbage til siden, kan det medføre, at dine handlinger gentages. Vil du fortsætte?</translation>
-<translation id="8241712895048303527">Bloker på dette website</translation>
 <translation id="8286036467436129157">Log ind</translation>
 <translation id="8288807391153049143">Vis certifikat</translation>
 <translation id="8289355894181816810">Kontakt din netværksadministrator, hvis du er usikker på, hvad det betyder.</translation>
@@ -200,19 +195,18 @@
 <translation id="8498891568109133222"><ph name="HOST_NAME" /> var for længe om at svare.</translation>
 <translation id="8503813439785031346">Brugernavn</translation>
 <translation id="8703575177326907206">Din forbindelse til <ph name="DOMAIN" /> er ikke krypteret.</translation>
+<translation id="8705331520020532516">Serienummer</translation>
 <translation id="8740359287975076522"><ph name="HOST_NAME" />’s &lt;abbr id="dnsDefinition"&gt;DNS-adresse&lt;/abbr&gt; blev ikke fundet. Undersøger problemet.</translation>
 <translation id="8820817407110198400">Bogmærker</translation>
 <translation id="8963117664422609631">Gå til websiteindstillinger</translation>
 <translation id="8975012916872825179">Indeholder oplysninger som telefonnumre, e-mailadresser og leveringsadresser</translation>
 <translation id="9001074447101275817">Proxyserveren <ph name="DOMAIN" /> kræver et brugernavn og en adgangskode.</translation>
 <translation id="9008201768610948239">Ignorer</translation>
-<translation id="9025348182339809926">(ugyldigt)</translation>
 <translation id="9039213469156557790">Desuden indeholder denne side andre usikre ressourcer. Disse ressourcer kan ses af andre under overførsel og modificeres af en hacker for at ændre sidens adfærd.</translation>
 <translation id="9062620674789239642">Den kan være blevet flyttet, redigeret eller slettet.</translation>
 <translation id="9069693763241529744">Blokeret af en udvidelse</translation>
 <translation id="9073799351042754113">Du har valgt at slå sikkerhedsadvarsler fra for dette website.</translation>
 <translation id="9168814207360376865">Tillad websites at tjekke, om du har gemt betalingsmetoder</translation>
-<translation id="9169664750068251925">Bloker altid på dette website</translation>
 <translation id="9183425211371246419"><ph name="HOST_NAME" /> bruger en ikke-understøttet protokol.</translation>
 <translation id="936602727769022409">Du kan miste adgangen til din Vivaldi-konto. Vi anbefaler, at du skifter din adgangskode nu. Du bliver bedt om at logge ind.</translation>
 <translation id="969892804517981540">Officiel version</translation>

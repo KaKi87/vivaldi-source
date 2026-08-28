@@ -12,13 +12,17 @@
 #include "chrome/browser/glic/host/glic_ui.h"
 #include "chrome/browser/glic/host/guest_util.h"
 #include "chrome/browser/glic/host/host.h"
+#include "chrome/browser/glic/public/glic_actuation_tracker.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
 #include "chrome/browser/glic/widget/glic_view.h"
 #include "chrome/browser/glic/widget/glic_widget.h"
+#include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
+#include "chrome/browser/ui/prefs/prefs_tab_helper.h"
 #include "chrome/common/webui_url_constants.h"
+#include "components/performance_manager/public/decorators/page_live_state_decorator.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -79,6 +83,7 @@ WebUIContentsContainerImpl::WebUIContentsContainerImpl(Profile* profile,
     : profile_keep_alive_(profile, ProfileKeepAliveOrigin::kGlicView),
       web_contents_(content::WebContents::Create(
           MakeCreateParams(profile, initially_hidden))),
+      web_contents_ptr_(web_contents_.get()),
       profile_(profile) {
   TRACE_EVENT_INSTANT("glic",
                       "WebUIContentsContainerImpl::WebUIContentsContainerImpl",
@@ -86,6 +91,7 @@ WebUIContentsContainerImpl::WebUIContentsContainerImpl(Profile* profile,
   CHECK(web_contents_);
   CreateGlicWebUiData(web_contents_.get());
   Observe(web_contents_.get());
+  PrefsTabHelper::CreateForWebContents(web_contents_.get());
   web_contents_->SetPageBaseBackgroundColor(
       GetGlicBackgroundColor(profile, web_contents_->GetColorProvider()));
 
@@ -107,14 +113,16 @@ WebUIContentsContainerImpl::WebUIContentsContainerImpl(Profile* profile,
 
 WebUIContentsContainerImpl::~WebUIContentsContainerImpl() {
   Observe(nullptr);
-  web_contents_->ClosePage();
+  if (web_contents_) {
+    web_contents_->ClosePage();
+  }
 }
 
 void WebUIContentsContainerImpl::AttachToHost(Host* host) {
   // This is only allowed to be called once.
   CHECK(!host_);
   host_ = host;
-  if (auto* glic_ui = GlicUI::From(web_contents_.get())) {
+  if (auto* glic_ui = GlicUI::From(web_contents())) {
     glic_ui->AttachToHost(host);
   }
 }
@@ -136,13 +144,13 @@ void WebUIContentsContainerImpl::DidFinishNavigation(
   }
 
 #if BUILDFLAG(ENABLE_PRINTING)
-  printing::InitializePrintingForWebContents(web_contents_.get());
+  printing::InitializePrintingForWebContents(web_contents());
 #endif
 
   host_->OnWebContentsNavigated();
 
   // Re-attach to the (possibly new) GlicUI.
-  if (auto* glic_ui = GlicUI::From(web_contents_.get())) {
+  if (auto* glic_ui = GlicUI::From(web_contents())) {
     glic_ui->AttachToHost(host_);
   }
 }
@@ -172,18 +180,92 @@ void WebUIContentsContainerImpl::PrimaryMainFrameRenderProcessGone(
   if (status != base::TERMINATION_STATUS_NORMAL_TERMINATION) {
     base::RecordAction(base::UserMetricsAction("GlicSessionWebUiCrash"));
   }
+  // During browser shutdown, skip cleaning up keyed services as they may
+  // already be partially destroyed.
+  if (browser_shutdown::HasShutdownStarted()) {
+    return;
+  }
   auto* keyed_service = GlicKeyedServiceFactory::GetGlicKeyedService(profile_);
   // TODO(crbug.com/454120908): swap for a reloaded host in case of a crash.
-  keyed_service->CloseAndShutdown(web_contents_->GetPrimaryMainFrame());
+  keyed_service->CloseAndShutdown(web_contents()->GetPrimaryMainFrame());
   // WARNING: Do not do any more work, as `this` may have been destroyed.
 }
 
+void WebUIContentsContainerImpl::WebContentsDestroyed() {
+  web_contents_ptr_ = nullptr;
+}
+
 void WebUIContentsContainerImpl::SetVisibility(content::Visibility visibility) {
-  web_contents_->UpdateWebContentsVisibility(visibility);
+  web_contents()->UpdateWebContentsVisibility(visibility);
 }
 
 content::WebContents* WebUIContentsContainerImpl::web_contents() const {
-  return web_contents_.get();
+  return web_contents_ptr_;
+}
+
+void WebUIContentsContainerImpl::OnActuatingChanged(bool actuating) {
+  if (!actuating) {
+    // Cleanup the capturers even if the webcontents are gone.
+    webui_capture_runner_.RunAndReset();
+    guest_capture_runner_.RunAndReset();
+  }
+  if (!web_contents()) {
+    return;
+  }
+  auto* guest = GetGlicGuestWebContents(web_contents());
+  if (!guest) {
+    return;
+  }
+  is_actuating_ = actuating;
+  if (actuating && !webui_capture_runner_) {
+    webui_capture_runner_ = web_contents()->IncrementCapturerCount(
+        gfx::Size(), /*stay_hidden=*/true, /*stay_awake=*/true,
+        /*is_activity=*/true);
+    guest_capture_runner_ = guest->IncrementCapturerCount(
+        gfx::Size(), /*stay_hidden=*/true, /*stay_awake=*/true,
+        /*is_activity=*/true);
+  }
+
+  UpdateActuationTracker();
+}
+
+void WebUIContentsContainerImpl::OnTaskTabsVisibilityChanged(
+    bool has_visible_tab) {
+  is_actuating_on_visible_tab_ = has_visible_tab;
+  UpdateActuationTracker();
+}
+
+void WebUIContentsContainerImpl::UpdateActuationTracker() {
+  auto* guest = GetGlicGuestWebContents(web_contents());
+  if (!guest) {
+    // Visibility might change before the guest is created or after it is
+    // teared down. In both cases, there is no point in tracking the actuation
+    // state.
+    return;
+  }
+  GlicActuationState state = GlicActuationState::kNone;
+  if (is_actuating_) {
+    state = is_actuating_on_visible_tab_
+                ? GlicActuationState::kActuatingOnVisibleTab
+                : GlicActuationState::kActuatingOnBackgroundTab;
+  }
+  glic::GlicActuationTracker::GetInstance()->NotifyActuatingChanged(
+      web_contents(), state);
+  glic::GlicActuationTracker::GetInstance()->NotifyActuatingChanged(guest,
+                                                                    state);
+}
+
+std::unique_ptr<content::WebContents>
+WebUIContentsContainerImpl::ReleaseWebContents() {
+  CHECK(web_contents_);
+  return std::move(web_contents_);
+}
+
+void WebUIContentsContainerImpl::ReclaimWebContents(
+    std::unique_ptr<content::WebContents> web_contents) {
+  CHECK(!web_contents_);
+  CHECK(web_contents);
+  web_contents_ = std::move(web_contents);
 }
 
 }  // namespace glic

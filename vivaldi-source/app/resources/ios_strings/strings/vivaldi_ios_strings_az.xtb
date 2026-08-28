@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Digər tətbiqlərdən keçidlərin açılmasını gizli olaraq istəyin</translation>
 <translation id="1624481300475123200">Avtomatik şifrə</translation>
 <translation id="1743244221910283364">Dəyişiklikləri ləğv etmək</translation>
+<translation id="1972589975368876259">Qrupa düzəliş edin</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Vərəqi qrupa əlavə etmək}
         other {Vərəqləri qrupa əlavə etmək}}</translation>
@@ -48,7 +49,6 @@
 <translation id="4772190485302020393">Bütün vərəqələri və qrupları bağlamaq</translation>
 <translation id="4802185666270672526">"Masaüstü sayt" seçimini gizlətmək</translation>
 <translation id="4828571836982833289">Vərəq qrupunu ləğv edək?</translation>
-<translation id="4838250035189612538">Qrupun adını dəyişmək</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 vərəq bağlandı və saxlanıldı}
             other {{count} vərəq qrupları bağlandı və saxlanıldı}}</translation>

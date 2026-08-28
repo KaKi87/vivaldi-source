@@ -8,11 +8,10 @@
 #include <utility>
 
 #include "base/no_destructor.h"
-#include "chrome/browser/personal_context/first_run/chrome_personal_context_first_run_client.h"
-#include "chrome/browser/personal_context/personal_context_enablement_service_factory.h"
+#include "chrome/browser/personal_context/personal_context_eligibility_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_selections.h"
-#include "components/personal_context/core/personal_context_features.h"
+#include "chrome/browser/signin/identity_manager_factory.h"
 #include "components/personal_context/first_run/personal_context_first_run_service_impl.h"
 
 // static
@@ -35,7 +34,8 @@ PersonalContextFirstRunServiceFactory::PersonalContextFirstRunServiceFactory()
           ProfileSelections::Builder()
               .WithRegular(ProfileSelection::kOriginalOnly)
               .Build()) {
-  DependsOn(PersonalContextEnablementServiceFactory::GetInstance());
+  DependsOn(PersonalContextEligibilityServiceFactory::GetInstance());
+  DependsOn(IdentityManagerFactory::GetInstance());
 }
 
 PersonalContextFirstRunServiceFactory::
@@ -44,14 +44,8 @@ PersonalContextFirstRunServiceFactory::
 std::unique_ptr<KeyedService>
 PersonalContextFirstRunServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-  if (!personal_context::features::IsPersonalContextFirstRunEnabled()) {
-    return nullptr;
-  }
   Profile* profile = Profile::FromBrowserContext(context);
-  std::unique_ptr<personal_context::PersonalContextFirstRunClient> client =
-      std::make_unique<ChromePersonalContextFirstRunClient>();
   return std::make_unique<personal_context::PersonalContextFirstRunServiceImpl>(
-      std::move(client),
-      PersonalContextEnablementServiceFactory::GetForProfile(profile),
-      profile->GetPrefs());
+      PersonalContextEligibilityServiceFactory::GetForProfile(profile),
+      profile->GetPrefs(), IdentityManagerFactory::GetForProfile(profile));
 }

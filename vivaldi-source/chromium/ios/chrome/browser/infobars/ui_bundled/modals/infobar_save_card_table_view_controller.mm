@@ -21,7 +21,6 @@
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_edit_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_edit_item_delegate.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_link_item.h"
-#import "ios/chrome/browser/shared/ui/table_view/legacy_chrome_table_view_styler.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/table_view/table_view_cells_constants.h"
@@ -505,12 +504,12 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
 - (UIImage*)logoIconImage {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-  NSString* symbol = base::FeatureList::IsEnabled(
-                         autofill::features::kAutofillEnableGradientGoogleLogos)
-                         ? kGoogleWalletV2Symbol
-                         : kGoogleWalletSymbol;
+  Symbol symbol = base::FeatureList::IsEnabled(
+                      autofill::features::kAutofillEnableGradientGoogleLogos)
+                      ? SymbolGoogleWalletV2
+                      : SymbolGoogleWallet;
   return MakeSymbolMulticolor(
-      CustomSymbolWithPointSize(symbol, kGoogleWalletLogoHeight));
+      SymbolWithPointSize(symbol, kGoogleWalletLogoHeight));
 #else
   return self.logoIcon;
 #endif

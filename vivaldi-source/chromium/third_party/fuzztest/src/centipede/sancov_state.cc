@@ -21,10 +21,12 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <string>
 #include <vector>
 
 #include "absl/base/nullability.h"
 #include "./centipede/dispatcher_flag_helper.h"
+#include "./centipede/engine_abi.h"
 #include "./centipede/execution_metadata.h"
 #include "./centipede/feature.h"
 #include "./centipede/int_utils.h"
@@ -317,6 +319,12 @@ void CleanUpSancovTls() {
     if (sancov_state->flags.callstack_level != 0) {
       tls.call_stack.Reset(sancov_state->flags.callstack_level);
     }
+    if (sancov_state->flags.use_auto_dictionary) {
+      tls.cmp_trace2.Clear();
+      tls.cmp_trace4.Clear();
+      tls.cmp_trace8.Clear();
+      tls.cmp_traceN.Clear();
+    }
     RunnerCheck(tls.sancov_lowest_sp != nullptr,
                 "sancov_lowest_sp is null for a live thread");
     *tls.sancov_lowest_sp = tls.lowest_sp = tls.top_frame_sp;
@@ -325,14 +333,6 @@ void CleanUpSancovTls() {
 
 void PrepareSancov(bool full_clear) {
   if (full_clear) {
-    sancov_state->ForEachTls([](ThreadLocalSancovState& tls) {
-      if (sancov_state->flags.use_auto_dictionary) {
-        tls.cmp_trace2.Clear();
-        tls.cmp_trace4.Clear();
-        tls.cmp_trace8.Clear();
-        tls.cmp_traceN.Clear();
-      }
-    });
     sancov_state->pc_counter_set.ForEachNonZeroByte(
         [](size_t idx, uint8_t value) {}, 0,
         sancov_state->actual_pc_counter_set_size_aligned);
@@ -514,6 +514,41 @@ void PostProcessSancov(bool reject_input) {
   }
 }
 
+// Left-shifts the first `size` bits of `value` by `shift_by`.
+template <typename T>
+constexpr T GetShiftedBits(T value, size_t size, size_t shift_by) {
+  return (value & ((T{1} << size) - 1)) << shift_by;
+}
+
+void SanCovRuntimeConvertToEngineFeatures(feature_t* start, size_t size) {
+  using ::fuzztest::internal::feature_domains::CMPScoreFeatureIndex;
+  using ::fuzztest::internal::feature_domains::Domain;
+  using ::fuzztest::internal::feature_domains::IsComparisonScoreFeature;
+  using ::fuzztest::internal::feature_domains::kCMPScoreBitmask;
+  using ::fuzztest::internal::feature_domains::kCMPScoreBits;
+
+  for (size_t i = 0; i < size; ++i) {
+    auto& feature = start[i];
+    const auto domain_id = Domain::FeatureToDomainId(feature);
+    auto feature_id = Domain::FeatureToIndexInDomain(feature);
+    if (IsComparisonScoreFeature(feature)) {
+      const auto counter = feature_id & kCMPScoreBitmask;
+      feature_id >>= kCMPScoreBits;
+      feature = GetShiftedBits(domain_id, kFuzzTestCoverageDomainIdBitSize,
+                               kFuzzTestCoverageDomainIdStartBit) |
+                GetShiftedBits(feature_id, kFuzzTestCoverageFeatureIdBitSize,
+                               kFuzzTestCoverageFeatureIdStartBit) |
+                GetShiftedBits(counter, kFuzzTestCoverageCounterBitSize,
+                               kFuzzTestCoverageCounterStartBit);
+      continue;
+    }
+    feature = GetShiftedBits(domain_id, kFuzzTestCoverageDomainIdBitSize,
+                             kFuzzTestCoverageDomainIdStartBit) |
+              GetShiftedBits(feature_id, kFuzzTestCoverageFeatureIdBitSize,
+                             kFuzzTestCoverageFeatureIdStartBit);
+  }
+}
+
 SanCovRuntimeRawFeatureParts SanCovRuntimeGetFeatures() {
   return {fuzztest::internal::sancov_state->g_features.data(),
           fuzztest::internal::sancov_state->g_features.size()};
@@ -542,4 +577,57 @@ struct SanCovRuntimeRawFeatureParts SanCovRuntimeGetCoverage(
   fuzztest::internal::PostProcessSancov(reject_input);
 
   return fuzztest::internal::SanCovRuntimeGetFeatures();
+}
+
+size_t SanCovRuntimeSetUpCoverageDomains(
+    const FuzzTestCoverageDomainRegistry* registry) {
+  using ::fuzztest::internal::feature_domains::Domain;
+  using ::fuzztest::internal::feature_domains::kCMPScoreBits;
+  using ::fuzztest::internal::feature_domains::kCMPScoreDomains;
+  using ::fuzztest::internal::feature_domains::kNumDomains;
+
+  static_assert(Domain::kDomainSize == 1 << 27);
+  static_assert(kNumDomains <= 100);
+  static_assert(kCMPScoreBits <= 27);
+  static_assert(kCMPScoreBits <= kFuzzTestCoverageCounterBitSize);
+
+  for (size_t domain_id = 0; domain_id < kNumDomains; ++domain_id) {
+    const bool is_scoring_domain =
+        domain_id >= kCMPScoreDomains.front().domain_id() &&
+        domain_id <= kCMPScoreDomains.back().domain_id();
+    std::string domain_name = "dom";
+    domain_name += '0' + domain_id / 10;
+    domain_name += '0' + domain_id % 10;
+    const FuzzTestCoverageDomain domain = {
+        static_cast<uint8_t>(domain_id),
+        FuzzTestBytesView{
+            reinterpret_cast<const uint8_t*>(domain_name.data()),
+            domain_name.size(),
+        },
+        /*feature_id_bit_size=*/
+        static_cast<uint8_t>(is_scoring_domain ? 27 - kCMPScoreBits : 27),
+        /*counter_bit_size=*/
+        static_cast<uint8_t>(is_scoring_domain ? kCMPScoreBits : 0),
+    };
+    registry->Register(registry->ctx, &domain);
+  }
+
+  return kNumDomains;
+}
+
+void SanCovRuntimePostProcessCoverage(bool reject_input) {
+  fuzztest::internal::PostProcessSancov(reject_input);
+}
+
+void SanCovRuntimeEmitFeatures(const FuzzTestFeedbackSink* sink) {
+  using ::fuzztest::internal::sancov_state;
+
+  fuzztest::internal::SanCovRuntimeConvertToEngineFeatures(
+      sancov_state->g_features.data(), sancov_state->g_features.size());
+  const FuzzTestUint64sView features = {
+      sancov_state->g_features.data(),
+      sancov_state->g_features.size(),
+  };
+  sink->EmitCoverageFeatures(sink->ctx, &features);
+  sancov_state->g_features.clear();
 }

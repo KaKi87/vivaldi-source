@@ -29,6 +29,7 @@ const char* kTestUrl3 = "https://bax.com/page3";
 const char* kTestUrl4 = "https://dax.com/page4";
 
 constexpr base::TimeDelta kTimerDelay = base::Seconds(5);
+constexpr base::TimeDelta kEvictionOrderingDelay = base::Milliseconds(1);
 
 }  // namespace
 
@@ -177,6 +178,11 @@ TEST_F(TransientKeepAlivePolicyTest, EvictsOldestProcessWhenLimitExceeded) {
   EXPECT_EQ(1, rph1->GetPendingReuseRefCountForTesting());  // Now kept alive
   EXPECT_EQ(1, rph2->GetPendingReuseRefCountForTesting());  // Active process
 
+  // Give rph1 an older keep-alive start time than rph2. With mock time, both
+  // processes otherwise get identical timestamps and eviction can fall back to
+  // ProcessNode pointer order.
+  task_environment()->FastForwardBy(kEvictionOrderingDelay);
+
   NavigateAndCommit(GURL(kTestUrl3));
   content::RenderProcessHost* rph3 = process();
 
@@ -192,8 +198,8 @@ TEST_F(TransientKeepAlivePolicyTest, EvictsOldestProcessWhenLimitExceeded) {
   // eviction logic triggered by the third navigation.
   FlushUIThreadTasks();
 
-  // Verify final ref count for each renderer process host.
-  EXPECT_EQ(0, rph1->GetPendingReuseRefCountForTesting());  // Evicted
+  // After eviction, the async decrement can trigger Cleanup() on rph1 and make
+  // direct ref-count queries unsafe. Verify eviction via the histogram instead.
   EXPECT_EQ(1, rph2->GetPendingReuseRefCountForTesting());  // Still kept alive
   EXPECT_EQ(1, rph3->GetPendingReuseRefCountForTesting());  // Now kept alive
   EXPECT_EQ(1, rph4->GetPendingReuseRefCountForTesting());  // Active process
@@ -229,6 +235,9 @@ TEST_F(TransientKeepAlivePolicyTest, EvictionFollowedByTimeout) {
 
   NavigateAndCommit(GURL(kTestUrl2));
   content::RenderProcessHost* rph2 = process();
+
+  // Make rph1 unambiguously older than rph2 for deterministic eviction.
+  task_environment()->FastForwardBy(kEvictionOrderingDelay);
 
   NavigateAndCommit(GURL(kTestUrl3));
   content::RenderProcessHost* rph3 = process();
@@ -288,6 +297,27 @@ TEST_F(TransientKeepAlivePolicyTest, DestroyContentsWhileKeepAliveActive) {
   // The keep-alive was cut short by process removal, not by timeout.
   // No timeout histogram should be recorded.
   histogram_tester_.ExpectTotalCount(kKeepAliveResultHistogramName, 0);
+}
+
+// Tests that disabling ref counts (e.g. during profile destruction or shutdown)
+// while a keep-alive is active does not crash when the process node is
+// subsequently removed.
+TEST_F(TransientKeepAlivePolicyTest, DisableRefCountsWhileKeepAliveActive) {
+  NavigateAndCommit(GURL(kTestUrl1));
+  content::RenderProcessHost* rph1 = process();
+  EXPECT_EQ(1, rph1->GetPendingReuseRefCountForTesting());
+
+  // Navigate away so rph1 becomes empty and gets a keep-alive timer.
+  NavigateAndCommit(GURL(kTestUrl2));
+  EXPECT_EQ(1, rph1->GetPendingReuseRefCountForTesting());
+
+  // Disable ref counts on the host.
+  rph1->DisableRefCounts();
+
+  // Destroy everything. This triggers OnProcessNodeRemoved, which should safely
+  // untrack the process node without attempting to decrement the ref count.
+  DeleteContents();
+  FlushUIThreadTasks();
 }
 
 }  // namespace performance_manager::policies

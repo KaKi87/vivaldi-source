@@ -3,6 +3,8 @@
 // found in the LICENSE file.
 
 export enum UmaName {
+  HEADING_TO_PARAGRAPH_RATIO =
+      'Accessibility.ReadAnything.DistilledPageStructure.HeadingToParagraphRatio',
   HIGHLIGHT_GRANULARITY =
       'Accessibility.ReadAnything.ReadAloud.HighlightGranularity',
   LANGUAGE = 'Accessibility.ReadAnything.ReadAloud.Language',
@@ -12,8 +14,12 @@ export enum UmaName {
       'Accessibility.ReadAnything.DistilledPageStructure.NumberParagraphs',
   SPEECH_ERROR = 'Accessibility.ReadAnything.SpeechError',
   SPEECH_PLAYBACK = 'Accessibility.ReadAnything.SpeechPlaybackSession',
+  PDF_HEADING_TO_PARAGRAPH_RATIO =
+      'Accessibility.ReadAnything.Pdf.HeadingToParagraphRatio',
+  PDF_NUMBER_PARAGRAPHS = 'Accessibility.ReadAnything.Pdf.NumberParagraphs',
   SPEECH_SETTINGS_CHANGE =
       'Accessibility.ReadAnything.ReadAloud.SettingsChange',
+  SETTINGS_ACTION = 'Accessibility.ReadAnything.SettingsAction',
   TEXT_SETTINGS_CHANGE = 'Accessibility.ReadAnything.SettingsChange',
   TOTAL_HEADER_COUNT =
       'Accessibility.ReadAnything.DistilledPageStructure.TotalHeaderCount',
@@ -21,6 +27,8 @@ export enum UmaName {
       'Accessibility.ReadAnything.DistilledPageStructure.TopTwoHeadersCount',
   TOP_TWO_HEADERS_HAVE_MINIMUM_TWO_ITEMS =
       'Accessibility.ReadAnything.DistilledPageStructure.TopTwoHeadersHaveMinimumTwoItems',
+  TOP_TWO_HEADING_RATIO =
+      'Accessibility.ReadAnything.DistilledPageStructure.TopTwoHeadingRatio',
   UNIQUE_HEADER_TAGS =
       'Accessibility.ReadAnything.DistilledPageStructure.UniqueHeaderTags',
   VOICE = 'Accessibility.ReadAnything.ReadAloud.Voice',
@@ -75,11 +83,25 @@ export enum ReadAnythingSettingsChange {
   // LINE_FOCUS_CHANGE = 7, // no longer used, split into style and movement
   LINE_FOCUS_STYLE_CHANGE = 8,
   LINE_FOCUS_MOVEMENT_CHANGE = 9,
+  LINE_FOCUS_TOGGLE = 10,
 
   // Must be last.
-  COUNT = 10,
+  COUNT = 11,
 }
 // LINT.ThenChange(/tools/metrics/histograms/metadata/accessibility/enums.xml:ReadAnythingSettingsChange)
+
+// Enum for logging when an action from the settings menu is executed.
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+//
+// LINT.IfChange(ReadAnythingSettingsAction)
+export enum ReadAnythingSettingsAction {
+  TRANSLATE_ACTION = 0,
+
+  // Must be last.
+  COUNT = 1,
+}
+// LINT.ThenChange(/tools/metrics/histograms/metadata/accessibility/enums.xml:ReadAnythingSettingsAction)
 
 // Enum for logging the reading highlight granularity.
 // These values are persisted to logs. Entries should not be renumbered and
@@ -149,9 +171,11 @@ export interface MetricsBrowserProxy {
   recordNewPage(): void;
   recordNewPageWithSpeech(): void;
   recordSpeechError(error: ReadAnythingSpeechError): void;
-  recordSpeechPlaybackLength(time: number): void;
+  recordSpeechPlaybackLength(umaName: string, time: number): void;
+  recordSpeechPlaybackLengthLegacy(time: number): void;
   recordSpeechSettingsChange(settingsChange: ReadAloudSettingsChange): void;
   recordSpeechStopSource(source: number): void;
+  recordSettingsAction(settingsAction: ReadAnythingSettingsAction): void;
   recordTextSettingsChange(settingsChange: ReadAnythingSettingsChange): void;
   recordTime(umaName: string, time: number): void;
   recordVoiceSpeed(index: number): void;
@@ -224,6 +248,12 @@ export class MetricsBrowserProxyImpl implements MetricsBrowserProxy {
         UmaName.LANGUAGE, lang);
   }
 
+  recordSettingsAction(settingsAction: ReadAnythingSettingsAction) {
+    chrome.metricsPrivate.recordEnumerationValue(
+        UmaName.SETTINGS_ACTION, settingsAction,
+        ReadAnythingSettingsAction.COUNT);
+  }
+
   recordTextSettingsChange(settingsChange: ReadAnythingSettingsChange) {
     chrome.metricsPrivate.recordEnumerationValue(
         UmaName.TEXT_SETTINGS_CHANGE, settingsChange,
@@ -240,7 +270,11 @@ export class MetricsBrowserProxyImpl implements MetricsBrowserProxy {
     chrome.metricsPrivate.recordSmallCount(UmaName.VOICE_SPEED, index);
   }
 
-  recordSpeechPlaybackLength(time: number) {
+  recordSpeechPlaybackLength(umaName: string, time: number) {
+    chrome.metricsPrivate.recordLongTime(umaName, time);
+  }
+
+  recordSpeechPlaybackLengthLegacy(time: number) {
     chrome.metricsPrivate.recordLongTime(UmaName.SPEECH_PLAYBACK, time);
   }
 

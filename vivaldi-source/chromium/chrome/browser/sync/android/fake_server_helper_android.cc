@@ -23,6 +23,7 @@
 #include "components/saved_tab_groups/internal/saved_tab_group_sync_bridge.h"
 #include "components/saved_tab_groups/public/saved_tab_group.h"
 #include "components/saved_tab_groups/public/types.h"
+#include "components/signin/public/base/gaia_id_hash.h"
 #include "components/sync/base/collaboration_id.h"
 #include "components/sync/base/data_type.h"
 #include "components/sync/base/time.h"
@@ -35,6 +36,7 @@
 #include "components/sync/protocol/shared_tab_group_data_specifics.pb.h"
 #include "components/sync/protocol/sync_entity.pb.h"
 #include "components/sync/protocol/sync_enums.pb.h"
+#include "components/sync/service/glue/sync_transport_data_prefs.h"
 #include "components/sync/service/sync_service_impl.h"
 #include "components/sync/test/bookmark_entity_builder.h"
 #include "components/sync/test/collaboration_group_util.h"
@@ -257,7 +259,12 @@ static void JNI_FakeServerHelper_SetWalletData(
   sync_pb::SyncEntity entity;
   DeserializeEntity(env, serialized_entity, &entity);
 
-  fake_server_ptr->SetWalletData({entity});
+  fake_server_ptr->DeleteAllEntitiesForDataType(syncer::AUTOFILL_WALLET_DATA);
+  int64_t now = syncer::TimeToProtoTime(base::Time::Now());
+  fake_server_ptr->InjectEntity(
+      syncer::PersistentUniqueClientEntity::CreateFromSpecificsForTesting(
+          entity.name(), entity.id_string(), entity.specifics(),
+          /*creation_time=*/now, /*last_modified_time=*/now));
 }
 
 static void JNI_FakeServerHelper_ModifyEntitySpecifics(
@@ -518,6 +525,14 @@ static void JNI_FakeServerHelper_DeleteAllEntitiesForDataType(
       reinterpret_cast<fake_server::FakeServer*>(fake_server);
   fake_server_ptr->DeleteAllEntitiesForDataType(
       static_cast<syncer::DataType>(data_type));
+}
+
+static std::string JNI_FakeServerHelper_GetLocalCacheGuid(JNIEnv* env) {
+  syncer::SyncTransportDataPrefs prefs(
+      ProfileManager::GetLastUsedProfile()->GetPrefs(),
+      signin::GaiaIdHash::FromGaiaId(
+          GetSyncServiceImpl()->GetAccountInfo().gaia));
+  return prefs.GetCacheGuid();
 }
 
 DEFINE_JNI(FakeServerHelper)

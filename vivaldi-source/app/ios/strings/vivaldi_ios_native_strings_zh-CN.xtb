@@ -63,7 +63,7 @@
 <translation id="1689333818294560261">简称</translation>
 <translation id="1700701458278093377">更新链接</translation>
 <translation id="1711184756728070210"><ph name="BEGIN_LINK" />使用条款 ➔<ph name="END_LINK" />     <ph name="BEGIN_LINK2" />隐私政策 ➔<ph name="END_LINK2" /></translation>
-<translation id="1717473843091433383">在所有网站上强制使用深色主题</translation>
+<translation id="1717473843091433383">所有网站强制深色主题</translation>
 <translation id="1721265415699013829">请尽可能具体</translation>
 <translation id="173924678149983125">输入链接以导入拦截规则</translation>
 <translation id="1751280147639351837">跟踪器和广告拦截器</translation>
@@ -219,6 +219,7 @@
 <translation id="3638687955382971136">缩放文本</translation>
 <translation id="3646647753063635401">同步所有数据并自动启用新数据类型同步</translation>
 <translation id="3682791711395736890">查看网站的桌面版</translation>
+<translation id="3685766651529450469">复制无参数链接</translation>
 <translation id="3689125468279190285">显示主页按钮</translation>
 <translation id="3694122362646626770">网站</translation>
 <translation id="3699026013955941879">该验证码已过期，请获取新的验证码。</translation>
@@ -266,7 +267,7 @@
 <translation id="414098425907666915">隐身搜索</translation>
 <translation id="4141861385728508836">北欧 (<ph name="ORIGIN" />)</translation>
 <translation id="4145489350420416595">意外错误。</translation>
-<translation id="4151468644762710975">还原默认搜索引擎</translation>
+<translation id="4151468644762710975">恢复默认搜索引擎</translation>
 <translation id="4152011295694446843">你会在这里找到你的书签</translation>
 <translation id="4152623049003960417">跟踪器详情</translation>
 <translation id="4176463684765177261">已禁用</translation>
@@ -323,7 +324,7 @@
         您还可重试 <ph name="ATTEMPTS" /> 次。</translation>
 <translation id="466494460776294423">需要验证码</translation>
 <translation id="4700341416469973823">删除所选</translation>
-<translation id="4714431804859029826">还原默认值</translation>
+<translation id="4714431804859029826">恢复默认设置</translation>
 <translation id="4726767815033517343">网址不能为空。</translation>
 <translation id="4727698999970341158">冰岛语 (<ph name="ORIGIN" />)</translation>
 <translation id="473775607612524610">更新</translation>

@@ -5,47 +5,26 @@
 #import "ios/chrome/browser/intelligence/actor/model/actor_engine.h"
 
 #import "base/run_loop.h"
+#import "base/test/scoped_feature_list.h"
 #import "base/test/task_environment.h"
 #import "components/actor/public/mojom/actor_types.mojom.h"
 #import "ios/chrome/browser/intelligence/actor/model/actor_task.h"
 #import "ios/chrome/browser/intelligence/actor/public/actor_types.h"
-#import "ios/chrome/browser/intelligence/actor/tools/model/actor_tool.h"
+#import "ios/chrome/browser/intelligence/actor/tools/model/actor_tool_factory.h"
+#import "ios/chrome/browser/intelligence/actor/tools/model/actor_tool_request.h"
+#import "ios/chrome/browser/intelligence/actor/tools/model/tool_delegate.h"
+#import "ios/chrome/browser/intelligence/actor/util/actor_test_utils.h"
+#import "ios/chrome/browser/intelligence/features/features.h"
+#import "ios/chrome/browser/shared/model/browser/browser_list.h"
+#import "ios/chrome/browser/shared/model/browser/browser_list_factory.h"
+#import "ios/chrome/browser/shared/model/browser/test/test_browser.h"
+#import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/web/public/test/fakes/fake_web_state.h"
 #import "testing/gtest/include/gtest/gtest.h"
 #import "testing/platform_test.h"
 
 namespace actor {
 namespace {
-
-// A mock tool for testing.
-class MockTool : public ActorTool {
- public:
-  explicit MockTool(bool success,
-                    ToolType tool_type = ToolType::kUnknown,
-                    base::WeakPtr<web::WebState> web_state = nullptr)
-      : success_(success), tool_type_(tool_type), web_state_(web_state) {}
-  ~MockTool() override = default;
-
-  void Execute(ToolExecutionCallback callback) override {
-    if (success_) {
-      std::move(callback).Run(ToolExecutionResult::Ok());
-    } else {
-      std::move(callback).Run(
-          ToolExecutionResult(mojom::ActionResultCode::kArgumentsInvalid));
-    }
-  }
-
-  base::WeakPtr<web::WebState> GetTargetWebState() const override {
-    return web_state_;
-  }
-
-  ToolType GetToolType() const override { return tool_type_; }
-
- private:
-  bool success_;
-  ToolType tool_type_;
-  base::WeakPtr<web::WebState> web_state_;
-};
 
 struct DelegateCall {
   ToolType tool_type;
@@ -69,20 +48,47 @@ class MockActorEngineExecutionUpdatesDelegate
   bool on_will_execute_called_ = false;
 };
 
+// A fake ToolDelegate used for testing.
+class FakeToolDelegate : public ToolDelegate {
+ public:
+  FakeToolDelegate() {
+    profile_ = TestProfileIOS::Builder().Build();
+    journal_ = std::make_unique<AggregatedJournal>();
+    tool_factory_ = std::make_unique<ActorToolFactory>(profile_.get());
+  }
+  ~FakeToolDelegate() override = default;
+
+  ActorTaskId GetTaskId() const override { return ActorTaskId(1); }
+  AggregatedJournal& GetJournal() const override { return *journal_; }
+  ActorToolFactory& GetToolFactory() const override { return *tool_factory_; }
+  actor_login::ActorLoginService* GetActorLoginService() override {
+    return nullptr;
+  }
+  void PromptToSelectCredential(
+      const std::vector<actor_login::Credential>& credentials,
+      CredentialSelectedCallback callback) override {}
+  std::optional<CredentialWithPermission> GetUserSelectedCredential(
+      const url::Origin& request_origin) const override {
+    return std::nullopt;
+  }
+  void InterruptFromTool() override {}
+  void UninterruptFromTool() override {}
+
+  std::unique_ptr<TestProfileIOS> profile_;
+  std::unique_ptr<AggregatedJournal> journal_;
+  std::unique_ptr<ActorToolFactory> tool_factory_;
+};
+
 }  // namespace
 
 // Test fixture for ActorEngine.
 class ActorEngineTest : public PlatformTest {
  protected:
-  ActorEngineTest()
-      : journal_(std::make_unique<AggregatedJournal>()),
-        task_(ActorTaskId(),
-              "Test Task",
-              /*allow_incognito_web_states=*/false,
-              journal_.get()),
-        engine_(ActorTaskId(), journal_.get(), &mock_delegate_) {}
+  ActorEngineTest() : engine_(&execution_updates_delegate_, &tool_delegate_) {
+    scoped_feature_list_.InitAndEnableFeature(kActorTools);
+  }
 
-  // Wrapper methods to access private members of ActorEngine for testing.
+  void SetUp() override { PlatformTest::SetUp(); }
 
   void SetNextActionIndex(size_t index) { engine_.next_action_index_ = index; }
 
@@ -104,18 +110,18 @@ class ActorEngineTest : public PlatformTest {
     engine_.CompleteActions(std::move(result));
   }
 
+  base::test::ScopedFeatureList scoped_feature_list_;
   base::test::TaskEnvironment task_environment_;
-  std::unique_ptr<AggregatedJournal> journal_;
-  MockActorEngineExecutionUpdatesDelegate mock_delegate_;
-  ActorTask task_;
+  MockActorEngineExecutionUpdatesDelegate execution_updates_delegate_;
+  FakeToolDelegate tool_delegate_;
   ActorEngine engine_;
 };
 
 // Tests that a single action executing successfully completes the engine
 // sequence with a success result.
 TEST_F(ActorEngineTest, ActSuccess) {
-  std::vector<std::unique_ptr<ActorTool>> actions;
-  actions.push_back(std::make_unique<MockTool>(true));
+  std::vector<std::unique_ptr<ActorToolRequest>> actions;
+  actions.push_back(MakeSuccessfulActorToolRequest());
 
   base::RunLoop run_loop;
   std::vector<ActionResult> results;
@@ -141,8 +147,8 @@ TEST_F(ActorEngineTest, ActSuccess) {
 // Tests that a single action failing aborts the engine sequence and returns a
 // failure result.
 TEST_F(ActorEngineTest, ActFailure) {
-  std::vector<std::unique_ptr<ActorTool>> actions;
-  actions.push_back(std::make_unique<MockTool>(false));
+  std::vector<std::unique_ptr<ActorToolRequest>> actions;
+  actions.push_back(MakeFailingActorToolRequest());
 
   base::RunLoop run_loop;
   std::vector<ActionResult> results;
@@ -168,9 +174,9 @@ TEST_F(ActorEngineTest, ActFailure) {
 // Tests that a sequence where the first action succeeds and the second fails
 // returns both results, with the second one indicating failure.
 TEST_F(ActorEngineTest, ActSequenceSuccessFailure) {
-  std::vector<std::unique_ptr<ActorTool>> actions;
-  actions.push_back(std::make_unique<MockTool>(true));
-  actions.push_back(std::make_unique<MockTool>(false));
+  std::vector<std::unique_ptr<ActorToolRequest>> actions;
+  actions.push_back(MakeSuccessfulActorToolRequest());
+  actions.push_back(MakeFailingActorToolRequest());
 
   base::RunLoop run_loop;
   std::vector<ActionResult> results;
@@ -197,7 +203,7 @@ TEST_F(ActorEngineTest, ActSequenceSuccessFailure) {
 // Tests that an empty sequence of actions completes immediately with success
 // and empty results.
 TEST_F(ActorEngineTest, ActEmptySequence) {
-  std::vector<std::unique_ptr<ActorTool>> actions;
+  std::vector<std::unique_ptr<ActorToolRequest>> actions;
 
   base::RunLoop run_loop;
   std::vector<ActionResult> results;
@@ -222,9 +228,9 @@ TEST_F(ActorEngineTest, ActEmptySequence) {
 // Tests that multiple actions all executing successfully return success results
 // for all actions.
 TEST_F(ActorEngineTest, ActMultipleSuccess) {
-  std::vector<std::unique_ptr<ActorTool>> actions;
-  actions.push_back(std::make_unique<MockTool>(true));
-  actions.push_back(std::make_unique<MockTool>(true));
+  std::vector<std::unique_ptr<ActorToolRequest>> actions;
+  actions.push_back(MakeSuccessfulActorToolRequest());
+  actions.push_back(MakeSuccessfulActorToolRequest());
 
   base::RunLoop run_loop;
   std::vector<ActionResult> results;
@@ -277,14 +283,38 @@ TEST_F(ActorEngineTest, CompleteActionsOverwrite) {
 // just before tool execution with correct, unique parameters for every tool in
 // the sequence.
 TEST_F(ActorEngineTest, OnWillExecuteToolCalled) {
-  web::FakeWebState web_state1;
-  web::FakeWebState web_state2;
+  TestProfileIOS* profile = tool_delegate_.profile_.get();
+  BrowserList* browser_list = BrowserListFactory::GetForProfile(profile);
+  auto browser = std::make_unique<TestBrowser>(profile);
+  browser_list->AddBrowser(browser.get());
 
-  std::vector<std::unique_ptr<ActorTool>> actions;
-  actions.push_back(std::make_unique<MockTool>(true, ToolType::kClick,
-                                               web_state1.GetWeakPtr()));
-  actions.push_back(std::make_unique<MockTool>(true, ToolType::kNavigate,
-                                               web_state2.GetWeakPtr()));
+  auto web_state1 = std::make_unique<web::FakeWebState>();
+  web_state1->SetBrowserState(profile);
+  web::WebStateID id1 = web_state1->GetUniqueIdentifier();
+  browser->GetWebStateList()->InsertWebState(
+      std::move(web_state1),
+      WebStateList::InsertionParams::AtIndex(0).Activate());
+
+  auto web_state2 = std::make_unique<web::FakeWebState>();
+  web_state2->SetBrowserState(profile);
+  web::WebStateID id2 = web_state2->GetUniqueIdentifier();
+  browser->GetWebStateList()->InsertWebState(
+      std::move(web_state2),
+      WebStateList::InsertionParams::AtIndex(1).Activate());
+
+  std::vector<std::unique_ptr<ActorToolRequest>> actions;
+
+  optimization_guide::proto::Action action1;
+  auto* wait1 = action1.mutable_wait();
+  wait1->set_observe_tab_id(id1.identifier());
+  wait1->set_wait_time_ms(0);
+  actions.push_back(std::make_unique<ActorToolRequest>(action1));
+
+  optimization_guide::proto::Action action2;
+  auto* wait2 = action2.mutable_wait();
+  wait2->set_observe_tab_id(id2.identifier());
+  wait2->set_wait_time_ms(0);
+  actions.push_back(std::make_unique<ActorToolRequest>(action2));
 
   base::RunLoop run_loop;
   engine_.Act(
@@ -295,22 +325,20 @@ TEST_F(ActorEngineTest, OnWillExecuteToolCalled) {
 
   run_loop.Run();
 
-  EXPECT_TRUE(mock_delegate_.on_will_execute_called_);
-  ASSERT_EQ(mock_delegate_.calls_.size(), 2U);
+  EXPECT_TRUE(execution_updates_delegate_.on_will_execute_called_);
+  ASSERT_GE(execution_updates_delegate_.calls_.size(), 2U);
 
-  EXPECT_EQ(mock_delegate_.calls_[0].tool_type, ToolType::kClick);
-  EXPECT_EQ(mock_delegate_.calls_[0].web_state_id,
-            web_state1.GetUniqueIdentifier());
+  EXPECT_EQ(execution_updates_delegate_.calls_[0].tool_type, ToolType::kWait);
+  EXPECT_EQ(execution_updates_delegate_.calls_[0].web_state_id, id1);
 
-  EXPECT_EQ(mock_delegate_.calls_[1].tool_type, ToolType::kNavigate);
-  EXPECT_EQ(mock_delegate_.calls_[1].web_state_id,
-            web_state2.GetUniqueIdentifier());
+  EXPECT_EQ(execution_updates_delegate_.calls_[1].tool_type, ToolType::kWait);
+  EXPECT_EQ(execution_updates_delegate_.calls_[1].web_state_id, id2);
 }
 
 // Tests that executing a sequence containing a null tool completes
 // with a failure result code (kToolUnknown) instead of crashing.
 TEST_F(ActorEngineTest, ActWithNullTool) {
-  std::vector<std::unique_ptr<ActorTool>> actions;
+  std::vector<std::unique_ptr<ActorToolRequest>> actions;
   actions.push_back(nullptr);
 
   base::RunLoop run_loop;

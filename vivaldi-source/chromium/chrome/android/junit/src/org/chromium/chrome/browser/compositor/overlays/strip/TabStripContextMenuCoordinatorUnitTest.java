@@ -9,7 +9,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -29,9 +31,14 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 import org.robolectric.annotation.Config;
 
+import org.chromium.base.ContextUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
+import org.chromium.chrome.browser.compositor.overlays.strip.TabContextMenuCoordinator.TabStripLayoutType;
+import org.chromium.chrome.browser.feedback.FeedbackPolicyManager;
+import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncher;
+import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherFactory;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.glic.GlicEnabling;
 import org.chromium.chrome.browser.glic.GlicPrefNames;
@@ -44,6 +51,8 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tabmodel.TabList;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModel.RecentlyClosedEntryType;
+import org.chromium.chrome.browser.task_manager.TaskManager;
+import org.chromium.chrome.browser.task_manager.TaskManagerFactory;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.tab_ui.R;
 import org.chromium.components.prefs.PrefService;
@@ -64,7 +73,11 @@ import java.util.Collections;
 /** Unit tests for {@link TabStripContextMenuCoordinator}. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
-@DisableFeatures(ChromeFeatureList.GLIC)
+@DisableFeatures({
+    ChromeFeatureList.GLIC,
+    ChromeFeatureList.TASK_MANAGER_CLANK,
+    ChromeFeatureList.DARKEN_WEBSITES_CHECKBOX_IN_THEMES_SETTING
+})
 public class TabStripContextMenuCoordinatorUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -77,6 +90,9 @@ public class TabStripContextMenuCoordinatorUnitTest {
     @Mock private Profile mProfile;
     @Mock private PrefService mPrefService;
     @Mock private UserPrefs.Natives mUserPrefsJniMock;
+    @Mock private TaskManager mTaskManager;
+    @Mock private HelpAndFeedbackLauncher mHelpAndFeedbackLauncher;
+    @Mock private FeedbackPolicyManager mFeedbackPolicyManager;
 
     private Activity mActivity;
     private TabStripContextMenuCoordinator mCoordinator;
@@ -94,22 +110,33 @@ public class TabStripContextMenuCoordinatorUnitTest {
         when(mTabModel.getMostRecentlyClosedEntryType()).thenReturn(RecentlyClosedEntryType.TAB);
         when(mTabModel.getCount()).thenReturn(2);
         when(mTabModel.getProfile()).thenReturn(mProfile);
+        when(mProfile.getOriginalProfile()).thenReturn(mProfile);
 
         doAnswer(invocation -> Collections.emptyIterator()).when((TabList) mTabModel).iterator();
 
+        initializeCoordinatorForTesting(TabStripLayoutType.HORIZONTAL);
+
+        UserPrefsJni.setInstanceForTesting(mUserPrefsJniMock);
+        when(mUserPrefsJniMock.get(mProfile)).thenReturn(mPrefService);
+        TaskManagerFactory.setInstanceForTesting(mTaskManager);
+        HelpAndFeedbackLauncherFactory.setInstanceForTesting(mHelpAndFeedbackLauncher);
+        FeedbackPolicyManager.setInstanceForTesting(mFeedbackPolicyManager);
+        when(mFeedbackPolicyManager.isUserFeedbackAllowed()).thenReturn(true);
+
+        when(mRectProvider.getRect())
+                .thenReturn(new Rect(10, 10, mActivity.getWindow().getDecorView().getWidth(), 50));
+    }
+
+    private void initializeCoordinatorForTesting(@TabStripLayoutType int layout) {
         mCoordinator =
                 TabStripContextMenuCoordinator.createContextMenuCoordinator(
                         mTabModel,
                         mMultiInstanceManager,
                         mWindowAndroid,
                         mSnackbarManager,
-                        mOnNewTabClick);
-
-        UserPrefsJni.setInstanceForTesting(mUserPrefsJniMock);
-        when(mUserPrefsJniMock.get(mProfile)).thenReturn(mPrefService);
-
-        when(mRectProvider.getRect())
-                .thenReturn(new Rect(10, 10, mActivity.getWindow().getDecorView().getWidth(), 50));
+                        mOnNewTabClick,
+                        /* canActivateTabLayoutToggleMenuSupplier= */ null,
+                        layout);
     }
 
     @After
@@ -117,40 +144,86 @@ public class TabStripContextMenuCoordinatorUnitTest {
         ChromeSharedPreferences.getInstance().removeKey(ChromePreferenceKeys.VERTICAL_TABS_ENABLED);
     }
 
-    @Test
-    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
-    @Config(qualifiers = "sw600dp")
-    public void showMenu_verifyVerticalTabsEntryPoint() {
+    private void runToggleLayoutMenuTest(boolean isVerticalTabsEnabled, int expectedTitleRes) {
         MultiWindowUtils.setMultiInstanceApi31EnabledForTesting(true);
         ChromeSharedPreferences.getInstance()
-                .writeBoolean(ChromePreferenceKeys.VERTICAL_TABS_ENABLED, false);
+                .writeBoolean(ChromePreferenceKeys.VERTICAL_TABS_ENABLED, isVerticalTabsEnabled);
+        initializeCoordinatorForTesting(
+                isVerticalTabsEnabled
+                        ? TabStripLayoutType.VERTICAL
+                        : TabStripLayoutType.HORIZONTAL);
 
         // Act.
         mCoordinator.showMenu(mRectProvider, false, mActivity);
 
-        // Verify: Baseline items (4) + divider (1) + "Show tabs vertically" (1) = 6 items.
-        verifyMenuState(/* expectedNumItems= */ 6);
+        // Verify: Baseline items (4) + divider (1) + toggle item (1) + feedback (1) = 7 items.
+        verifyMenuState(/* expectedNumItems= */ 7);
 
         // Index 4 is the divider.
         ListItem dividerItem = (ListItem) mListView.getAdapter().getItem(4);
         assertEquals(ListItemType.DIVIDER, dividerItem.type);
 
-        // Index 5 is "Show tabs vertically".
-        PropertyModel verticalTabsItemModel = getItemModelAtPosition(5);
+        // Index 5 is the layout toggle entry point.
+        PropertyModel toggleLayoutItemModel = getItemModelAtPosition(5);
         assertEquals(
-                R.id.show_tabs_vertically_menu_id,
-                verticalTabsItemModel.get(ListMenuItemProperties.MENU_ITEM_ID));
-        assertEquals(
-                R.string.show_tabs_vertically,
-                verticalTabsItemModel.get(ListMenuItemProperties.TITLE_ID));
+                R.id.toggle_tab_layout_menu_id,
+                toggleLayoutItemModel.get(ListMenuItemProperties.MENU_ITEM_ID));
+        assertEquals(expectedTitleRes, toggleLayoutItemModel.get(ListMenuItemProperties.TITLE_ID));
 
-        // Act: Select "Show tabs vertically".
+        // Index 6 is the feedback entry point.
+        PropertyModel feedbackItemModel = getItemModelAtPosition(6);
+        assertEquals(
+                R.id.send_feedback_about_tab_strip_menu_id,
+                feedbackItemModel.get(ListMenuItemProperties.MENU_ITEM_ID));
+        assertEquals(
+                R.string.send_feedback_about_tab_strip,
+                feedbackItemModel.get(ListMenuItemProperties.TITLE_ID));
+
+        // Act: Select the toggle option.
         mCoordinator
                 .getListMenuDelegate(mContentView)
-                .onItemSelected(verticalTabsItemModel, mListView);
+                .onItemSelected(toggleLayoutItemModel, mListView);
 
-        // TODO: Test click logic here.
         assertFalse(mMenuWindow.isShowing());
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
+    @Config(qualifiers = "sw600dp")
+    public void showMenu_verifyVerticalTabsEntryPoint() {
+        runToggleLayoutMenuTest(/* isVerticalTabsEnabled= */ false, R.string.show_tabs_vertically);
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
+    @Config(qualifiers = "sw600dp")
+    public void showMenu_verifyHorizontalTabsEntryPoint() {
+        runToggleLayoutMenuTest(/* isVerticalTabsEnabled= */ true, R.string.show_tabs_horizontally);
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
+    @Config(qualifiers = "sw600dp")
+    public void showMenu_verifyVerticalTabsDisabledWhenCannotActivate() {
+        mCoordinator =
+                TabStripContextMenuCoordinator.createContextMenuCoordinator(
+                        mTabModel,
+                        mMultiInstanceManager,
+                        mWindowAndroid,
+                        mSnackbarManager,
+                        mOnNewTabClick,
+                        () -> false,
+                        TabStripLayoutType.HORIZONTAL);
+        MultiWindowUtils.setMultiInstanceApi31EnabledForTesting(true);
+
+        mCoordinator.showMenu(mRectProvider, false, mActivity);
+        verifyMenuState(/* expectedNumItems= */ 7);
+
+        PropertyModel toggleLayoutItemModel = getItemModelAtPosition(5);
+        assertEquals(
+                R.id.toggle_tab_layout_menu_id,
+                toggleLayoutItemModel.get(ListMenuItemProperties.MENU_ITEM_ID));
+        assertFalse(toggleLayoutItemModel.get(ListMenuItemProperties.ENABLED));
     }
 
     @Test
@@ -319,6 +392,99 @@ public class TabStripContextMenuCoordinatorUnitTest {
         assertFalse(mMenuWindow.isShowing());
     }
 
+    @Test
+    @EnableFeatures(ChromeFeatureList.TASK_MANAGER_CLANK)
+    public void showMenu_verifyTaskManagerOption() {
+        // Arrange.
+        MultiWindowUtils.setMultiInstanceApi31EnabledForTesting(true);
+
+        // Act.
+        mCoordinator.showMenu(mRectProvider, false, mActivity);
+
+        // Verify: Baseline (4) + Divider (1) + Task Manager (1) = 6 items.
+        verifyMenuState(/* expectedNumItems= */ 6);
+
+        // Index 4 is the divider.
+        ListItem dividerItem = (ListItem) mListView.getAdapter().getItem(4);
+        assertEquals(ListItemType.DIVIDER, dividerItem.type);
+
+        // Index 5 is the Task Manager.
+        PropertyModel taskManagerItemModel = getItemModelAtPosition(5);
+        assertEquals(
+                R.id.task_manager, taskManagerItemModel.get(ListMenuItemProperties.MENU_ITEM_ID));
+        assertEquals(
+                R.string.menu_task_manager,
+                taskManagerItemModel.get(ListMenuItemProperties.TITLE_ID));
+
+        // Act: Select the Task Manager option.
+        mCoordinator
+                .getListMenuDelegate(mContentView)
+                .onItemSelected(taskManagerItemModel, mListView);
+
+        // Verify.
+        verify(mTaskManager).launch(ContextUtils.getApplicationContext());
+        assertFalse(mMenuWindow.isShowing());
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
+    @Config(qualifiers = "sw600dp")
+    public void showMenu_verifySendFeedbackOption() {
+        MultiWindowUtils.setMultiInstanceApi31EnabledForTesting(true);
+        mCoordinator.showMenu(mRectProvider, false, mActivity);
+
+        // Verify: expected 7 items.
+        verifyMenuState(/* expectedNumItems= */ 7);
+
+        // Index 6 is feedback option.
+        PropertyModel feedbackItemModel = getItemModelAtPosition(6);
+        assertEquals(
+                R.id.send_feedback_about_tab_strip_menu_id,
+                feedbackItemModel.get(ListMenuItemProperties.MENU_ITEM_ID));
+
+        // Act: Click the feedback option.
+        mCoordinator.getListMenuDelegate(mContentView).onItemSelected(feedbackItemModel, mListView);
+
+        // Verify: The popup window was dismissed and showFeedback was called with category tag.
+        verify(mHelpAndFeedbackLauncher)
+                .showFeedback(eq(mActivity), eq(null), eq(mCoordinator.getFeedbackCategoryTag()));
+        assertFalse(mMenuWindow.isShowing());
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
+    @Config(qualifiers = "sw600dp")
+    public void showMenu_verifySendFeedbackOption_Incognito() {
+        MultiWindowUtils.setMultiInstanceApi31EnabledForTesting(true);
+        // Setup Incognito profile and tab model.
+        Profile incognitoProfile = mock(Profile.class);
+        when(incognitoProfile.isOffTheRecord()).thenReturn(true);
+        when(incognitoProfile.getOriginalProfile()).thenReturn(mProfile);
+        when(mTabModel.getProfile()).thenReturn(incognitoProfile);
+        when(mTabModel.getMostRecentlyClosedEntryType()).thenReturn(RecentlyClosedEntryType.NONE);
+
+        // Act.
+        mCoordinator.showMenu(mRectProvider, true, mActivity);
+
+        // Verify: Expected items: New tab, Name window, divider, layout option, Send feedback.
+        verifyMenuState(/* expectedNumItems= */ 5);
+
+        // Index 4 is feedback option.
+        PropertyModel feedbackItemModel = getItemModelAtPosition(4);
+        assertEquals(
+                R.id.send_feedback_about_tab_strip_menu_id,
+                feedbackItemModel.get(ListMenuItemProperties.MENU_ITEM_ID));
+
+        // Act: Click the feedback option.
+        mCoordinator.getListMenuDelegate(mContentView).onItemSelected(feedbackItemModel, mListView);
+
+        // Verify: The popup window was dismissed and showFeedback was called with a null URL and
+        // category tag.
+        verify(mHelpAndFeedbackLauncher)
+                .showFeedback(eq(mActivity), eq(null), eq(mCoordinator.getFeedbackCategoryTag()));
+        assertFalse(mMenuWindow.isShowing());
+    }
+
     private void verifyMenuState(int expectedNumItems) {
         mMenuWindow = mCoordinator.getPopupWindow();
         if (expectedNumItems > 0) {
@@ -331,6 +497,30 @@ public class TabStripContextMenuCoordinatorUnitTest {
         } else {
             assertNull(mMenuWindow);
         }
+    }
+
+    @Test
+    public void showMenu_verifyMenuWidthSizing() {
+        // Set a small anchor rect width (100px, which is less than min_width).
+        when(mRectProvider.getRect()).thenReturn(new Rect(10, 10, 110, 50));
+
+        // Act.
+        mCoordinator.showMenu(mRectProvider, false, mActivity);
+
+        // Verify popup window is created and showing.
+        assertNotNull(mCoordinator.getPopupWindow());
+        assertTrue(mCoordinator.getPopupWindow().isShowing());
+
+        // Verify that the content view is measured at or above min_width, rather than being
+        // restricted to 100px.
+        View contentView = mCoordinator.getPopupWindow().getContentView();
+        assertNotNull(contentView);
+        assertTrue(
+                "Content view width should be at least min_width.",
+                contentView.getMeasuredWidth()
+                        >= mActivity
+                                .getResources()
+                                .getDimensionPixelSize(R.dimen.tab_strip_context_menu_min_width));
     }
 
     private PropertyModel getItemModelAtPosition(int position) {

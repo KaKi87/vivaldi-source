@@ -5,7 +5,7 @@
     "namespace": "tabsPrivate",
     "description": "Use the <code>vivaldi.tabsPrivate</code> API to update tabs",
     "compiler_options": {
-      "implemented_in": "extensions/api/tabs/tabs_private_api.h"
+      "implemented_in": "extensions/api/tabs_private/tabs_private_api.h"
     },
     "types": [
       {

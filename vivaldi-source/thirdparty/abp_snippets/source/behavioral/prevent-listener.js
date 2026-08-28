@@ -14,14 +14,16 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 import {apply, call, proxy} from "proxy-pants/function";
 
 import {debug} from "../introspection/debug.js";
-import {formatArguments, toRegExp} from "../utils/general.js";
+import {
+  formatArguments, sendSnippetHitEvent, toRegExp
+} from "../utils/general.js";
 import {getDebugger} from "../introspection/log.js";
 import {profile} from "../introspection/profile.js";
+import {proxyToStringCalls} from "../utils/toString.js";
 
 let {Error, Map, Object, console} = $(window);
 
@@ -31,10 +33,11 @@ let {addEventListener} = EventTargetProto;
 
 // will be a Map of all events, once the snippet is used at least once
 let events = null;
+const hitFilters = new Set();
 
 /**
- * Prevents adding event listeners.
- * @alias module:content/snippets.prevent-listener
+ * @description Prevents adding event listeners.
+ * @memberof module:snippets/behavioral
  *
  * @param {string} event Pattern that matches the type(s) of event
  * we want to prevent. If the string starts and ends with a slash (`/`),
@@ -44,6 +47,16 @@ let events = null;
  * the text in between is treated as a regular expression.
  * @param {?string} selector The CSS selector that the event target must match.
  * If the event target is not an HTML element the event handler is added.
+ * @example
+ * prevent-listener click  console => No listener will be added
+ * for click events who's handler matches console:
+ *  Won't be added:
+ *    someElement.addEventListener("click", () => console.log("click"))
+ *  Will be added:
+ *    someElement.addEventListener("click", () => alert("click"))
+ *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69960109/prevent-listener} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/behavioral-snippets/prevent-listener} for external documentation.
  * @since Adblock Plus 3.11.2
  */
 export function preventListener(event, eventHandler, selector) {
@@ -56,10 +69,11 @@ export function preventListener(event, eventHandler, selector) {
     let debugLog = getDebugger("[prevent]");
     const {mark, end} = profile("prevent-listener");
 
-    Object.defineProperty(EventTargetProto, "addEventListener", {
-      value: proxy(addEventListener, function(type, listener) {
+    let wrappedAddEventListener = proxy(
+      addEventListener,
+      function(type, listener) {
         mark();
-        for (let {evt, handlers, selectors} of events.values()) {
+        for (let {evt, handlers, selectors, formattedArgs} of events.values()) {
           // bail out ASAP if current type doesn't match
           if (!evt.test(type))
             continue;
@@ -116,6 +130,12 @@ export function preventListener(event, eventHandler, selector) {
                 continue;
             }
 
+            const filter =
+              "prevent-listener " + formattedArgs;
+            if (!hitFilters.has(filter)) {
+              hitFilters.add(filter);
+              sendSnippetHitEvent(filter);
+            }
             if (debug()) {
               console.groupCollapsed("DEBUG [prevent] was successful", `\nFILTER: prevent-listener ${formattedArgs}`);
               debugLog("success", `type: ${type} matching ${evt}`);
@@ -132,7 +152,11 @@ export function preventListener(event, eventHandler, selector) {
         }
         end();
         return apply(addEventListener, this, arguments);
-      })
+      }
+    );
+    proxyToStringCalls(wrappedAddEventListener, addEventListener);
+    Object.defineProperty(EventTargetProto, "addEventListener", {
+      value: wrappedAddEventListener
     });
 
     debugLog("info", "Wrapped addEventListener");
@@ -148,7 +172,7 @@ export function preventListener(event, eventHandler, selector) {
                 formattedArgs: formattedArgsToLog});
   }
 
-  let {handlers, selectors, formattedArgs} = events.get(event);
+  let {handlers, selectors} = events.get(event);
 
   handlers.push(eventHandler ? toRegExp(eventHandler) : null);
   selectors.push(selector);

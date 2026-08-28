@@ -6,12 +6,15 @@ import * as Mocha from 'mocha';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import {generateExactTestId} from '../../front_end/testing/TestIdGeneration.js';
 import * as DiffUtils from '../conductor/diff-utils.js';
+import {GEN_DIR} from '../conductor/paths.js';
 import * as ResultsDb from '../conductor/resultsdb.js';
 import {
   ScreenshotError,
 } from '../conductor/screenshot-error.js';
 import {TestConfig} from '../conductor/test_config.js';
+import {isExpectedResult} from '../conductor/test_expectations.js';
 
 const {
   EVENT_RUN_END,
@@ -45,8 +48,11 @@ interface HookWithParent {
   parent: Record<string, any>;
 }
 
-class ResultsDbReporter extends (TestConfig.isAiAgent ? Mocha.reporters.Base : Mocha.reporters.Spec) {
+class ResultsDbReporter extends Mocha.reporters.Base {
   private suitePrefix?: string;
+  private n = 0;
+  private expectedFailuresCount = 0;
+  private unexpectedPassesCount = 0;
   htmlResult: fs.WriteStream|undefined;
 
   localResultsPath() {
@@ -71,16 +77,23 @@ class ResultsDbReporter extends (TestConfig.isAiAgent ? Mocha.reporters.Base : M
     runner.on(EVENT_TEST_RETRY, this.onTestFail.bind(this));
     runner.on(EVENT_TEST_PENDING, this.onTestSkip.bind(this));
 
-    if (TestConfig.isAiAgent) {
-      // Base doesn't report anything so we just report the final result.
-      runner.once(EVENT_RUN_END, this.epilogue.bind(this));
-    }
+    runner.once(EVENT_RUN_END, this.epilogue.bind(this));
   }
 
   private onTestPass(test: Mocha.Test) {
+    const {exactTestId} = generateExactTestId(GEN_DIR, test.file!, test.titlePath());
+    const isExpected = isExpectedResult({exactTestId, success: true, skipped: false});
+    if (!isExpected) {
+      this.unexpectedPassesCount++;
+      process.stdout.write(`\n[TestExpectations] Unexpected pass: ${exactTestId}\n`);
+    }
+
+    if (!TestConfig.isAiAgent) {
+      process.stdout.write(`[PASS] ${exactTestId} ${test.duration}ms\n`);
+    }
     const testResult = this.buildDefaultTestResultFrom(test);
     testResult.status = 'PASS';
-    testResult.expected = true;
+    testResult.expected = isExpected;
     // @ts-expect-error state exists on non-hosted conductor tests.
     const devToolsPage = test.parent?.state?.devToolsPage;
     if (devToolsPage) {
@@ -89,10 +102,33 @@ class ResultsDbReporter extends (TestConfig.isAiAgent ? Mocha.reporters.Base : M
     ResultsDb.sendTestResult(testResult);
   }
 
-  private onTestFail(test: Mocha.Test, error: Error|ScreenshotError|unknown) {
-    const testResult = this.buildDefaultTestResultFrom(test);
+  private onTestFail(test: Mocha.Test|Mocha.Hook, error: Error|ScreenshotError|unknown) {
+    let targetTest: Mocha.Test;
+    const isHook = test.type === 'hook';
+    if (isHook) {
+      if (!test.ctx?.currentTest) {
+        throw new Error(`Hook ${test.id} is missing currentTest`);
+      }
+      targetTest = test.ctx.currentTest;
+    } else {
+      targetTest = test as Mocha.Test;
+    }
+
+    const {exactTestId} = generateExactTestId(GEN_DIR, targetTest.file!, targetTest.titlePath());
+    const isExpected = isExpectedResult({exactTestId, success: false, skipped: false});
+    if (isExpected) {
+      this.expectedFailuresCount++;
+      process.stdout.write(`\n[TestExpectations] Expected failure: ${exactTestId}\n`);
+    }
+
+    if (!TestConfig.isAiAgent) {
+      this.n++;
+      process.stdout.write(`[FAIL] ${exactTestId} ${targetTest.duration}ms\n`);
+    }
+
+    const testResult = this.buildDefaultTestResultFrom(targetTest);
     testResult.status = 'FAIL';
-    testResult.expected = false;
+    testResult.expected = isExpected;
     if (error instanceof ScreenshotError) {
       testResult.artifacts = error.screenshots;
       testResult.summaryHtml = error.toMiloSummary();
@@ -104,6 +140,9 @@ class ResultsDbReporter extends (TestConfig.isAiAgent ? Mocha.reporters.Base : M
       const assertionDiff = DiffUtils.resultAssertionsDiff([error]);
       const diffText = DiffUtils.formatDiffText(assertionDiff);
       testResult.summaryHtml = DiffUtils.formatSummary(errorMessage, diffText);
+    }
+    if (isHook) {
+      testResult.summaryHtml = `Failed in ${test.title}:<br>${testResult.summaryHtml}`;
     }
     if (this.htmlResult) {
       this.htmlResult.write(testResult.summaryHtml);
@@ -127,20 +166,23 @@ class ResultsDbReporter extends (TestConfig.isAiAgent ? Mocha.reporters.Base : M
   }
 
   private onTestSkip(test: Mocha.Test) {
+    if (!TestConfig.isAiAgent) {
+      process.stdout.write(`[SKIP] ${generateExactTestId(GEN_DIR, test.file!, test.titlePath()).exactTestId}\n`);
+    }
     const testResult = this.buildDefaultTestResultFrom(test);
+    const {exactTestId} = generateExactTestId(GEN_DIR, test.file!, test.titlePath());
     testResult.status = 'SKIP';
-    testResult.expected = true;
+    testResult.expected = isExpectedResult({exactTestId, success: false, skipped: true});
     ResultsDb.sendTestResult(testResult);
   }
 
   private buildDefaultTestResultFrom(test: Mocha.Test): ResultsDb.TestResult {
-    let testId = this.suitePrefix ? this.suitePrefix + '/' : '';
-    testId += test.titlePath().join('/');  // Chrome groups test by a path logic.
     const testRetry = ((test as unknown) as TestRetry);
+    const {exactTestId, coarseName, fineName, caseName} = generateExactTestId(GEN_DIR, test.file!, test.titlePath());
     const result = {
-      testId: ResultsDb.sanitizedTestId(testId),
       duration: `${((test.duration || 1) * .001).toFixed(3)}s`,
       tags: [{key: 'run', value: String(testRetry.currentRetry() + 1)}],
+      ...ResultsDb.buildTestProperties(exactTestId, coarseName, fineName, caseName),
     };
     const hookName = this.maybeHook(test);
     if (hookName) {
@@ -151,6 +193,19 @@ class ResultsDbReporter extends (TestConfig.isAiAgent ? Mocha.reporters.Base : M
 
   override epilogue() {
     super.epilogue();
+
+    const unexpectedFailures = this.failures.length - this.expectedFailuresCount;
+    if (this.failures.length > 0 && unexpectedFailures === 0) {
+      process.stdout.write('\n[TestExpectations] All failures were expected! Overriding exit code to 0.\n');
+      process.exitCode = 0;
+    }
+
+    if (this.unexpectedPassesCount > 0) {
+      process.stdout.write(
+          `\n[TestExpectations] ${this.unexpectedPassesCount} unexpected passes! Overriding exit code to 1.\n`);
+      process.exitCode = 1;
+    }
+
     const localResults = this.localResultsPath();
     if (this.failures.length > 0 && localResults) {
       console.error(`Results have been written to file://${localResults}`);

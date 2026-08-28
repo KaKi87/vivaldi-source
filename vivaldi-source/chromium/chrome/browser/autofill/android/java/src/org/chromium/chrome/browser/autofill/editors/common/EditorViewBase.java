@@ -66,10 +66,10 @@ import org.chromium.components.browser_ui.widget.AlwaysDismissedDialog;
 import org.chromium.components.browser_ui.widget.FadingEdgeScrollView;
 import org.chromium.components.browser_ui.widget.FadingEdgeScrollView.EdgeType;
 import org.chromium.components.browser_ui.widget.StrictButtonPressController.ButtonClickResult;
-import org.chromium.components.browser_ui.widget.TintedDrawable;
 import org.chromium.components.browser_ui.widget.displaystyle.UiConfig;
 import org.chromium.components.browser_ui.widget.displaystyle.ViewResizer;
 import org.chromium.ui.KeyboardVisibilityDelegate;
+import org.chromium.ui.UiUtils;
 import org.chromium.ui.interpolators.Interpolators;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modaldialog.ModalDialogManagerHolder;
@@ -445,7 +445,7 @@ public abstract class EditorViewBase extends AlwaysDismissedDialog
                 });
 
         // Cancel editing when the user hits the back arrow.
-        toolbar.setNavigationContentDescription(R.string.cancel);
+        toolbar.setNavigationContentDescription(R.string.abc_action_bar_up_description);
         toolbar.setNavigationIcon(getTintedBackIcon());
         toolbar.setNavigationOnClickListener(view -> assumeNonNull(mCancelRunnable).run());
 
@@ -466,10 +466,8 @@ public abstract class EditorViewBase extends AlwaysDismissedDialog
     }
 
     private Drawable getTintedBackIcon() {
-        return TintedDrawable.constructTintedDrawable(
-                getContext(),
-                R.drawable.ic_arrow_back_white_24dp,
-                R.color.default_icon_color_tint_list);
+        return UiUtils.getTintedDrawable(
+                getContext(), R.drawable.ic_arrow_back_24dp, R.color.default_icon_color_tint_list);
     }
 
     /**

@@ -7,6 +7,7 @@
 #import "ios/chrome/browser/app_bar/ui/app_bar_constants.h"
 #import "ios/chrome/browser/app_bar/ui/app_bar_container_view_delegate.h"
 #import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
 
 namespace {
 constexpr CGFloat kDefaultAppBarWidth = 300;
@@ -76,6 +77,14 @@ constexpr CGFloat kDefaultAppBarWidth = 300;
   [self updatePositioning];
 }
 
+- (void)setAppBarLockedInFullscreen:(BOOL)appBarLockedInFullscreen {
+  if (_appBarLockedInFullscreen == appBarLockedInFullscreen) {
+    return;
+  }
+  _appBarLockedInFullscreen = appBarLockedInFullscreen;
+  [self updatePositioning];
+}
+
 - (void)layoutSubviews {
   [super layoutSubviews];
   [self updatePositioning];
@@ -118,19 +127,24 @@ constexpr CGFloat kDefaultAppBarWidth = 300;
   // with a fixed orientation).
   CGFloat heightInAppCoordinates = 0;
   switch (self.appBarPosition) {
-    case AppBarPosition::kBottom:
+    case AppBarPosition::kBottom: {
       appBarWidth = windowSize.width;
       heightInAppCoordinates = windowSize.height;
-      extraOffset = (1 - self.fullscreenProgress) *
-                    (kAppBarHeight - kAppBarHeightFullscreen);
+      CGFloat minHeight =
+          (IsAppBarHiddenInFullscreen() && !self.appBarLockedInFullscreen)
+              ? 0
+              : kAppBarHeightFullscreen;
+      extraOffset =
+          (1 - self.fullscreenProgress) * (AppBarHeightPortrait() - minHeight);
       break;
+    }
 
     case AppBarPosition::kLeft:
       [[fallthrough]];
     case AppBarPosition::kRight:
       appBarWidth = windowSize.height;
       heightInAppCoordinates = windowSize.width;
-      extraOffset = kAppBarHeight - kAppBarHeightLandscape;
+      extraOffset = 0;
       break;
     case AppBarPosition::kNone:
       break;

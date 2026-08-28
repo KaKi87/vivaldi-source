@@ -12,16 +12,24 @@
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "chrome/browser/glic/glic_metrics.h"
+#include "chrome/browser/glic/glic_pref_names.h"
+#include "chrome/browser/glic/glic_pref_names_internal.h"
 #include "chrome/browser/glic/host/glic.mojom-shared.h"
 #include "chrome/browser/glic/public/features.h"
+#include "chrome/browser/glic/public/glic_cui_tracker.h"
+#include "chrome/browser/glic/public/glic_enabling.h"
+#include "chrome/browser/glic/service/glic_state_tracker.h"
 #include "chrome/browser/glic/service/metrics/metrics_types.h"
 #include "chrome/common/chrome_features.h"
+#include "chrome/test/base/testing_profile.h"
 #include "components/metrics/profile_metrics_service.h"
+#include "components/prefs/pref_service.h"
 #include "components/skills/public/skills_metrics.h"
 #include "components/split_tabs/split_tab_id.h"
 #include "components/tabs/public/mock_tab_interface.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/ukm/test_ukm_recorder.h"
+#include "content/public/test/browser_task_environment.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -37,7 +45,7 @@ class GlicInstanceMetricsTest : public testing::Test {
   }
 
  protected:
-  base::test::TaskEnvironment task_environment_{
+  content::BrowserTaskEnvironment task_environment_{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
   base::HistogramTester histogram_tester_;
   ukm::TestAutoSetUkmRecorder ukm_tester_;
@@ -215,6 +223,30 @@ TEST_F(GlicInstanceMetricsTest, OnUserInputSubmitted_WhileHidden_LogsError) {
       GlicInstanceMetricsError::kInputSubmittedWhileHidden, 1);
 }
 
+TEST_F(GlicInstanceMetricsTest, SubmitQueryCuiOutcomeRecorded) {
+  metrics_.OnVisibilityChanged(true);
+  metrics_.OnUserInputSubmitted(mojom::WebClientMode::kText);
+  metrics_.OnResponseStarted();
+  histogram_tester_.ExpectUniqueSample("Glic.CUI.SubmitQuery.Outcome",
+                                       GlicCuiOutcome::kSuccess, 1);
+}
+
+TEST_F(GlicInstanceMetricsTest, SubmitQueryCuiOutcomeRecorded_Failed) {
+  metrics_.OnVisibilityChanged(true);
+  metrics_.OnUserInputSubmitted(mojom::WebClientMode::kText);
+  metrics_.OnWebUiStateChanged(mojom::WebUiState::kError);
+  histogram_tester_.ExpectUniqueSample("Glic.CUI.SubmitQuery.Outcome",
+                                       GlicCuiOutcome::kFailed, 1);
+}
+
+TEST_F(GlicInstanceMetricsTest, SubmitQueryCuiOutcomeRecorded_Abandoned) {
+  metrics_.OnVisibilityChanged(true);
+  metrics_.OnUserInputSubmitted(mojom::WebClientMode::kText);
+  metrics_.OnVisibilityChanged(false);
+  histogram_tester_.ExpectUniqueSample("Glic.CUI.SubmitQuery.Outcome",
+                                       GlicCuiOutcome::kAbandoned, 1);
+}
+
 TEST_F(GlicInstanceMetricsTest, OnShowInFloaty_WhileAlreadyOpen_LogsError) {
   ShowOptions show_options{FloatingShowOptions{}};
   metrics_.OnShowInFloaty(show_options);
@@ -235,7 +267,7 @@ TEST_F(GlicInstanceMetricsTest, OnShowInSidePanel_WhileAlreadyOpen_LogsError) {
 
 TEST_F(GlicInstanceMetricsTest, OnUnbindEmbedder_WithoutOpening_LogsError) {
   tabs::TabInterface* tab_ptr = &mock_tab_;
-  metrics_.OnUnbindEmbedder(tab_ptr);
+  metrics_.OnUnbindEmbedder(SidePanelEmbedderKey{tab_ptr});
   histogram_tester_.ExpectUniqueSample(
       "Glic.Instance.Metrics.Error",
       GlicInstanceMetricsError::kTabUnbindWithoutOpen, 1);
@@ -283,12 +315,30 @@ TEST_F(GlicInstanceMetricsTest, ValidSidePanelFlow_DoesNotLogError) {
 TEST_F(GlicInstanceMetricsTest, OnOpen_DoesNotOverrideInitialEntrypoint) {
   ShowOptions show_options1{FloatingShowOptions{}};
   metrics_.OnOpen(mojom::InvocationSource::kTopChromeButton, show_options1);
-  EXPECT_EQ(metrics_.initial_invocation_source_for_testing(),
+  EXPECT_EQ(metrics_.initial_invocation_source(),
             mojom::InvocationSource::kTopChromeButton);
 
   ShowOptions show_options2{FloatingShowOptions{}};
   metrics_.OnOpen(mojom::InvocationSource::kOsButton, show_options2);
-  EXPECT_EQ(metrics_.initial_invocation_source_for_testing(),
+  EXPECT_EQ(metrics_.initial_invocation_source(),
+            mojom::InvocationSource::kTopChromeButton);
+}
+
+TEST_F(GlicInstanceMetricsTest,
+       OnShowInactiveSidePanel_SetsInitialInvocationSource) {
+  metrics_.OnShowInactiveSidePanel(mojom::InvocationSource::kTopChromeButton);
+  EXPECT_EQ(metrics_.initial_invocation_source(),
+            mojom::InvocationSource::kTopChromeButton);
+}
+
+TEST_F(GlicInstanceMetricsTest,
+       OnShowInactiveSidePanel_DoesNotOverrideInitialInvocationSource) {
+  metrics_.OnShowInactiveSidePanel(mojom::InvocationSource::kTopChromeButton);
+  EXPECT_EQ(metrics_.initial_invocation_source(),
+            mojom::InvocationSource::kTopChromeButton);
+
+  metrics_.OnShowInactiveSidePanel(mojom::InvocationSource::kOsButton);
+  EXPECT_EQ(metrics_.initial_invocation_source(),
             mojom::InvocationSource::kTopChromeButton);
 }
 
@@ -304,6 +354,24 @@ TEST_F(GlicInstanceMetricsTest, InitialInvocationSource_OnlyRecordedOnce) {
   histogram_tester_.ExpectUniqueSample(
       "Glic.Instance.InitialInvocationSource",
       mojom::InvocationSource::kTopChromeButton, 1);
+}
+
+TEST_F(GlicInstanceMetricsTest,
+       InitialInvocationSource_LoggedWhenStartingInactive) {
+  // 1. Simulate opening the instance in an inactive side panel via a background
+  // daisy-chain.
+  metrics_.OnShowInactiveSidePanel(
+      mojom::InvocationSource::kDaisyChainOnFollowLink);
+
+  // 2. Later, the user activates the background tab, promoting the instance to
+  // be fully shown.
+  EXPECT_CALL(mock_tab_, GetTabHandle()).WillRepeatedly(testing::Return(1));
+  ShowOptions show_options{SidePanelShowOptions{mock_tab_}};
+  metrics_.OnOpen(mojom::InvocationSource::kReshowInactive, show_options);
+
+  histogram_tester_.ExpectUniqueSample(
+      "Glic.Instance.InitialInvocationSource",
+      mojom::InvocationSource::kDaisyChainOnFollowLink, 1);
 }
 
 TEST_F(GlicInstanceMetricsTest, SidePanelFirstOpenDuration_LoggedOnFirstClose) {
@@ -571,6 +639,51 @@ TEST_F(GlicInstanceMetricsTest, WebUiLoadTime_Nonvisible) {
   histogram_tester_.ExpectUniqueTimeSample(
       "Glic.InvocationSource.TopChromeButton.WebUiLoadTime.Nonvisible",
       base::Milliseconds(150), 1);
+}
+
+TEST_F(GlicInstanceMetricsTest, WebUiLoadTime_Onboarding) {
+  TestingProfile profile;
+
+  // Set GlicCompletedFre pref to kNotStarted (unconsented)
+  profile.GetPrefs()->SetInteger(
+      prefs::kGlicCompletedFre,
+      static_cast<int>(prefs::FreStatus::kNotStarted));
+
+  // Create a new GlicInstanceMetrics with the profile
+  GlicInstanceMetrics onboarding_metrics(&profile_metrics_service_, &profile);
+
+  ShowOptions show_options{FloatingShowOptions{}};
+  onboarding_metrics.OnOpen(mojom::InvocationSource::kTopChromeButton,
+                            show_options);
+  onboarding_metrics.OnVisibilityChanged(true);
+
+  onboarding_metrics.OnWebUiStateChanged(mojom::WebUiState::kBeginLoad);
+  task_environment_.FastForwardBy(base::Milliseconds(300));
+  onboarding_metrics.OnWebUiStateChanged(mojom::WebUiState::kReady);
+
+  // Verify Glic.Onboarding.WebUiLoadTime.Visible is logged
+  histogram_tester_.ExpectUniqueTimeSample(
+      "Glic.Onboarding.WebUiLoadTime.Visible", base::Milliseconds(300), 1);
+
+  // Now test the consented case
+  profile.GetPrefs()->SetInteger(
+      prefs::kGlicCompletedFre, static_cast<int>(prefs::FreStatus::kCompleted));
+
+  GlicInstanceMetrics consented_metrics(&profile_metrics_service_, &profile);
+
+  consented_metrics.OnOpen(mojom::InvocationSource::kTopChromeButton,
+                           show_options);
+  consented_metrics.OnVisibilityChanged(true);
+
+  consented_metrics.OnWebUiStateChanged(mojom::WebUiState::kBeginLoad);
+  task_environment_.FastForwardBy(base::Milliseconds(200));
+
+  base::HistogramTester new_histogram_tester;
+  consented_metrics.OnWebUiStateChanged(mojom::WebUiState::kReady);
+
+  // Verify Glic.Onboarding.WebUiLoadTime.Visible is NOT logged
+  new_histogram_tester.ExpectTotalCount("Glic.Onboarding.WebUiLoadTime.Visible",
+                                        0);
 }
 
 TEST_F(GlicInstanceMetricsTest, ValidResponseFlow_DoesNotLogError) {

@@ -10,17 +10,18 @@
 
 #include "app/vivaldi_apptools.h"
 #include "base/base64.h"
+#include "base/containers/map_util.h"
 #include "base/hash/sha1.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/strings/utf_string_conversions.h"
 #include "base/trace_event/memory_usage_estimator.h"
 #include "base/uuid.h"
 #include "components/notes/note_node.h"
 #include "components/sync/base/deletion_origin.h"
 #include "components/sync/base/time.h"
 #include "components/sync/engine/commit_and_get_updates_types.h"
+#include "components/sync/model/processor_entity_metadata.h"
 #include "components/sync/protocol/data_type_state_helper.h"
 #include "components/sync/protocol/entity_specifics.pb.h"
 #include "components/sync/protocol/notes_model_metadata.pb.h"
@@ -30,18 +31,12 @@
 #include "sync/file_sync/file_store.h"
 #include "sync/notes/note_model_view.h"
 #include "sync/notes/synced_note_tracker_entity.h"
+#include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
 #include "ui/base/models/tree_node_iterator.h"
 
 namespace sync_notes {
 
 namespace {
-
-void HashSpecifics(const sync_pb::EntitySpecifics& specifics,
-                   std::string* hash) {
-  DCHECK_GT(specifics.ByteSizeLong(), 0u);
-  *hash =
-      base::Base64Encode(base::SHA1HashString(specifics.SerializeAsString()));
-}
 
 // Returns a map from id to node for all nodes in |model|.
 std::unordered_map<int64_t, const vivaldi::NoteNode*> BuildIdToNoteNodeMap(
@@ -64,9 +59,9 @@ std::unordered_map<int64_t, const vivaldi::NoteNode*> BuildIdToNoteNodeMap(
 // static
 syncer::ClientTagHash SyncedNoteTracker::GetClientTagHashFromUuid(
     const base::Uuid& uuid) {
-  // Earlier vivaldi versions were mistakenly using the BOOKMARKS type to verify
-  // the type, so we temporarily produce tags using the BOOKMARKS type.
-  // Change this to NOTES in a few version. 07-2021
+  // Due to earlier mistakes, the incorrect BOOKMARKS type was used here. This
+  // probably cannot be fixed without removing all existing notes from the
+  // server.
   return syncer::ClientTagHash::FromUnhashed(syncer::BOOKMARKS,
                                              uuid.AsLowercaseString());
 }
@@ -149,31 +144,46 @@ void SyncedNoteTracker::SetNotesReuploaded() {
   notes_reuploaded_ = true;
 }
 
-const SyncedNoteTrackerEntity* SyncedNoteTracker::GetEntityForSyncId(
+SyncedNoteTrackerEntity* SyncedNoteTracker::GetEntityForSyncIdExhaustively(
+    const std::string& sync_id) {
+  return AsMutableEntity(
+      std::as_const(*this).GetEntityForSyncIdExhaustively(sync_id));
+}
+
+const SyncedNoteTrackerEntity*
+SyncedNoteTracker::GetEntityForSyncIdExhaustively(
     const std::string& sync_id) const {
-  auto it = sync_id_to_entities_map_.find(sync_id);
-  return it != sync_id_to_entities_map_.end() ? it->second.get() : nullptr;
+  for (const auto& [hash, entity] : client_tag_hash_to_entities_map_) {
+    if (entity->metadata().server_id() == sync_id) {
+      return entity.get();
+    }
+  }
+  return nullptr;
+}
+
+SyncedNoteTrackerEntity* SyncedNoteTracker::GetEntityForClientTagHash(
+    const syncer::ClientTagHash& client_tag_hash) {
+  return AsMutableEntity(
+      std::as_const(*this).GetEntityForClientTagHash(client_tag_hash));
 }
 
 const SyncedNoteTrackerEntity* SyncedNoteTracker::GetEntityForClientTagHash(
     const syncer::ClientTagHash& client_tag_hash) const {
-  auto it = client_tag_hash_to_entities_map_.find(client_tag_hash);
-  return it != client_tag_hash_to_entities_map_.end() ? it->second : nullptr;
+  return base::FindPtrOrNull(client_tag_hash_to_entities_map_, client_tag_hash);
 }
 
+SyncedNoteTrackerEntity* SyncedNoteTracker::GetEntityForUuid(
+    const base::Uuid& uuid) {
+  return AsMutableEntity(std::as_const(*this).GetEntityForUuid(uuid));
+}
 const SyncedNoteTrackerEntity* SyncedNoteTracker::GetEntityForUuid(
     const base::Uuid& uuid) const {
   return GetEntityForClientTagHash(GetClientTagHashFromUuid(uuid));
 }
 
-SyncedNoteTrackerEntity* SyncedNoteTracker::AsMutableEntity(
-    const SyncedNoteTrackerEntity* entity) {
-  DCHECK(entity);
-  DCHECK_EQ(entity, GetEntityForSyncId(entity->metadata().server_id()));
-
-  // As per DCHECK above, this tracker owns |*entity|, so it's legitimate to
-  // return non-const pointer.
-  return const_cast<SyncedNoteTrackerEntity*>(entity);
+SyncedNoteTrackerEntity* SyncedNoteTracker::GetEntityForNoteNode(
+    const vivaldi::NoteNode* node) {
+  return base::FindPtrOrNull(note_node_to_entities_map_, node);
 }
 
 const SyncedNoteTrackerEntity* SyncedNoteTracker::GetEntityForNoteNode(
@@ -182,17 +192,12 @@ const SyncedNoteTrackerEntity* SyncedNoteTracker::GetEntityForNoteNode(
   return it != note_node_to_entities_map_.end() ? it->second : nullptr;
 }
 
-const SyncedNoteTrackerEntity* SyncedNoteTracker::Add(
+SyncedNoteTrackerEntity* SyncedNoteTracker::AddInternal(
     const vivaldi::NoteNode* note_node,
     const std::string& sync_id,
     int64_t server_version,
-    base::Time creation_time,
-    const sync_pb::EntitySpecifics& specifics) {
-  DCHECK_GT(specifics.ByteSizeLong(), 0u);
+    base::Time creation_time) {
   DCHECK(note_node);
-  DCHECK(specifics.has_notes());
-  DCHECK(note_node->is_permanent_node() ||
-         specifics.notes().has_unique_position());
 
   // Note that this gets computed for permanent nodes too.
   syncer::ClientTagHash client_tag_hash =
@@ -206,96 +211,109 @@ const SyncedNoteTrackerEntity* SyncedNoteTracker::Add(
   metadata.set_modification_time(syncer::TimeToProtoTime(creation_time));
   metadata.set_sequence_number(0);
   metadata.set_acked_sequence_number(0);
-  *metadata.mutable_unique_position() = specifics.notes().unique_position();
   metadata.set_client_tag_hash(client_tag_hash.value());
-  HashSpecifics(specifics, metadata.mutable_specifics_hash());
-  auto entity =
-      std::make_unique<SyncedNoteTrackerEntity>(note_node, std::move(metadata));
+
+  std::unique_ptr<syncer::ProcessorEntityMetadata> entity_metadata =
+      syncer::ProcessorEntityMetadata::FromProto(std::move(metadata));
+  CHECK(entity_metadata);
+  auto entity = std::make_unique<SyncedNoteTrackerEntity>(
+      note_node, std::move(*entity_metadata), synced_file_store_);
 
   CHECK_EQ(0U, note_node_to_entities_map_.count(note_node));
   note_node_to_entities_map_[note_node] = entity.get();
   CHECK_EQ(0U, client_tag_hash_to_entities_map_.count(client_tag_hash));
-  client_tag_hash_to_entities_map_.emplace(std::move(client_tag_hash),
-                                           entity.get());
-  DCHECK_EQ(0U, sync_id_to_entities_map_.count(sync_id));
-  const SyncedNoteTrackerEntity* raw_entity = entity.get();
-  sync_id_to_entities_map_[sync_id] = std::move(entity);
-  DCHECK_EQ(sync_id_to_entities_map_.size(),
-            client_tag_hash_to_entities_map_.size());
-  if (server_version != syncer::kUncommittedVersion &&
-      note_node->is_attachment()) {
-    synced_file_store_->SetSyncFileRef(
-        sync_id, syncer::NOTES, base::UTF16ToASCII(note_node->GetContent()));
-  }
+  SyncedNoteTrackerEntity* raw_entity = entity.get();
+  client_tag_hash_to_entities_map_[client_tag_hash] = std::move(entity);
   return raw_entity;
 }
 
-void SyncedNoteTracker::Update(const SyncedNoteTrackerEntity* entity,
-                               int64_t server_version,
-                               base::Time modification_time,
-                               const sync_pb::EntitySpecifics& specifics) {
-  DCHECK_GT(specifics.ByteSizeLong(), 0u);
-  DCHECK(entity);
-  DCHECK(specifics.has_notes());
-  DCHECK(specifics.notes().has_unique_position());
-
-  SyncedNoteTrackerEntity* mutable_entity = AsMutableEntity(entity);
-  mutable_entity->MutableMetadata()->set_server_version(server_version);
-  mutable_entity->MutableMetadata()->set_modification_time(
-      syncer::TimeToProtoTime(modification_time));
-  *mutable_entity->MutableMetadata()->mutable_unique_position() =
-      specifics.notes().unique_position();
-  HashSpecifics(specifics,
-                mutable_entity->MutableMetadata()->mutable_specifics_hash());
+SyncedNoteTrackerEntity* SyncedNoteTracker::AddLocalCreation(
+    const vivaldi::NoteNode* note_node,
+    const std::string& sync_id,
+    base::Time creation_time,
+    const sync_pb::EntitySpecifics& specifics) {
+  SyncedNoteTrackerEntity* entity = AddInternal(
+      note_node, sync_id, syncer::kUncommittedVersion, creation_time);
+  entity->RecordLocalUpdate(specifics, creation_time);
+  return entity;
 }
 
-void SyncedNoteTracker::UpdateServerVersion(
-    const SyncedNoteTrackerEntity* entity,
-    int64_t server_version) {
-  DCHECK(entity);
-  AsMutableEntity(entity)->MutableMetadata()->set_server_version(
-      server_version);
+SyncedNoteTrackerEntity* SyncedNoteTracker::AddRemote(
+    const vivaldi::NoteNode* note_node,
+    const std::string& sync_id,
+    int64_t server_version,
+    base::Time creation_time,
+    const sync_pb::EntitySpecifics& specifics) {
+  CHECK_NE(server_version, syncer::kUncommittedVersion);
+  SyncedNoteTrackerEntity* entity =
+      AddInternal(note_node, sync_id, server_version, creation_time);
+  syncer::UpdateResponseData update;
+  update.entity.id = sync_id;
+  update.response_version = server_version;
+  update.entity.modification_time = creation_time;
+  update.entity.specifics = specifics;
+  entity->RecordAcceptedRemoteUpdate(update);
+  return entity;
 }
 
-void SyncedNoteTracker::MarkCommitMayHaveStarted(
+SyncedNoteTrackerEntity* SyncedNoteTracker::AsMutableEntity(
     const SyncedNoteTrackerEntity* entity) {
-  DCHECK(entity);
-  AsMutableEntity(entity)->set_commit_may_have_started(true);
+  if (!entity) {
+    return nullptr;
+  }
+  // Use `std::as_const` to invoke the `const` overload of
+  // `GetEntityForClientTagHash`, preventing infinite recursion through
+  // `AsMutableEntity` while ensuring invariant lookup during server ID updates.
+  DCHECK_EQ(entity, std::as_const(*this).GetEntityForClientTagHash(
+                        entity->GetClientTagHash()));
+
+  // As per DCHECK above, this tracker owns |*entity|, so it's legitimate to
+  // return non-const pointer.
+  return const_cast<SyncedNoteTrackerEntity*>(entity);
+}
+
+void SyncedNoteTracker::OverrideServerMetadata(
+    const syncer::ClientTagHash& client_tag_hash,
+    const std::string& sync_id,
+    int64_t server_version) {
+  SyncedNoteTrackerEntity* entity = GetEntityForClientTagHash(client_tag_hash);
+  if (entity) {
+    entity->OverrideServerMetadata(sync_id, server_version);
+  }
 }
 
 void SyncedNoteTracker::MarkDeleted(const SyncedNoteTrackerEntity* entity,
                                     const base::Location& location) {
   DCHECK(entity);
-  DCHECK(!entity->metadata().is_deleted());
+  DCHECK(!entity->IsDeleted());
   DCHECK(entity->note_node());
   DCHECK_EQ(1U, note_node_to_entities_map_.count(entity->note_node()));
 
   SyncedNoteTrackerEntity* mutable_entity = AsMutableEntity(entity);
-  mutable_entity->MutableMetadata()->set_is_deleted(true);
-  *mutable_entity->MutableMetadata()->mutable_deletion_origin() =
-      syncer::DeletionOrigin::FromLocation(location).ToProto(
-          version_info::GetVersionNumber());
+
+  mutable_entity->RecordLocalDeletion(
+      SyncedNoteTrackerEntity::PassKey(),
+      syncer::DeletionOrigin::FromLocation(location));
 
   // Clear all references to the deleted note node.
   note_node_to_entities_map_.erase(mutable_entity->note_node());
-  mutable_entity->clear_note_node();
-  DCHECK_EQ(0, std::ranges::count(ordered_local_tombstones_, entity));
+  mutable_entity->clear_note_node(SyncedNoteTrackerEntity::PassKey());
+  DCHECK_EQ(0, std::ranges::count(ordered_local_tombstones_, mutable_entity));
   ordered_local_tombstones_.push_back(mutable_entity);
 }
 
 void SyncedNoteTracker::Remove(const SyncedNoteTrackerEntity* entity) {
   DCHECK(entity);
-  DCHECK_EQ(entity, GetEntityForSyncId(entity->metadata().server_id()));
-  DCHECK_EQ(entity, GetEntityForClientTagHash(entity->GetClientTagHash()));
-  DCHECK_EQ(sync_id_to_entities_map_.size(),
-            client_tag_hash_to_entities_map_.size());
+  CHECK_EQ(entity, GetEntityForClientTagHash(entity->GetClientTagHash()));
 
-  if (entity->note_node()) {
-    DCHECK(!entity->metadata().is_deleted());
-    DCHECK_EQ(0, std::ranges::count(ordered_local_tombstones_, entity));
-    note_node_to_entities_map_.erase(entity->note_node());
+  SyncedNoteTrackerEntity* mutable_entity = AsMutableEntity(entity);
+
+  if (mutable_entity->note_node()) {
+    DCHECK(!mutable_entity->IsDeleted());
+    DCHECK_EQ(0, std::ranges::count(ordered_local_tombstones_, mutable_entity));
+    note_node_to_entities_map_.erase(mutable_entity->note_node());
   } else {
-    DCHECK(entity->metadata().is_deleted());
+    DCHECK(mutable_entity->IsDeleted());
   }
 
   // We don't need to check if this is an attachment. If it isn't, there will
@@ -303,21 +321,8 @@ void SyncedNoteTracker::Remove(const SyncedNoteTrackerEntity* entity) {
   synced_file_store_->RemoveSyncRef(entity->metadata().server_id(),
                                     syncer::NOTES);
 
+  std::erase(ordered_local_tombstones_, mutable_entity);
   client_tag_hash_to_entities_map_.erase(entity->GetClientTagHash());
-
-  std::erase(ordered_local_tombstones_, entity);
-  sync_id_to_entities_map_.erase(entity->metadata().server_id());
-  DCHECK_EQ(sync_id_to_entities_map_.size(),
-            client_tag_hash_to_entities_map_.size());
-}
-
-void SyncedNoteTracker::IncrementSequenceNumber(
-    const SyncedNoteTrackerEntity* entity) {
-  DCHECK(entity);
-  DCHECK(!entity->note_node() || !entity->note_node()->is_permanent_node());
-
-  AsMutableEntity(entity)->MutableMetadata()->set_sequence_number(
-      entity->metadata().sequence_number() + 1);
 }
 
 sync_pb::NotesModelMetadata SyncedNoteTracker::BuildNoteModelMetadata() const {
@@ -334,9 +339,10 @@ sync_pb::NotesModelMetadata SyncedNoteTracker::BuildNoteModelMetadata() const {
         *max_version_among_ignored_updates_due_to_missing_parent_);
   }
 
-  for (const auto& [sync_id, entity] : sync_id_to_entities_map_) {
-    DCHECK(entity) << " for ID " << sync_id;
-    if (entity->metadata().is_deleted()) {
+  for (const auto& [client_tag_hash, entity] :
+       client_tag_hash_to_entities_map_) {
+    DCHECK(entity) << " for client tag hash " << client_tag_hash.value();
+    if (entity->IsDeleted()) {
       // Deletions will be added later because they need to maintain the same
       // order as in |ordered_local_tombstones_|.
       continue;
@@ -350,7 +356,7 @@ sync_pb::NotesModelMetadata SyncedNoteTracker::BuildNoteModelMetadata() const {
   for (const SyncedNoteTrackerEntity* tombstone_entity :
        ordered_local_tombstones_) {
     DCHECK(tombstone_entity);
-    DCHECK(tombstone_entity->metadata().is_deleted());
+    DCHECK(tombstone_entity->IsDeleted());
     sync_pb::NoteMetadata* note_metadata = model_metadata.add_notes_metadata();
     *note_metadata->mutable_metadata() = tombstone_entity->metadata();
   }
@@ -361,7 +367,8 @@ sync_pb::NotesModelMetadata SyncedNoteTracker::BuildNoteModelMetadata() const {
 }
 
 bool SyncedNoteTracker::HasLocalChanges() const {
-  for (const auto& [sync_id, entity] : sync_id_to_entities_map_) {
+  for (const auto& [client_tag_hash, entity] :
+       client_tag_hash_to_entities_map_) {
     if (entity->IsUnsynced()) {
       return true;
     }
@@ -377,8 +384,27 @@ size_t SyncedNoteTracker::GetUnsyncedDataCount() const {
 std::vector<const SyncedNoteTrackerEntity*> SyncedNoteTracker::GetAllEntities()
     const {
   std::vector<const SyncedNoteTrackerEntity*> entities;
-  for (const auto& [sync_id, entity] : sync_id_to_entities_map_) {
+  for (const auto& [client_tag_hash, entity] :
+       client_tag_hash_to_entities_map_) {
     entities.push_back(entity.get());
+  }
+  return entities;
+}
+
+std::vector<SyncedNoteTrackerEntity*>
+SyncedNoteTracker::GetAllMutableEntities() {
+  std::vector<SyncedNoteTrackerEntity*> entities;
+  for (const SyncedNoteTrackerEntity* entity : GetAllEntities()) {
+    entities.push_back(AsMutableEntity(entity));
+  }
+  return entities;
+}
+
+std::vector<SyncedNoteTrackerEntity*>
+SyncedNoteTracker::GetMutableEntitiesWithLocalChanges() {
+  std::vector<SyncedNoteTrackerEntity*> entities;
+  for (const SyncedNoteTrackerEntity* entity : GetEntitiesWithLocalChanges()) {
+    entities.push_back(AsMutableEntity(entity));
   }
   return entities;
 }
@@ -388,8 +414,9 @@ SyncedNoteTracker::GetEntitiesWithLocalChanges() const {
   std::vector<const SyncedNoteTrackerEntity*> entities_with_local_changes;
   // Entities with local non deletions should be sorted such that parent
   // creation/update comes before child creation/update.
-  for (const auto& [sync_id, entity] : sync_id_to_entities_map_) {
-    if (entity->metadata().is_deleted()) {
+  for (const auto& [client_tag_hash, entity] :
+       client_tag_hash_to_entities_map_) {
+    if (entity->IsDeleted()) {
       // Deletions are stored sorted in |ordered_local_tombstones_| and will be
       // added later.
       continue;
@@ -433,6 +460,8 @@ bool SyncedNoteTracker::InitEntitiesFromModelAndMetadata(
   std::unordered_map<int64_t, const vivaldi::NoteNode*> id_to_note_node_map =
       BuildIdToNoteNodeMap(model);
 
+  absl::flat_hash_set<std::string> seen_sync_ids;
+
   for (sync_pb::NoteMetadata& note_metadata :
        *model_metadata.mutable_notes_metadata()) {
     if (!note_metadata.metadata().has_server_id()) {
@@ -442,13 +471,30 @@ bool SyncedNoteTracker::InitEntitiesFromModelAndMetadata(
     }
 
     const std::string sync_id = note_metadata.metadata().server_id();
-    if (sync_id_to_entities_map_.count(sync_id) != 0) {
+    if (!seen_sync_ids.insert(sync_id).second) {
       DLOG(ERROR) << "Error when decoding sync metadata: Duplicated server id.";
       return false;
     }
 
+    // Note that currently the client tag hash is persisted for permanent nodes
+    // too, although it is not required for anything beyond in-memory tracking
+    // of entities (which use a client tag hash as key).
+    if (!note_metadata.metadata().has_client_tag_hash()) {
+      DLOG(ERROR) << "Error when decoding sync metadata: "
+                  << "Note client tag hash is missing.";
+      return false;
+    }
+
+    std::unique_ptr<syncer::ProcessorEntityMetadata> metadata =
+        syncer::ProcessorEntityMetadata::FromProto(
+            std::move(*note_metadata.mutable_metadata()));
+    if (!metadata) {
+      DLOG(ERROR) << "Error when decoding sync metadata: Metadata is invalid.";
+      return false;
+    }
+
     // Handle tombstones.
-    if (note_metadata.metadata().is_deleted()) {
+    if (metadata->IsDeleted()) {
       if (note_metadata.has_id()) {
         DLOG(ERROR) << "Error when decoding sync metadata: Tombstones "
                        "shouldn't have a note id.";
@@ -462,30 +508,25 @@ bool SyncedNoteTracker::InitEntitiesFromModelAndMetadata(
       }
 
       const syncer::ClientTagHash client_tag_hash =
-          syncer::ClientTagHash::FromHashed(
-              note_metadata.metadata().client_tag_hash());
+          metadata->GetClientTagHash();
 
       auto tombstone_entity = std::make_unique<SyncedNoteTrackerEntity>(
-          /*node=*/nullptr, std::move(*note_metadata.mutable_metadata()));
+          /*node=*/nullptr, std::move(*metadata), synced_file_store_);
 
-      if (!client_tag_hash_to_entities_map_
-               .emplace(client_tag_hash, tombstone_entity.get())
-               .second) {
+      if (client_tag_hash_to_entities_map_.contains(client_tag_hash)) {
         DLOG(ERROR) << "Error when decoding sync metadata: Duplicated client "
                        "tag hash.";
         return false;
       }
 
       ordered_local_tombstones_.push_back(tombstone_entity.get());
-      DCHECK_EQ(0U, sync_id_to_entities_map_.count(sync_id));
-      sync_id_to_entities_map_[sync_id] = std::move(tombstone_entity);
-      DCHECK_EQ(sync_id_to_entities_map_.size(),
-                client_tag_hash_to_entities_map_.size());
+      client_tag_hash_to_entities_map_[client_tag_hash] =
+          std::move(tombstone_entity);
       continue;
     }
 
     // Non-tombstones.
-    DCHECK(!note_metadata.metadata().is_deleted());
+    DCHECK(!metadata->IsDeleted());
 
     if (!note_metadata.has_id()) {
       DLOG(ERROR) << "Error when decoding sync metadata: Note id is missing.";
@@ -515,38 +556,24 @@ bool SyncedNoteTracker::InitEntitiesFromModelAndMetadata(
     // invariant violation and should be impossible).
     const syncer::ClientTagHash client_tag_hash =
         GetClientTagHashFromUuid(node->uuid());
-    if (client_tag_hash != syncer::ClientTagHash::FromHashed(
-                               note_metadata.metadata().client_tag_hash())) {
-      if (node->is_permanent_node()) {
-        // For permanent nodes the client tag hash is irrelevant and subject to
-        // change if the constants in notes change and adopt
-        // different UUID constants. To avoid treating such state as corrupt
-        // metadata, let's fix it automatically.
-        note_metadata.mutable_metadata()->set_client_tag_hash(
-            client_tag_hash.value());
-      } else {
-        DLOG(ERROR) << "Note Uuid does not match the client tag.";
-        return false;
-      }
+    if (client_tag_hash != metadata->GetClientTagHash()) {
+      DLOG(ERROR) << "Note Uuid does not match the client tag.";
+      return false;
     }
 
     auto entity = std::make_unique<SyncedNoteTrackerEntity>(
-        node, std::move(*note_metadata.mutable_metadata()));
+        node, std::move(*metadata), synced_file_store_);
 
-    if (!client_tag_hash_to_entities_map_.emplace(client_tag_hash, entity.get())
-             .second) {
+    if (client_tag_hash_to_entities_map_.contains(client_tag_hash)) {
       DLOG(ERROR) << "Error when decoding sync metadata: Duplicated client "
                      "tag hash.";
       return false;
     }
 
-    entity->set_commit_may_have_started(true);
+    entity->MarkCommitMayHaveStarted();
     CHECK_EQ(0U, note_node_to_entities_map_.count(node));
     note_node_to_entities_map_[node] = entity.get();
-    DCHECK_EQ(0U, sync_id_to_entities_map_.count(sync_id));
-    sync_id_to_entities_map_[sync_id] = std::move(entity);
-    DCHECK_EQ(sync_id_to_entities_map_.size(),
-              client_tag_hash_to_entities_map_.size());
+    client_tag_hash_to_entities_map_[client_tag_hash] = std::move(entity);
   }
 
   // See if there are untracked entities in the NotesModel.
@@ -583,7 +610,7 @@ SyncedNoteTracker::ReorderUnsyncedEntitiesExceptDeletions(
   // Collect nodes with updates
   for (const SyncedNoteTrackerEntity* entity : entities) {
     DCHECK(entity->IsUnsynced());
-    DCHECK(!entity->metadata().is_deleted());
+    DCHECK(!entity->IsDeleted());
     DCHECK(entity->note_node());
     nodes.insert(entity->note_node());
   }
@@ -608,14 +635,15 @@ bool SyncedNoteTracker::ReuploadNotesOnLoadIfNeeded() {
       !base::FeatureList::IsEnabled(switches::kSyncReuploadBookmarks)) {
     return false;
   }
-  for (const auto& [sync_id, entity] : sync_id_to_entities_map_) {
-    if (entity->IsUnsynced() || entity->metadata().is_deleted()) {
+  for (const auto& [client_tag_hash, entity] :
+       client_tag_hash_to_entities_map_) {
+    if (entity->IsUnsynced() || entity->IsDeleted()) {
       continue;
     }
     if (entity->note_node()->is_permanent_node()) {
       continue;
     }
-    IncrementSequenceNumber(entity.get());
+    entity->IncrementSequenceNumber();
   }
   SetNotesReuploaded();
   return true;
@@ -653,7 +681,7 @@ void SyncedNoteTracker::TraverseAndAppend(
   const SyncedNoteTrackerEntity* entity = GetEntityForNoteNode(node);
   DCHECK(entity);
   DCHECK(entity->IsUnsynced());
-  DCHECK(!entity->metadata().is_deleted());
+  DCHECK(!entity->IsDeleted());
   ordered_entities->push_back(entity);
   // Recurse for all children.
   for (const auto& child : node->children()) {
@@ -668,7 +696,7 @@ void SyncedNoteTracker::TraverseAndAppend(
       // call to TraverseAndAppend().
       continue;
     }
-    if (child_entity->metadata().is_deleted()) {
+    if (child_entity->IsDeleted()) {
       // Deletion are stored sorted in |ordered_local_tombstones_| and will be
       // added later.
       continue;
@@ -677,89 +705,36 @@ void SyncedNoteTracker::TraverseAndAppend(
   }
 }
 
-void SyncedNoteTracker::UpdateUponCommitResponse(
-    const SyncedNoteTrackerEntity* entity,
-    const std::string& sync_id,
-    int64_t server_version,
-    int64_t acked_sequence_number) {
-  DCHECK(entity);
-
-  SyncedNoteTrackerEntity* mutable_entity = AsMutableEntity(entity);
-  mutable_entity->MutableMetadata()->set_acked_sequence_number(
-      acked_sequence_number);
-  mutable_entity->MutableMetadata()->set_server_version(server_version);
-  // If there are no pending commits, remove tombstones.
-  if (!mutable_entity->IsUnsynced() &&
-      mutable_entity->metadata().is_deleted()) {
-    Remove(mutable_entity);
-    return;
-  }
-
-  UpdateSyncIdIfNeeded(mutable_entity, sync_id);
-}
-
-void SyncedNoteTracker::UpdateSyncIdIfNeeded(
-    const SyncedNoteTrackerEntity* entity,
-    const std::string& sync_id) {
-  DCHECK(entity);
-
-  const std::string old_id = entity->metadata().server_id();
-  if (old_id == sync_id) {
-    return;
-  }
-  DCHECK_EQ(1U, sync_id_to_entities_map_.count(old_id));
-  DCHECK_EQ(0U, sync_id_to_entities_map_.count(sync_id));
-
-  std::unique_ptr<SyncedNoteTrackerEntity> owned_entity =
-      std::move(sync_id_to_entities_map_.at(old_id));
-  DCHECK_EQ(entity, owned_entity.get());
-  owned_entity->MutableMetadata()->set_server_id(sync_id);
-  sync_id_to_entities_map_[sync_id] = std::move(owned_entity);
-  sync_id_to_entities_map_.erase(old_id);
-
-  if (entity->note_node() && entity->note_node()->is_attachment()) {
-    synced_file_store_->SetSyncFileRef(
-        sync_id, syncer::NOTES,
-        base::UTF16ToASCII(entity->note_node()->GetContent()));
-  }
-}
-
 void SyncedNoteTracker::UndeleteTombstoneForNoteNode(
     const SyncedNoteTrackerEntity* entity,
-    const vivaldi::NoteNode* node) {
+    const vivaldi::NoteNode* node,
+    const sync_pb::EntitySpecifics& specifics,
+    base::Time modification_time) {
   DCHECK(entity);
   DCHECK(node);
-  DCHECK(entity->metadata().is_deleted());
+  DCHECK(entity->IsDeleted());
   const syncer::ClientTagHash client_tag_hash =
       GetClientTagHashFromUuid(node->uuid());
   // The same entity must be used only for the same note node.
-  DCHECK_EQ(entity->metadata().client_tag_hash(), client_tag_hash.value());
+  DCHECK_EQ(entity->GetClientTagHash(), client_tag_hash);
   DCHECK(note_node_to_entities_map_.find(node) ==
          note_node_to_entities_map_.end());
-  DCHECK_EQ(GetEntityForSyncId(entity->metadata().server_id()), entity);
 
-  std::erase(ordered_local_tombstones_, entity);
   SyncedNoteTrackerEntity* mutable_entity = AsMutableEntity(entity);
-  mutable_entity->MutableMetadata()->set_is_deleted(false);
-  mutable_entity->set_note_node(node);
+  std::erase(ordered_local_tombstones_, mutable_entity);
+  mutable_entity->UndeleteTombstoneForNoteNode(
+      SyncedNoteTrackerEntity::PassKey(), node, specifics, modification_time);
   note_node_to_entities_map_[node] = mutable_entity;
 }
 
-void SyncedNoteTracker::AckSequenceNumber(
-    const SyncedNoteTrackerEntity* entity) {
-  DCHECK(entity);
-  AsMutableEntity(entity)->MutableMetadata()->set_acked_sequence_number(
-      entity->metadata().sequence_number());
-}
-
 bool SyncedNoteTracker::IsEmpty() const {
-  return sync_id_to_entities_map_.empty();
+  return client_tag_hash_to_entities_map_.empty();
 }
 
 size_t SyncedNoteTracker::EstimateMemoryUsage() const {
   using base::trace_event::EstimateMemoryUsage;
   size_t memory_usage = 0;
-  memory_usage += EstimateMemoryUsage(sync_id_to_entities_map_);
+  memory_usage += EstimateMemoryUsage(client_tag_hash_to_entities_map_);
   memory_usage += EstimateMemoryUsage(note_node_to_entities_map_);
   memory_usage += EstimateMemoryUsage(ordered_local_tombstones_);
   memory_usage += EstimateMemoryUsage(data_type_state_);
@@ -775,7 +750,7 @@ size_t SyncedNoteTracker::TrackedUncommittedTombstonesCount() const {
 }
 
 size_t SyncedNoteTracker::TrackedEntitiesCountForTest() const {
-  return sync_id_to_entities_map_.size();
+  return client_tag_hash_to_entities_map_.size();
 }
 
 void SyncedNoteTracker::CheckAllNodesTracked(

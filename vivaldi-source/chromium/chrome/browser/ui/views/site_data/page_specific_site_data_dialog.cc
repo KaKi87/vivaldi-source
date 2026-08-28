@@ -17,6 +17,7 @@
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/favicon/favicon_service_factory.h"
 #include "chrome/browser/history/history_service_factory.h"
+#include "chrome/browser/infobars/infobar_features.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -63,7 +64,6 @@
 #include "url/origin.h"
 
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/page_info/page_info_infobar_delegate.h"
 
 namespace {
@@ -176,16 +176,24 @@ class PageSpecificSiteDataDialogModelDelegate : public ui::DialogModelDelegate {
     }
 
     if (status_changed_) {
-      Browser* browser = chrome::FindBrowserWithTab(web_contents_.get());
+      BrowserWindowInterface* const browser =
+          GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+              web_contents_.get());
       if (browser && browser->is_vivaldi()) {
         PageInfoInfoBarDelegate::CreateForVivaldi(
           infobars::ContentInfoBarManager::FromWebContents(
               web_contents_.get()));
+      } else { // Vivaldi
+      if (infobars::IsInfoBarMigrated(
+              infobars::InfoBarDelegate::COLLECTED_COOKIES_INFOBAR_DELEGATE)) {
+        PageSpecificSiteDataDialogController::ShowCollectedCookiesInfoBar(
+            web_contents_.get());
       } else {
-      CollectedCookiesInfoBarDelegate::Create(
-          infobars::ContentInfoBarManager::FromWebContents(
-              web_contents_.get()));
+        CollectedCookiesInfoBarDelegate::Create(
+            infobars::ContentInfoBarManager::FromWebContents(
+                web_contents_.get()));
       }
+      } // End Vivaldi
     }
 
     // Reset the dialog reference in the user data. If the dialog is opened

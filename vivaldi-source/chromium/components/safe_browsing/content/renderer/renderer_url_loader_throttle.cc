@@ -63,9 +63,11 @@ RendererURLLoaderThrottle::~RendererURLLoaderThrottle() {
     vivaldi_throttle_guard_->RemoveObserver(this);
   }
 
-  if (deferred_)
+  if (deferred_) {
     TRACE_EVENT_END("safe_browsing",
-                    /* Deferred */ perfetto::Track::FromPointer(this));
+                    /* Deferred */ perfetto::NamedTrack::FromPointer(
+                        "safe_browsing::RendererURLLoaderThrottle", this));
+  }
 }
 
 void RendererURLLoaderThrottle::DetachFromCurrentSequence() {
@@ -170,8 +172,9 @@ void RendererURLLoaderThrottle::WillProcessResponse(
   deferred_ = true;
   *defer = true;
   TRACE_EVENT_BEGIN("safe_browsing", "Deferred",
-                    perfetto::Track::FromPointer(this), "original_url",
-                    original_url_.spec());
+                    perfetto::NamedTrack::FromPointer(
+                        "safe_browsing::RendererURLLoaderThrottle", this),
+                    "original_url", original_url_.spec());
 }
 
 const char* RendererURLLoaderThrottle::NameForLoggingWillProcessResponse() {
@@ -194,7 +197,8 @@ void RendererURLLoaderThrottle::OnCheckUrlResult(
     if (pending_checks_ == 0 && deferred_) {
       deferred_ = false;
       TRACE_EVENT_END("safe_browsing",
-                      /* Deferred */ perfetto::Track::FromPointer(this));
+                      /* Deferred */ perfetto::NamedTrack::FromPointer(
+                          "safe_browsing::RendererURLLoaderThrottle", this));
       delegate_->Resume();
     }
   } else {
@@ -221,7 +225,8 @@ void RendererURLLoaderThrottle::OnMojoDisconnect() {
   if (deferred_) {
     deferred_ = false;
     TRACE_EVENT_END("safe_browsing",
-                    /* Deferred */ perfetto::Track::FromPointer(this));
+                    /* Deferred */ perfetto::NamedTrack::FromPointer(
+                        "safe_browsing::RendererURLLoaderThrottle", this));
     delegate_->Resume();
   }
 }

@@ -4,6 +4,13 @@
 
 #include "chrome/browser/infobars/infobar_spec.h"
 
+#include <string>
+#include <utility>
+
+#include "components/infobars/core/infobar_delegate.h"
+#include "ui/gfx/vector_icon_types.h"
+#include "url/gurl.h"
+
 namespace infobars {
 
 InfoBarSpec::Builder::Builder(
@@ -16,6 +23,24 @@ InfoBarSpec::Builder::~Builder() = default;
 InfoBarSpec::Builder& InfoBarSpec::Builder::SetMessageText(
     std::u16string message_text) {
   spec_.message_text_ = std::move(message_text);
+  return *this;
+}
+
+InfoBarSpec::Builder& InfoBarSpec::Builder::SetMessageTextTemplate(
+    std::u16string message_text_template) {
+  spec_.message_text_template_ = std::move(message_text_template);
+  return *this;
+}
+
+InfoBarSpec::Builder& InfoBarSpec::Builder::SetSubstitutionsCallback(
+    SubstitutionsCallback callback) {
+  spec_.substitutions_callback_ = std::move(callback);
+  return *this;
+}
+
+InfoBarSpec::Builder& InfoBarSpec::Builder::SetInlineLinkCallback(
+    InlineLinkCallback callback) {
+  spec_.inline_link_callback_ = std::move(callback);
   return *this;
 }
 
@@ -55,6 +80,12 @@ InfoBarSpec::Builder& InfoBarSpec::Builder::SetPriority(
 InfoBarSpec::Builder& InfoBarSpec::Builder::SetExpireOnNavigation(
     bool expire_on_navigation) {
   spec_.expire_on_navigation_ = expire_on_navigation;
+  return *this;
+}
+
+InfoBarSpec::Builder& InfoBarSpec::Builder::SetShouldHideInFullscreen(
+    bool should_hide_in_fullscreen) {
+  spec_.should_hide_in_fullscreen_ = should_hide_in_fullscreen;
   return *this;
 }
 

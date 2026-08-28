@@ -478,7 +478,14 @@ IN_PROC_BROWSER_TEST_F(TranslateManagerBrowserTest,
 }
 
 // Test that the translation was successful.
-IN_PROC_BROWSER_TEST_F(TranslateManagerBrowserTest, PageTranslationSuccess) {
+// TODO(crbug.com/518688037): Flaky on Windows.
+#if BUILDFLAG(IS_WIN)
+#define MAYBE_PageTranslationSuccess DISABLED_PageTranslationSuccess
+#else
+#define MAYBE_PageTranslationSuccess PageTranslationSuccess
+#endif
+IN_PROC_BROWSER_TEST_F(TranslateManagerBrowserTest,
+                       MAYBE_PageTranslationSuccess) {
   SetTranslateScript(kTestValidScript);
 
   ChromeTranslateClient* chrome_translate_client = GetChromeTranslateClient();
@@ -572,9 +579,9 @@ IN_PROC_BROWSER_TEST_F(TranslateManagerBrowserTest, HrefTranslateSuccess) {
             GetChromeTranslateClient()->GetLanguageState().current_language());
 
   // The target shouldn't be added to accept languages.
-  EXPECT_FALSE(
-      AcceptLanguagesServiceFactory::GetForBrowserContext(browser()->profile())
-          ->IsAcceptLanguage("ja"));
+  EXPECT_FALSE(AcceptLanguagesServiceFactory::GetForBrowserContext(
+                   browser()->GetProfile())
+                   ->IsAcceptLanguage("ja"));
 
   histograms.ExpectUniqueSample(
       kTranslateHrefHintStatusHistogram,
@@ -824,9 +831,9 @@ IN_PROC_BROWSER_TEST_F(TranslateManagerBrowserTest,
             GetChromeTranslateClient()->GetLanguageState().current_language());
 
   // The target shouldn't be added to accept languages.
-  EXPECT_FALSE(
-      AcceptLanguagesServiceFactory::GetForBrowserContext(browser()->profile())
-          ->IsAcceptLanguage("ja"));
+  EXPECT_FALSE(AcceptLanguagesServiceFactory::GetForBrowserContext(
+                   browser()->GetProfile())
+                   ->IsAcceptLanguage("ja"));
 
   histograms.ExpectUniqueSample(
       kTranslateHrefHintStatusHistogram,
@@ -1090,7 +1097,7 @@ IN_PROC_BROWSER_TEST_F(TranslateManagerBrowserTest,
 IN_PROC_BROWSER_TEST_F(TranslateManagerBrowserTest,
                        PRE_TranslateSessionRestore) {
   SessionStartupPref pref(SessionStartupPref::LAST);
-  SessionStartupPref::SetStartupPref(browser()->profile(), pref);
+  SessionStartupPref::SetStartupPref(browser()->GetProfile(), pref);
 
   ChromeTranslateClient* chrome_translate_client = GetChromeTranslateClient();
 
@@ -1105,7 +1112,14 @@ IN_PROC_BROWSER_TEST_F(TranslateManagerBrowserTest,
             chrome_translate_client->GetLanguageState().source_language());
 }
 
-IN_PROC_BROWSER_TEST_F(TranslateManagerBrowserTest, TranslateSessionRestore) {
+// TODO(crbug.com/518213587): Flaky on Windows
+#if BUILDFLAG(IS_WIN)
+#define MAYBE_TranslateSessionRestore DISABLED_TranslateSessionRestore
+#else
+#define MAYBE_TranslateSessionRestore TranslateSessionRestore
+#endif
+IN_PROC_BROWSER_TEST_F(TranslateManagerBrowserTest,
+                       MAYBE_TranslateSessionRestore) {
   // Make restored tab active to (on some platforms) initiate language
   // detection.
   browser()->tab_strip_model()->ActivateTabAt(
@@ -1189,8 +1203,14 @@ class TranslateManagerPrerenderBrowserTest
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
+// TODO(crbug.com/520628534): Flaky.
+#if BUILDFLAG(IS_WIN)
+#define MAYBE_SkipPrerenderPage DISABLED_SkipPrerenderPage
+#else
+#define MAYBE_SkipPrerenderPage SkipPrerenderPage
+#endif
 IN_PROC_BROWSER_TEST_F(TranslateManagerPrerenderBrowserTest,
-                       SkipPrerenderPage) {
+                       MAYBE_SkipPrerenderPage) {
   SetTranslateScript(kTestValidScript);
 
   ChromeTranslateClient* chrome_translate_client = GetChromeTranslateClient();
@@ -1286,8 +1306,16 @@ class TranslateManagerBackForwardCacheBrowserTest
   logging::ScopedVmoduleSwitches vmodule_switches_;
 };
 
+// TODO(crbug.com/520500034): Re-enable once consistent failures are fixed.
+#if BUILDFLAG(IS_WIN)
+#define MAYBE_RestorePageTranslatorAfterBackForwardCache \
+  DISABLED_RestorePageTranslatorAfterBackForwardCache
+#else
+#define MAYBE_RestorePageTranslatorAfterBackForwardCache \
+  RestorePageTranslatorAfterBackForwardCache
+#endif
 IN_PROC_BROWSER_TEST_F(TranslateManagerBackForwardCacheBrowserTest,
-                       RestorePageTranslatorAfterBackForwardCache) {
+                       MAYBE_RestorePageTranslatorAfterBackForwardCache) {
   SetTranslateScript(kTestValidScript);
 
   EXPECT_TRUE(content::NavigateToURL(web_contents(), GetURL("a.com")));

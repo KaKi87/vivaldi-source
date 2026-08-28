@@ -8,19 +8,17 @@
 
 #include "base/check_deref.h"
 #include "base/test/scoped_feature_list.h"
-#include "chrome/browser/glic/browser_ui/glic_nudge_controller_desktop.h"
+#include "chrome/browser/glic/browser_ui/glic_nudge_controller.h"
+#include "chrome/browser/glic/browser_ui/glic_split_button_controller.h"
+#include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/test_support/glic_test_environment.h"
 #include "chrome/browser/glic/test_support/glic_test_util.h"
-#include "chrome/browser/global_features.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/test/mock_browser_window_interface.h"
 #include "chrome/browser/ui/call_to_action/call_to_action_lock.h"
 #include "chrome/browser/ui/tabs/tab_list_bridge.h"
 #include "chrome/browser/ui/tabs/tab_model.h"
 #include "chrome/browser/ui/tabs/test_tab_strip_model_delegate.h"
-#include "chrome/browser/ui/ui_features.h"
-#include "chrome/browser/ui/views/interaction/browser_elements_views.h"
 #include "chrome/browser/ui/views/tabs/fake_base_tab_strip_controller.h"
 #include "chrome/browser/ui/views/tabs/glic/tab_strip_glic_button.h"
 #include "chrome/browser/ui/views/tabs/hovercard/tab_hover_card_controller.h"
@@ -32,7 +30,6 @@
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/base/testing_profile_manager.h"
 #include "chrome/test/views/chrome_views_test_base.h"
-#include "components/commerce/core/commerce_feature_list.h"
 #include "components/tabs/public/mock_tab_interface.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/test_renderer_host.h"
@@ -40,7 +37,6 @@
 #include "content/public/test/web_contents_tester.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 #include "ui/gfx/animation/animation_test_api.h"
 #include "ui/views/test/views_test_utils.h"
 #include "ui/views/widget/widget.h"
@@ -134,7 +130,7 @@ class TabStripActionContainerTest : public ChromeViewsTestBase {
 
   void TearDown() override {
     tab_strip_action_container_.reset();
-    glic_nudge_controller_.reset();
+    glic_split_button_controller_.reset();
     browser_window_interface_.reset();
     tab_interface_.reset();
     tab_list_bridge_.reset();
@@ -191,11 +187,15 @@ class TabStripActionContainerTest : public ChromeViewsTestBase {
     tab_strip_model_->AppendWebContents(std::move(web_contents_),
                                         /*foreground=*/true);
 
-    glic_nudge_controller_ = std::make_unique<glic::GlicNudgeControllerDesktop>(
-        browser_window_interface_.get(), tab_list_bridge_.get());
+    Profile* profile = tab_strip_->GetBrowserWindowInterface()->GetProfile();
+    if (auto* glic_service = glic::GlicKeyedService::Get(profile)) {
+      glic_split_button_controller_ =
+          std::make_unique<glic::GlicSplitButtonController>(
+              browser_window_interface_.get(), glic_service);
+    }
 
     tab_strip_action_container_ = std::make_unique<TabStripActionContainer>(
-        tab_strip_->GetBrowserWindowInterface(), glic_nudge_controller_.get());
+        browser_window_interface_.get());
   }
 
  protected:
@@ -203,7 +203,14 @@ class TabStripActionContainerTest : public ChromeViewsTestBase {
   std::unique_ptr<TabStrip> tab_strip_;
   std::unique_ptr<TabStripModel> tab_strip_model_;
   std::unique_ptr<TabListBridge> tab_list_bridge_;
-  std::unique_ptr<glic::GlicNudgeController> glic_nudge_controller_;
+  std::unique_ptr<glic::GlicSplitButtonController>
+      glic_split_button_controller_;
+
+  glic::GlicNudgeController* glic_nudge_controller() {
+    return glic_split_button_controller_
+               ? glic_split_button_controller_->nudge_controller()
+               : nullptr;
+  }
   std::unique_ptr<tabs::MockTabInterface> tab_interface_;
   std::unique_ptr<MockBrowserWindowInterface> browser_window_interface_;
   ui::UnownedUserDataHost data_host_;
@@ -305,23 +312,18 @@ TEST_F(TabStripActionContainerTest, MAYBE(OrdersButtonsCorrectlyWhenShown)) {
 
 TEST_F(TabStripActionContainerTest, MAYBE(GlicButtonUpdateLabel)) {
   BuildGlicContainer(/*use_otr_profile=*/false);
-  glic_nudge_controller_->UpdateNudgeLabel(
+  glic_nudge_controller()->UpdateNudgeLabel(
       web_contents(), "TEST", /*prompt_suggestion=*/std::nullopt,
-      /*anchored_message_text=*/std::string(),
       /*activity=*/std::nullopt, base::NullCallback());
   ASSERT_EQ(tab_strip_action_container_->GetGlicButton()->GetText(), u"TEST");
 }
 
 TEST_F(TabStripActionContainerTest, MAYBE(GlicButtonHideNudgeOnTabChange)) {
   BuildGlicContainer(/*use_otr_profile=*/false);
-  glic_nudge_controller_->SetTabStripDelegate(
-      tab_strip_action_container_.get());
-
   ASSERT_FALSE(tab_strip_action_container_->GetIsShowingGlicNudge());
 
-  glic_nudge_controller_->UpdateNudgeLabel(
+  glic_nudge_controller()->UpdateNudgeLabel(
       web_contents(), "TEST", /*prompt_suggestion=*/std::nullopt,
-      /*anchored_message_text=*/std::string(),
       /*activity=*/std::nullopt, base::NullCallback());
   ASSERT_TRUE(tab_strip_action_container_->GetIsShowingGlicNudge());
   ASSERT_EQ(tab_strip_action_container_->GetGlicButton()->GetText(), u"TEST");
@@ -330,21 +332,4 @@ TEST_F(TabStripActionContainerTest, MAYBE(GlicButtonHideNudgeOnTabChange)) {
   ASSERT_FALSE(tab_strip_action_container_->GetIsShowingGlicNudge());
   ASSERT_EQ(tab_strip_action_container_->GetGlicButton()->GetText(),
             u"Ask Gemini");
-}
-
-TEST_F(TabStripActionContainerTest, GlicAnchoredMessageHideNudgeOnTabChange) {
-  BuildGlicContainer(/*use_otr_profile=*/false);
-  glic_nudge_controller_->SetTabStripDelegate(
-      tab_strip_action_container_.get());
-
-  ASSERT_FALSE(tab_strip_action_container_->GetIsShowingGlicNudge());
-
-  glic_nudge_controller_->UpdateNudgeLabel(
-      web_contents(), "DummyLabel", /*prompt_suggestion=*/std::nullopt,
-      /*anchored_message_text=*/"Anchored Test",
-      /*activity=*/std::nullopt, base::NullCallback());
-  ASSERT_TRUE(tab_strip_action_container_->GetIsShowingGlicNudge());
-
-  SimulateActiveTabChanged();
-  ASSERT_FALSE(tab_strip_action_container_->GetIsShowingGlicNudge());
 }

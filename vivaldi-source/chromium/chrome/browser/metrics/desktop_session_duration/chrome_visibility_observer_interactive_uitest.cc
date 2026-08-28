@@ -153,15 +153,15 @@ IN_PROC_BROWSER_TEST_F(ChromeVisibilityObserverInteractiveTest,
 #if !BUILDFLAG(IS_MAC)
   // Deactivating and activating the browser should affect the observer
   // accordingly.
-  browser()->window()->Deactivate();
+  browser()->GetWindow()->Deactivate();
   WaitForActive(/*active=*/false);
-  browser()->window()->Activate();
+  browser()->GetWindow()->Activate();
   ASSERT_TRUE(ui_test_utils::BringBrowserWindowToFront(browser()));
   WaitForActive(/*active=*/true);
 #endif  // !BUILDFLAG(IS_MAC)
 
   // Creating and closing new browsers should keep the observer active.
-  Browser* new_browser = CreateBrowser(browser()->profile());
+  Browser* new_browser = CreateBrowser(browser()->GetProfile());
   ASSERT_TRUE(ui_test_utils::BringBrowserWindowToFront(new_browser));
   WaitForActive(/*active=*/true);
 

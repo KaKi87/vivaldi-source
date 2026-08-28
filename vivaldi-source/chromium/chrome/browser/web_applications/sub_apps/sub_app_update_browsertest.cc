@@ -6,6 +6,7 @@
 #include "base/strings/string_util.h"
 #include "base/test/bind.h"
 #include "base/test/gmock_expected_support.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
@@ -20,7 +21,7 @@
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/views/toolbar/app_menu_control.h"
 #include "chrome/browser/ui/views/web_apps/frame_toolbar/web_app_menu_button.h"
-#include "chrome/browser/ui/views/web_apps/sub_apps_install_dialog_controller.h"
+#include "chrome/browser/ui/views/web_apps/sub_apps/sub_apps_install_dialog_controller.h"
 #include "chrome/browser/ui/web_applications/test/isolated_web_app_test_utils.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/ui/web_applications/web_app_menu_model.h"
@@ -30,6 +31,7 @@
 #include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_test_update_server.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/key_distribution/test_utils.h"
 #include "chrome/browser/web_applications/manifest_update_manager.h"
+#include "chrome/browser/web_applications/scheduler/manifest_silent_update_result.h"
 #include "chrome/browser/web_applications/test/web_app_icon_test_utils.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
 #include "chrome/browser/web_applications/test/web_app_page_waiter.h"
@@ -42,6 +44,7 @@
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/prefs/pref_service.h"
+#include "components/ukm/test_ukm_recorder.h"
 #include "components/web_package/test_support/signed_web_bundles/signing_keys.h"
 #include "components/webapps/isolated_web_apps/types/iwa_version.h"
 #include "content/public/browser/storage_partition.h"
@@ -50,6 +53,7 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_navigation_observer.h"
+#include "services/metrics/public/cpp/ukm_builders.h"
 #include "services/network/public/mojom/clear_data_filter.mojom.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -187,9 +191,7 @@ class SubAppUpdateBrowserTest : public IsolatedWebAppBrowserTestHarness {
     EXPECT_TRUE(content::ExecJs(iwa_contents,
                                 base::ReplaceStringPlaceholders(
                                     R"(
-              navigator.subApps.add({
-                "$1": {"installURL": "$1"}
-              })
+              window.subApps.add(["$1"])
             )",
                                     {std::string(install_url)}, nullptr)));
 
@@ -205,18 +207,21 @@ class SubAppUpdateBrowserTest : public IsolatedWebAppBrowserTestHarness {
     iwa_test_update_server_.AddBundle(builder.BuildBundle(
         bundle_id, {web_package::test::GetDefaultEd25519KeyPair()}));
 
-    base::test::TestFuture<IsolatedWebAppUpdateDiscoveryTask::CompletionStatus>
+    base::test::TestFuture<
+        IsolatedWebAppUpdateCheckAndPrepareTask::CompletionStatus>
         update_future;
     UpdateDiscoveryTaskResultWaiter update_waiter(
         provider(),
         IsolatedWebAppUrlInfo::CreateFromSignedWebBundleId(bundle_id).app_id(),
         update_future.GetCallback());
 
-    EXPECT_EQ(
-        1ul, provider().isolated_web_app_update_manager().DiscoverUpdatesNow());
-    EXPECT_THAT(update_future.Take(),
-                base::test::ValueIs(IsolatedWebAppUpdateDiscoveryTask::Success::
-                                        kUpdateFoundAndSavedInDatabase));
+    EXPECT_EQ(1ul, provider()
+                       .isolated_web_app_update_manager()
+                       .DiscoverAndPrepareUpdatesNow());
+    EXPECT_THAT(
+        update_future.Take(),
+        base::test::ValueIs(IsolatedWebAppUpdateCheckAndPrepareTask::Success::
+                                kUpdateFoundAndSavedInDatabase));
   }
 
  protected:
@@ -247,12 +252,15 @@ IN_PROC_BROWSER_TEST_F(SubAppUpdateBrowserTest,
       provider().registrar_unsafe().GetAppShortcutsMenuItemInfos(sub_app_id),
       testing::IsEmpty());
 
-  iwa_browser->window()->Close();
+  iwa_browser->GetWindow()->Close();
 
   UpdateIwaToV2AndWait(bundle_id, "Sub App", R"([{
         "name": "Shortcut",
         "url": "subapp/shortcut"
       }])");
+
+  ukm::TestAutoSetUkmRecorder ukm_recorder;
+  base::HistogramTester histogram_tester;
 
   WebAppTestManifestUpdatedObserver manifest_observer(
       &provider().install_manager());
@@ -275,6 +283,21 @@ IN_PROC_BROWSER_TEST_F(SubAppUpdateBrowserTest,
       testing::ElementsAre(Shortcut(
           u"Shortcut",
           iwa_url_info.origin().GetURL().Resolve("/subapp/shortcut"))));
+
+  // Verify that the UKM metric is sent.
+  auto entries = ukm_recorder.GetEntriesByName(
+      ukm::builders::SubApp_Update_ManifestSilentUpdateCheckResult::kEntryName);
+  EXPECT_EQ(entries.size(), 1u);
+  ukm_recorder.ExpectEntryMetric(
+      entries[0],
+      ukm::builders::SubApp_Update_ManifestSilentUpdateCheckResult::kResultName,
+      static_cast<int>(ManifestSilentUpdateCheckResult::kAppSilentlyUpdated));
+
+  // Verify that UMA metric is sent.
+  EXPECT_THAT(histogram_tester.GetAllSamples(
+                  "Webapp.Update.ManifestSilentUpdateCheckResult"),
+              base::BucketsAre(base::Bucket(
+                  ManifestSilentUpdateCheckResult::kAppSilentlyUpdated, 1)));
 }
 
 // In PWA, updating security fields: icon>10% byte by byte comparison/title,
@@ -305,7 +328,7 @@ IN_PROC_BROWSER_TEST_F(SubAppUpdateBrowserTest,
       provider().registrar_unsafe().GetAppShortcutsMenuItemInfos(sub_app_id),
       testing::IsEmpty());
 
-  iwa_browser->window()->Close();
+  iwa_browser->GetWindow()->Close();
 
   // Use different name of sub app to check that the update
   // for title/icon is still applied automatically without user action.
@@ -313,6 +336,9 @@ IN_PROC_BROWSER_TEST_F(SubAppUpdateBrowserTest,
         "name": "Shortcut",
         "url": "subapp/shortcut"
       }])");
+
+  ukm::TestAutoSetUkmRecorder ukm_recorder;
+  base::HistogramTester histogram_tester;
 
   WebAppTestManifestUpdatedObserver manifest_observer(
       &provider().install_manager());
@@ -330,6 +356,21 @@ IN_PROC_BROWSER_TEST_F(SubAppUpdateBrowserTest,
       testing::ElementsAre(Shortcut(
           u"Shortcut",
           iwa_url_info.origin().GetURL().Resolve("/subapp/shortcut"))));
+
+  // Verify that the UKM metric is sent.
+  auto entries = ukm_recorder.GetEntriesByName(
+      ukm::builders::SubApp_Update_ManifestSilentUpdateCheckResult::kEntryName);
+  EXPECT_EQ(entries.size(), 1u);
+  ukm_recorder.ExpectEntryMetric(
+      entries[0],
+      ukm::builders::SubApp_Update_ManifestSilentUpdateCheckResult::kResultName,
+      static_cast<int>(ManifestSilentUpdateCheckResult::kAppSilentlyUpdated));
+
+  // Verify that UMA metric is sent.
+  EXPECT_THAT(histogram_tester.GetAllSamples(
+                  "Webapp.Update.ManifestSilentUpdateCheckResult"),
+              base::BucketsAre(base::Bucket(
+                  ManifestSilentUpdateCheckResult::kAppSilentlyUpdated, 1)));
 }
 
 // Sub apps must never have overlapping scopes with each other,
@@ -440,7 +481,7 @@ IN_PROC_BROWSER_TEST_F(SubAppUpdateBrowserTest, SubAppScopeOverlap) {
   EXPECT_EQ(provider().registrar_unsafe().GetAppScope(sub_app_2_id),
             iwa_url_info.origin().GetURL().Resolve("/sub2/"));
 
-  iwa_browser->window()->Close();
+  iwa_browser->GetWindow()->Close();
 
   // Update parent IWA that includes the sub apps.
   ManifestBuilder parent_manifest_v2 =
@@ -618,7 +659,7 @@ IN_PROC_BROWSER_TEST_F(SubAppUpdateBrowserTest, SubAppParentInScope) {
   EXPECT_EQ(provider().registrar_unsafe().GetAppScope(sub_app_1_id),
             iwa_url_info.origin().GetURL().Resolve("/sub1/"));
 
-  iwa_browser->window()->Close();
+  iwa_browser->GetWindow()->Close();
 
   // Update parent IWA that includes the sub app.
   ManifestBuilder parent_manifest_v2 =

@@ -62,7 +62,11 @@ public class ChromeSelectionDropdownMenuDelegate
         mHierarchicalMenuController.setupCallbacks(
                 /* headerModelList= */ null, items, dismissMenuCallback);
 
-        Rect dropdownRect = new Rect(x, y, x + 1, y + 1);
+        int[] location = new int[2];
+        rootView.getLocationInWindow(location);
+        int windowX = location[0] + x;
+        int windowY = location[1] + y;
+        Rect dropdownRect = new Rect(windowX, windowY, windowX + 1, windowY + 1);
         BasicListMenu menu =
                 BrowserUiListMenuUtils.getBasicListMenu(
                         context, items, (model, view) -> clickListener.onItemClick(model));
@@ -95,7 +99,12 @@ public class ChromeSelectionDropdownMenuDelegate
         popupWindow.show();
 
         mHierarchicalMenuController.setupFlyoutController(
-                /* flyoutHandler= */ this, popupWindow, /* drillDownOverrideValue= */ null);
+                /* flyoutHandler= */ this,
+                popupWindow,
+                menu::addOnScrollListener,
+                /* drillDownOverrideValue= */ null);
+        mHierarchicalMenuController.setupBackPressBehaviorForPopupWindow(
+                popupWindow.getContentView(), this::dismiss);
     }
 
     @Override
@@ -135,7 +144,10 @@ public class ChromeSelectionDropdownMenuDelegate
 
     @Override
     public AnchoredPopupWindow createAndShowFlyoutPopup(
-            List<ListItem> items, View view, Runnable dismissRunnable) {
+            List<ListItem> items,
+            View view,
+            Runnable dismissRunnable,
+            View.OnScrollChangeListener scrollListener) {
         Context context = view.getContext();
         ModelList modelList = new ModelList();
         modelList.addAll(items);
@@ -144,7 +156,7 @@ public class ChromeSelectionDropdownMenuDelegate
                 BrowserUiListMenuUtils.getBasicListMenu(
                         context,
                         modelList,
-                        (model, unusedView) -> {
+                        (model, _) -> {
                             assert mClickListener != null;
                             mClickListener.onItemClick(model);
                         });
@@ -181,6 +193,7 @@ public class ChromeSelectionDropdownMenuDelegate
                                 })
                         .build();
 
+        menu.addOnScrollListener(scrollListener);
         popupMenu.show();
         return popupMenu;
     }

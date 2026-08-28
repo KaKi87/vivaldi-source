@@ -47,7 +47,6 @@
 <translation id="4772190485302020393">Fechar todas as abas e pilhas</translation>
 <translation id="4802185666270672526">Ocultar Solicitação do Site da Área de Trabalho</translation>
 <translation id="4828571836982833289">Desempilhar as abas?</translation>
-<translation id="4838250035189612538">Renomear pilha</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 pilha de abas fechada e salva}
             other {{count} pilhas de abas fechadas e salvas}}</translation>

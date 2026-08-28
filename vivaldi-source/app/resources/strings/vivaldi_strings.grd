@@ -135,6 +135,11 @@
           When on, Vivaldi conserves battery power by limiting background activity and visual effects, such as smooth scrolling and video frame rates. <ph name="BEGIN_LINK">&lt;a id="batterySaverLearnMore" target="_blank" href="$1" aria-label="$2"&gt;</ph>Learn more<ph name="END_LINK">&lt;/a&gt;</ph>
         </message>
       </if>
+      <message name="IDS_EXTENSIONS_MANIFEST_V2_DEPRECATION_DISABLED_DIALOG_DESCRIPTION"  desc="The description of the dialog that appears when extensions were disabled due to the Manifest V2 deprecation">
+        {NUM_EXTENSIONS, plural,
+        =1 {This extension was turned off because it's no longer supported by Chromium. You can turn it back on for now, but it might soon get removed. Please consider looking for alternatives in the Chrome Web Store.}
+        other {These extensions were turned off because they are no longer supported by Chromium. You can turn them back on for now, but they might soon get removed. Please consider looking for alternatives in the Chrome Web Store.}}
+      </message>
     </messages>
   </release>
 </grit>

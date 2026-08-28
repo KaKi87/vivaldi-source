@@ -39,7 +39,6 @@
 <translation id="1601560923496285236">Použiť</translation>
 <translation id="1603914832182249871">(Súkromný režim)</translation>
 <translation id="1627276047960621195">Deskriptory súborov</translation>
-<translation id="1654713139320245449">Nenašli sa žiadne ciele nahrávania. Potrebujete pomoc?</translation>
 <translation id="166278006618318542">Algoritmus verejného kľúča subjektu</translation>
 <translation id="1682548588986054654">Nové súkromné okno</translation>
 <translation id="1708338024780164500">(Neaktívny)</translation>
@@ -60,7 +59,6 @@
 <translation id="1906488504371069394">Objavte ďalšie rozšírenia a motívy vzhľadu na <ph name="BEGIN_LINK" />Chrome Web Store<ph name="END_LINK" /></translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">Zadajte vlastnú webovú adresu</translation>
-<translation id="1932098463447129402">Nie pred</translation>
 <translation id="1936157145127842922">Zobraziť v priečinku</translation>
 <translation id="1936931585862840749">Zadajte číslo označujúce počet kópií, ktoré chcete vytlačiť (od 1 do <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">&amp;Otvoriť zvuk na novom liste</translation>
@@ -102,7 +100,6 @@
 <translation id="253557089021624350">Počet akcií zabraňujúcich ukončeniu</translation>
 <translation id="2550212893339833758">Swapovaná pamäť</translation>
 <translation id="2553440850688409052">Skryť tento doplnok</translation>
-<translation id="2607101320794533334">Informácie verejného kľúča subjektu</translation>
 <translation id="261305050785128654">Informujte webové stránky o jazykoch, ktorými hovoríte. Ak to bude možné, budú zobrazovať obsah v týchto jazykoch.</translation>
 <translation id="26224892172169984">Nepovoliť žiadnym stránkam obsluhovať protokoly</translation>
 <translation id="2653275834716714682">Náhrada textu</translation>
@@ -112,7 +109,6 @@
 <translation id="2719936478972253983">Boli zablokované nasledujúce súbory cookies</translation>
 <translation id="2721037002783622288">&amp;Vyhľadať obrázok v službe <ph name="SEARCH_ENGINE" /></translation>
 <translation id="2722547199758472013">ID: <ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">Nie po</translation>
 <translation id="2749881179542288782">Skontrolovať gramatiku s pravopisom</translation>
 <translation id="2785873697295365461">Deskriptory súborov</translation>
 <translation id="2825758591930162672">Verejný kľúč subjektu</translation>
@@ -163,7 +159,6 @@
 <translation id="3387614642886316601">Použiť rozšírenú kontrolu pravopisu</translation>
 <translation id="3390013585654699824">Podrobnosti o aplikácii</translation>
 <translation id="345693547134384690">Otvoriť &amp;obrázok v novom liste</translation>
-<translation id="3493881266323043047">Platnosť</translation>
 <translation id="3511307672085573050">Kopírovať adre&amp;su odkazu</translation>
 <translation id="354068948465830244">Môže čítať údaje stránok a meniť ich</translation>
 <translation id="3555812735919707620">Odobrať rozšírenie</translation>
@@ -179,7 +174,6 @@
 <translation id="3760460896538743390">Skontrolovať &amp;stránku na pozadí</translation>
 <translation id="3786224729726357296">Odstrániť dáta a povolenia webu <ph name="SITE" /></translation>
 <translation id="3797900183766075808">Pomocou &amp;služby <ph name="SEARCH_ENGINE" /> vyhľadať text „<ph name="SEARCH_TERMS" />“</translation>
-<translation id="3798449238516105146">Verzia</translation>
 <translation id="3810973564298564668">Spravovať</translation>
 <translation id="3838085852053358637">Načítanie rozšírenia zlyhalo</translation>
 <translation id="383891835335927981">Žiadne stránky neboli priblížené ani oddialené</translation>
@@ -266,12 +260,10 @@
 <translation id="5063480226653192405">Využitie</translation>
 <translation id="5116628073786783676">Uložiť &amp;zvuk ako...</translation>
 <translation id="5154108062446123722">Rozšírené nastavenia pre <ph name="PRINTING_DESTINATION" /></translation>
-<translation id="5154702632169343078">Predmet</translation>
 <translation id="5170568018924773124">Zobraziť v priečinku</translation>
 <translation id="5171343362375269016">Swapovaná pamäť</translation>
 <translation id="5233231016133573565">Identifikátor úlohy</translation>
 <translation id="5233736638227740678">&amp;Prilepiť</translation>
-<translation id="5244466461749935369">Zatiaľ to ponechať</translation>
 <translation id="5256861893479663409">Na všetkých stránkach</translation>
 <translation id="5260334392110301220">Inteligentné úvodzovky</translation>
 <translation id="5269977353971873915">Zlyhanie tlače</translation>
@@ -310,7 +302,6 @@
 <translation id="5780973441651030252">Priorita úlohy</translation>
 <translation id="5804241973901381774">Povolenia</translation>
 <translation id="5828633471261496623">Prebieha tlač...</translation>
-<translation id="5851868085455377790">Vydavateľ</translation>
 <translation id="5860491529813859533">Zapnúť</translation>
 <translation id="5910363049092958439">Uložiť &amp;obrázok ako...</translation>
 <translation id="5914724413750400082">Modul (<ph name="MODULUS_NUM_BITS" /> bitov):
@@ -458,7 +449,6 @@ Súbor kľúča uložte na bezpečné miesto. Budete ho potrebovať na vytvoreni
 <translation id="862750493060684461">Vyrovnávacia pamäť CSS</translation>
 <translation id="8661290697478713397">Otvoriť odkaz v &amp;súkromnom okne</translation>
 <translation id="8664389313780386848">&amp;Zobraziť zdrojový kód stránky</translation>
-<translation id="8705331520020532516">Sériové číslo</translation>
 <translation id="8708000541097332489">Vymazať pri ukončení</translation>
 <translation id="8714838604780058252">Grafika na pozadí</translation>
 <translation id="8725066075913043281">Skúsiť znova</translation>

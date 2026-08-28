@@ -25,8 +25,11 @@ const CGFloat kHeaderActionSymbolPointSize = 17.0;
 // The leading and trailing padding of the header view.
 const UIEdgeInsets kHorizontalPadding = {.left = 22.0, .right = 16.0};
 const CGFloat kTitleLeadingPadding = 18.0;
+const CGFloat kTitleLeadingTrailingPadding = 10.0;
 const CGFloat kButtonSize = 40.0;
 const CGFloat kStackViewMargin = 5.0;
+// The size of the logo view.
+const CGFloat kLogoSize = 32.0;
 
 // The padding between the close button and the header actions.
 const CGFloat kHeaderInnerPadding = 10;
@@ -72,6 +75,9 @@ UIButtonConfiguration* CreateHeaderButtonConfiguration(UIImage* image) {
   // The view holding the actions.
   UIView* _headerActionsView;
 
+  // The new thread button.
+  UIButton* _startNewThreadButton;
+
   // The back button for history.
   UIButton* _backButton;
 }
@@ -80,8 +86,8 @@ UIButtonConfiguration* CreateHeaderButtonConfiguration(UIImage* image) {
   self = [super init];
   if (self) {
     [self setUpLogoView];
-    [self setUpTitleLabel];
     [self setUpCloseButton];
+    [self setUpTitleLabel];
     [self setUpBackButton];
     [self setUpHeaderActionsView];
   }
@@ -98,22 +104,31 @@ UIButtonConfiguration* CreateHeaderButtonConfiguration(UIImage* image) {
   _headerActionsView.alpha = percentage;
 }
 
-- (void)setMode:(AssistantAIMHeaderViewMode)mode {
+- (void)setMode:(AssistantAIMState)mode {
   switch (mode) {
-    case AssistantAIMHeaderViewMode::kChat:
+    case AssistantAIMState::kZeroState:
       _logoView.hidden = NO;
       _headerActionsView.hidden = NO;
       _backButton.hidden = YES;
+      _startNewThreadButton.hidden = YES;
       _titleLabel.text = @"";
 
       self.backgroundColor = [UIColor clearColor];
       break;
-    case AssistantAIMHeaderViewMode::kHistory:
+    case AssistantAIMState::kThread:
+      _logoView.hidden = NO;
+      _headerActionsView.hidden = NO;
+      _backButton.hidden = YES;
+      _startNewThreadButton.hidden = NO;
+      _titleLabel.text = @"";
+
+      self.backgroundColor = [UIColor clearColor];
+      break;
+    case AssistantAIMState::kHistory:
       _logoView.hidden = YES;
       _headerActionsView.hidden = YES;
       _backButton.hidden = NO;
       _titleLabel.text = l10n_util::GetNSString(IDS_IOS_AIM_HISTORY);
-
       self.backgroundColor = [UIColor colorNamed:kSecondaryBackgroundColor];
       break;
   }
@@ -129,19 +144,21 @@ UIButtonConfiguration* CreateHeaderButtonConfiguration(UIImage* image) {
   _titleLabel.font =
       PreferredFontForTextStyle(UIFontTextStyleHeadline, UIFontWeightSemibold);
   _titleLabel.isAccessibilityElement = YES;
-  _titleLabel.adjustsFontSizeToFitWidth = YES;
   [self addSubview:_titleLabel];
 
   [NSLayoutConstraint activateConstraints:@[
     [_titleLabel.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
     [_titleLabel.leadingAnchor constraintEqualToAnchor:_logoView.trailingAnchor
                                               constant:kTitleLeadingPadding],
+    [_titleLabel.trailingAnchor
+        constraintEqualToAnchor:_closeButton.leadingAnchor
+                       constant:-kTitleLeadingTrailingPadding],
   ]];
 }
 
 - (void)setUpCloseButton {
-  UIImage* image = DefaultSymbolTemplateWithPointSize(
-      kXMarkSymbol, kCloseButtonSymbolPointSize);
+  UIImage* image =
+      SymbolTemplateWithPointSize(SymbolXMark, kCloseButtonSymbolPointSize);
   UIButtonConfiguration* buttonConfiguration =
       CreateHeaderButtonConfiguration(image);
 
@@ -169,8 +186,8 @@ UIButtonConfiguration* CreateHeaderButtonConfiguration(UIImage* image) {
 }
 
 - (void)setUpBackButton {
-  UIImage* image = DefaultSymbolWithPointSize(kChevronBackwardSymbol,
-                                              kCloseButtonSymbolPointSize);
+  UIImage* image =
+      SymbolWithPointSize(SymbolChevronBackward, kCloseButtonSymbolPointSize);
   UIButtonConfiguration* buttonConfiguration =
       CreateHeaderButtonConfiguration(image);
 
@@ -196,31 +213,36 @@ UIButtonConfiguration* CreateHeaderButtonConfiguration(UIImage* image) {
 - (void)setUpLogoView {
   _logoView = [[UIImageView alloc] initWithImage:[self iconImage]];
   _logoView.translatesAutoresizingMaskIntoConstraints = NO;
+  _logoView.contentMode = UIViewContentModeScaleAspectFit;
   [self addSubview:_logoView];
   [NSLayoutConstraint activateConstraints:@[
     [_logoView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
     [_logoView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor
                                             constant:kHorizontalPadding.left],
   ]];
+  AddSizeConstraints(_logoView, CGSizeMake(kLogoSize, kLogoSize));
 }
 
 // Creates the new thread button in header.
 - (UIButton*)createStartThreadButton {
   UIButtonConfiguration* config =
       [UIButtonConfiguration plainButtonConfiguration];
-  config.image = DefaultSymbolTemplateWithPointSize(
-      kSquareAndPencilSymbol, kHeaderActionSymbolPointSize);
+  config.image = SymbolTemplateWithPointSize(SymbolSquareAndPencil,
+                                             kHeaderActionSymbolPointSize);
   config.baseForegroundColor = [UIColor colorNamed:kTextPrimaryColor];
 
-  // TODO(crbug.com/493128413): Implement action.
   UIButton* button = [UIButton buttonWithConfiguration:config
                                          primaryAction:nil];
+  [button addTarget:self
+                action:@selector(didTapStartNewThread)
+      forControlEvents:UIControlEventTouchUpInside];
   button.translatesAutoresizingMaskIntoConstraints = NO;
 
   [NSLayoutConstraint activateConstraints:@[
     [button.heightAnchor constraintEqualToConstant:kButtonSize],
   ]];
 
+  _startNewThreadButton = button;
   return button;
 }
 
@@ -228,28 +250,48 @@ UIButtonConfiguration* CreateHeaderButtonConfiguration(UIImage* image) {
 - (UIButton*)createContextMenuButton {
   UIButtonConfiguration* config =
       [UIButtonConfiguration plainButtonConfiguration];
-  config.image = DefaultSymbolTemplateWithPointSize(
-      kMenuSymbol, kHeaderActionSymbolPointSize);
+  config.image = SymbolTemplateWithPointSize(SymbolLineThreeSpark,
+                                             kHeaderActionSymbolPointSize);
   config.baseForegroundColor = [UIColor colorNamed:kTextPrimaryColor];
 
   // TODO(crbug.com/493128413): Implement missing actions.
   UIButton* button = [UIButton buttonWithConfiguration:config
                                          primaryAction:nil];
   button.translatesAutoresizingMaskIntoConstraints = NO;
+  button.accessibilityIdentifier =
+      kAssistantAIMContextMenuButtonAccessibilityIdentifier;
 
   NSMutableArray* actions = [[NSMutableArray alloc] init];
 
-  if (IsCobrowseAimHistoryEnabled()) {
-    __weak __typeof(self) weakSelf = self;
-    UIAction* historyAction = [UIAction
-        actionWithTitle:l10n_util::GetNSString(IDS_IOS_AIM_HISTORY)
-                  image:CustomSymbolWithPointSize(kLineThreeSparkSymbol,
-                                                  kHeaderActionSymbolPointSize)
+  __weak __typeof(self) weakSelf = self;
+  UIAction* historyAction = [UIAction
+      actionWithTitle:l10n_util::GetNSString(IDS_IOS_AIM_HISTORY)
+                image:SymbolWithPointSize(SymbolLineThreeSpark,
+                                          kHeaderActionSymbolPointSize)
+           identifier:nil
+              handler:^(UIAction* action) {
+                [weakSelf didTapHistoryButton];
+              }];
+  [actions addObject:historyAction];
+
+  if (experimental_flags::IsOmniboxDebuggingEnabled()) {
+    UIAction* showLogsAction = [UIAction
+        actionWithTitle:@"AIM SRP Logs"
+                  image:DefaultSymbolWithPointSize(@"binoculars.circle", 16)
              identifier:nil
                 handler:^(UIAction* action) {
-                  [weakSelf didTapHistoryButton];
+                  [weakSelf didTapShowLogsButton];
                 }];
-    [actions addObject:historyAction];
+    [actions addObject:showLogsAction];
+
+    UIAction* showURLAction =
+        [UIAction actionWithTitle:@"AIM Loaded URL"
+                            image:SymbolWithPointSize(SymbolLinkAction, 16)
+                       identifier:nil
+                          handler:^(UIAction* action) {
+                            [weakSelf didTapShowURLButton];
+                          }];
+    [actions addObject:showURLAction];
   }
 
   button.menu = [UIMenu menuWithTitle:@"" children:actions];
@@ -319,10 +361,10 @@ UIButtonConfiguration* CreateHeaderButtonConfiguration(UIImage* image) {
 - (UIImage*)iconImage {
 #if BUILDFLAG(IOS_USE_BRANDED_ASSETS)
   return MakeSymbolMulticolor(
-      CustomSymbolWithPointSize(kGoogleIconSymbol, kSymbolsPointSize));
+      SymbolWithPointSize(SymbolGoogleIcon, kSymbolsPointSize));
 #else
   return MakeSymbolMulticolor(
-      DefaultSymbolWithPointSize(kGearshape2Symbol, kSymbolsPointSize));
+      SymbolWithPointSize(SymbolGearshape2, kSymbolsPointSize));
 #endif
 }
 
@@ -333,11 +375,23 @@ UIButtonConfiguration* CreateHeaderButtonConfiguration(UIImage* image) {
 }
 
 - (void)didTapHistoryButton {
-  [self.actionHandler didTapHistory];
+  [self.delegate assistantAIMHeaderViewDidTapHistory:self];
+}
+
+- (void)didTapShowLogsButton {
+  [self.delegate assistantAIMHeaderViewDidRequestSRPLogs:self];
+}
+
+- (void)didTapShowURLButton {
+  [self.delegate assistantAIMHeaderViewDidRequestLoadedURL:self];
 }
 
 - (void)didTapBackButton {
   [self.delegate assistantAIMHeaderViewDidTapBack:self];
+}
+
+- (void)didTapStartNewThread {
+  [self.delegate assistantAIMHeaderViewDidTapStartNewThread:self];
 }
 
 @end

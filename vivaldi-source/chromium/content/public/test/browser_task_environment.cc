@@ -22,6 +22,7 @@
 #include "content/browser/scheduler/browser_task_executor.h"
 #include "content/browser/scheduler/browser_task_priority.h"
 #include "content/browser/scheduler/browser_ui_thread_scheduler.h"
+#include "content/public/browser/audio_service.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/test/test_utils.h"
@@ -133,6 +134,10 @@ BrowserTaskEnvironment::~BrowserTaskEnvironment() {
   // it will blow up).
   RunUntilIdle();
 
+  // Reset audio service state (NoDestructor remote + listener) so each test
+  // starts clean. This replaces the old SequenceLocalStorageSlot auto-teardown.
+  ResetAudioServiceForTesting();
+
   // When REAL_IO_THREAD, we need to stop the IO thread explicitly and flush
   // again.
   if (real_io_thread_) {
@@ -238,6 +243,10 @@ void BrowserTaskEnvironment::RunIOThreadUntilIdle() {
                      },
                      Unretained(&io_thread_idle)));
   io_thread_idle.Wait();
+}
+
+void BrowserTaskEnvironment::ShutdownBrowserTaskExecutor() {
+  BrowserTaskExecutor::Shutdown();
 }
 
 }  // namespace content

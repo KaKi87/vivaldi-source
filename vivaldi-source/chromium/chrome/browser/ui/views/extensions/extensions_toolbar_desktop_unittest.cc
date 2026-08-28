@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <string>
 
+#include "base/command_line.h"
 #include "base/json/json_reader.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/metrics/user_action_tester.h"
@@ -23,6 +24,7 @@
 #include "chrome/grit/generated_resources.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "components/vector_icons/vector_icons.h"
+#include "extensions/browser/host_access_request_helper.h"
 #include "extensions/browser/pref_names.h"
 #include "extensions/browser/test_extension_registry_observer.h"
 #include "extensions/common/extension_features.h"
@@ -34,6 +36,7 @@
 #include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/views/accessibility/view_accessibility.h"
+#include "ui/views/views_switches.h"
 
 namespace {
 
@@ -115,6 +118,8 @@ bool ExtensionsToolbarDesktopUnitTest::IsRequestAccessButtonVisible() {
 
 void ExtensionsToolbarDesktopUnitTest::SetUp() {
   ExtensionsToolbarUnitTest::SetUp();
+  base::CommandLine::ForCurrentProcess()->AppendSwitch(
+      views::switches::kDisableInputEventActivationProtectionForTesting);
   web_contents_tester_ = AddWebContentsAndGetTester();
 }
 
@@ -302,7 +307,7 @@ TEST_F(ExtensionsToolbarDesktopUnitTest,
   };
 
   Browser* browser2 =
-      CreateBrowserWithBrowserView(browser()->profile(), browser()->type());
+      CreateBrowserWithBrowserView(browser()->GetProfile(), browser()->type());
 
   // Verify extension is unpinned in both windows.
   EXPECT_FALSE(is_action_visible_on_toolbar(browser()));
@@ -318,7 +323,7 @@ TEST_F(ExtensionsToolbarDesktopUnitTest,
   EXPECT_TRUE(is_action_visible_on_toolbar(browser2));
 
   Browser* browser3 =
-      CreateBrowserWithBrowserView(browser()->profile(), browser()->type());
+      CreateBrowserWithBrowserView(browser()->GetProfile(), browser()->type());
 
   // Brand-new window also gets the pinned extension.
   EXPECT_TRUE(is_action_visible_on_toolbar(browser3));
@@ -985,7 +990,7 @@ TEST_F(ExtensionsToolbarDesktopUnitTest,
   // button. However, request access button is not visible because we haven't
   // navigated to a site yet (and extensions haven't added any site access
   // requests).
-  SitePermissionsHelper permissions_helper(browser()->profile());
+  SitePermissionsHelper permissions_helper(browser()->GetProfile());
   EXPECT_TRUE(
       permissions_helper.ShowAccessRequestsInToolbar(extension_a->id()));
   EXPECT_TRUE(
@@ -1036,7 +1041,7 @@ TEST_F(ExtensionsToolbarDesktopUnitTest, RequestAccessButton_RequestDismissed) {
   // button. However, request access button is not visible because we haven't
   // navigated to a site yet (and extensions haven't added any site access
   // requests).
-  SitePermissionsHelper permissions_helper(browser()->profile());
+  SitePermissionsHelper permissions_helper(browser()->GetProfile());
   EXPECT_TRUE(
       permissions_helper.ShowAccessRequestsInToolbar(extension_a->id()));
   EXPECT_TRUE(

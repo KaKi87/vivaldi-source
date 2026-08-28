@@ -49,9 +49,7 @@ enum class TabDataChangeCause : uint32_t {
 
   kMaxValue = kTabChanged,
 };
-using TabDataChangeCauseSet = base::EnumSet<TabDataChangeCause,
-                                            TabDataChangeCause::kMinValue,
-                                            TabDataChangeCause::kMaxValue>;
+using TabDataChangeCauseSet = base::EnumSet<TabDataChangeCause>;
 
 std::ostream& operator<<(std::ostream& os, const TabDataChangeCause& cause);
 

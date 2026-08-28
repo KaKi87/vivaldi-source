@@ -9,7 +9,7 @@ import * as path from 'node:path';
 import yargs from 'yargs';
 import unparse from 'yargs-unparser';
 
-import {commandLineArgs} from './conductor/commandline.js';
+import {commandLineArgs, expandResponseFiles} from './conductor/commandline.js';
 import {
   BUILD_WITH_CHROMIUM,
   CHECKOUT_ROOT,
@@ -17,10 +17,12 @@ import {
   isContainedInDirectory,
   PathPair,
   SOURCE_ROOT,
+  TEST_ID_REGEX,
+  TestId,
 } from './conductor/paths.js';
 
 const options =
-    commandLineArgs(yargs(process.argv.slice(2)))
+    commandLineArgs(yargs(expandResponseFiles(process.argv.slice(2))))
         .parserConfiguration({'strip-aliased': true})
         .options('skip-ninja', {
           type: 'boolean',
@@ -40,11 +42,10 @@ const options =
         .options('auto-watch', {
           type: 'boolean',
           default: false,
-          desc: 'watch changes to files and run tests automatically on file change (only for unit tests)'
+          desc: 'watch changes to files and run tests automatically on file change (only for unit tests)',
         })
-        .options(
-            'node-unit-tests',
-            {type: 'boolean', default: false, desc: 'whether to run unit tests in node (experimental)'})
+        .options('node-unit-tests',
+                 {type: 'boolean', default: false, desc: 'whether to run unit tests in node (experimental)'})
         .positional('tests', {
           type: 'string',
           desc: 'Path to the test suite, starting from out/Target/gen directory.',
@@ -154,58 +155,108 @@ class Tests {
     this.extraPaths = extraPaths.filter((p): p is[string, PathPair] => p[1] !== null).map(p => p[1]);
   }
 
-  match(path: PathPair) {
+  match(path: TestId) {
     return [this.suite, ...this.extraPaths].some(
-        pathToCheck => isContainedInDirectory(path.buildPath, pathToCheck.buildPath));
+        pathToCheck => isContainedInDirectory(path.pathPair.buildPath, pathToCheck.buildPath));
   }
 
-  protected run(tests: PathPair[], args: string[], positionalTestArgs = true) {
-    const argumentsForNode = [
-      ...args,
-      ...(options['auto-watch'] ? ['--auto-watch', '--no-single-run'] : []),
-      '--',
-      ...tests.map(t => positionalTestArgs ? t.buildPath : `--tests=${t.buildPath}`),
-      ...(options['verbose'] ? [`--verbose=${options['verbose']}`] : []),
-      ...forwardOptions(),
-    ];
-    if (options['debug-driver']) {
-      argumentsForNode.unshift('--inspect-brk');
-    } else if (options['debug'] && !argumentsForNode.includes('--inspect-brk')) {
-      argumentsForNode.unshift('--inspect');
+  protected readonly useResponseFile: boolean = true;
+
+  protected run(tests: TestId[], args: string[]) {
+    const testList = tests.map(t => t.toBuildTestId());
+    let tmpDir: string|undefined;
+    let testArgs: string[];
+
+    if (this.useResponseFile) {
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'devtools-test-runner-'));
+      const rspPath = path.join(tmpDir, 'tests.rsp');
+      fs.writeFileSync(rspPath, testList.join('\n'), 'utf-8');
+
+      if (logLevel !== 'error') {
+        // eslint-disable-next-line no-console
+        console.info(`Response file (${rspPath}) content (${testList.length} test(s)):\n${
+            testList.map(t => `  ${t}`).join('\n')}`);
+      }
+      testArgs = [`@${rspPath}`];
+    } else {
+      testArgs = testList;
     }
 
-    const result = runProcess(process.argv[0], argumentsForNode, {
-      encoding: 'utf-8',
-      stdio: 'inherit',
-      cwd: this.cwd,
-    });
-    return !result.error && (result.status ?? 1) === 0;
+    try {
+      const argumentsForNode = [
+        ...args,
+        ...(options['auto-watch'] ? ['--auto-watch', '--no-single-run'] : []),
+        '--',
+        ...testArgs,
+        ...(options['verbose'] ? [`--verbose=${options['verbose']}`] : []),
+        ...forwardOptions(),
+      ];
+      if (options['debug-driver']) {
+        argumentsForNode.unshift('--inspect-brk');
+      } else if (options['debug'] && !argumentsForNode.includes('--inspect-brk')) {
+        argumentsForNode.unshift('--inspect');
+      }
+
+      const result = runProcess(process.argv[0], argumentsForNode, {
+        encoding: 'utf-8',
+        stdio: 'inherit',
+        cwd: this.cwd,
+      });
+      return !result.error && (result.status ?? 1) === 0;
+    } finally {
+      if (tmpDir) {
+        try {
+          fs.rmSync(tmpDir, {recursive: true, force: true});
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+    }
   }
 }
 
+function isApiTestFile(testId: TestId): boolean {
+  return testId.pathPair.sourcePath.endsWith('.test.api.ts') || testId.pathPair.buildPath.endsWith('.test.api.js');
+}
+
+function isUnitTestFile(testId: TestId): boolean {
+  return testId.pathPair.sourcePath.endsWith('.test.ts') && !isApiTestFile(testId);
+}
+
 class MochaFrontendTests extends Tests {
-  override run(tests: PathPair[]) {
+  override match(path: TestId): boolean {
+    return super.match(path) && !isApiTestFile(path);
+  }
+
+  override run(tests: TestId[]) {
     return super.run(
         tests,
         [
-          MOCHA_BIN_PATH,
-          '--config',
-          path.join(this.suite.buildPath, '..', 'test', 'unit', 'mocharc.js'),
+          path.join(this.suite.buildPath, '..', 'test', 'unit', 'run-mocha.js'),
         ],
-        /* positionalTestArgs= */ false,  // Mocha interprets positional arguments as test files itself. Work around
-                                          // that by passing the tests as dashed args instead.
+    );
+  }
+}
+
+class MochaApiTests extends Tests {
+  override match(path: TestId): boolean {
+    return super.match(path) && !isUnitTestFile(path);
+  }
+
+  override run(tests: TestId[]) {
+    return super.run(
+        tests,
+        [
+          path.join(GEN_DIR, 'test', 'api', 'run-mocha.js'),
+        ],
     );
   }
 }
 
 class MochaTests extends Tests {
-  override run(tests: PathPair[]) {
+  override run(tests: TestId[]) {
     const args = [
-      MOCHA_BIN_PATH,
-      '--config',
-      path.join(this.suite.buildPath, 'mocharc.js'),
-      '-u',
-      path.join(this.suite.buildPath, '..', 'e2e', 'conductor', 'mocha-interface.js'),
+      path.join(this.suite.buildPath, 'run-mocha.js'),
     ];
 
     if (options['debug']) {
@@ -226,8 +277,6 @@ class MochaTests extends Tests {
     return super.run(
         tests,
         args,
-        /* positionalTestArgs= */ false,  // Mocha interprets positional arguments as test files itself. Work around
-                                          // that by passing the tests as dashed args instead.
     );
   }
 }
@@ -242,12 +291,19 @@ class ScriptPathPair extends PathPair {
   }
 }
 
+class ScriptTestId extends TestId {
+  static getFromTestId(testId: TestId) {
+    return new ScriptTestId(ScriptPathPair.getFromPair(testId.pathPair), testId.subTestId);
+  }
+}
+
 class ScriptsMochaTests extends Tests {
   override readonly cwd = SOURCE_ROOT;
+  override readonly useResponseFile = false;
 
-  override run(tests: PathPair[]) {
+  override run(tests: TestId[]) {
     return super.run(
-        tests.map(test => ScriptPathPair.getFromPair(test)),
+        tests.map(test => ScriptTestId.getFromTestId(test)),
         [
           MOCHA_BIN_PATH,
           // Some test require spinning up a TypeScript
@@ -255,18 +311,23 @@ class ScriptsMochaTests extends Tests {
           // the first test. We set 2 x Default(2000)
           '--timeout=4000',
           '--extension=ts,js',
+          '--fail-zero',
         ],
     );
   }
 
-  override match(path: PathPair): boolean {
+  override match(path: TestId): boolean {
     return [this.suite, ...this.extraPaths].some(
-        pathToCheck => isContainedInDirectory(path.sourcePath, pathToCheck.sourcePath));
+        pathToCheck => isContainedInDirectory(path.pathPair.sourcePath, pathToCheck.sourcePath));
   }
 }
 
 class KarmaTests extends Tests {
-  override run(tests: PathPair[]) {
+  override match(path: TestId): boolean {
+    return super.match(path) && !isApiTestFile(path);
+  }
+
+  override run(tests: TestId[]) {
     return super.run(tests, [
       path.join(SOURCE_ROOT, 'node_modules', 'karma', 'bin', 'karma'),
       'start',
@@ -284,6 +345,7 @@ class KarmaTests extends Tests {
 function main() {
   const tests: string[] = typeof options['tests'] === 'string' ? [options['tests']] : options['tests'];
   const testKinds = [
+    new MochaApiTests(path.join(GEN_DIR, 'front_end')),
     new (options['node-unit-tests'] ? MochaFrontendTests : KarmaTests)(
         path.join(GEN_DIR, 'front_end'), path.join(GEN_DIR, 'inspector_overlay'), path.join(GEN_DIR, 'mcp')),
     new MochaTests(path.join(GEN_DIR, 'test/e2e')),
@@ -309,36 +371,31 @@ function main() {
     }
   }
 
-  const suites = new Map<MochaTests, PathPair[]>();
-  const testFiles = tests
-                        .map(t => {
-                          // The builders will use e2e_non_hosted path until we
-                          // have no branch that contains the path. After that
-                          // we can update the builders to use the new path.
-                          // In the mean time the runner will accept both e2e
-                          // and e2e_non_hosted paths and transform the
-                          // e2e_non_hosted path internally to e2e. After we
-                          // update infra I can come in and remove this.
-                          return t.replace('e2e_non_hosted', 'e2e');
-                        })
-                        .flatMap(t => {
-                          const globbed = fs.globSync(t);
-                          return globbed.length > 0 ? globbed : t;
-                        });
-  for (const t of testFiles) {
-    const repoPath = PathPair.get(t);
-    if (!repoPath) {
+  const suites = new Map<MochaTests, TestId[]>();
+  const testIds = tests
+                      .flatMap(t => {
+                        if (TEST_ID_REGEX.test(t)) {
+                          return [t];
+                        }
+                        const globbed = fs.globSync(t);
+                        return globbed.length > 0 ? globbed : [t];
+                      });
+  for (const t of testIds) {
+    const testId = TestId.create(t);
+    if (!testId) {
       console.error(`Could not locate the test input for '${t}'`);
       continue;
     }
 
-    const suite = testKinds.find(kind => kind.match(repoPath));
-    if (suite === undefined) {
-      console.error(`Unknown test suite for '${repoPath.sourcePath}'`);
+    const matchingSuites = testKinds.filter(kind => kind.match(testId));
+    if (matchingSuites.length === 0) {
+      console.error(`Unknown test suite for '${testId.pathPair.sourcePath}'`);
       continue;
     }
 
-    suites.get(suite)?.push(repoPath) ?? suites.set(suite, [repoPath]);
+    for (const suite of matchingSuites) {
+      suites.get(suite)?.push(testId) ?? suites.set(suite, [testId]);
+    }
   }
 
   if (suites.size > 0) {
@@ -348,7 +405,7 @@ function main() {
   if (tests.length > 0) {
     return 1;
   }
-  const success = testKinds.every(kind => kind.run([kind.suite]));
+  const success = testKinds.every(kind => kind.run([TestId.create(kind.suite.sourcePath)!]));
   return success ? 0 : 1;
 }
 

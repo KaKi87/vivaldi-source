@@ -1,0 +1,229 @@
+
+// included by the class definition in
+// "extensions/browser/guest_view/web_view/web_view_guest.h"
+
+// namespace extensions {
+
+// class WebViewGuest .... {
+// other declarations
+#if BUILDFLAG(ENABLE_EXTENSIONS)
+
+ public:
+  Browser* GetBrowser(content::WebContents* web_contents);
+  void ShowPageInfo(gfx::Point pos);
+
+  void NavigationStateChanged(content::WebContents* source,
+                              content::InvalidateTypes changed_flags) override;
+  void UpdateTargetURL(content::WebContents* source, const GURL& url) override;
+  void CreateSearch(const base::ListValue& search) override;
+  void PasteAndGo(const base::ListValue& search) override;
+  void ToggleFullscreenModeForTab(content::WebContents* web_contents,
+                                  bool enter_fullscreen);
+  void BeforeUnloadFired(content::WebContents* web_contents, bool proceed,
+                         bool* proceed_to_fire_unload) override;
+  // From WebContentsObserver, avoid compile error on the above override.
+  void BeforeUnloadFired(bool proceed) override {}
+  void SetContentsBounds(content::WebContents* source,
+                         const gfx::Rect& bounds) override;
+
+  // Vivaldi customs below
+  bool IsVivaldiRegularTab();
+  bool IsVivaldiMail();
+  bool IsVivaldiWebPanel();
+  bool IsVivaldiWebPageWidget();
+  bool IsVivaldiEditorView();
+  bool IsVivaldiReader();
+  bool IsVivaldiRichTextEditor();
+
+  void SetIsFullscreen(bool is_fullscreen);
+
+  // Pointer lock: auto-allow and fire JS event.
+  void VivaldiOnPointerLock(bool locked);
+  void LostPointerLock() override;
+
+  // contentblocking handling
+  void OnContentAllowed(ContentSettingsType settings_type);
+  void OnContentBlocked(ContentSettingsType settings_type);
+
+  void AllowRunningInsecureContent();
+
+  bool ShouldAllowRunningInsecureContent(content::WebContents* web_contents,
+                                         bool allowed_per_prefs,
+                                         const url::Origin& origin,
+                                         const GURL& resource_url) override;
+
+  void OnWindowBlocked(const GURL& window_target_url,
+                       const std::string& frame_name,
+                       WindowOpenDisposition disposition,
+                       const blink::mojom::WindowFeatures& features);
+
+  bool IsTextfieldEditCommand(const input::NativeWebKeyboardEvent& event);
+  bool ShouldForwardShortcutToBrowser(
+      const input::NativeWebKeyboardEvent& event);
+  bool ShortcutFoundInPrefs(std::string shortcut_text);
+
+  content::KeyboardEventProcessingResult PreHandleKeyboardEvent(
+      content::WebContents* source,
+      const input::NativeWebKeyboardEvent& event) override;
+
+  // Note(andre@vivaldi.com):
+  // This is used for pages opened from extensions. The delegate is not set
+  // and therefore navigation is not possible. We use this to navigate after
+  // attaching is done.
+  std::unique_ptr<std::string> delayed_open_url_;
+
+  // Called when the mouse cursor enters/leaves the appwindow the guest is
+  // inside.
+  void OnMouseEnter();
+  void OnMouseLeave();
+
+  // WebContentsDelegate
+  void ShowRepostFormWarningDialog(content::WebContents* source) override;
+  content::PictureInPictureResult EnterPictureInPicture(
+      content::WebContents* web_contents) override;
+  void ExitPictureInPicture() override;
+  std::unique_ptr<content::EyeDropper> OpenEyeDropper(
+      content::RenderFrameHost* frame,
+      content::EyeDropperListener* listener) override;
+  void CapturePaintPreviewOfSubframe(
+      content::WebContents* web_contents,
+      const gfx::Rect& rect,
+      const base::UnguessableToken& guid,
+      content::RenderFrameHost* render_frame_host) override;
+  blink::mojom::DisplayMode GetDisplayMode(
+      const content::WebContents* source) override;
+  void ActivateContents(content::WebContents* contents) override;
+
+  // Vivaldi WebContentsObserver implementation.
+  void OnVisibilityChanged(content::Visibility visibility) override;
+
+  // Used to expose the view to extensions, only popups now.
+  std::unique_ptr<::vivaldi::VivaldiExtensionHost> extension_host_;
+
+  bool IsNavigatingAwayFromVivaldiUI() {
+    return is_navigating_away_from_vivaldi_ui_;
+  }
+
+  // Called from WebViewGuest::CanDownload and blocks a download following the
+  // same criteria as InsecureDownloadData. True on block, false on download.
+  void VivaldiCanDownload(const GURL& url,
+                          const std::string& request_method,
+                          base::OnceCallback<void(bool)> callback) override;
+
+  // Returns true if the delegate is a GuestView.
+  bool IsVivaldiGuestView() override;
+
+  // This is called every time before navigation. It replaces
+  // dangerous chrome:// URLs with about:blank in incognito windows to
+  // prevent crashes. This can't be done by throttling, since WebUI is
+  // initialized even before throttles run.
+  void VivaldiSanitizeUrl(GURL& url);
+
+  // VB-114658: Route new window permission requests directly, bypassing the
+  // null web_view_permission_helper_.
+  void RequestNewWindowPermissionDirect(int guest_instance_id,
+                                        base::DictValue request_info);
+  // Returns allow/deny if request_id was found, std::nullopt otherwise.
+  std::optional<bool> VivaldiHandleNewWindowSetPermission(
+      int request_id,
+      bool allow,
+      const std::string& user_input);
+ protected:
+
+  WebContentsDelegate* GetDevToolsConnector() override;
+
+ private:
+
+  void VisibleSecurityStateChanged(content::WebContents* source) override;
+
+  // Parses the user input string for new window creation.
+  void ParseNewWindowUserInput(const std::string& user_input,
+                               int& window_id,
+                               bool& foreground,
+                               bool& incognito);
+
+  // Add a WebContents object to the browsers tab-strip. The tabstrip will take
+  // over responsibilty of the webcontents after the guest is destroyed.
+  void AddGuestToTabStripModel(WebViewGuest* guest,
+                               int windowId,
+                               bool activePage = true,
+                               bool inherit_opener = true);
+
+  // Starts loading in the current WebContents if this is needed.
+  void LoadTabContentsIfNecessary();
+
+  // returns true if WebContents was created or returned. false if an error or
+  // tear-down of the guestview caused the WebContents not to be returned. No
+  // further operation on |this| must be done if false is returned, we might be
+  // deleted.
+  bool VivaldiCreateWebContents(std::unique_ptr<GuestViewBase> owned_this,
+                                const base::DictValue& create_params,
+                                GuestPageCreatedCallback callback);
+
+  // vivaldi addition:
+  bool IsMouseGesturesEnabled() const;
+
+  void VivaldiSetLoadProgressEventExtraArgs(base::DictValue& dictionary);
+
+  bool is_fullscreen_ = false;
+  //ui::mojom::WindowShowState window_state_prior_to_fullscreen_ = ui::mojom::WindowShowState::kNormal;
+
+  // Used to reset webkitprefs that is overridden in
+  // extension_webkit_preferences::SetPreferences when navigating away from
+  // Vivaldi ui.
+  void SetIsNavigatingAwayFromVivaldiUI(bool away);
+  bool is_navigating_away_from_vivaldi_ui_ = false;
+
+  // NOTE(david@vivaldi.com): |connector_item_| is a proxy delegate which is
+  // required by Vivaldi. connector_item_ is owned by the DevtoolsConnectorAPI.
+  raw_ptr<extensions::DevtoolsConnectorItem> connector_item_ = nullptr;
+
+#if defined(USE_AURA)
+
+#define TIME_BEFORE_HIDING_MS 3000
+
+  // This is a object that will hide the cursor for the webviewguests window
+  // based on a timer. The cursor will be shown by the CompoundEventFilter on
+  // mouse events, but this class will hide the cursor on a beat in fullscreen.
+  class CursorHider {
+   public:
+    static std::unique_ptr<CursorHider> Create(aura::Window* window);
+
+    void Hide();
+
+    CursorHider(aura::Window* window);
+    ~CursorHider();
+    CursorHider(const CursorHider&) = delete;
+    CursorHider& operator=(const CursorHider&) = delete;
+
+    // Reset and stop the hide timer.
+    void Reset() { hide_timer_.Reset(); }
+    void Stop() { hide_timer_.Stop(); }
+
+   private:
+    const raw_ptr<aura::client::CursorClient> cursor_client_;
+
+    // A timer to delay hiding the mouse.
+    base::RepeatingTimer hide_timer_;
+  };
+
+  // The object to hide cursor when going into fullscreen mode.
+  std::unique_ptr<CursorHider> cursor_hider_;
+#endif  // USE_AURA
+
+ private:
+  int inspecting_tab_id_ = 0;
+  // Used for SetContentsBounds while being unattached.
+  std::unique_ptr<gfx::Rect> last_set_bounds_;
+
+  // 0 - on panels
+  // tab_id where the widget is placed on - on widgets
+  // std::nullopt - regular tab
+  std::optional<int> parent_tab_id_;
+
+  int next_permission_request_id_ = 0;
+  std::map<int, base::OnceCallback<void(bool, const std::string&)>>
+      pending_new_window_requests_;
+#endif  // Extensions
+
+// };

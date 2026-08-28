@@ -193,4 +193,5 @@ other {<ph name="TAB_GROUPS_MANY" /> 件のタブスタック}
 <translation id="9099398755190923267">すべてのユーザーは「<ph name="GROUP_NAME" />」タブスタックへのアクセスを即時に失い、すべてのデバイスから削除されます</translation>
 <translation id="930124987204876019">履歴、Cookie、サイトデータ、キャッシュを削除します…</translation>
 <translation id="961856697154696964">閲覧履歴データを削除</translation>
+<translation id="992223576089545146">プライベートタブを検索</translation>
 </translationbundle>

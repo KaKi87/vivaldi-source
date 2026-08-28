@@ -22,8 +22,8 @@ import java.lang.annotation.RetentionPolicy;
 @NullMarked
 // LINT.IfChange(PaneId)
 @IntDef({
-    PaneId.TAB_SWITCHER,
-    PaneId.INCOGNITO_TAB_SWITCHER,
+    PaneId.INCOGNITO_TAB_SWITCHER, // Vivaldi
+    PaneId.TAB_SWITCHER, // Vivaldi
     PaneId.BOOKMARKS,
     PaneId.TAB_GROUPS,
     PaneId.CROSS_DEVICE,
@@ -35,8 +35,8 @@ import java.lang.annotation.RetentionPolicy;
 })
 @Retention(RetentionPolicy.SOURCE)
 public @interface PaneId {
-    int TAB_SWITCHER = 0;
-    int INCOGNITO_TAB_SWITCHER = 1;
+    int INCOGNITO_TAB_SWITCHER = 0; // Vivaldi
+    int TAB_SWITCHER = 1; // Vivaldi
     int BOOKMARKS = 2;
     int TAB_GROUPS = 3;
     int CROSS_DEVICE = 4;

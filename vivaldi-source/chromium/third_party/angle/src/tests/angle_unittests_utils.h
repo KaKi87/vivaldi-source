@@ -60,7 +60,7 @@ class NullFactory : public GLImplFactory
     // Query and Fence creation
     QueryImpl *createQuery(gl::QueryType type) override { return nullptr; }
     FenceNVImpl *createFenceNV() override { return nullptr; }
-    SyncImpl *createSync(const gl::Context *context) override { return nullptr; }
+    SyncImpl *createSync() override { return nullptr; }
 
     // Transform Feedback creation
     TransformFeedbackImpl *createTransformFeedback(const gl::TransformFeedbackState &state) override
@@ -78,8 +78,6 @@ class NullFactory : public GLImplFactory
     }
 
     SemaphoreImpl *createSemaphore() override { return nullptr; }
-
-    OverlayImpl *createOverlay(const gl::OverlayState &state) override { return nullptr; }
 };
 
 // A class with all the factory methods mocked.
@@ -101,12 +99,11 @@ class MockGLFactory : public GLImplFactory
                  VertexArrayImpl *(const gl::VertexArrayState &, const gl::VertexArrayBuffers &));
     MOCK_METHOD1(createQuery, QueryImpl *(gl::QueryType type));
     MOCK_METHOD0(createFenceNV, FenceNVImpl *());
-    MOCK_METHOD1(createSync, SyncImpl *(const gl::Context *));
+    MOCK_METHOD0(createSync, SyncImpl *());
     MOCK_METHOD1(createTransformFeedback,
                  TransformFeedbackImpl *(const gl::TransformFeedbackState &));
     MOCK_METHOD1(createSampler, SamplerImpl *(const gl::SamplerState &));
     MOCK_METHOD0(createSemaphore, SemaphoreImpl *());
-    MOCK_METHOD1(createOverlay, OverlayImpl *(const gl::OverlayState &));
 };
 
 class MockEGLFactory : public EGLImplFactory

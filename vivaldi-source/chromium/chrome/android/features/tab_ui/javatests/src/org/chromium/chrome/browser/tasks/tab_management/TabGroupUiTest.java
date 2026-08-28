@@ -98,7 +98,7 @@ public class TabGroupUiTest {
     public ChromeRenderTestRule mRenderTestRule =
             ChromeRenderTestRule.Builder.withPublicCorpus()
                     .setBugComponent(ChromeRenderTestRule.Component.UI_BROWSER_MOBILE_TAB_GROUPS)
-                    .setRevision(4)
+                    .setRevision(5)
                     .build();
 
     private RegularNewTabPageStation mNtp;
@@ -125,7 +125,7 @@ public class TabGroupUiTest {
         // Select the 1st tab in group.
         clickFirstCardFromTabSwitcher(cta);
         clickFirstTabInDialog(cta);
-        assertFalse(cta.getLayoutManager().isLayoutVisible(LayoutType.TAB_SWITCHER));
+        assertFalse(cta.getLayoutManager().isLayoutVisible(LayoutType.HUB));
         ViewUtils.waitForVisibleView(
                 allOf(
                         withId(R.id.tab_list_recycler_view),

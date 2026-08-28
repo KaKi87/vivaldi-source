@@ -275,8 +275,10 @@ update_target("//components/embedder_support:user_agent") {
   deps += [
     "//base/version_info:generate_version_info",
     "//vivaldi/base:edge_version",
+    "//vivaldi/components:ua_config_holder",
     "//vivaldi/components:user_agent",
     "//vivaldi/prefs:prefs_strings",
+    "//vivaldi/components/user_agent/mojom",
   ]
   configs += [ "//vivaldi/gn/config:release_kind" ]
 }

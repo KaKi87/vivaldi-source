@@ -70,6 +70,7 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabId;
 import org.chromium.chrome.browser.tab_ui.RecyclerViewPosition;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
+import org.chromium.chrome.browser.tab_ui.TabListMode;
 import org.chromium.chrome.browser.tab_ui.TabSwitcherCustomViewManager;
 import org.chromium.chrome.browser.tab_ui.TabSwitcherGroupSuggestionService;
 import org.chromium.chrome.browser.tab_ui.TabSwitcherGroupSuggestionService.SuggestionUiEvent;
@@ -81,7 +82,6 @@ import org.chromium.chrome.browser.tasks.tab_management.TabGridContextMenuCoordi
 import org.chromium.chrome.browser.tasks.tab_management.TabGridDialogMediator.DialogController;
 import org.chromium.chrome.browser.tasks.tab_management.TabGridItemLongPressOrchestrator.CancelLongPressTabItemEventListener;
 import org.chromium.chrome.browser.tasks.tab_management.TabListCoordinator.DragObserver;
-import org.chromium.chrome.browser.tasks.tab_management.TabListCoordinator.TabListMode;
 import org.chromium.chrome.browser.tasks.tab_management.TabListEditorCoordinator.TabListEditorController;
 import org.chromium.chrome.browser.tasks.tab_management.TabListMediator.TabListItemOnClickListenerProvider;
 import org.chromium.chrome.browser.tasks.tab_management.TabSwitcherMessageManager.MessageUpdateObserver;
@@ -229,6 +229,7 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
     private final Callback<EdgeToEdgeController> mOnEdgeToEdgeControllerChangedCallback =
             new ValueChangedCallback<>(this::onEdgeToEdgeControllerChanged);
     private final @Nullable TabGroupLabeller mTabGroupLabeller;
+    private final @Nullable SendTabToSelfTabLabeller mSendTabToSelfTabLabeller;
     private final MonotonicObservableSupplier<TabModel> mTabModelSupplier;
     private final MonotonicObservableSupplier<ShareDelegate> mShareDelegateSupplier;
     private final MonotonicObservableSupplier<TabBookmarker> mTabBookmarkerSupplier;
@@ -334,7 +335,7 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
             mTabBookmarkerSupplier = tabBookmarkerSupplier;
             mHubSearchBoxVisibilitySupplier = hubSearchBoxVisibilitySupplier;
 
-            assert mode != TabListMode.STRIP : "TabListMode.STRIP not supported.";
+            assert mode != TabListMode.BOTTOM_STRIP : "TabListMode.BOTTOM_STRIP not supported.";
 
             ViewGroup coordinatorView = activity.findViewById(R.id.coordinator);
 
@@ -620,6 +621,14 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
             } else {
                 mTabGroupLabeller = null;
             }
+            if (ChromeFeatureList.isEnabled(ChromeFeatureList.SEND_TAB_TO_SELF_AUTO_OPEN)) {
+                mSendTabToSelfTabLabeller =
+                        new SendTabToSelfTabLabeller(
+                                mTabListCoordinator.getTabListNotificationHandler(),
+                                tabModelSupplier);
+            } else {
+                mSendTabToSelfTabLabeller = null;
+            }
 
             mOnVisibilityChanged.onResult(
                     isVisibleSupplier.addSyncObserverAndPostIfNonNull(mOnVisibilityChanged));
@@ -645,7 +654,6 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
             tabListCoordinator.addDragObserver(mDragObserver);
 
             if (ChromeFeatureList.sTabSwitcherGroupSuggestionsAndroid.isEnabled()) {
-                assert ChromeFeatureList.isEnabled(GROUP_SUGGESTION_SERVICE);
                 if (ChromeFeatureList.isEnabled(GROUP_SUGGESTION_SERVICE)) {
                     mTabSwitcherGroupSuggestionService =
                             TabSwitcherGroupSuggestionServiceFactory.build(
@@ -691,6 +699,9 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
         if (mTabGroupLabeller != null) {
             mTabGroupLabeller.destroy();
         }
+        if (mSendTabToSelfTabLabeller != null) {
+            mSendTabToSelfTabLabeller.destroy();
+        }
         mTabModelSupplier.removeObserver(mOnTabModelChange);
         if (mTabGroupListBottomSheetCoordinator != null) {
             mTabGroupListBottomSheetCoordinator.destroy();
@@ -707,6 +718,59 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
             mPinnedTabsCoordinator.destroy();
         }
         mActivity.unregisterComponentCallbacks(mComponentsCallbacks);
+    }
+
+    /**
+     * Returns whether the touch at (x, y) (relative to the coordinator's parent view) is on an
+     * interactive element.
+     */
+    public boolean isTouchOnInteractiveElement(float x, float y) {
+        if (isEditorVisible() || isTabGridDialogVisible()) {
+            return true;
+        }
+
+        TabListRecyclerView recyclerView = mTabListCoordinator.getContainerView();
+        if (isTouchOnRecyclerViewItem(recyclerView, x, y)) {
+            return true;
+        }
+
+        if (mPinnedTabsCoordinator != null) {
+            TabListRecyclerView pinnedRecyclerView =
+                    mPinnedTabsCoordinator.getPinnedTabsRecyclerView();
+            return isTouchOnRecyclerViewItem(pinnedRecyclerView, x, y);
+        }
+
+        return false;
+    }
+
+    private boolean isTouchOnRecyclerViewItem(TabListRecyclerView recyclerView, float x, float y) {
+        if (recyclerView == null || recyclerView.getVisibility() != View.VISIBLE) {
+            return false;
+        }
+
+        int[] parentLocation = new int[2];
+        mParentView.getLocationOnScreen(parentLocation);
+
+        int[] rvLocation = new int[2];
+        recyclerView.getLocationOnScreen(rvLocation);
+
+        float rawX = x + parentLocation[0];
+        float rawY = y + parentLocation[1];
+
+        float rvX = rawX - rvLocation[0];
+        float rvY = rawY - rvLocation[1];
+
+        if (rvX < 0 || rvX > recyclerView.getWidth() || rvY < 0 || rvY > recyclerView.getHeight()) {
+            return false;
+        }
+
+        return recyclerView.findChildViewUnder(rvX, rvY) != null;
+    }
+
+    private boolean isEditorVisible() {
+        TabListEditorCoordinator.TabListEditorController controller =
+                mTabListEditorManager.getControllerSupplier().get();
+        return controller != null && controller.isVisible();
     }
 
     /** Post native initialization. */
@@ -739,6 +803,9 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
         mTabListOnScrollListener.postUpdate(mTabListCoordinator.getContainerView());
         if (mTabGroupLabeller != null) {
             mTabGroupLabeller.showAll();
+        }
+        if (mSendTabToSelfTabLabeller != null) {
+            mSendTabToSelfTabLabeller.showAll(tabs);
         }
     }
 
@@ -915,8 +982,8 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
 
     @VisibleForTesting
     @Nullable CancelLongPressTabItemEventListener onLongPressOnTabCard(
-            TabGridContextMenuCoordinator tabGridContextMenuCoordinator,
-            TabListGroupMenuCoordinator tabListGroupMenuCoordinator,
+            @Nullable TabGridContextMenuCoordinator tabGridContextMenuCoordinator, // Vivaldi
+            @Nullable TabListGroupMenuCoordinator tabListGroupMenuCoordinator, // Vivaldi
             @TabId int tabId,
             @Nullable View cardView) {
         TabModel tabModel = mTabModelSupplier.get();
@@ -930,10 +997,18 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
                 new ViewRectProvider(cardView, TabGridViewRectUpdater::new);
         Token groupId = tab.getTabGroupId();
         boolean focusable = mIsContextMenuFocusableSupplier.get();
+        // Vivaldi VAB-13319: The menu coordinators are created lazily, so a
+        // delayed long-press callback can arrive before the one we need exists.
         if (groupId != null) {
+            if (tabListGroupMenuCoordinator == null) {
+                return null;
+            }
             tabListGroupMenuCoordinator.showMenu(viewRectProvider, groupId, focusable);
             return tabListGroupMenuCoordinator::dismiss;
         } else {
+            if (tabGridContextMenuCoordinator == null) {
+                return null;
+            }
             tabGridContextMenuCoordinator.showMenu(viewRectProvider, tabId, focusable);
             RecordUserAction.record("TabSwitcher.ContextMenu");
             return tabGridContextMenuCoordinator::dismiss;
@@ -1048,10 +1123,9 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
 
     private @Nullable CancelLongPressTabItemEventListener onLongPressOnTabCard(
             int tabId, @Nullable View cardView) {
-        assert mContextMenuCoordinator != null;
         return onLongPressOnTabCard(
                 mContextMenuCoordinator,
-                assumeNonNull(mTabListCoordinator.getTabListGroupMenuCoordinator()),
+                mTabListCoordinator.getTabListGroupMenuCoordinator(), // Vivaldi
                 tabId,
                 cardView);
     }

@@ -51,7 +51,11 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.FakeTimeTestRule;
+import org.chromium.base.FeatureOverrides;
 import org.chromium.base.ThreadUtils;
+import org.chromium.base.test.params.ParameterAnnotations;
+import org.chromium.base.test.params.ParameterSet;
+import org.chromium.base.test.params.ParameterizedRunner;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisableIf;
@@ -72,26 +76,48 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.signin.signin_promo.NtpSigninPromoDelegate;
-import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
+import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
 import org.chromium.chrome.test.util.NewTabPageTestUtils;
 import org.chromium.chrome.test.util.browser.signin.SigninTestRule;
 import org.chromium.chrome.test.util.browser.signin.SigninTestUtil;
+import org.chromium.components.externalauth.ExternalAuthUtils;
 import org.chromium.components.signin.SigninFeatures;
 import org.chromium.components.signin.base.AccountInfo;
 import org.chromium.components.signin.test.util.FakeAccountManagerFacade;
 import org.chromium.components.signin.test.util.TestAccounts;
 import org.chromium.ui.base.DeviceFormFactor;
 
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * Integration tests for {@link SigninPromoCoordinator} launched from {@link NewTabPage} entry
  * point.
+ *
+ * <p>TODO(crbug.com/493130564): Revert to regular runner after
+ * MAKE_IDENTITY_MANAGER_SOURCE_OF_ACCOUNTS launch.
  */
 @DoNotBatch(reason = "This test relies on native initialization")
-@RunWith(ChromeJUnit4ClassRunner.class)
+@RunWith(ParameterizedRunner.class)
+@ParameterAnnotations.UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
 @EnableFeatures(SigninFeatures.ENABLE_SEAMLESS_SIGNIN)
 public class NewTabPageSigninPromoTest {
+    @ParameterAnnotations.ClassParameter
+    public static final List<ParameterSet> sClassParams =
+            Arrays.asList(
+                    new ParameterSet().value(true).name("IdentityManagerMigrationEnabled"),
+                    new ParameterSet().value(false).name("IdentityManagerMigrationDisabled"));
+
+    private boolean mIsActivityStarted;
+
+    public NewTabPageSigninPromoTest(boolean isIdentityManagerMigrationEnabled) {
+        FeatureOverrides.overrideFlag(
+                SigninFeatures.MAKE_IDENTITY_MANAGER_SOURCE_OF_ACCOUNTS,
+                isIdentityManagerMigrationEnabled);
+    }
+
     private static final int SIGNIN_PROMO_POSITION = 2;
 
     // Espresso ViewAction that performs a swipe from center to left across the vertical center
@@ -114,6 +140,7 @@ public class NewTabPageSigninPromoTest {
     @Rule public FakeTimeTestRule mFakeTimeTestRule = new FakeTimeTestRule();
 
     @Mock private SetupListManager mSetupListManager;
+    @Mock private ExternalAuthUtils mExternalAuthUtilsMock;
 
     private final SigninTestUtil.CustomDeviceLockActivityLauncher mDeviceLockActivityLauncher =
             new SigninTestUtil.CustomDeviceLockActivityLauncher();
@@ -122,11 +149,15 @@ public class NewTabPageSigninPromoTest {
     public void setUp() {
         DeviceLockActivityLauncherImpl.setInstanceForTesting(mDeviceLockActivityLauncher);
 
-        mActivityTestRule.startOnBlankPage();
-
         Mockito.when(mSetupListManager.isSetupListActive()).thenReturn(false);
         SetupListManager.setInstanceForTesting(mSetupListManager);
         EducationalTipModuleUtils.setEducationalTipActiveForTesting(false);
+
+        ExternalAuthUtils.setInstanceForTesting(mExternalAuthUtilsMock);
+        Mockito.lenient().when(mExternalAuthUtilsMock.canUseGooglePlayServices()).thenReturn(true);
+        Mockito.lenient()
+                .when(mExternalAuthUtilsMock.isGooglePlayServicesMissing(Mockito.any()))
+                .thenReturn(false);
     }
 
     @After
@@ -135,6 +166,10 @@ public class NewTabPageSigninPromoTest {
     }
 
     private void openNewTabPage() {
+        if (!mIsActivityStarted) {
+            mActivityTestRule.startOnBlankPage();
+            mIsActivityStarted = true;
+        }
         mActivityTestRule.loadUrlInNewTab(getOriginalNativeNtpUrl());
         Tab tab = mActivityTestRule.getActivityTab();
         NewTabPageTestUtils.waitForNtpLoaded(tab);
@@ -149,7 +184,7 @@ public class NewTabPageSigninPromoTest {
     @Restriction({DeviceFormFactor.PHONE_OR_TABLET})
     @DisableFeatures(SigninFeatures.ENABLE_SEAMLESS_SIGNIN)
     public void testSignInPromo_AccountsNotReady_Legacy() {
-        try (var unused = mSigninTestRule.blockGetAccountsUpdate()) {
+        try (var _ = mSigninTestRule.blockGetAccountsUpdate()) {
             openNewTabPage();
             // Check that the sign-in promo is not shown if accounts are not ready.
             onView(withId(R.id.feed_stream_recycler_view))
@@ -162,7 +197,7 @@ public class NewTabPageSigninPromoTest {
     @MediumTest
     @Feature({"FeedNewTabPage"})
     public void testSignInPromo_AccountsNotReady() {
-        try (var unused = mSigninTestRule.blockGetAccountsUpdate()) {
+        try (var _ = mSigninTestRule.blockGetAccountsUpdate()) {
             openNewTabPage();
             // Check that the sign-in promo is not shown if accounts are not ready.
             onView(withId(R.id.signin_promo_view_container)).check(doesNotExist());
@@ -186,6 +221,8 @@ public class NewTabPageSigninPromoTest {
     @Test
     @MediumTest
     @Feature({"FeedNewTabPage"})
+    // Restrict to Phones and Tablets because Desktop Android does not show feed in NTP.
+    @Restriction({DeviceFormFactor.PHONE_OR_TABLET})
     public void testSignInPromo_AccountsReady() {
         openNewTabPage();
         // Check that the sign-in promo is displayed this time.
@@ -215,6 +252,8 @@ public class NewTabPageSigninPromoTest {
     @Test
     @MediumTest
     @Feature({"FeedNewTabPage"})
+    // Restrict to Phones and Tablets because Desktop Android does not show feed in NTP.
+    @Restriction({DeviceFormFactor.PHONE_OR_TABLET})
     public void testSignInPromo_NotShownAfterSignIn() {
         openNewTabPage();
         verifySigninPromoShown();
@@ -228,6 +267,8 @@ public class NewTabPageSigninPromoTest {
     @Test
     @MediumTest
     @Feature({"FeedNewTabPage"})
+    // Restrict to Phones and Tablets because Desktop Android does not show feed in NTP.
+    @Restriction({DeviceFormFactor.PHONE_OR_TABLET})
     public void testSignInPromoDisplayedWithDefaultUser() {
         mSigninTestRule.addAccount(TestAccounts.ACCOUNT1);
 
@@ -256,6 +297,8 @@ public class NewTabPageSigninPromoTest {
     @Test
     @MediumTest
     @Feature({"FeedNewTabPage"})
+    // Restrict to Phones and Tablets because Desktop Android does not show feed in NTP.
+    @Restriction({DeviceFormFactor.PHONE_OR_TABLET})
     public void testSignInPromoDisplayedWithAADCMinorAccount() {
         mSigninTestRule.addAccount(TestAccounts.AADC_MINOR_ACCOUNT);
 
@@ -370,35 +413,9 @@ public class NewTabPageSigninPromoTest {
     @Test
     @MediumTest
     @Feature({"FeedNewTabPage"})
+    @DisabledTest(message = "https://crbug.com/40116614")
     // Restrict to Phones and Tablets because Desktop Android does not show feed in NTP.
     @Restriction({DeviceFormFactor.PHONE_OR_TABLET})
-    @DisableFeatures(SigninFeatures.ENABLE_SEAMLESS_SIGNIN)
-    public void testSignInPromo_HiddenWhenSetupListActive_Legacy() {
-        Mockito.when(mSetupListManager.isSetupListActive()).thenReturn(true);
-
-        openNewTabPage();
-
-        onView(withId(R.id.feed_stream_recycler_view))
-                .perform(RecyclerViewActions.scrollToPosition(SIGNIN_PROMO_POSITION));
-
-        onView(withId(R.id.signin_promo_view_container)).check(doesNotExist());
-    }
-
-    @Test
-    @MediumTest
-    @Feature({"FeedNewTabPage"})
-    public void testSignInPromo_HiddenWhenSetupListActive() {
-        Mockito.when(mSetupListManager.isSetupListActive()).thenReturn(true);
-
-        openNewTabPage();
-
-        onView(withId(R.id.signin_promo_view_container)).check(doesNotExist());
-    }
-
-    @Test
-    @MediumTest
-    @Feature({"FeedNewTabPage"})
-    @DisabledTest(message = "https://crbug.com/40116614")
     @DisableFeatures(SigninFeatures.ENABLE_SEAMLESS_SIGNIN)
     public void testSignInPromo_DismissBySwipe() {
         openNewTabPage();
@@ -444,6 +461,8 @@ public class NewTabPageSigninPromoTest {
                 + ":seamless-signin-promo-type/compact"
                 + "/seamless-signin-string-type/continueButton"
     })
+    // Restrict to Phones and Tablets because Desktop Android does not show feed in NTP.
+    @Restriction({DeviceFormFactor.PHONE_OR_TABLET})
     public void testSignInPromo_shownIfTimeElapsedSinceFirstShownIsLessThanFirstShownLimit() {
         // Show the promo for the first time.
         openNewTabPage();
@@ -467,6 +486,8 @@ public class NewTabPageSigninPromoTest {
                 + ":seamless-signin-promo-type/compact"
                 + "/seamless-signin-string-type/continueButton"
     })
+    // Restrict to Phones and Tablets because Desktop Android does not show feed in NTP.
+    @Restriction({DeviceFormFactor.PHONE_OR_TABLET})
     public void
             testSignInPromo_shownIfTimeElapsedSinceFirstShownExceedsFirstShownLimitAndResetThreshold() {
         // Show the promo for the first time.

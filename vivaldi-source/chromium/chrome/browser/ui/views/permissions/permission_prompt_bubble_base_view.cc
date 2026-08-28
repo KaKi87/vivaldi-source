@@ -9,17 +9,14 @@
 #include <string>
 #include <string_view>
 
-#include "base/metrics/histogram_functions.h"
 #include "base/notreached.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/views/chrome_widget_sublevel.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/sub_apps_permission_explanation.h"
-#include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/permissions/permission_request.h"
 #include "components/permissions/permission_uma_util.h"
@@ -66,10 +63,10 @@ std::string_view GetPermissionActionString(
 }  // namespace
 
 PermissionPromptBubbleBaseView::PermissionPromptBubbleBaseView(
-    Browser* browser,
+    content::WebContents* web_contents,
     base::WeakPtr<permissions::PermissionPrompt::Delegate> delegate,
     PermissionPromptStyle prompt_style)
-    : PermissionPromptBaseView(browser, delegate),
+    : PermissionPromptBaseView(web_contents, delegate),
       delegate_(delegate),
       is_one_time_permission_(IsOneTimePermission(*delegate.get())) {
   // Note that browser() may be null in unit tests.
@@ -204,7 +201,7 @@ void PermissionPromptBubbleBaseView::Show() {
 }
 
 void PermissionPromptBubbleBaseView::CreateWidget() {
-  CHECK(browser()->window());
+  CHECK(GetNativeWindow());
 
   UpdateAnchorPosition();
 
@@ -221,9 +218,13 @@ void PermissionPromptBubbleBaseView::CreateWidget() {
 }
 
 void PermissionPromptBubbleBaseView::ShowWidget() {
-  // If a browser window (or popup) other than the bubble parent has focus,
+  // If a host window (or popup) other than the bubble parent has focus,
   // don't take focus.
-  if (browser()->window()->IsActive()) {
+  views::Widget* host_widget =
+      GetNativeWindow()
+          ? views::Widget::GetWidgetForNativeWindow(GetNativeWindow())
+          : nullptr;
+  if (host_widget && host_widget->ShouldPaintAsActive()) {
     GetWidget()->Show();
   } else {
     GetWidget()->ShowInactive();
@@ -260,7 +261,7 @@ void PermissionPromptBubbleBaseView::ClosingPermission() {
 
   if (delegate_) {
     permissions::PermissionUmaUtil::RecordActionBrowserAlwaysActive(
-        request_type(), "Dismissed", record_browser_always_active_value());
+        request_type(), "Dismissed", record_host_always_active_value());
     delegate_->Dismiss(/*prompt_options=*/std::monostate());
   }
 }
@@ -269,8 +270,13 @@ void PermissionPromptBubbleBaseView::RunButtonCallback(int button_id) {
   PermissionDialogButton button = GetPermissionDialogButton(button_id);
   permissions::PermissionUmaUtil::RecordActionBrowserAlwaysActive(
       request_type(), GetPermissionActionString(button),
-      record_browser_always_active_value());
-  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
+      record_host_always_active_value());
+  // `GetBrowser()` can be null for hosts that are not backed by a Browser, such
+  // as a standalone Document Picture-in-Picture window. Guard against it since
+  // `GetBrowserViewForBrowser()` dereferences its argument.
+  auto* browser = GetBrowser();
+  BrowserView* browser_view =
+      browser ? BrowserView::GetBrowserViewForBrowser(browser) : nullptr;
 #if BUILDFLAG(IS_CHROMEOS)
   // `PERMISSION_SMART_CARD` is essentially a chooser permission without an
   // actual chooser - thus, there is no blocklist of devices and no real

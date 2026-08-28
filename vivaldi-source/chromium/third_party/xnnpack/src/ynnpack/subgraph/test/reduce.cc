@@ -9,7 +9,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <numeric>
 #include <random>
 #include <tuple>
 #include <type_traits>
@@ -34,6 +33,11 @@ using ynn::to_string;  // NOLINT(misc-unused-using-decls)
 
 namespace ynn {
 
+// We only test reduce up to this rank. The reduce implementation has no special
+// cases for more than one or two dimensions, so this should be plenty of
+// coverage.
+constexpr int max_test_rank = 5;
+
 template <typename T>
 std::function<T(T, T)> GetReferenceOp(ynn_reduce_operator op) {
   switch (op) {
@@ -57,7 +61,7 @@ float Tolerance(ynn_reduce_operator op, size_t k, float max_abs_value) {
       return type_info<T>::epsilon() * k * max_abs_value * 3.0f;
     case ynn_reduce_sum_squared:
       return type_info<T>::epsilon() * k * max_abs_value * max_abs_value *
-             20.0f;
+             24.0f;
     default:
       return 0.0f;
   }
@@ -112,10 +116,27 @@ void ReferenceImpl(ynn_reduce_operator op, const std::vector<int32_t>& axes,
   }
 }
 
+void ReferenceImpl(ynn_reduce_operator op, const std::vector<int32_t>& axes,
+                   const Tensor<int2x4>& a, Tensor<int32_t>& c) {
+  ReferenceImpl(op, axes, a.convert<int8_t>(), c);
+}
+void ReferenceImpl(ynn_reduce_operator op, const std::vector<int32_t>& axes,
+                   const Tensor<uint2x4>& a, Tensor<int32_t>& c) {
+  ReferenceImpl(op, axes, a.convert<int8_t>(), c);
+}
+void ReferenceImpl(ynn_reduce_operator op, const std::vector<int32_t>& axes,
+                   const Tensor<int4x2>& a, Tensor<int32_t>& c) {
+  ReferenceImpl(op, axes, a.convert<int8_t>(), c);
+}
+void ReferenceImpl(ynn_reduce_operator op, const std::vector<int32_t>& axes,
+                   const Tensor<uint4x2>& a, Tensor<int32_t>& c) {
+  ReferenceImpl(op, axes, a.convert<int8_t>(), c);
+}
+
 template <typename A, typename C>
 void TestReduce(A, C, ynn_reduce_operator op) {
   ReplicableRandomDevice rng;
-  std::uniform_int_distribution<size_t> rank_dist(1, YNN_MAX_TENSOR_RANK);
+  std::uniform_int_distribution<size_t> rank_dist(1, max_test_rank);
   std::bernoulli_distribution random_bool(0.5);
   std::bernoulli_distribution empty_shape_dist(0.01f);
 
@@ -149,6 +170,8 @@ void TestReduce(A, C, ynn_reduce_operator op) {
     const uint32_t output_id = 2;
     std::vector<size_t> input_shape = random_shape(rng, input_rank, 0, 9);
     input_shape[dim_dist(rng)] = large_shape_dist(rng);
+    input_shape.back() =
+        align_up(input_shape.back(), type_info<A>::element_count());
     subgraph.AddInput(type_of<A>(), input_shape, input_a_id)
         .AddOutput(type_of<C>(), output_rank, output_id);
 
@@ -191,6 +214,7 @@ void TestReduce(A, C, ynn_reduce_operator op) {
 
     for (int reshape = 0; reshape < 2; ++reshape) {
       std::vector<size_t> a_shape = random_shape(rng, input_shape);
+      a_shape.back() = align_up(a_shape.back(), type_info<A>::element_count());
       std::vector<size_t> c_shape = a_shape;
       size_t num_k_elements = 1;
       for (int32_t i : reduce_axes) {
@@ -210,8 +234,7 @@ void TestReduce(A, C, ynn_reduce_operator op) {
       if (init_c) {
         c.fill(init_value);
       } else {
-        fill_random(c.data(), c.size(), rng, -max_abs_value,
-                    max_abs_value);
+        fill_random(c.data(), c.size(), rng, -max_abs_value, max_abs_value);
       }
 
       std::vector<size_t> expected_shape = c_shape;
@@ -245,7 +268,7 @@ void TestReduce(A, C, ynn_reduce_operator op) {
         } else {
           const float tolerance =
               Tolerance<C>(op, num_k_elements + 1, max_abs_value);
-          if (std::isfinite(c(i)) || !std::isfinite(expected(i))) {
+          if (isfinite(c(i)) || !isfinite(expected(i))) {
             ASSERT_NEAR(c(i), expected(i), tolerance);
           } else {
             // When the output type is fp16, the kernel might produce infinity
@@ -273,9 +296,12 @@ multi_type sum_types[] = {
     // TODO(b/501068911): Replace this with YNN_ENABLE_FP64
     multi_type::fp64,
 #endif
-    multi_type::fp32,        multi_type::fp16,      multi_type::bf16,
-    multi_type::fp16_fp32,   multi_type::bf16_fp32, multi_type::int8_int32,
-    multi_type::uint8_int32,
+    multi_type::fp32,          multi_type::fp16,
+    multi_type::bf16,          multi_type::fp16_fp32,
+    multi_type::bf16_fp32,     multi_type::int8_int32,
+    multi_type::uint8_int32,   multi_type::int4_int32,
+    multi_type::int2_int32,    multi_type::fp8_e5m2_fp32,
+    multi_type::fp8_e4m3_fp32,
 };
 
 multi_type min_max_types[] = {
@@ -283,8 +309,9 @@ multi_type min_max_types[] = {
     // TODO(b/501068911): Replace this with YNN_ENABLE_FP64
     multi_type::fp64,
 #endif
-    multi_type::fp32, multi_type::fp16,  multi_type::bf16,
-    multi_type::int8, multi_type::uint8,
+    multi_type::fp32,     multi_type::fp16,     multi_type::bf16,
+    multi_type::fp8_e5m2, multi_type::fp8_e4m3, multi_type::int8,
+    multi_type::uint8,
 };
 
 INSTANTIATE_TEST_SUITE_P(
@@ -306,7 +333,7 @@ INSTANTIATE_TEST_SUITE_P(
 template <typename T>
 void TestMinMax(T) {
   ReplicableRandomDevice rng;
-  std::uniform_int_distribution<size_t> rank_dist(1, YNN_MAX_TENSOR_RANK - 1);
+  std::uniform_int_distribution<size_t> rank_dist(1, max_test_rank - 1);
   std::bernoulli_distribution random_bool(0.5);
   std::bernoulli_distribution empty_shape_dist(0.01f);
 
@@ -373,7 +400,7 @@ void TestMinMax(T) {
 
       Tensor<T> expected(c_shape);
       if (init_c) {
-        expected.fill(init_value);
+        expected.fill(type_info<T>::get(&init_value, 0));
       } else {
         fill_random(expected.data(), expected.size(), rng, -max_abs_value,
                     max_abs_value);
@@ -462,7 +489,7 @@ void MaxAbsDiff(const std::vector<int32_t>& axes, const Tensor<T>& a,
 
 TEST(MaxAbsDiff, Test) {
   ReplicableRandomDevice rng;
-  std::uniform_int_distribution<size_t> rank_dist(1, YNN_MAX_TENSOR_RANK - 1);
+  std::uniform_int_distribution<size_t> rank_dist(1, max_test_rank - 1);
   std::bernoulli_distribution random_bool(0.5);
   std::bernoulli_distribution empty_shape_dist(0.01f);
 
@@ -542,8 +569,7 @@ TEST(MaxAbsDiff, Test) {
       if (init_c) {
         c.fill(init_value);
       } else {
-        fill_random(c.data(), c.size(), rng, -max_abs_value,
-                    max_abs_value);
+        fill_random(c.data(), c.size(), rng, -max_abs_value, max_abs_value);
       }
 
       std::vector<size_t> expected_shape = c_shape;

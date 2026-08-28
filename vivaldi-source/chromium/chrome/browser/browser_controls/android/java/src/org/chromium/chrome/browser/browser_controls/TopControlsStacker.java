@@ -26,6 +26,9 @@ import java.lang.annotation.Target;
 import java.util.HashMap;
 import java.util.Map;
 
+// Vivaldi
+import org.chromium.build.BuildConfig;
+
 /**
  * Coordinator class for UI layers in the top browser controls. This class manages the relative
  * y-axis position for every registered top control layer.
@@ -307,9 +310,12 @@ public class TopControlsStacker implements BrowserControlsStateProvider.Observer
     }
 
     /**
-     * Returns true when the given control type is at the bottom of the set of top controls. We
-     * define the bottom as the point in the stack that has no non-null, visible,
-     * height-contributing layers beyond it.
+     * Returns whether the given layer is the bottom-most visible layer.
+     *
+     * <p>We define the bottom as the point in the stack that has no non-null, visible,
+     * height-contributing layers beyond it. Non-height-contributing layers (such as the progress
+     * bar overlay) are ignored when determining the bottom of the layout stack, as they do not
+     * affect the physical layout boundary.
      *
      * @param controlType Type of control to query for.
      * @return Whether or not the control is at the bottom.
@@ -318,14 +324,14 @@ public class TopControlsStacker implements BrowserControlsStateProvider.Observer
         // A null layer (not in the map) cannot be at the bottom.
         if (mControls.get(controlType) == null) return false;
 
-        // Find the bottom-most visible layer that contributes to the total height of the top
-        // controls (i.e. the first we encounter). If it is the same as the given |controlType|,
-        // then that type is the bottom layer.
+        // Iterate from the bottom of the stack order upward. The first visible, height-contributing
+        // layer we encounter defines the physical bottom boundary of the top controls. If it
+        // matches |controlType|, then that type is the bottom layer.
         for (int i = STACK_ORDER.length - 1; i >= 0; i--) {
             @TopControlType int currentType = STACK_ORDER[i];
             TopControlLayer layer = mControls.get(currentType);
 
-            if (!isLayerHidden(layer)) {
+            if (!isLayerHidden(layer) && layer.contributesToTotalHeight()) {
                 return currentType == controlType;
             }
         }
@@ -418,7 +424,7 @@ public class TopControlsStacker implements BrowserControlsStateProvider.Observer
         if (sDumpStatusLogs) {
             Log.i(
                     TAG,
-                    "*** repositionLayers *** initialTopOffset="
+                    "[TopControlsPositioning] *** repositionLayers *** initialTopOffset="
                             + initialTopOffset
                             + " minHeightOffset="
                             + initialTopControlsMinHeightOffset
@@ -631,6 +637,7 @@ public class TopControlsStacker implements BrowserControlsStateProvider.Observer
     }
 
     private void updateTopControlsHeight(boolean requireAnimations) {
+        if (BuildConfig.IS_VIVALDI) return; // Controls height is set in |VivaldiTopToolbarCoordinator|.
         if (requireAnimations) {
             mBrowserControlsSizer.setAnimateBrowserControlsHeightChanges(true);
         }
@@ -750,7 +757,7 @@ public class TopControlsStacker implements BrowserControlsStateProvider.Observer
 
         Log.w(
                 TAG,
-                "Height mismatch observed."
+                "[TopControlsPositioning] Height mismatch observed."
                         + " [Expected]"
                         + " expectedHeight= "
                         + expectedHeight
@@ -766,7 +773,7 @@ public class TopControlsStacker implements BrowserControlsStateProvider.Observer
     private void dumpLayerStatus(TopControlLayer layer, int yOffset) {
         Log.i(
                 TAG,
-                "["
+                "[TopControlsPositioning] ["
                         + getName(layer.getTopControlType())
                         + "] yOffset="
                         + yOffset

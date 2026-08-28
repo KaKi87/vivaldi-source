@@ -10,7 +10,9 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
+#include "components/keyed_service/core/keyed_service_shutdown_notifier.h"
 #include "components/request_filter/filtered_request_info.h"
+#include "components/request_filter/request_filter_proxying_webtransport_shutdown_notifier_factory.h"
 #include "content/public/browser/render_process_host.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
 #include "services/network/public/mojom/web_transport.mojom.h"
@@ -57,9 +59,25 @@ class WebTransportHandshakeProxy : public RequestFilterManager::Proxy,
         create_callback_(std::move(create_callback)) {
     DCHECK(handshake_client_);
     DCHECK(create_callback_);
+
+    // Listen for the profile's imminent destruction so this proxy can safely
+    // self-destruct before the context pointer goes bad. base::Unretained is
+    // safe because destroying this object also destroys
+    // `shutdown_subscription_`, which automatically unregisters the callback.
+    shutdown_subscription_ =
+        RequestFilterProxyingWebTransportShutdownNotifierFactory::GetInstance()
+            ->Get(browser_context)
+            ->Subscribe(base::BindOnce(
+                &WebTransportHandshakeProxy::OnBrowserContextShutdown,
+                base::Unretained(this)));
   }
 
   ~WebTransportHandshakeProxy() override {
+    // Null if destroyed via OnBrowserContextShutdown to prevent use-after-free.
+    if (!browser_context_) {
+      return;
+    }
+
     // This is important to ensure that no outstanding blocking requests
     // continue to reference state owned by this object.
     request_handler_->OnRequestWillBeDestroyed(browser_context_, &info_);
@@ -226,6 +244,13 @@ class WebTransportHandshakeProxy : public RequestFilterManager::Proxy,
   }
 
  private:
+  void OnBrowserContextShutdown() {
+    // Destroy this proxy and its Mojo pipes before the context pointer becomes
+    // invalid. Delete `this`.
+    browser_context_ = nullptr;
+    proxies_->RemoveProxy(this);
+  }
+
   mojo::PendingRemote<WebTransportHandshakeClient> handshake_client_;
   const raw_ptr<RequestFilterManager::RequestHandler> request_handler_;
   // Weak reference to the ProxySet. This is safe as `proxies_` owns this
@@ -245,17 +270,21 @@ class WebTransportHandshakeProxy : public RequestFilterManager::Proxy,
   network::mojom::WebTransportStatsPtr initial_stats_;
 
   CreateCallback create_callback_;
+
+  // Cancels the shutdown subscription when this object is destroyed.
+  // Must be the last member to ensure it is destroyed first.
+  base::CallbackListSubscription shutdown_subscription_;
 };
 
 }  // namespace
 
-void StartWebRequestProxyingWebTransport(
+void StartRequestFilterProxyingWebTransport(
     content::RenderProcessHost& render_process_host,
     int frame_routing_id,
     const GURL& url,
     const url::Origin& initiator_origin,
     mojo::PendingRemote<WebTransportHandshakeClient> handshake_client,
-    int64_t request_id,
+    uint64_t request_id,
     RequestFilterManager::RequestHandler* request_handler,
     RequestFilterManager::ProxySet& proxies,
     content::ContentBrowserClient::WillCreateWebTransportCallback callback) {

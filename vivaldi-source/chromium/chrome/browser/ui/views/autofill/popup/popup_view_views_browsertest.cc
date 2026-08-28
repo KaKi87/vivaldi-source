@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "base/memory/raw_ptr.h"
-#include "build/buildflag.h"
 #include "chrome/browser/ui/autofill/autofill_popup_view.h"
 #include "chrome/browser/ui/autofill/mock_autofill_popup_controller.h"
 #include "chrome/browser/ui/views/autofill/popup/popup_bnpl_footnote_view.h"
@@ -25,11 +24,6 @@
 #include "components/autofill/core/browser/suggestions/suggestion_type.h"
 #include "components/autofill/core/browser/ui/tabbed_pane_enums.h"
 #include "components/autofill/core/common/aliases.h"
-#include "components/autofill/core/common/autofill_test_utils.h"
-#include "components/plus_addresses/core/browser/fake_plus_address_allocator.h"
-#include "components/plus_addresses/core/browser/fake_plus_address_service.h"
-#include "components/plus_addresses/core/browser/plus_address_test_utils.h"
-#include "components/plus_addresses/core/browser/settings/fake_plus_address_setting_service.h"
 #include "components/strings/grit/components_strings.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -144,7 +138,7 @@ std::vector<Suggestion> CreatePasswordSuggestions(
   suggestions.back().icon = Suggestion::Icon::kGlobe;
   suggestions.back().acceptability = acceptability;
 
-  suggestions.emplace_back(autofill::SuggestionType::kSeparator);
+  suggestions.emplace_back(SuggestionType::kSeparator);
 
   suggestions.emplace_back(
       l10n_util::GetStringUTF16(IDS_PASSWORD_MANAGER_MANAGE_PASSWORDS),
@@ -353,26 +347,6 @@ IN_PROC_BROWSER_TEST_P(PopupViewViewsBrowsertest,
                        InvokeUi_AutofillProfile_Selected_Profile) {
   PrepareSuggestions(CreateAutofillProfileSuggestions());
   PrepareSelectedCell(CellIndex{0, CellType::kContent});
-  ShowAndVerifyUi();
-}
-
-IN_PROC_BROWSER_TEST_P(PopupViewViewsBrowsertest,
-                       InvokeUi_AutofillProfile_Selected_Content_WithSubpoup) {
-  std::vector<Suggestion> suggestions = CreateAutofillProfileSuggestions();
-  suggestions[0].children = CreateAutofillProfileSuggestions();
-
-  PrepareSuggestions(std::move(suggestions));
-  PrepareSelectedCell(CellIndex{0, CellType::kContent});
-  ShowAndVerifyUi();
-}
-
-IN_PROC_BROWSER_TEST_P(PopupViewViewsBrowsertest,
-                       InvokeUi_AutofillProfile_Selected_Control_WithSubpoup) {
-  std::vector<Suggestion> suggestions = CreateAutofillProfileSuggestions();
-  suggestions[0].children = CreateAutofillProfileSuggestions();
-
-  PrepareSuggestions(std::move(suggestions));
-  PrepareSelectedCell(CellIndex{0, CellType::kControl});
   ShowAndVerifyUi();
 }
 

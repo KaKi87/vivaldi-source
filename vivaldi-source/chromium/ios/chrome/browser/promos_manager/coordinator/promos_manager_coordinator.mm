@@ -62,6 +62,8 @@
 #import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/public/features/system_flags.h"
+#import "ios/chrome/browser/signin/model/authentication_service_factory.h"
+#import "ios/chrome/browser/signin/model/identity_manager_factory.h"
 #import "ios/chrome/browser/sync/model/sync_service_factory.h"
 #import "ios/chrome/browser/welcome_back/coordinator/welcome_back_display_handler.h"
 #import "ios/chrome/browser/welcome_back/model/features.h"
@@ -77,8 +79,8 @@
 
 @interface PromosManagerCoordinator () <
     ConfirmationAlertActionHandler,
-    UIAdaptivePresentationControllerDelegate,
-    PromoStyleViewControllerDelegate> {
+    PromoStyleViewControllerDelegate,
+    UIAdaptivePresentationControllerDelegate> {
   // Promos that conform to the StandardPromoDisplayHandler protocol.
   base::small_map<
       std::map<promos_manager::Promo, id<StandardPromoDisplayHandler>>>
@@ -180,6 +182,10 @@
 - (void)stop {
   self.mediator = nil;
   [self dismissViewControllers];
+  _displayHandlerPromos.clear();
+  _viewProviderPromos.clear();
+  _banneredViewProviderPromos.clear();
+  _alertProviderPromos.clear();
 }
 
 // Display a promo if one is available.
@@ -414,7 +420,9 @@
 
 // Invoked when the primary action button is tapped.
 - (void)didTapPrimaryActionButton {
-  DCHECK(self.banneredProvider);
+  if (!self.banneredProvider) {
+    return;
+  }
 
   if (![self.banneredProvider
           respondsToSelector:@selector(standardPromoPrimaryAction)]) {
@@ -427,7 +435,9 @@
 
 // Invoked when the secondary action button is tapped.
 - (void)didTapSecondaryActionButton {
-  DCHECK(self.banneredProvider);
+  if (!self.banneredProvider) {
+    return;
+  }
 
   // Sometimes the secondary action button for a PromoStyleViewController is
   // used as the dismiss action button.
@@ -444,7 +454,9 @@
 
 // Invoked when the tertiary action button is tapped.
 - (void)didTapTertiaryActionButton {
-  DCHECK(self.banneredProvider);
+  if (!self.banneredProvider) {
+    return;
+  }
 
   if (![self.banneredProvider
           respondsToSelector:@selector(standardPromoTertiaryAction)]) {
@@ -462,7 +474,9 @@
 #pragma mark - ConfirmationAlertActionHandler
 
 - (void)confirmationAlertPrimaryAction {
-  DCHECK(self.provider);
+  if (!self.provider) {
+    return;
+  }
 
   if (![self.provider
           respondsToSelector:@selector(standardPromoPrimaryAction)]) {
@@ -474,7 +488,9 @@
 }
 
 - (void)confirmationAlertSecondaryAction {
-  DCHECK(self.provider);
+  if (!self.provider) {
+    return;
+  }
 
   if (![self.provider
           respondsToSelector:@selector(standardPromoSecondaryAction)]) {
@@ -486,7 +502,9 @@
 }
 
 - (void)confirmationAlertTertiaryAction {
-  DCHECK(self.provider);
+  if (!self.provider) {
+    return;
+  }
 
   if (![self.provider
           respondsToSelector:@selector(standardPromoTertiaryAction)]) {
@@ -500,7 +518,9 @@
 
 - (void)presentationControllerDidDismiss:
     (UIPresentationController*)presentationController {
-  DCHECK(self.provider || self.banneredProvider);
+  if (!self.provider && !self.banneredProvider) {
+    return;
+  }
 
   if ([self.provider respondsToSelector:@selector(standardPromoDismissSwipe)]) {
     [self.provider standardPromoDismissSwipe];
@@ -518,7 +538,9 @@
 
 // Dismisses the promo.
 - (void)dismissPromo {
-  DCHECK(self.provider || self.banneredProvider);
+  if (!self.provider && !self.banneredProvider) {
+    return;
+  }
 
   if ([self.provider
           respondsToSelector:@selector(standardPromoDismissAction)]) {
@@ -638,9 +660,15 @@
 }
 
 - (void)registerStandardPromoAlertProviderPromos {
+  ProfileIOS* profile = self.profile;
   // Post-restore sign-in promo handler.
   _alertProviderPromos[promos_manager::Promo::PostRestoreSignInAlert] =
-      [[PostRestoreSignInProvider alloc] initForBrowser:self.browser];
+      [[PostRestoreSignInProvider alloc]
+            initWithSyncService:SyncServiceFactory::GetForProfile(profile)
+          authenticationService:AuthenticationServiceFactory::GetForProfile(
+                                    profile)
+                identityManager:IdentityManagerFactory::GetForProfile(profile)
+                    prefService:profile->GetPrefs()];
 
   PostRestoreDefaultBrowserPromoProvider* postRestoreProvider =
       [[PostRestoreDefaultBrowserPromoProvider alloc] init];

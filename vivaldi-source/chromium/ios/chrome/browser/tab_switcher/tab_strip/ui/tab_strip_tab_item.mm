@@ -30,7 +30,7 @@ const CGFloat kSymbolSize = 14.0;
   if (IsVivaldiRunning())
     return [UIImage imageNamed:vToolbarMenu]; // End Vivaldi
 
-  return DefaultSymbolWithPointSize(kGlobeAmericasSymbol, kSymbolSize);
+  return SymbolWithPointSize(SymbolGlobeAmericas, kSymbolSize);
 }
 
 @end

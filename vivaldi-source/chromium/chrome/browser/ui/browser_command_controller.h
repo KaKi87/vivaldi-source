@@ -5,6 +5,10 @@
 #ifndef CHROME_BROWSER_UI_BROWSER_COMMAND_CONTROLLER_H_
 #define CHROME_BROWSER_UI_BROWSER_COMMAND_CONTROLLER_H_
 
+#include <memory>
+#include <optional>
+
+#include "base/containers/flat_map.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "build/build_config.h"
@@ -36,9 +40,6 @@ namespace glic {
 class GlicInstance;
 }
 
-namespace glic::mojom {
-enum class FreWebUiState;
-}
 
 namespace chrome {
 
@@ -46,6 +47,7 @@ namespace chrome {
 // it implements CommandUpdater as the public API for it (so it's not directly
 // exposed).
 class BrowserCommandController : public CommandUpdater,
+                                 public CommandUpdaterDelegate,
                                  public TabStripModelObserver,
                                  public sessions::TabRestoreServiceObserver {
  public:
@@ -79,7 +81,6 @@ class BrowserCommandController : public CommandUpdater,
   void PrintingStateChanged();
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   void GlicActiveInstanceChanged(glic::GlicInstance* instance);
-  void GlicFreStateChanged(glic::mojom::FreWebUiState new_state);
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   void LoadingStateChanged(bool is_loading, bool force);
   void FindBarVisibilityChanged();
@@ -96,16 +97,21 @@ class BrowserCommandController : public CommandUpdater,
   // Overriden from CommandUpdater:
   bool SupportsCommand(int id) const override;
   bool IsCommandEnabled(int id) const override;
-  using CommandUpdater::ExecuteCommand;
-  bool ExecuteCommand(int id, base::TimeTicks time_stamp) override;
-  using CommandUpdater::ExecuteCommandWithDisposition;
-  bool ExecuteCommandWithDisposition(int id,
-                                     WindowOpenDisposition disposition,
-                                     base::TimeTicks time_stamp) override;
+  bool ExecuteCommandImpl(
+      int id,
+      base::TimeTicks time_stamp,
+      std::optional<actions::ActionInvocationContext> context) override;
+  bool ExecuteCommandWithDispositionImpl(
+      int id,
+      WindowOpenDisposition disposition,
+      base::TimeTicks time_stamp,
+      std::optional<actions::ActionInvocationContext> context) override;
   void AddCommandObserver(int id, CommandObserver* observer) override;
   void RemoveCommandObserver(int id, CommandObserver* observer) override;
   void RemoveCommandObserver(CommandObserver* observer) override;
   bool UpdateCommandEnabled(int id, bool state) override;
+  void DisableAllCommands() override;
+  std::vector<int> GetAllIds() const override;
 
   // Added by vivaldi to init menu support after JS has set up menus.
   void InitVivaldiCommandState();
@@ -119,6 +125,11 @@ class BrowserCommandController : public CommandUpdater,
       CommandUpdater* command_updater,
       Profile* profile);
 
+  // CommandUpdaterDelegate:
+  void HandleCommandWithDisposition(int id,
+                                    WindowOpenDisposition disposition,
+                                    base::TimeTicks time_stamp) override;
+
  private:
 #if BUILDFLAG(IS_CHROMEOS)
   friend class BrowserCommandControllerBrowserTestLockedFullscreen;
@@ -129,9 +140,15 @@ class BrowserCommandController : public CommandUpdater,
       TabStripModel* tab_strip_model,
       const TabStripModelChange& change,
       const TabStripSelectionChange& selection) override;
+  void TabGroupedStateChanged(TabStripModel* tab_strip_model,
+                              std::optional<tab_groups::TabGroupId> old_group,
+                              std::optional<tab_groups::TabGroupId> new_group,
+                              tabs::TabInterface* tab,
+                              int index) override;
   void OnTabChangedAt(tabs::TabInterface* tab,
                       int index,
                       TabChangeType change_type) override;
+  void OnTabPinnedStateChanged(tabs::TabInterface* tab, int index) override;
 
   // Overridden from TabRestoreServiceObserver:
   void TabRestoreServiceChanged(sessions::TabRestoreService* service) override;
@@ -238,30 +255,29 @@ class BrowserCommandController : public CommandUpdater,
   // Updates commands that depend on the enabled state of glic.
   void UpdateCommandsForEnableGlicChanged();
 
-  // Returns the relevant action for the current browser for a given
-  // `action_id`.
-  actions::ActionItem* FindAction(actions::ActionId action_id);
-
-  // Updates the enabled status for both `command_id` and `action_id`, given
-  // that it exists.
   void UpdateCommandAndActionEnabled(int command_id,
                                      actions::ActionId action_id,
                                      bool enabled);
+
+  std::unique_ptr<CommandUpdater> CreateCommandUpdater();
 
   BrowserWindow* window();
   Profile* profile();
 
   const raw_ptr<Browser> browser_;
 
-  // The CommandUpdaterImpl that manages the browser window commands.
-  CommandUpdaterImpl command_updater_{nullptr};
+  // The CommandUpdater that manages the browser window commands
+  // and optionally syncs state to ActionItems.
+  std::unique_ptr<CommandUpdater> command_updater_;
 
   PrefChangeRegistrar profile_pref_registrar_;
   PrefChangeRegistrar local_pref_registrar_;
   std::unique_ptr<base::CallbackListSubscription> glic_enabling_subscription_;
 
+#if BUILDFLAG(IS_CHROMEOS)
   // In locked fullscreen mode disallow enabling/disabling commands.
   bool is_locked_fullscreen_ = false;
+#endif
 
   // If the Customize Chrome side panel is shown, determines which section to
   // display.
@@ -271,9 +287,6 @@ class BrowserCommandController : public CommandUpdater,
   // Callback subscription for listening to changes to the Glic window
   // activation changes.
   base::CallbackListSubscription glic_active_instance_changed_subscription_;
-  // Callback subscription for listening to changes to the Glic FRE
-  base::CallbackListSubscription glic_fre_state_change_subscription_;
-
   // Observes for extension state changes (load/unload).
   class ExtensionStateObserver;
   std::unique_ptr<ExtensionStateObserver> extension_state_observer_;

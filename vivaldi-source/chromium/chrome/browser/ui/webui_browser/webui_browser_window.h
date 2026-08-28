@@ -11,6 +11,7 @@
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry_key.h"
+#include "chrome/browser/ui/webui/webui_toolbar/icon_table.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/interaction/element_tracker.h"
@@ -42,7 +43,8 @@ class WebUIBrowserWindow : public BrowserWindow,
                            public ui::AcceleratorProvider,
                            public ui::AcceleratorTarget,
                            public views::WidgetObserver,
-                           public BookmarkBarController::Delegate {
+                           public BookmarkBarController::Delegate,
+                           public webui_toolbar::IconTable::Delegate {
  public:
   explicit WebUIBrowserWindow(Browser* browser);
   ~WebUIBrowserWindow() override;
@@ -55,6 +57,8 @@ class WebUIBrowserWindow : public BrowserWindow,
   // Returns the WebUIBrowserWindow for a BrowserWindowInterface. If browser
   // does not use WebUIBrowserWindow, returns nullptr.
   static WebUIBrowserWindow* FromBrowser(BrowserWindowInterface* browser);
+  static const WebUIBrowserWindow* FromBrowser(
+      const BrowserWindowInterface* browser);
 
   // Returns the WebUIBrowserWindow for the given `window`.
   static WebUIBrowserWindow* FromNativeWindow(gfx::NativeWindow window);
@@ -76,10 +80,6 @@ class WebUIBrowserWindow : public BrowserWindow,
   void OnBookmarkBarStateChanged(
       BookmarkBar::AnimateChangeType change_type) override;
   void UpdateLoadingAnimations(bool is_visible) override;
-  void SetStarredState(bool is_starred) override;
-  bool IsTabModalPopupDeprecated() const override;
-  void SetIsTabModalPopupDeprecated(
-      bool is_tab_modal_popup_deprecated) override;
   void OnActiveTabChanged(content::WebContents* old_contents,
                           content::WebContents* new_contents,
                           int index,
@@ -131,7 +131,7 @@ class WebUIBrowserWindow : public BrowserWindow,
   DownloadBubbleUIController* GetDownloadBubbleUIController() override;
   void ConfirmBrowserCloseWithPendingDownloads(
       int download_count,
-      Browser::DownloadCloseType dialog_type,
+      UnloadController::DownloadCloseType dialog_type,
       base::OnceCallback<void(bool)> callback) override;
   void ShowAppMenu() override;
   void PreHandleDragUpdate(const content::DropData& drop_data,
@@ -205,6 +205,9 @@ class WebUIBrowserWindow : public BrowserWindow,
       ui::ColorProviderKey::ColorMode color_mode,
       ui::ColorProviderKey::ForcedColors forced_colors) const override;
 
+  // webui_toolbar::IconTable::Delegate:
+  float GetScaleFactor() const override;
+
   // ui::AcceleratorProvider:
   bool GetAcceleratorForCommandId(int command_id,
                                   ui::Accelerator* accelerator) const override;
@@ -221,6 +224,8 @@ class WebUIBrowserWindow : public BrowserWindow,
 
   Browser* browser() { return browser_.get(); }
   views::Widget* widget() { return widget_.get(); }
+
+  void PaintAsActiveChangedForTesting() { PaintAsActiveChanged(); }
 
   gfx::Rect GetContentsBoundsInScreen() const;
 
@@ -270,6 +275,8 @@ class WebUIBrowserWindow : public BrowserWindow,
   // when a child widget takes focus.
   void PaintAsActiveChanged();
 
+  void EnsureActiveTabHasNonZeroSize();
+
   void OnWindowCloseRequested(views::Widget::ClosedReason close_reason);
 
   bool IsContentsElementReady() const;
@@ -292,6 +299,7 @@ class WebUIBrowserWindow : public BrowserWindow,
   ui::AcceleratorManager accelerator_manager_;
 
   std::unique_ptr<WebUIBrowserModalDialogHost> modal_dialog_host_;
+  std::unique_ptr<webui_toolbar::IconTable> icon_table_;
   std::unique_ptr<WebUIToolbarExtensionsContainer> extensions_container_;
   std::unique_ptr<ui::ScopedUnownedUserData<ExtensionsContainer>>
       scoped_extensions_container_user_data_;

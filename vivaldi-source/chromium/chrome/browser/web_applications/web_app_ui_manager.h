@@ -21,6 +21,7 @@
 #include "components/webapps/browser/install_result_code.h"
 #include "components/webapps/browser/uninstall_result_code.h"
 #include "components/webapps/common/web_app_id.h"
+#include "third_party/blink/public/mojom/manifest/manifest.mojom-forward.h"
 #include "ui/gfx/native_ui_types.h"
 
 class Browser;
@@ -36,10 +37,12 @@ class FilePath;
 namespace content {
 class WebContents;
 class NavigationHandle;
+class Page;
 }  // namespace content
 
 namespace webapps {
 class MlInstallOperationTracker;
+enum class WebappUninstallSource;
 }
 namespace web_app {
 class FakeWebAppUiManager;
@@ -283,6 +286,18 @@ class WebAppUiManager {
       const GURL& last_committed_url,
       InstallCallback callback) = 0;
 
+  // Triggers the web app install dialog for a background install using a
+  // pre-parsed manifest. The dialog will be anchored to
+  // `initiating_web_contents`. Used for the Web Install API manifest_url flow.
+  virtual void TriggerInstallDialogForManifestInstall(
+      content::WebContents* initiating_web_contents,
+      base::WeakPtr<content::Page> initiating_page,
+      std::unique_ptr<webapps::MlInstallOperationTracker> tracker,
+      blink::mojom::ManifestPtr manifest,
+      const GURL& manifest_url,
+      const GURL& requesting_page_url,
+      InstallCallback callback) = 0;
+
   using WebInstallAppLaunchAcceptanceCallback =
       base::OnceCallback<void(bool accepted)>;
   // Triggers the web app launch dialog anchored to `initiating_web_contents`
@@ -320,6 +335,12 @@ class WebAppUiManager {
       gfx::NativeWindow parent_window,
       UninstallCompleteCallback callback,
       UninstallScheduledCallback scheduled_callback) = 0;
+
+  // TODO(crbug.com/428031098): Remove this method after this bug is complete,
+  // and instead have code uninstall directly with the web applications system
+  // or the extensions system via the extensions manager.
+  virtual void UninstallAppSilentlyForMigration(
+      const webapps::AppId& app_id) = 0;
 
   virtual void ShowProfileErrorDialogForCorruptDB() = 0;
 

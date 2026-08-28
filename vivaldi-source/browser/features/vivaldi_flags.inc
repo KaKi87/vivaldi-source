@@ -40,30 +40,31 @@
          flags_ui::kOsCrOS,
      FEATURE_VALUE_TYPE(vivaldi_features::kInternalPageReaderMode)},
 
+    {vivaldi_flag::kLocalCalculatorInternalName,
+     vivaldi_flag::kLocalCalculatorName,
+     vivaldi_flag::kLocalCalculatorDescription,
+     flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux
+     | flags_ui::kOsCrOS | flags_ui::kOsAndroid | flags_ui::kOsIos,
+     FEATURE_VALUE_TYPE(vivaldi_features::kLocalCalculator)},
+
     {vivaldi_flag::kNoteEditorName, vivaldi_flag::kNoteEditorOption,
      vivaldi_flag::kNoteEditorDescription,
      flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux |
          flags_ui::kOsCrOS,
      FEATURE_VALUE_TYPE(vivaldi_features::kNoteEditor)},
 
-    {vivaldi_flag::kRelatedTabsInternalName, vivaldi_flag::kRelatedTabsName,
-     vivaldi_flag::kRelatedTabsDescription,
-     flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux |
-         flags_ui::kOsCrOS,
-     FEATURE_VALUE_TYPE(vivaldi_features::kRelatedTabs)},
-
     {vivaldi_flag::kSettings20InternalName, vivaldi_flag::kSettings20Name,
      vivaldi_flag::kSettings20Description,
      flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux,
      FEATURE_VALUE_TYPE(vivaldi_features::kSettings20)},
 
+    {vivaldi_flag::kToolbarOverflowInternalName, vivaldi_flag::kToolbarOverflowName,
+     vivaldi_flag::kToolbarOverflowDescription,
+     flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux,
+     FEATURE_VALUE_TYPE(vivaldi_features::kToolbarOverflow)},
+
 #if BUILDFLAG(IS_IOS)
     // iOS specific feature flags should be delcared within this block.
-
-    {vivaldi_flag::kBankIDDigIDLatencyWorkaroundInternalName,
-     vivaldi_flag::kBankIDDigIDLatencyWorkaroundName,
-     vivaldi_flag::kBankIDDigIDLatencyWorkaroundDescription, flags_ui::kOsIos,
-     FEATURE_VALUE_TYPE(vivaldi_features::kBankIDDigIDLatencyWorkaround)},
 
     {vivaldi_flag::kVivaldiIOSCopySanitizedLinkInternalName,
      vivaldi_flag::kVivaldiIOSCopySanitizedLinkName,

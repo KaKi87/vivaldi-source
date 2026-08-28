@@ -78,6 +78,7 @@ New bookmarks can't be saved in your account until you delete some. If you sign 
 <translation id="2386292341327187942">In the Search widgets box, enter 'Chromium'</translation>
 <translation id="2389827884654658221">Access Chromium faster from your iPad's Home Screen.</translation>
 <translation id="2426113998523353159">Your organisation requires you to sign in to use Chromium.</translation>
+<translation id="244367646885670394">Verify that it's you to save this password and get Chromium data on all your devices</translation>
 <translation id="2450140762465183767">You can now use Chromium any time that you tap links in messages, documents and other apps.</translation>
 <translation id="2459183986985456602">Open my latest tab in Chromium.</translation>
 <translation id="2476409803017965813">You can update your selections at any time in Chromium settings.</translation>
@@ -108,6 +109,7 @@ For more settings that use data to improve your Chromium experience, go to <ph n
 <translation id="3054480780637153380">Open Chromium settings in iOS, then tap on 'Default browser app' and select Chromium.</translation>
 <translation id="3115956258722352278">Make Chromium your default browser?</translation>
 <translation id="3180939591219927904">Turn on 'Lock Incognito tabs when you close Chromium'</translation>
+<translation id="327628223428512207">Enter passphrase to save this password and get Chromium data on all your devices</translation>
 <translation id="328933489847748230">{count,plural, =1{Now showing 1 Chromium window}other{Now showing {count} Chromium windows}}</translation>
 <translation id="3344973607274501920">Chromium couldn't check your passwords. Try checking your Internet connection.</translation>
 <translation id="3366305173356742781">Chromium data in your account</translation>
@@ -226,6 +228,7 @@ To change this setting, <ph name="BEGIN_LINK" />delete the Chromium data in your
 <translation id="5731004036450828399">To keep your passkeys safe, you'll first need to create a recovery PIN.
 
         Passkeys are saved in Password Manager, which lets you use them in Chromium on any device.</translation>
+<translation id="575593940213760950">To Password Manager for <ph name="EMAIL" /></translation>
 <translation id="584550191241316896">Signed in to Chromium</translation>
 <translation id="5862307444128926510">Welcome to Chromium</translation>
 <translation id="5889847953983052353">When on:

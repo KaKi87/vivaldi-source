@@ -143,7 +143,8 @@ class NoteModelMerger {
   // remote updates are lacking a client tag hash. If so, it migrates the entity
   // by issuing a deletion and a creation, using a new random GUID.
   void MigrateNotesInSubtreeWithoutClientTagHash(
-      const RemoteTreeNode& remote_node);
+      const RemoteTreeNode& remote_node,
+      const vivaldi::NoteNode* local_node);
 
   // Updates |local_node| to hold same UUID and semantics as its |remote_node|
   // match. The input nodes are two equivalent local and remote notes that

@@ -4,12 +4,10 @@
 
 #include "chrome/browser/ui/views/tabs/browser_tab_strip_controller.h"
 
-#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
 
-#include "base/command_line.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
@@ -17,11 +15,7 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
-#include "base/strings/string_util.h"
-#include "base/time/time.h"
 #include "build/build_config.h"
-#include "chrome/browser/autocomplete/autocomplete_classifier_factory.h"
-#include "chrome/browser/browser_process.h"
 #include "chrome/browser/favicon/favicon_utils.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_source.h"
@@ -50,8 +44,12 @@
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
 #include "chrome/browser/ui/tabs/tab_utils.h"
 #include "chrome/browser/ui/ui_features.h"
+#include "chrome/browser/ui/unload_controller.h"
+#include "chrome/browser/ui/views/contextual_tasks/contextual_tasks_close_button_controller.h"
 #include "chrome/browser/ui/views/frame/browser_frame_view.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/browser_widget.h"
+#include "chrome/browser/ui/views/frame/glass_frame_service.h"
 #include "chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h"
 #include "chrome/browser/ui/views/tabs/groups/tab_group_accessibility.h"
 #include "chrome/browser/ui/views/tabs/shared/tab_strip_types.h"
@@ -61,19 +59,12 @@
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
-#include "chrome/common/chrome_switches.h"
-#include "chrome/common/url_constants.h"
+#include "components/contextual_tasks/public/features.h"
 #include "components/feature_engagement/public/feature_constants.h"
-#include "components/feature_engagement/public/tracker.h"
 #include "components/omnibox/browser/autocomplete_classifier.h"
-#include "components/omnibox/browser/autocomplete_match.h"
-#include "components/performance_manager/public/user_tuning/prefs.h"
-#include "components/prefs/pref_service.h"
-#include "components/saved_tab_groups/public/features.h"
 #include "components/saved_tab_groups/public/saved_tab_group.h"
 #include "components/saved_tab_groups/public/tab_group_sync_service.h"
 #include "components/split_tabs/split_tab_id.h"
-#include "components/split_tabs/split_tab_visual_data.h"
 #include "components/tab_groups/tab_group_color.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tab_groups/tab_group_visual_data.h"
@@ -81,22 +72,16 @@
 #include "components/tabs/public/tab_group.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/tabs/public/tab_network_state.h"
-#include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/peak_gpu_memory_tracker_factory.h"
 #include "content/public/browser/web_contents.h"
-#include "third_party/metrics_proto/omnibox_event.pb.h"
-#include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/list_selection_model.h"
 #include "ui/base/models/menu_model.h"
 #include "ui/base/mojom/menu_source_type.mojom-forward.h"
 #include "ui/color/color_provider_manager.h"
 #include "ui/compositor/compositor.h"
-#include "ui/gfx/color_utils.h"
-#include "ui/gfx/image/image.h"
 #include "ui/gfx/range/range.h"
-#include "ui/gfx/text_elider.h"
 #include "ui/views/controls/menu/menu_runner.h"
 #include "ui/views/widget/widget.h"
 #include "url/origin.h"
@@ -184,9 +169,9 @@ void BrowserTabStripController::InitFromModel(TabStrip* tabstrip) {
 
   // Add all pinned / unpinned tabs regardless of group / split affiliation.
   std::vector<TabStrip::AddTabData> tabs_to_add;
-  for (int i = 0; i < model_->count(); ++i) {
-    tabs::TabInterface* const tab_interface = model_->GetTabAtIndex(i);
-    tabs_to_add.push_back({.index = i,
+  int i = 0;
+  for (const tabs::TabInterface* tab_interface : *model_) {
+    tabs_to_add.push_back({.index = i++,
                            .handle = tab_interface->GetHandle(),
                            .is_pinned = tab_interface->IsPinned()});
   }
@@ -221,12 +206,24 @@ void BrowserTabStripController::InitFromModel(TabStrip* tabstrip) {
   }
 
   tabstrip_->StopAnimating();
+
+  if (GlassFrameService* service = GlassFrameService::GetInstance()) {
+    glass_frame_service_subscription_ =
+        service->RegisterGlassFrameEligibilityChangedCallback(
+            browser_view_->browser(),
+            base::BindRepeating(
+                &BrowserTabStripController::OnGlassFrameEligibilityChanged,
+                base::Unretained(this)));
+    OnGlassFrameEligibilityChanged(
+        service->IsBrowserWindowEligible(browser_view_->browser()));
+  }
 }
 
 void BrowserTabStripController::Reset() {
   // Stop observing.
   model_->RemoveObserver(this);
   tabstrip_ = nullptr;
+  glass_frame_service_subscription_ = {};
 }
 
 // TODO(crbug.com/435178910): Change this to return a
@@ -363,18 +360,20 @@ void BrowserTabStripController::OnCloseTab(
   if (GetCount() <= 1) {
     // Closing this tab will close the current window. See if the browser wants
     // to prompt the user before the browser is allowed to close.
-    const Browser::WarnBeforeClosingResult result =
-        browser_view_->browser()->MaybeWarnBeforeClosing(base::BindOnce(
-            [](TabStrip* tab_strip, int model_index,
-               Browser::WarnBeforeClosingResult result) {
-              if (result == Browser::WarnBeforeClosingResult::kOkToClose) {
-                tab_strip->CloseTab(tab_strip->tab_at(model_index),
-                                    CloseTabSource::kFromNonUIEvent);
-              }
-            },
-            base::Unretained(tabstrip_), model_index));
+    const UnloadController::WarnBeforeClosingResult result =
+        UnloadController::From(browser_view_->browser())
+            ->MaybeWarnBeforeClosing(base::BindOnce(
+                [](TabStrip* tab_strip, int model_index,
+                   UnloadController::WarnBeforeClosingResult result) {
+                  if (result ==
+                      UnloadController::WarnBeforeClosingResult::kOkToClose) {
+                    tab_strip->CloseTab(tab_strip->tab_at(model_index),
+                                        CloseTabSource::kFromNonUIEvent);
+                  }
+                },
+                base::Unretained(tabstrip_), model_index));
 
-    if (result != Browser::WarnBeforeClosingResult::kOkToClose) {
+    if (result != UnloadController::WarnBeforeClosingResult::kOkToClose) {
       return;
     }
   }
@@ -402,6 +401,18 @@ void BrowserTabStripController::OnCloseTab(
 void BrowserTabStripController::CloseTab(int model_index) {
   // Cancel any pending tab transition.
   hover_tab_selector_.CancelTabTransition();
+
+  if (base::FeatureList::IsEnabled(
+          contextual_tasks::kContextualTasksCloseTabExpandsSidePanel)) {
+    tabs::TabInterface* closing_tab = model_->GetTabAtIndex(model_index);
+    ContextualTasksCloseButtonController* const close_button_controller =
+        ContextualTasksCloseButtonController::From(GetBrowserWindowInterface());
+    if (closing_tab && closing_tab->IsActivated() && close_button_controller &&
+        close_button_controller->ShouldShowCloseButton()) {
+      close_button_controller->MaybeCloseTabExpandSidePanel();
+      return;
+    }
+  }
 
   model_->CloseWebContentsAt(model_index,
                              TabCloseTypes::CLOSE_USER_GESTURE |
@@ -465,9 +476,6 @@ void BrowserTabStripController::ToggleTabGroupCollapsedState(
       } else {
         // Create a new tab that will automatically be activated
         should_toggle_group = false;
-        // We intentionally do not call CreateNewTab() here because it
-        // respects the IsNewTabAddsToActiveGroupEnabled() feature, which would
-        // add the new tab to the same group as the currently active tab.
         // In the "collapse group" scenario, we want the new tab to be created
         // outside of any group to avoid it being collapsed immediately.
         model_->delegate()->AddTabAt(GURL(), -1, true);
@@ -946,4 +954,9 @@ bool BrowserTabStripController::GetContextMenuAccelerator(
   return TabStripModel::ContextMenuCommandToBrowserCommand(command_id,
                                                            &browser_cmd) &&
          tabstrip_->GetWidget()->GetAccelerator(browser_cmd, accelerator);
+}
+
+void BrowserTabStripController::OnGlassFrameEligibilityChanged(
+    bool is_eligible) {
+  browser_view_->tab_strip_view()->OnGlassFrameEligibilityChanged(is_eligible);
 }

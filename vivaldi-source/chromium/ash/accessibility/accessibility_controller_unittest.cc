@@ -13,6 +13,7 @@
 #include "ash/accessibility/a11y_feature_type.h"
 #include "ash/accessibility/accessibility_observer.h"
 #include "ash/accessibility/accessibility_prefs_custom_associator.h"
+#include "ash/accessibility/accessibility_sync_prefs_utils.h"
 #include "ash/accessibility/disable_touchpad_event_rewriter.h"
 #include "ash/accessibility/filter_keys_event_rewriter.h"
 #include "ash/accessibility/flash_screen_controller.h"
@@ -58,6 +59,7 @@
 #include "components/prefs/pref_service.h"
 #include "components/prefs/testing_pref_service.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
+#include "components/user_manager/user_names.h"
 #include "ui/accessibility/accessibility_features.h"
 #include "ui/accessibility/aura/aura_window_properties.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -2690,10 +2692,17 @@ class AccessibilityControllerRegisterProfilePrefsTest
   ~AccessibilityControllerRegisterProfilePrefsTest() override = default;
 
  protected:
-  template <size_t N>
-  void CheckPrefsSyncableFlags(const std::array<const char*, N>& pref_names) {
+  void CheckPrefsSyncableFlags(
+      const std::vector<AccessibilityPrefBatchEntry>& batch) {
     const bool expect_sync = GetParam();
-    for (const char* pref_name : pref_names) {
+    for (const AccessibilityPrefBatchEntry& entry : batch) {
+      // Preferences with custom registration are registered elsewhere, not by
+      // the generic batch registration this test exercises, so their sync
+      // flags are not governed by the batch feature and are skipped here.
+      if (entry.has_custom_registration) {
+        continue;
+      }
+      const char* pref_name = entry.pref_name;
       const auto* pref = prefs()->FindPreference(pref_name);
       ASSERT_TRUE(pref) << pref_name;
       const uint32_t flags = pref->registration_flags();
@@ -2712,35 +2721,9 @@ class AccessibilityControllerRegisterProfilePrefsTest
 
 TEST_P(AccessibilityControllerRegisterProfilePrefsTest,
        RegistersVisualPrefsWithExpectedSyncFlags) {
-  constexpr auto kBatch1AccessibilitySyncPrefs = std::to_array<const char*>({
-      prefs::kAccessibilityColorCorrectionEnabled,
-      prefs::kAccessibilityColorCorrectionHasBeenSetup,
-      prefs::kAccessibilityCursorHighlightEnabled,
-      prefs::kAccessibilityCursorColorEnabled,
-      prefs::kAccessibilityCursorColor,
-      prefs::kAccessibilityLargeCursorEnabled,
-      prefs::kAccessibilityLargeCursorDipSize,
-      prefs::kAccessibilityHighContrastEnabled,
-      prefs::kHighContrastAcceleratorDialogHasBeenAccepted,
-      prefs::kAccessibilityCaretHighlightEnabled,
-      prefs::kAccessibilityCaretBlinkInterval,
-      prefs::kAccessibilityFocusHighlightEnabled,
-  });
-  CheckPrefsSyncableFlags(kBatch1AccessibilitySyncPrefs);
-
-  constexpr auto kBatch2AccessibilitySyncPrefs = std::to_array<const char*>({
-      prefs::kAccessibilityReducedAnimationsEnabled,
-  });
-  CheckPrefsSyncableFlags(kBatch2AccessibilitySyncPrefs);
-
-  constexpr auto kBatch3AccessibilitySyncPrefs = std::to_array<const char*>(
-      {prefs::kAccessibilityScreenMagnifierEnabled,
-       prefs::kAccessibilitySelectToSpeakEnabled,
-       prefs::kScreenMagnifierAcceleratorDialogHasBeenAccepted,
-       prefs::kDockedMagnifierAcceleratorDialogHasBeenAccepted,
-       prefs::kSelectToSpeakAcceleratorDialogHasBeenAccepted,
-       prefs::kAccessibilityScreenMagnifierScale});
-  CheckPrefsSyncableFlags(kBatch3AccessibilitySyncPrefs);
+  CheckPrefsSyncableFlags(GetSyncableAccessibilityPrefsBatch1());
+  CheckPrefsSyncableFlags(GetSyncableAccessibilityPrefsBatch2());
+  CheckPrefsSyncableFlags(GetSyncableAccessibilityPrefsBatch3());
 }
 
 INSTANTIATE_TEST_SUITE_P(All,
@@ -2813,7 +2796,8 @@ class AccessibilityControllerSyncablePrefsOnSigninTest
     using prefs::kDockedMagnifierScale;
 
     const bool should_signin_prefs_be_copied =
-        GetParam() == TestUserLoginType::kNewUser;
+        GetParam() == TestUserLoginType::kNewUser ||
+        GetParam() == TestUserLoginType::kGuest;
     if (should_signin_prefs_be_copied) {
       EXPECT_TRUE(accessibility->large_cursor().enabled());
       EXPECT_TRUE(accessibility->spoken_feedback().enabled());
@@ -2833,7 +2817,34 @@ class AccessibilityControllerSyncablePrefsOnSigninTest
       EXPECT_TRUE(user_prefs->GetBoolean(kAccessibilitySpokenFeedbackEnabled));
       EXPECT_TRUE(user_prefs->GetBoolean(kAccessibilityAutoclickEnabled));
       EXPECT_TRUE(user_prefs->GetBoolean(kAccessibilityMonoAudioEnabled));
+    } else {
+      EXPECT_FALSE(accessibility->large_cursor().enabled());
+      EXPECT_FALSE(accessibility->spoken_feedback().enabled());
+      EXPECT_FALSE(accessibility->high_contrast().enabled());
+      EXPECT_FALSE(accessibility->autoclick().enabled());
+      EXPECT_FALSE(accessibility->mono_audio().enabled());
+      EXPECT_FALSE(accessibility->caret_highlight().enabled());
+      EXPECT_FALSE(docked_magnifier->GetEnabled());
+      EXPECT_NE(kMagnifierScale, docked_magnifier->GetScale());
+      EXPECT_FALSE(accessibility->cursor_highlight().enabled());
+      EXPECT_FALSE(user_prefs->GetBoolean(kAccessibilityLargeCursorEnabled));
+      EXPECT_FALSE(user_prefs->GetBoolean(kAccessibilitySpokenFeedbackEnabled));
+      EXPECT_FALSE(user_prefs->GetBoolean(kAccessibilityHighContrastEnabled));
+      EXPECT_FALSE(user_prefs->GetBoolean(kAccessibilityAutoclickEnabled));
+      EXPECT_FALSE(user_prefs->GetBoolean(kAccessibilityMonoAudioEnabled));
+      EXPECT_FALSE(user_prefs->GetBoolean(kAccessibilityCaretHighlightEnabled));
+      EXPECT_FALSE(user_prefs->GetBoolean(kDockedMagnifierEnabled));
+      EXPECT_NE(kMagnifierScale, user_prefs->GetDouble(kDockedMagnifierScale));
+      EXPECT_FALSE(
+          user_prefs->GetBoolean(kAccessibilityCursorHighlightEnabled));
 
+      // No associator should have been created.
+      EXPECT_EQ(nullptr, accessibility->prefs_custom_associator());
+    }
+
+    const bool should_signin_prefs_be_locked =
+        GetParam() == TestUserLoginType::kNewUser;
+    if (should_signin_prefs_be_locked) {
       // Check locking of enabled syncable preferences.
       EXPECT_NE(nullptr, accessibility->prefs_custom_associator());
       EXPECT_TRUE(IsPrefLockedWithValueForTesting(
@@ -2863,29 +2874,6 @@ class AccessibilityControllerSyncablePrefsOnSigninTest
       EXPECT_TRUE(
           user_prefs->FindPreference(kAccessibilityCursorHighlightEnabled)
               ->IsDefaultValue());
-    } else {
-      EXPECT_FALSE(accessibility->large_cursor().enabled());
-      EXPECT_FALSE(accessibility->spoken_feedback().enabled());
-      EXPECT_FALSE(accessibility->high_contrast().enabled());
-      EXPECT_FALSE(accessibility->autoclick().enabled());
-      EXPECT_FALSE(accessibility->mono_audio().enabled());
-      EXPECT_FALSE(accessibility->caret_highlight().enabled());
-      EXPECT_FALSE(docked_magnifier->GetEnabled());
-      EXPECT_NE(kMagnifierScale, docked_magnifier->GetScale());
-      EXPECT_FALSE(accessibility->cursor_highlight().enabled());
-      EXPECT_FALSE(user_prefs->GetBoolean(kAccessibilityLargeCursorEnabled));
-      EXPECT_FALSE(user_prefs->GetBoolean(kAccessibilitySpokenFeedbackEnabled));
-      EXPECT_FALSE(user_prefs->GetBoolean(kAccessibilityHighContrastEnabled));
-      EXPECT_FALSE(user_prefs->GetBoolean(kAccessibilityAutoclickEnabled));
-      EXPECT_FALSE(user_prefs->GetBoolean(kAccessibilityMonoAudioEnabled));
-      EXPECT_FALSE(user_prefs->GetBoolean(kAccessibilityCaretHighlightEnabled));
-      EXPECT_FALSE(user_prefs->GetBoolean(kDockedMagnifierEnabled));
-      EXPECT_NE(kMagnifierScale, user_prefs->GetDouble(kDockedMagnifierScale));
-      EXPECT_FALSE(
-          user_prefs->GetBoolean(kAccessibilityCursorHighlightEnabled));
-
-      // No associator should have been created.
-      EXPECT_EQ(nullptr, accessibility->prefs_custom_associator());
     }
   }
 
@@ -2904,7 +2892,10 @@ class AccessibilityControllerSyncablePrefsOnSigninTest
         break;
 
       case TestUserLoginType::kGuest:
-        NOTREACHED();
+        ash_test_helper_->SimulateUserLogin(
+            {user_manager::kGuestUserName, user_manager::UserType::kGuest},
+            /*opt_account_id=*/std::nullopt, std::move(pref_service));
+        break;
 
       case TestUserLoginType::kExistingUser:
         ash_test_helper_->SimulateUserLogin({kUserEmail},
@@ -2938,6 +2929,7 @@ class AccessibilityControllerSyncablePrefsOnSigninTest
 INSTANTIATE_TEST_SUITE_P(All,
                          AccessibilityControllerSyncablePrefsOnSigninTest,
                          ::testing::Values(TestUserLoginType::kNewUser,
+                                           TestUserLoginType::kGuest,
                                            TestUserLoginType::kExistingUser));
 
 TEST_P(AccessibilityControllerSyncablePrefsOnSigninTest,

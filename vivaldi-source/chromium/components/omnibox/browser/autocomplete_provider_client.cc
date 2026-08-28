@@ -27,6 +27,11 @@ AutocompleteProviderClient::GetDocumentSuggestionsService() const {
   return nullptr;
 }
 
+AiModeButtonService* AutocompleteProviderClient::GetAiModeButtonService()
+    const {
+  return nullptr;
+}
+
 bool AutocompleteProviderClient::AllowDeletingBrowserHistory() const {
   return true;
 }
@@ -91,3 +96,19 @@ base::WeakPtr<AutocompleteProviderClient>
 AutocompleteProviderClient::GetWeakPtr() {
   return nullptr;
 }
+
+bool AutocompleteProviderClient::IsWebUiNtpEnabledForDesktopAndroid() const {
+  return false;
+}
+
+bool AutocompleteProviderClient::ShouldOpenCoBrowsePanel() const {
+  return false;
+}
+
+void AutocompleteProviderClient::OpenCoBrowsePanel() {}
+
+bool AutocompleteProviderClient::ShouldOpenComposeboxForAskG() const {
+  return false;
+}
+
+void AutocompleteProviderClient::OpenComposeboxForAskG() {}

@@ -36,3 +36,19 @@ update_target("//chrome/browser/actor:browser_tests") {
 update_template_instance("//chrome/browser/ui/android/bottombar:java") {
   public_deps -= [ ":metrics_java" ]
 }
+
+update_target("//chrome/browser/ui/autofill:unit_tests") {
+  deps = []
+}
+
+update_target("//chrome/browser/skills:browser_tests") {
+  deps = []
+}
+
+update_target("//chrome/browser/skills:interactive_ui_tests") {
+  deps = []
+}
+
+update_target("//chrome/browser/skills:unit_tests") {
+  deps = []
+}

@@ -62,9 +62,9 @@ class AutofillKeyboardAccessoryControllerImpl
 
   // AutofillSuggestionController:
   void OnSuggestionsChanged() override;
-  void AcceptSuggestion(int index,
-                        autofill::AutofillMetrics::SuggestionAcceptedMethod
-                            accept_method) override;
+  void AcceptSuggestion(
+      int index,
+      AutofillMetrics::SuggestionAcceptedMethod accept_method) override;
   bool RemoveSuggestion(
       int index,
       AutofillMetrics::SingleEntryRemovalMethod removal_method) override;
@@ -81,6 +81,12 @@ class AutofillKeyboardAccessoryControllerImpl
   std::optional<UiSessionId> GetUiSessionId() const override;
   void SetKeepPopupOpenForTesting(bool keep_popup_open_for_testing) override;
   void UpdateDataListValues(base::span<const SelectOption> options) override;
+  bool MayRecycle(
+      base::WeakPtr<AutofillSuggestionDelegate> delegate,
+      content::WebContents* web_contents,
+      AutofillSuggestionTriggerSource trigger_source) const override;
+  void Recycle(PopupControllerCommon controller_common,
+               int32_t form_control_ax_id) override;
 
   // AutofillKeyboardAccessoryController:
   std::vector<std::vector<Suggestion::Text>> GetSuggestionLabelsAt(
@@ -88,6 +94,7 @@ class AutofillKeyboardAccessoryControllerImpl
   bool GetRemovalConfirmationText(
       int index,
       RemovalConfirmationText* removal_text) override;
+  void OpenSettingsForEntityType(int32_t entity_type) override;
 
   base::WeakPtr<AutofillKeyboardAccessoryControllerImpl> GetWeakPtr() {
     return weak_ptr_factory_.GetWeakPtr();
@@ -104,10 +111,9 @@ class AutofillKeyboardAccessoryControllerImpl
   // of `suggestions_`.
   void OrderSuggestionsAndCreateLabels();
 
-  // Reacts to the result of a deletion dialog by attempting to delete the
-  // suggestion at `index` if the dialog `confirmed` deletion and by emitting
-  // metrics.
-  void OnDeletionDialogClosed(int index, bool confirmed);
+  // Reacts to the result of a deletion dialog by attempting to delete
+  // `suggestion` if the dialog `confirmed` deletion and by emitting metrics.
+  void OnDeletionDialogClosed(const Suggestion& suggestion, bool confirmed);
 
   // Hides the view and asynchronously deletes itself.
   void HideViewAndDie();

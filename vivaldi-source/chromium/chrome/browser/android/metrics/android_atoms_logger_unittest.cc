@@ -5,7 +5,9 @@
 #include "chrome/browser/android/metrics/android_atoms_logger.h"
 
 #include "base/containers/fixed_flat_map.h"
+#include "base/containers/span.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/metrics/statistics_recorder.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
@@ -56,6 +58,9 @@ class AndroidAtomsLoggerTest : public testing::Test {
   };
 
   void SetUp() override {
+    statistics_recorder_ =
+        base::StatisticsRecorder::CreateTemporaryForTesting();
+
     TestingPrefServiceSimple* local_state =
         TestingBrowserProcess::GetGlobal()->GetTestingLocalState();
     DCHECK(local_state);
@@ -66,8 +71,11 @@ class AndroidAtomsLoggerTest : public testing::Test {
     }
   }
 
+  void TearDown() override { statistics_recorder_.reset(); }
+
  private:
   base::test::TaskEnvironment task_environment_;
+  std::unique_ptr<base::StatisticsRecorder> statistics_recorder_;
 };
 
 TEST_F(AndroidAtomsLoggerTest, FeatureDisabled_DoesNotInitialize) {

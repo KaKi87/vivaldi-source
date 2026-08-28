@@ -12,6 +12,8 @@ import {assertDeepEquals, assertEquals, assertFalse, assertTrue} from 'chrome://
 import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
 import {TestOpenWindowProxy} from 'chrome://webui-test/test_open_window_proxy.js';
 import {isChildVisible} from 'chrome://webui-test/test_util.js';
+import type {CrIconElement} from 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
+
 
 import {createAddressEntry, createCreditCardEntry, createIbanEntry, createPayOverTimeIssuerEntry, TestAutofillManager, TestPaymentsManager} from './autofill_fake_data.js';
 import {TestEntityDataManagerProxy} from './test_entity_data_manager_proxy.js';
@@ -56,7 +58,8 @@ suite('YourSavedInfoPage', function() {
       enableYourSavedInfoSettingsPage: true,
       showIbansSettings: true,
       shouldShowPayOverTimeSettings: true,
-      enableYourSavedInfoShoppingPage: true,
+      shoppingIntegrationEnabled: true,
+      showSuggestionsFromGeminiSettings: true,
     });
   });
 
@@ -104,7 +107,7 @@ suite('YourSavedInfoPage', function() {
 
   test('ShoppingCategoryHiddenWhenFlagDisabled', async function() {
     await setupPage({
-      enableYourSavedInfoShoppingPage: false,
+      shoppingIntegrationEnabled: false,
     });
 
     const shoppingCard =
@@ -256,6 +259,71 @@ suite('YourSavedInfoPage', function() {
     const action = await metricsBrowserProxy.whenCalled('recordAction');
     assertEquals('Settings.YourSavedInfo.ChipClick.ADDRESSES', action);
   });
+
+  test('ClickOnShoppingChipNavigatesToLeafPage', async function() {
+    const card = yourSavedInfoPage.shadowRoot!.querySelector<HTMLElement>(
+        `category-reference-card[card-title="${
+            loadTimeData.getString('shoppingCardTitle')}"]`);
+    assertTrue(!!card);
+    const chips: HTMLElement[] =
+        Array.from(card.shadowRoot!.querySelectorAll('cr-button'));
+    const chip: HTMLElement = chips.find(chip => {
+      const labelSpan = chip.querySelector('span:not(.counter)');
+      return labelSpan &&
+          labelSpan.textContent ===
+          loadTimeData.getString('yourSavedInfoOrdersChip');
+    })!;
+
+    chip.click();
+    assertEquals('/shopping', Router.getInstance().currentRoute.path);
+    const [metricChip] = await metricsBrowserProxy.whenCalled(
+        'recordYourSavedInfoDataChipClick');
+    assertEquals(YourSavedInfoDataChip.ORDERS, metricChip);
+    const action = await metricsBrowserProxy.whenCalled('recordAction');
+    assertEquals('Settings.YourSavedInfo.ChipClick.ORDERS', action);
+  });
+
+  test('SuggestionsFromGeminiHiddenWhenFlagDisabled', async function() {
+    await setupPage({
+      showSuggestionsFromGeminiSettings: false,
+    });
+
+    const geminiCard = yourSavedInfoPage.shadowRoot!.querySelector<HTMLElement>(
+        '#suggestionsFromGeminiCard');
+    assertFalse(!!geminiCard);
+  });
+
+  test('SuggestionsFromGeminiCardNavigates', async function() {
+    const geminiCard = yourSavedInfoPage.shadowRoot!.querySelector<HTMLElement>(
+        '#suggestionsFromGeminiCard');
+    assertTrue(!!geminiCard);
+
+    const button = yourSavedInfoPage.shadowRoot!.querySelector<HTMLElement>(
+        '#suggestionsFromGeminiLinkRow');
+    assertTrue(!!button);
+
+    const icon = yourSavedInfoPage.shadowRoot!.querySelector<CrIconElement>(
+        '#suggestionsFromGeminiSubLabel cr-icon');
+    assertTrue(!!icon);
+    // <if expr="_google_chrome">
+    assertEquals(
+        loadTimeData.getBoolean('glicAssetsV2Enabled') ?
+            'settings-internal:sparkv2' :
+            'settings-internal:spark',
+        icon.icon);
+    // </if>
+    // <if expr="not _google_chrome">
+    assertEquals('settings20:lightbulb', icon.icon);
+    // </if>
+
+    button.click();
+    assertEquals('/enhancedAutofill', Router.getInstance().currentRoute.path);
+
+    const action = await metricsBrowserProxy.whenCalled('recordAction');
+    assertEquals(
+        'PersonalContext.Settings.EntryPoint.AutofillAndPasswordsSettings',
+        action);
+  });
 });
 
 suite('DataChipsVisibility', function() {
@@ -336,6 +404,7 @@ suite('DataChipsVisibility', function() {
       enableYourSavedInfoSettingsPage: true,
       showIbansSettings: true,
       shouldShowPayOverTimeSettings: true,
+      shoppingIntegrationEnabled: true,
     });
     await entityDataManager.whenCalled('getWritableEntityTypes');
 
@@ -366,6 +435,16 @@ suite('DataChipsVisibility', function() {
           loadTimeData.getString('yourSavedInfoVehiclesChip'),
         ],
         getChipLabels(yourSavedInfoPage, '#travelManagerButton'));
+
+    assertTrue(
+        isChildVisible(yourSavedInfoPage, '#shoppingManagerButton'),
+        'Shopping category should be visible');
+    assertDeepEquals(
+        [
+          loadTimeData.getString('yourSavedInfoOrdersChip'),
+          loadTimeData.getString('yourSavedInfoShipmentsChip'),
+        ],
+        getChipLabels(yourSavedInfoPage, '#shoppingManagerButton'));
   });
 
   test('DisabledIbans', async function() {
@@ -426,6 +505,18 @@ suite('DataChipsVisibility', function() {
     assertTrue(
         isChildVisible(yourSavedInfoPage, '#travelManagerButton'),
         'Travel category should be visible');
+    assertTrue(
+        isChildVisible(yourSavedInfoPage, '#shoppingManagerButton'),
+        'Shopping category should be visible');
+  });
+
+  test('DisabledAmbientAutofill', async function() {
+    const yourSavedInfoPage = await setupPage({
+      shoppingIntegrationEnabled: false,
+    });
+    assertFalse(
+        isChildVisible(yourSavedInfoPage, '#shoppingManagerButton'),
+        'Shopping category should not be visible');
   });
 
   test('UnsupportedAutofillAiDataTypeWithExistingItems', async function() {

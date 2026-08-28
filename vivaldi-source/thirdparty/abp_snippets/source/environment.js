@@ -14,7 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 /**
  * @typedef {object} Environment
  * @property {Array.<Array>} debugCSSProperties Highlighting options.
@@ -22,6 +21,13 @@
  * @property {bool} debugJS Javascript debugging.
  * Enables/disables JS Devtools debugging
  * @property {string} world Target injection world. 'ISOLATED' or 'MAIN'.
+ * @property {Function} [sendDetectionEvent] Optional callback invoked
+ * when a monitoring snippet detects a match.
+ * Receives (type, hostname, specifier).
+ * @property {Function} [sendSnippetHitEvent] Optional callback invoked
+ * when a snippet successfully acts on a page element.
+ * Receives (filter, hostname) where filter is the full filter body
+ * e.g. "json-prune ads userId".
  */
 
 /**
@@ -29,6 +35,19 @@
  * @type {Environment}
  * @private
  */
-// eslint-disable-next-line no-undef
-export const libEnvironment = typeof environment !== "undefined" ? environment :
-                                                                   {};
+
+// Set the currentEnvironment to the environment
+if (typeof currentEnvironment !== "undefined" &&
+    currentEnvironment.initial &&
+    typeof environment !== "undefined")
+  currentEnvironment = environment;
+
+const getLibEnvironment = () => {
+  if (typeof currentEnvironment !== "undefined")
+    return currentEnvironment;
+  if (typeof environment !== "undefined")
+    return environment;
+  return {};
+};
+
+export default getLibEnvironment;

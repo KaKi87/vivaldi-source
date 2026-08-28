@@ -6,6 +6,10 @@ source_set("tools") {
   deps = [
     "//chrome/browser/ui/webui/tab_search:mojo_bindings",
     "//chrome/common",
+    "//components/browser_apis/browser_controls:mojom_data_model_shared_cpp_sources",
+    "//components/browser_apis/ui_controllers/toolbar:extensions_bar_data_model_mojom",
+    "//components/browser_apis/ui_controllers/toolbar:icon_handle_mojom",
+    "//components/browser_apis/ui_controllers/toolbar:mojom_data_model",
     "//components/sharing_message/proto",
     "//components/zoom",
     "//extensions/buildflags",
@@ -15,9 +19,6 @@ source_set("tools") {
     "//skia",
     "//ui/views:buildflags",
 
-    # "//vivaldi/ui",
-  ]
-  allow_circular_includes_from = [
     # "//vivaldi/ui",
   ]
 }

@@ -5,7 +5,7 @@
     "namespace": "readingListPrivate",
     "description": "Use the <code>vivaldi.readingListPrivate</code> API to manipulate the reading list.",
     "compiler_options": {
-      "implemented_in": "extensions/api/reading_list/reading_list_api.h"
+      "implemented_in": "extensions/api/reading_list_private/reading_list_private_api.h"
     },
     "types": [
       {

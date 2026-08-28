@@ -4,6 +4,7 @@
 
 package org.chromium.chrome.browser.ntp_customization;
 
+import static org.chromium.build.NullUtil.assertNonNull;
 import static org.chromium.build.NullUtil.assumeNonNull;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator.BottomSheetType.FEED;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator.BottomSheetType.MAIN;
@@ -36,6 +37,7 @@ import org.chromium.chrome.browser.ntp_customization.theme.NtpCustomizationPromo
 import org.chromium.chrome.browser.ntp_customization.theme.NtpCustomizationPromoManager.SnackBarState;
 import org.chromium.chrome.browser.ntp_customization.theme.NtpThemeCoordinator;
 import org.chromium.chrome.browser.ntp_customization.theme.tip.NtpThemeTipCoordinator;
+import org.chromium.chrome.browser.ntp_customization.theme_sync.NtpThemeSyncHistoryCoordinator;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
@@ -62,12 +64,14 @@ public class NtpCustomizationCoordinator {
     private final Supplier<@Nullable Profile> mProfileSupplier;
     private final @Nullable ModuleRegistry mModuleRegistry;
     private final int mBottomSheetType;
+    private final boolean mIsNtpCustomizationSyncEnabled;
     private NtpCustomizationMediator mMediator;
     private @Nullable MvtSettingsCoordinator mMvtSettingCoordinator;
     private @MonotonicNonNull NtpCardsCoordinator mNtpCardsCoordinator;
     private @Nullable FeedSettingsCoordinator mFeedSettingsCoordinator;
     private @Nullable NtpThemeCoordinator mNtpThemeCoordinator;
     private @Nullable NtpThemeTipCoordinator mNtpThemeTipCoordinator;
+    private @Nullable NtpThemeSyncHistoryCoordinator mNtpThemeSyncHistoryCoordinator;
     private ViewFlipper mViewFlipperView;
     private boolean mIsDestroyed;
 
@@ -155,6 +159,7 @@ public class NtpCustomizationCoordinator {
         // This empty OnClickListener is added to the ViewFlipper to prevent TalkBack from
         // unexpectedly triggering the click listeners of its child list items.
         mViewFlipperView.setOnClickListener(v -> {});
+        mIsNtpCustomizationSyncEnabled = NtpCustomizationUtils.isNTPCustomizationSyncEnabled();
 
         NtpCustomizationBottomSheetContent bottomSheetContent = initBottomSheetContent(contentView);
 
@@ -189,7 +194,8 @@ public class NtpCustomizationCoordinator {
                         containerPropertyModel,
                         mProfileSupplier,
                         windowAndroid,
-                        snackbarManager);
+                        snackbarManager,
+                        this::showMainBottomSheet);
         mMediator.registerBottomSheetLayout(MAIN);
 
         mDelegate = createBottomSheetDelegate();
@@ -228,9 +234,7 @@ public class NtpCustomizationCoordinator {
      */
     public void showBottomSheet() {
         switch (mBottomSheetType) {
-            case MAIN -> {
-                mMediator.showBottomSheet(MAIN);
-            }
+            case MAIN -> showMainBottomSheet();
             case NTP_CARDS -> showNtpCardsBottomSheet();
             case FEED -> showFeedBottomSheet();
             case THEME -> showThemeBottomSheet();
@@ -239,6 +243,22 @@ public class NtpCustomizationCoordinator {
                 assert false : "Bottom sheet type not supported!";
             }
         }
+    }
+
+    private void showMainBottomSheet() {
+        if (mIsNtpCustomizationSyncEnabled) {
+            if (mNtpThemeSyncHistoryCoordinator == null) {
+                mNtpThemeSyncHistoryCoordinator =
+                        new NtpThemeSyncHistoryCoordinator(
+                                mContext,
+                                mViewFlipperView,
+                                mDelegate,
+                                (view) -> showThemeBottomSheet(),
+                                assumeNonNull(mProfileSupplier.get()));
+            }
+            mNtpThemeSyncHistoryCoordinator.prepareToShow();
+        }
+        mMediator.showBottomSheet(MAIN);
     }
 
     private void showNtpCardsBottomSheet() {
@@ -260,7 +280,8 @@ public class NtpCustomizationCoordinator {
 
     private void showMvtSettingCoordinator() {
         if (mMvtSettingCoordinator == null) {
-            mMvtSettingCoordinator = new MvtSettingsCoordinator(mContext, mDelegate);
+            mMvtSettingCoordinator =
+                    new MvtSettingsCoordinator(mContext, mDelegate, mProfileSupplier);
         }
         mMediator.showBottomSheet(MVT);
     }
@@ -307,24 +328,13 @@ public class NtpCustomizationCoordinator {
      */
     @VisibleForTesting
     View.OnClickListener getOptionClickListener(@BottomSheetType int type) {
-        switch (type) {
-            case NTP_CARDS -> {
-                return v -> showNtpCardsBottomSheet();
-            }
-            case FEED -> {
-                return v -> showFeedBottomSheet();
-            }
-            case THEME -> {
-                return v -> showThemeBottomSheet();
-            }
-            case MVT -> {
-                return v -> showMvtSettingCoordinator();
-            }
-            default -> {
-                assert false : "Bottom sheet type not supported!";
-                return assumeNonNull(null);
-            }
-        }
+        return switch (type) {
+            case NTP_CARDS -> v -> showNtpCardsBottomSheet();
+            case FEED -> v -> showFeedBottomSheet();
+            case THEME -> v -> showThemeBottomSheet();
+            case MVT -> v -> showMvtSettingCoordinator();
+            default -> assertNonNull(null);
+        };
     }
 
     /**
@@ -418,6 +428,10 @@ public class NtpCustomizationCoordinator {
         if (mNtpThemeTipCoordinator != null) {
             mNtpThemeTipCoordinator.destroy();
         }
+
+        if (mNtpThemeSyncHistoryCoordinator != null) {
+            mNtpThemeSyncHistoryCoordinator.destroy();
+        }
     }
 
     BottomSheetDelegate getBottomSheetDelegateForTesting() {
@@ -446,5 +460,13 @@ public class NtpCustomizationCoordinator {
 
     void setNtpThemeTipCoordinatorForTesting(NtpThemeTipCoordinator coordinator) {
         mNtpThemeTipCoordinator = coordinator;
+    }
+
+    @Nullable NtpThemeSyncHistoryCoordinator getNtpThemeSyncHistoryCoordinatorForTesting() {
+        return mNtpThemeSyncHistoryCoordinator;
+    }
+
+    void setNtpThemeSyncHistoryCoordinatorForTesting(NtpThemeSyncHistoryCoordinator coordinator) {
+        mNtpThemeSyncHistoryCoordinator = coordinator;
     }
 }

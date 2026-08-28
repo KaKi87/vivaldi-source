@@ -248,12 +248,12 @@ VivaldiReaderModeJavaScriptFeature::GetScriptMessageHandlerName() const {
 void VivaldiReaderModeJavaScriptFeature::ScriptMessageReceived(
     web::WebState* web_state,
     const web::ScriptMessage& message) {
-  if (!message.is_main_frame() || !message.body() ||
-      !message.body()->is_dict()) {
+  base::Value* body = message.legacy_body();
+  if (!message.is_main_frame() || !body || !body->is_dict()) {
     return;
   }
 
-  const base::DictValue& dict = message.body()->GetDict();
+  const base::DictValue& dict = body->GetDict();
   const std::string* command = dict.FindString("command");
 
   if (!command) {

@@ -25,7 +25,7 @@
 #include "components/keyed_service/core/keyed_service.h"
 #include "content/public/browser/navigation_handle.h"
 #include "extensions/browser/extension_registry_observer.h"
-#include "extensions/schema/browser_action_utilities.h"
+#include "extensions/schema/extension_action_utils.h"
 #include "ui/infobar_container_web_proxy.h"
 #include "ui/vivaldi_document_loader.h"
 

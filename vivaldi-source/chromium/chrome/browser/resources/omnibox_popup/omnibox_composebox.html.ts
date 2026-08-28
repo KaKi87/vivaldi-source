@@ -23,23 +23,58 @@ export function getHtml(this: OmniboxComposeboxElement) {
         .energyEffectAnimationEnabled="${false}"
         .isZeroState="${false}"
         exportparts="composebox-background">
+      ${this.showFileCarousel && this.shouldShowVoiceSearchAnimation() &&
+          this.voiceSearchCoherenceEnabled ? html`
+        <div id="voiceCarouselContainer"
+            slot="carousel"
+            part="carousel-container">
+          <div id="voiceCarouselContainerInner"
+              class="carousel-container-inner">
+            <cr-composebox-file-carousel
+              id="voiceSearchCarousel"
+              .files="${this.getFilteredCarouselFiles()}"
+              enable-scrolling
+              @delete-file="${this.onDeleteFile}">
+            </cr-composebox-file-carousel>
+          </div>
+        </div>
+      ` : ''}
+      ${this.shouldShowVoiceSearchAnimation() &&
+            this.voiceSearchCoherenceEnabled && this.inToolMode ? html`
+              <div class="context-menu-container voice-context-menu-container"
+                    id="voiceToolChipsContainer"
+                    slot="tool-chip"
+                    part="tool-chips-container">
+                  <cr-composebox-tool-chip
+                    exportparts="tool-chip-label"
+                    .inputState="${this.inputState}"
+                    .isCanvasQuerySubmitted="
+                        ${this.isCanvasQuerySubmitted}"
+                    @tool-click="${this.onToolClick}"
+                    part="tool-chip">
+                  </cr-composebox-tool-chip>
+                </div>
+      ` : ''}
     </search-animated-glow>
-    <ntp-error-scrim id="errorScrim" part="error-scrim"
-        ?compact-mode="${this.searchboxLayoutMode === 'Compact' &&
-                         this.files.size === 0}"
-        .errorMessage="${this.errorMessage}"
-        @dismiss-error-scrim="${this.onDismissErrorScrim}">
-    </ntp-error-scrim>
+    ${this.errorMessage ?
+      html`<ntp-error-scrim id="errorScrim" part="error-scrim"
+          ?compact-mode="${this.searchboxLayoutMode === 'Compact' &&
+                          this.files.size === 0}"
+          .errorMessage="${this.errorMessage}"
+          @dismiss-error-scrim="${this.onDismissErrorScrim}">
+      </ntp-error-scrim>`
+    : ''}
     <div id="composebox" part="composebox" ?inert="${!!this.errorMessage}"
         @keydown="${this.onKeydown}"
-        @dragenter="${this.dragAndDropHandler_.handleDragEnter}"
-        @dragover="${this.dragAndDropHandler_.handleDragOver}"
-        @dragleave="${this.dragAndDropHandler_.handleDragLeave}"
-        @drop="${this.dragAndDropHandler_.handleDrop}"
+        @dragenter="${this.dragAndDropHandler.handleDragEnter}"
+        @dragover="${this.dragAndDropHandler.handleDragOver}"
+        @dragleave="${this.dragAndDropHandler.handleDragLeave}"
+        @drop="${this.dragAndDropHandler.handleDrop}"
         @paste="${this.onPaste}">
       <div id="inputContainer" part="input-container">
         <cr-composebox-input id="composeboxInput"
             exportparts="text-container, icon-container, mirror, input, smart-compose, cancel, action-icon, cancel-icon"
+            .composeboxSkillsEnabled="${this.composeboxSkillsEnabled}"
             .disableCaretColorAnimation="${this.disableCaretColorAnimation}"
             .showDropdown="${this.showDropdown}"
             .inputPlaceholder="${this.inputPlaceholder}"
@@ -103,8 +138,15 @@ export function getHtml(this: OmniboxComposeboxElement) {
                     ?upload-button-disabled="${this.uploadButtonDisabled}"
                     .sharedTabs="${this.getSharedTabs()}"
                     .restoredTabs="${this.aimThreadRestoredTabs}"
-                    ?show-context-menu-description="${this.showContextMenuDescription}">
+                    ?show-context-menu-description="${this.showContextMenuDescription}"
+                    .smartTabSharingActive="${this.smartTabSharingActive}">
                 </cr-composebox-contextual-entrypoint-button>
+              ` : ''}
+              ${this.isLensSearchChipShown_ ? html`
+                <cr-composebox-lens-search id="lensSearchChip"
+                    class="upload-button contextual-chip"
+                    @lens-search-click="${this.onLensSearchClick_}">
+                </cr-composebox-lens-search>
               ` : ''}
               ${this.searchboxLayoutMode !== 'Compact' &&
                 this.inToolMode ? html`

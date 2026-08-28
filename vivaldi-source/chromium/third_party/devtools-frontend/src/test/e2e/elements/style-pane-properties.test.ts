@@ -1512,7 +1512,7 @@ describe('The Styles pane', () => {
         {
           selectorText: '#inspected::target-text',
           propertyData: [{propertyName: 'color', isOverLoaded: false, isInherited: false}],
-        }
+        },
       ]);
       return true;
     });
@@ -1889,7 +1889,7 @@ describe('The Styles pane', () => {
     let inspectedRulesContainer = inspectedRules.filter(rule => rule.selectorText === '#container');
     assert.deepEqual(inspectedRulesContainer, [{
                        selectorText: '#container',
-                       propertyData: [{propertyName: 'font-weight', isOverLoaded: false, isInherited: false}]
+                       propertyData: [{propertyName: 'font-weight', isOverLoaded: false, isInherited: false}],
                      }]);
 
     // Disable the style rule
@@ -1900,7 +1900,7 @@ describe('The Styles pane', () => {
     inspectedRulesContainer = inspectedRules.filter(rule => rule.selectorText === '#container');
     assert.deepEqual(inspectedRulesContainer, [{
                        selectorText: '#container',
-                       propertyData: [{propertyName: 'font-weight', isOverLoaded: true, isInherited: false}]
+                       propertyData: [{propertyName: 'font-weight', isOverLoaded: true, isInherited: false}],
                      }]);
 
     // Delete the style rule
@@ -1988,8 +1988,13 @@ describe('The Styles pane', () => {
         'incorrectly displayed style after pasting new styles over \'margin-top\'');
     inspectedRules = await getDisplayedCSSDeclarations(devToolsPage);
     assert.sameDeepMembers(inspectedRules, [
-      'font-size: 12px;', 'foo: bar;', 'moo: zoo;', 'color: red;', 'margin-left: 1px;', 'display: block;',
-      'unicode-bidi: isolate;'
+      'font-size: 12px;',
+      'foo: bar;',
+      'moo: zoo;',
+      'color: red;',
+      'margin-left: 1px;',
+      'display: block;',
+      'unicode-bidi: isolate;',
     ]);
   });
 
@@ -2080,7 +2085,7 @@ describe('The Styles pane', () => {
           sampleId: 1,
           score: 1.0,
         }],
-        metadata: {rpcGlobalId: '123'}
+        metadata: {rpcGlobalId: '123'},
       });
 
       await devToolsPage.typeText('col');
@@ -2107,7 +2112,7 @@ describe('The Styles pane', () => {
           sampleId: 1,
           score: 1.0,
         }],
-        metadata: {rpcGlobalId: '123'}
+        metadata: {rpcGlobalId: '123'},
       });
 
       await devToolsPage.typeText('col');
@@ -2139,7 +2144,7 @@ describe('The Styles pane', () => {
           sampleId: 1,
           score: 1.0,
         }],
-        metadata: {rpcGlobalId: '123'}
+        metadata: {rpcGlobalId: '123'},
       });
 
       await devToolsPage.typeText('back');
@@ -2160,7 +2165,7 @@ describe('The Styles pane', () => {
           sampleId: 1,
           score: 1.0,
         }],
-        metadata: {rpcGlobalId: '123'}
+        metadata: {rpcGlobalId: '123'},
       });
 
       await devToolsPage.typeText('col');
@@ -2200,7 +2205,7 @@ describe('The Styles pane', () => {
           sampleId: 1,
           score: 1.0,
         }],
-        metadata: {rpcGlobalId: '123'}
+        metadata: {rpcGlobalId: '123'},
       });
 
       await devToolsPage.typeText('col');
@@ -2247,7 +2252,7 @@ describe('The Styles pane', () => {
           sampleId: 1,
           score: 1.0,
         }],
-        metadata: {rpcGlobalId: '123'}
+        metadata: {rpcGlobalId: '123'},
       });
 
       await devToolsPage.typeText('col');
@@ -2297,7 +2302,7 @@ describe('The Styles pane', () => {
           sampleId: 1,
           score: 1.0,
         }],
-        metadata: {rpcGlobalId: '123'}
+        metadata: {rpcGlobalId: '123'},
       });
 
       await devToolsPage.typeText('col');
@@ -2329,7 +2334,7 @@ describe('The Styles pane', () => {
           sampleId: 1,
           score: 1.0,
         }],
-        metadata: {rpcGlobalId: '123'}
+        metadata: {rpcGlobalId: '123'},
       });
 
       await devToolsPage.typeText('col');
@@ -2359,7 +2364,7 @@ describe('The Styles pane', () => {
           sampleId: 1,
           score: 1.0,
         }],
-        metadata: {rpcGlobalId: '123'}
+        metadata: {rpcGlobalId: '123'},
       });
 
       await devToolsPage.typeText('col');
@@ -2389,7 +2394,7 @@ describe('The Styles pane', () => {
 
       await mockAidaCodeComplete(devToolsPage, {
         generatedSamples: [{generationString: 'or: red;', sampleId: 1, score: 1.0}],
-        metadata: {rpcGlobalId: '123'}
+        metadata: {rpcGlobalId: '123'},
       });
 
       await devToolsPage.typeText('col');
@@ -2443,7 +2448,7 @@ describe('The Styles pane', () => {
           sampleId: 1,
           score: 1.0,
         }],
-        metadata: {rpcGlobalId: '123'}
+        metadata: {rpcGlobalId: '123'},
       });
 
       // trigger code completion
@@ -2476,19 +2481,24 @@ describe('The Styles pane', () => {
       const propertiesSection = await getStyleRule('#inspected', devToolsPage);
       await propertiesSection.focus();
 
-      // paste a large block of css properties
+      // Paste a large block of css properties.
       await devToolsPage.typeText('m');
       await devToolsPage.pasteText(`argin: 10px; padding: 20px;
           font-weight: bold; font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
           background-image: url('https://example.com/image;v=1?query:part=true');`);
-      await propertiesSection.click();
+      await devToolsPage.page.keyboard.press('Enter');
+      await devToolsPage.page.keyboard.press('Escape');
+      await devToolsPage.waitForFunction(async () => {
+        const names = await getDisplayedCSSPropertyNames(propertiesSection, devToolsPage);
+        return names.includes('margin') && names.includes('background-image');
+      });
 
       await mockAidaCodeComplete(devToolsPage, {
         generatedSamples: [{generationString: 'or: red;', sampleId: 1, score: 1.0}],
-        metadata: {rpcGlobalId: '123'}
+        metadata: {rpcGlobalId: '123'},
       });
 
-      // trigger code completion
+      // Trigger code completion.
       await propertiesSection.focus();
       await devToolsPage.typeText('col');
       await devToolsPage.waitForFunction(async () => {
@@ -2541,7 +2551,7 @@ describe('The Styles pane', () => {
 
       await mockAidaCodeComplete(devToolsPage, {
         generatedSamples: [{generationString: 'or: red;', sampleId: 1, score: 1.0}],
-        metadata: {rpcGlobalId: '123'}
+        metadata: {rpcGlobalId: '123'},
       });
 
       // trigger code completion

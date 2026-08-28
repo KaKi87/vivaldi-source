@@ -6,93 +6,162 @@ package org.chromium.chrome.browser.media.immersive_playback;
 
 import android.content.Context;
 import android.util.AttributeSet;
+import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
+import android.widget.FrameLayout;
 
-import org.chromium.blink.mojom.ImmersiveProjectionType;
-import org.chromium.blink.mojom.ImmersiveStereoMode;
+import androidx.annotation.StringRes;
+
+import org.chromium.base.Callback;
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
+import org.chromium.components.browser_ui.widget.RadioButtonWithDescription;
+import org.chromium.components.browser_ui.widget.RadioButtonWithDescriptionLayout;
+import org.chromium.content_public.browser.ImmersiveProjectionType;
+import org.chromium.content_public.browser.ImmersiveStereoMode;
 
-/** A custom RadioGroup that presents options for immersive playback formats. */
+import com.google.common.collect.ImmutableMap;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+/** A custom view container that presents options for immersive playback formats. */
 @NullMarked
-public class ImmersiveVideoFormatRadioGroup extends RadioGroup {
+public class ImmersiveVideoFormatRadioGroup extends FrameLayout {
 
+    /** Represents a selectable format option. */
     public static class FormatOption {
-        public final int stringResId;
-        public final int stereoMode;
-        public final int projectionType;
+        /** The stereo mode of this format. */
+        public final @ImmersiveStereoMode int stereoMode;
 
-        public FormatOption(int stringResId, int stereoMode, int projectionType) {
-            this.stringResId = stringResId;
+        /** The projection type of this format. */
+        public final @ImmersiveProjectionType int projectionType;
+
+        /**
+         * Creates a new {@link FormatOption}.
+         *
+         * @param stereoMode The stereo mode.
+         * @param projectionType The projection type.
+         */
+        public FormatOption(
+                @ImmersiveStereoMode int stereoMode, @ImmersiveProjectionType int projectionType) {
             this.stereoMode = stereoMode;
             this.projectionType = projectionType;
         }
     }
 
-    public static final FormatOption[] SUPPORTED_FORMATS = {
-        new FormatOption(
-                R.string.immersive_playback_confirmation_option_standard,
-                ImmersiveStereoMode.MONO,
-                ImmersiveProjectionType.QUAD),
-        new FormatOption(
-                R.string.immersive_playback_confirmation_option_stereo_3d,
-                ImmersiveStereoMode.SIDE_BY_SIDE,
-                ImmersiveProjectionType.QUAD),
-        new FormatOption(
-                R.string.immersive_playback_confirmation_option_vr180,
-                ImmersiveStereoMode.MONO,
-                ImmersiveProjectionType.HEMISPHERE),
-        new FormatOption(
-                R.string.immersive_playback_confirmation_option_vr360,
-                ImmersiveStereoMode.MONO,
-                ImmersiveProjectionType.SPHERE)
-    };
+    private static final ImmutableMap<Integer, FormatOption> FORMAT_OPTIONS =
+            ImmutableMap.of(
+                    R.id.standard_option,
+                    new FormatOption(ImmersiveStereoMode.MONO, ImmersiveProjectionType.QUAD),
+                    R.id.stereoscopic_option,
+                    new FormatOption(
+                            ImmersiveStereoMode.SIDE_BY_SIDE, ImmersiveProjectionType.QUAD),
+                    R.id.hemisphere_option,
+                    new FormatOption(
+                            ImmersiveStereoMode.SIDE_BY_SIDE, ImmersiveProjectionType.HEMISPHERE),
+                    R.id.sphere_option,
+                    new FormatOption(ImmersiveStereoMode.MONO, ImmersiveProjectionType.SPHERE));
+
+    private final List<RadioButtonWithDescription> mRadioButtons = new ArrayList<>();
+    private final RadioButtonWithDescriptionLayout mLayout;
+    private final RadioButtonWithDescription mRecommendedButton;
 
     public ImmersiveVideoFormatRadioGroup(Context context) {
-        super(context);
-        init();
+        this(context, null);
     }
 
-    public ImmersiveVideoFormatRadioGroup(Context context, AttributeSet attrs) {
+    public ImmersiveVideoFormatRadioGroup(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
-        init();
-    }
+        LayoutInflater.from(context)
+                .inflate(R.layout.immersive_video_format_radio_group_layout, this, true);
+        mLayout = findViewById(R.id.format_radio_group_layout);
 
-    private void init() {
-        setOrientation(VERTICAL);
+        mRecommendedButton = mLayout.findViewById(R.id.recommended_option);
+        mRadioButtons.add(mRecommendedButton);
 
-        for (FormatOption option : SUPPORTED_FORMATS) {
-            addOption(option);
-        }
-
-        // Check the first one by default after all are added to ensure correct RadioGroup behavior.
-        if (getChildCount() > 0) {
-            check(getChildAt(0).getId());
+        for (Map.Entry<Integer, FormatOption> entry : FORMAT_OPTIONS.entrySet()) {
+            RadioButtonWithDescription button = mLayout.findViewById(entry.getKey());
+            button.setTag(entry.getValue());
+            mRadioButtons.add(button);
         }
     }
 
-    private void addOption(FormatOption option) {
-        Context context = getContext();
-        RadioButton radioButton = new RadioButton(context);
-        radioButton.setId(View.generateViewId());
-        radioButton.setText(context.getString(option.stringResId));
-        radioButton.setTag(option);
-        radioButton.setTextAppearance(R.style.TextAppearance_TextMedium_Secondary);
-        RadioGroup.LayoutParams layoutParams =
-                new RadioGroup.LayoutParams(
-                        RadioGroup.LayoutParams.MATCH_PARENT, RadioGroup.LayoutParams.WRAP_CONTENT);
-        addView(radioButton, layoutParams);
+    public void setSelectionCallback(Callback<@Nullable FormatOption> callback) {
+        mLayout.setOnCheckedChangeListener(
+                (group, checkedId) -> callback.onResult(getSelectedOption()));
     }
 
-    public FormatOption getSelectedFormat() {
-        for (int i = 0; i < getChildCount(); i++) {
-            RadioButton rb = (RadioButton) getChildAt(i);
-            if (rb.isChecked()) {
-                return (FormatOption) rb.getTag();
+    /**
+     * Sets the recommended projection option and makes it available in the list.
+     *
+     * @param stereoMode The video's recommended stereo mode.
+     * @param projectionType The video's recommended projection type.
+     */
+    public void setRecommendedOption(
+            @ImmersiveStereoMode int stereoMode, @ImmersiveProjectionType int projectionType) {
+        mRecommendedButton.setTag(new FormatOption(stereoMode, projectionType));
+        mRecommendedButton.setDescriptionText(getDescriptionText(stereoMode, projectionType));
+        mRecommendedButton.setVisibility(View.VISIBLE);
+    }
+
+    /**
+     * Programmatically checks the radio button that matches the specified format options.
+     *
+     * @param stereoMode The {@link ImmersiveStereoMode} to match.
+     * @param projectionType The {@link ImmersiveProjectionType} to match.
+     */
+    public void checkOption(
+            @ImmersiveStereoMode int stereoMode, @ImmersiveProjectionType int projectionType) {
+        for (RadioButtonWithDescription rb : mRadioButtons) {
+            FormatOption option = (FormatOption) rb.getTag();
+            if (option != null
+                    && option.stereoMode == stereoMode
+                    && option.projectionType == projectionType) {
+                rb.setChecked(true);
+                break;
             }
         }
-        return SUPPORTED_FORMATS[0];
+    }
+
+    /** Returns the selected format option. */
+    public @Nullable FormatOption getSelectedOption() {
+        for (RadioButtonWithDescription rb : mRadioButtons) {
+            if (rb.isChecked()) {
+                FormatOption option = (FormatOption) rb.getTag();
+                if (option != null) return option;
+            }
+        }
+        return null;
+    }
+
+    private String getDescriptionText(
+            @ImmersiveStereoMode int stereoMode, @ImmersiveProjectionType int projectionType) {
+        @StringRes int resId = 0;
+        switch (projectionType) {
+            case ImmersiveProjectionType.QUAD:
+                resId =
+                        stereoMode == ImmersiveStereoMode.MONO
+                                ? R.string.immersive_playback_format_standard
+                                : R.string.immersive_playback_format_stereoscopic;
+                break;
+            case ImmersiveProjectionType.SPHERE:
+                resId =
+                        stereoMode == ImmersiveStereoMode.MONO
+                                ? R.string.immersive_playback_format_360
+                                : R.string.immersive_playback_format_360_stereoscopic;
+                break;
+            case ImmersiveProjectionType.HEMISPHERE:
+                resId =
+                        stereoMode == ImmersiveStereoMode.MONO
+                                ? R.string.immersive_playback_format_180
+                                : R.string.immersive_playback_format_180_stereoscopic;
+                break;
+            default:
+                break;
+        }
+        return resId != 0 ? getContext().getString(resId) : "";
     }
 }

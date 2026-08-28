@@ -42,7 +42,7 @@ import org.chromium.components.messages.MessageDispatcherProvider;
 import org.chromium.components.messages.MessageIdentifier;
 import org.chromium.components.messages.PrimaryActionClickBehavior;
 import org.chromium.components.signin.AccountManagerFacadeProvider;
-import org.chromium.components.signin.base.CoreAccountInfo;
+import org.chromium.components.signin.base.AccountInfo;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.sync.BookmarksLimitExceededHelpClickedSource;
 import org.chromium.components.sync.SyncService;
@@ -396,7 +396,7 @@ public class SyncErrorMessage implements SyncService.SyncStateChangedListener {
     }
 
     private void openTrustedVaultKeyRetrievalActivity() {
-        CoreAccountInfo primaryAccountInfo = mIdentityManager.getPrimaryAccountInfo();
+        @Nullable AccountInfo primaryAccountInfo = mIdentityManager.getPrimaryAccountInfo();
         if (primaryAccountInfo == null) {
             return;
         }
@@ -421,7 +421,7 @@ public class SyncErrorMessage implements SyncService.SyncStateChangedListener {
     }
 
     private void openTrustedVaultRecoverabilityDegradedActivity() {
-        CoreAccountInfo primaryAccountInfo = mIdentityManager.getPrimaryAccountInfo();
+        @Nullable AccountInfo primaryAccountInfo = mIdentityManager.getPrimaryAccountInfo();
         if (primaryAccountInfo == null) {
             return;
         }
@@ -452,8 +452,12 @@ public class SyncErrorMessage implements SyncService.SyncStateChangedListener {
     }
 
     private void startUpdateCredentialsFlow(Activity activity) {
-        final CoreAccountInfo primaryAccountInfo = mIdentityManager.getPrimaryAccountInfo();
-        assert primaryAccountInfo != null;
+        final @Nullable AccountInfo primaryAccountInfo = mIdentityManager.getPrimaryAccountInfo();
+        if (primaryAccountInfo == null) {
+            // Can happen in case of a race condition between a sign-out (because the primary
+            // account got removed from the device) and the user tapping the sync error message.
+            return;
+        }
         AccountManagerFacadeProvider.getInstance()
                 .updateCredentials(primaryAccountInfo.getId(), activity, null);
     }

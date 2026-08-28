@@ -80,7 +80,6 @@
 #include "device/fido/fido_discovery_factory.h"
 #include "device/fido/fido_request_handler_base.h"
 #include "device/fido/pin.h"
-#include "device/fido/public/cable_discovery_data.h"
 #include "device/fido/public/features.h"
 #include "device/fido/public/fido_constants.h"
 #include "device/fido/public/fido_transport_protocol.h"
@@ -788,7 +787,8 @@ void AuthenticatorRequestDialogController::StartFlow(
 }
 
 void AuthenticatorRequestDialogController::TransitionToModalWebAuthnRequest() {
-  DCHECK_EQ(model_->step(), Step::kPasskeyAutofill);
+  FIDO_LOG(EVENT) << "TransitionToModalWebAuthnRequest from step: "
+                  << model_->step();
 
   // Dispatch requests to any plugged in authenticators.
   for (auto& authenticator : ephemeral_state_.saved_authenticators_) {
@@ -1000,7 +1000,12 @@ bool AuthenticatorRequestDialogController::StartGuidedFlowForHint(
 void AuthenticatorRequestDialogController::
     HideDialogAndDispatchToPlatformAuthenticator(
         std::optional<AuthenticatorType> type) {
+  base::WeakPtr<AuthenticatorRequestDialogController> weak_this =
+      weak_factory_.GetWeakPtr();
   SetCurrentStep(Step::kPlatformAuthenticator);
+  if (!weak_this) {
+    return;
+  }
 
   std::vector<AuthenticatorReference>& authenticators =
       ephemeral_state_.saved_authenticators_;
@@ -1058,6 +1063,14 @@ void AuthenticatorRequestDialogController::
 
 void AuthenticatorRequestDialogController::OnCableEvent(
     device::cablev2::Event event) {
+  // Ignore background hybrid connection events if we are still showing the
+  // Autofill suggestion popup (conditional UI). We do not want to trigger any
+  // modal WebAuthn UI transitions in the background before the user selects an
+  // option.
+  if (model_->step() == Step::kPasskeyAutofill ||
+      model_->step() == Step::kNotStarted) {
+    return;
+  }
   switch (event) {
     case device::cablev2::Event::kPhoneConnected:
     case device::cablev2::Event::kBLEAdvertReceived:
@@ -1699,15 +1712,23 @@ void AuthenticatorRequestDialogController::SetUIPresentation(
   model_->set_ui_presentation(modality);
 }
 
-void AuthenticatorRequestDialogController::InitializeEnclaveRequestCallback(
-    device::FidoDiscoveryFactory* discovery_factory) {
-  CHECK(!enclave_request_callback_);
+void AuthenticatorRequestDialogController::ConfigureEnclaveForUpgrade(
+    device::FidoDiscoveryFactory* discovery_factory,
+    bool cmtg_key_requested) {
+  CHECK(!passkey_upgrade_request_controller_);
 
   using EnclaveEventStream = device::FidoDiscoveryBase::EventStream<
       std::unique_ptr<device::enclave::CredentialRequest>>;
   std::unique_ptr<EnclaveEventStream> event_stream;
-  std::tie(enclave_request_callback_, event_stream) = EnclaveEventStream::New();
+  PasskeyUpgradeRequestController::EnclaveRequestCallback
+      enclave_request_callback;
+  std::tie(enclave_request_callback, event_stream) = EnclaveEventStream::New();
   discovery_factory->set_enclave_ui_request_stream(std::move(event_stream));
+
+  passkey_upgrade_request_controller_ =
+      std::make_unique<PasskeyUpgradeRequestController>(
+          GetRenderFrameHost(), std::move(enclave_request_callback),
+          cmtg_key_requested);
 }
 
 base::WeakPtr<AuthenticatorRequestDialogController>
@@ -2333,19 +2354,20 @@ AuthenticatorRequestDialogController::GetRenderFrameHost() const {
 }
 
 void AuthenticatorRequestDialogController::StartPasskeyUpgradeRequest() {
+  base::WeakPtr<AuthenticatorRequestDialogController> weak_this =
+      weak_factory_.GetWeakPtr();
   SetCurrentStep(Step::kPasskeyUpgrade);
+  if (!weak_this) {
+    return;
+  }
 
-  if (!enclave_request_callback_) {
+  if (!passkey_upgrade_request_controller_) {
     RecordPasskeyUpgradeResultHistogram(PasskeyUpgradeResult::kGpmDisabled);
     FIDO_LOG(ERROR)
         << "Passkey upgrade request failed because GPM is disabled by policy.";
     PasskeyUpgradeFailed();
     return;
   }
-
-  passkey_upgrade_request_controller_ =
-      std::make_unique<PasskeyUpgradeRequestController>(
-          GetRenderFrameHost(), std::move(enclave_request_callback_));
   passkey_upgrade_request_controller_->TryUpgradePasswordToPasskey(
       model_->relying_party_id, model_->user_entity.name.value_or(""),
       /*delegate=*/this);

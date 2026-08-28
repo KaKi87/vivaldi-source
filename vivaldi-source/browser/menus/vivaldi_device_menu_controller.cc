@@ -63,7 +63,7 @@ void DeviceMenuController::Populate(
 
   browser_ = browser;
   send_tab_to_self::SendTabToSelfSyncService* service =
-      SendTabToSelfSyncServiceFactory::GetForProfile(browser->profile());
+      SendTabToSelfSyncServiceFactory::GetForProfile(browser->GetProfile());
   int index = 0;
   for (auto device :
        service->GetSendTabToSelfModel()->GetTargetDeviceInfoSortedList()) {
@@ -124,13 +124,14 @@ bool DeviceMenuController::HandleCommand(int command_id, int event_flags) {
       command_id <= IDC_VIV_SEND_TO_DEVICE_LAST) {
     if (GetHasInstalledDevices()) {
       send_tab_to_self::SendTabToSelfSyncService* service =
-          SendTabToSelfSyncServiceFactory::GetForProfile(browser_->profile());
+          SendTabToSelfSyncServiceFactory::GetForProfile(
+              browser_->GetProfile());
       int index = command_id - IDC_VIV_SEND_TO_DEVICE_FIRST;
       std::string guid = service->GetSendTabToSelfModel()
                              ->GetTargetDeviceInfoSortedList()[index]
                              .cache_guid;
       service->GetSendTabToSelfModel()->SendEntry(url_, url_title_, guid, {},
-                                                  {}, base::DoNothing());
+                                                  {}, base::DoNothing(), {});
     } else {
       rv_context_menu_->OnGetMobile();
     }

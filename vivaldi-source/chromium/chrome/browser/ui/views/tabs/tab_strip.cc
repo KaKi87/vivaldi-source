@@ -7,8 +7,6 @@
 #include <stddef.h>
 
 #include <algorithm>
-#include <array>
-#include <iterator>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -18,38 +16,25 @@
 #include <vector>
 
 #include "base/check.h"
-#include "base/compiler_specific.h"
-#include "base/containers/adapters.h"
-#include "base/containers/flat_map.h"
-#include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/i18n/rtl.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/metrics/histogram.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
-#include "base/numerics/safe_conversions.h"
-#include "base/observer_list.h"
-#include "base/scoped_observation.h"
 #include "base/stl_util.h"
-#include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
-#include "base/timer/elapsed_timer.h"
 #include "base/types/to_address.h"
 #include "build/build_config.h"
-#include "chrome/browser/defaults.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/themes/theme_properties.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
-#include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/new_tab_grouping_user_data.h"
 #include "chrome/browser/ui/tabs/tab_group_theme.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -74,33 +59,28 @@
 #include "chrome/browser/ui/views/tabs/tab_slot_view.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_controller.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_layout_helper.h"
-#include "chrome/browser/ui/views/tabs/tab_strip_layout_types.h"
 #include "chrome/browser/ui/views/tabs/z_orderable_tab_container_element.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
 #include "chrome/grit/generated_resources.h"
-#include "chrome/grit/theme_resources.h"
 #include "components/crash/core/common/crash_key.h"
 #include "components/split_tabs/split_tab_id.h"
 #include "components/tab_groups/tab_group_color.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tab_groups/tab_group_visual_data.h"
 #include "components/tabs/public/tab_alert.h"
+#include "components/tabs/public/tab_group.h"
 #include "content/public/browser/web_contents.h"
-#include "ui/base/clipboard/clipboard.h"
-#include "ui/base/clipboard/clipboard_constants.h"
-#include "ui/base/dragdrop/drag_drop_types.h"
+#include "ui/accessibility/platform/assistive_tech.h"
+#include "ui/accessibility/platform/ax_platform.h"
 #include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/list_selection_model.h"
 #include "ui/base/mojom/menu_source_type.mojom-forward.h"
-#include "ui/base/resource/resource_bundle.h"
-#include "ui/base/theme_provider.h"
 #include "ui/color/color_provider.h"
-#include "ui/display/display.h"
-#include "ui/gfx/animation/throb_animation.h"
+#include "ui/compositor/layer.h"
 #include "ui/gfx/animation/tween.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 #include "ui/gfx/geometry/size.h"
@@ -116,7 +96,6 @@
 #include "ui/views/view_utils.h"
 #include "ui/views/widget/root_view.h"
 #include "ui/views/widget/widget.h"
-#include "ui/views/window/frame_view.h"
 
 #if BUILDFLAG(IS_WIN)
 #include "ui/display/win/screen_win.h"
@@ -639,6 +618,23 @@ class TabStrip::TabDragContextImpl : public TabDragContext,
   }
 
   void StartedDragging(const std::vector<TabSlotView*>& views) override {
+    if (drag_controller_) {
+      const auto& drag_data = drag_controller_->GetSessionData();
+      if (base::FeatureList::IsEnabled(features::kCollapseTabGroupDuringDrag) &&
+          drag_data.group_header_drag_data_.has_value()) {
+        tab_groups::TabGroupId group_id =
+            drag_data.group_header_drag_data_->group;
+        TabGroup* group = tab_strip_->controller_->GetTabGroup(group_id);
+        if (group && !group->visual_data()->is_collapsed()) {
+          drag_controller_->SetGroupHeaderWasCollapsedFromDrag(true);
+          tab_groups::TabGroupVisualData new_data(group->visual_data()->title(),
+                                                  group->visual_data()->color(),
+                                                  /*is_collapsed=*/true);
+          tab_strip_->controller_->SetVisualDataForGroup(group_id, new_data);
+        }
+      }
+    }
+
     // Let the controller know that the user started dragging tabs.
     tab_strip_->controller_->OnStartedDragging();
 
@@ -659,6 +655,12 @@ class TabStrip::TabDragContextImpl : public TabDragContext,
       CHECK_NE(dragged_view->parent(), this);
       AddChildViewRaw(dragged_view);
       dragged_view->set_dragging(true);
+      // The dragged tabs must be painted to a layer to ensure they appear
+      // on top of other tabs' loading throbbers.
+      if (base::FeatureList::IsEnabled(features::kCompositorLoadingThrobber)) {
+        dragged_view->SetPaintToLayer();
+        dragged_view->layer()->SetFillsBoundsOpaquely(false);
+      }
       if (TabGroupHeader* header =
               views::AsViewClass<TabGroupHeader>(dragged_view)) {
         tab_strip_->tab_container_->GetGroupViews(header->group().value())
@@ -687,6 +689,22 @@ class TabStrip::TabDragContextImpl : public TabDragContext,
     // Let the controller know that the user stopped dragging tabs.
     tab_strip_->controller_->OnStoppedDragging();
     UpdateDragEventSourceCrashKey({});
+
+    if (drag_controller_) {
+      const DragSessionData& drag_data = drag_controller_->GetSessionData();
+      if (drag_data.group_header_drag_data_.has_value() &&
+          drag_data.group_header_drag_data_->was_collapsed_from_drag) {
+        tab_groups::TabGroupId group_id =
+            drag_data.group_header_drag_data_->group;
+        if (tab_strip_->IsGroupCollapsed(group_id)) {
+          TabGroup* group = tab_strip_->controller_->GetTabGroup(group_id);
+          tab_groups::TabGroupVisualData new_data(group->visual_data()->title(),
+                                                  group->visual_data()->color(),
+                                                  /*is_collapsed=*/false);
+          tab_strip_->controller_->SetVisualDataForGroup(group_id, new_data);
+        }
+      }
+    }
 
     // Animate the dragged views to their ideal positions. We'll hand them back
     // to TabContainer when the animation ends.
@@ -825,7 +843,10 @@ class TabStrip::TabDragContextImpl : public TabDragContext,
   void PaintChildren(const views::PaintInfo& paint_info) override {
     std::vector<ZOrderableTabContainerElement> orderable_children;
     for (views::View* child : children()) {
-      orderable_children.emplace_back(child);
+      // The compositor handles painting children with layers separately.
+      if (!child->layer()) {
+        orderable_children.emplace_back(child);
+      }
     }
 
     // Sort in ascending order by z-value. Stable sort breaks ties by child
@@ -882,6 +903,7 @@ class TabStrip::TabDragContextImpl : public TabDragContext,
       AnimationProgressed(animation);
       slot_view_->set_animating(false);
       slot_view_->set_dragging(false);
+      slot_view_->DestroyLayer();
       tab_container_->ReturnTabSlotView(base::to_address(slot_view_));
     }
 
@@ -1181,10 +1203,10 @@ void TabStrip::NewTabButtonPressed(const ui::Event& event) {
   new_tab_button_pressed_start_time_ = base::TimeTicks::Now();
 
   base::RecordAction(base::UserMetricsAction("NewTab_Button"));
-  GetBrowser()->profile()->SetUserData(
+  GetBrowser()->GetProfile()->SetUserData(
       NewTabGroupingUserData::kNewTabGroupingUserDataKey,
       std::make_unique<NewTabGroupingUserData>(
-          GetBrowser()->tab_strip_model()->GetActiveTabGroupId()));
+          GetBrowser()->tab_strip_model()->GetActiveTab()->GetGroup()));
   if (event.IsMouseEvent()) {
     // Prevent the hover card from popping back in immediately. This forces a
     // normal fade-in.
@@ -1218,6 +1240,10 @@ void TabStrip::SetTabStripObserver(TabStripObserver* observer) {
   // bug.
   CHECK_NE(!!observer_, !!observer);
   observer_ = observer;
+}
+
+void TabStrip::SetIsGlassFrame(bool is_glass) {
+  is_glass_ = is_glass;
 }
 
 bool TabStrip::IsRectInWindowCaption(const gfx::Rect& rect) {
@@ -1880,15 +1906,6 @@ bool TabStrip::IsFocusInTabStrip() const {
   return GetFocusManager() && Contains(GetFocusManager()->GetFocusedView());
 }
 
-bool TabStrip::ShouldCompactLeadingEdge() const {
-  return !BrowserView::GetBrowserViewForBrowser(GetBrowserWindowInterface())
-              ->browser_widget()
-              ->GetFrameView()
-              ->CaptionButtonsOnLeadingEdge() &&
-         (tabs::GetTabSearchPosition(GetBrowserWindowInterface()) ==
-          tabs::TabSearchPosition::kTrailingHorizontalTabstrip);
-}
-
 void TabStrip::MaybeStartDrag(TabSlotView* source,
                               const ui::LocatedEvent& event,
                               ui::ListSelectionModel original_selection) {
@@ -2045,6 +2062,10 @@ bool TabStrip::CanPaintThrobberToLayer() const {
   const views::Widget* widget = GetWidget();
   return widget && !dragging && !IsAnimatingInTabStrip() &&
          !widget->IsFullscreen();
+}
+
+bool TabStrip::IsGlassFrame() const {
+  return is_glass_;
 }
 
 SkColor TabStrip::GetTabSeparatorColor() const {
@@ -2441,18 +2462,23 @@ void TabStrip::OnWidgetActivationChanged(views::Widget* widget, bool active) {
   }
 
   if (active && selected_tabs_.active().has_value() &&
-      !base::FeatureList::IsEnabled(
-          features::kTabStripSkipSelectionEventOnActivation)) {
+      ui::AXPlatform::GetInstance().active_assistive_tech() ==
+          ui::AssistiveTech::kJaws &&
+      ui::AXPlatform::GetInstance().JawsNeedsTabSelectionEvent()) {
     // When the browser window is activated, set the accessible selection and
     // fire a selection event on the currently active tab, to help enable
     // per-tab modes in assistive technologies.
+    //
+    // This is a workaround for older versions of JAWS, which rely on this
+    // event to restore per-tab settings (e.g. virtual cursor) when switching
+    // between windows. Newer versions of JAWS detect the active tab on their
+    // own, so the event is scoped to older versions only.
+    // TODO(crbug.com/505781387): Remove once the oldest supported JAWS version
+    // no longer needs this event.
     tab_at(selected_tabs_.active().value())
         ->GetViewAccessibility()
         .SetIsSelected(true);
 
-    // When the browser window is activated, fire a selection event on the
-    // currently active tab, to help enable per-tab modes in assistive
-    // technologies.
     // We need to make sure we fire the event manually here, because even
     // though we set the tab to selected above, there are cases where the
     // event will not be fired since the selected state was already set

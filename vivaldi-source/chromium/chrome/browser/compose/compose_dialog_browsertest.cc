@@ -10,6 +10,8 @@
 #include "chrome/browser/compose/chrome_compose_client.h"
 #include "chrome/browser/compose/compose_enabling.h"
 #include "chrome/browser/compose/compose_session.h"
+#include "chrome/browser/media/webrtc/desktop_capture_access_handler.h"
+#include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/renderer_context_menu/render_view_context_menu_test_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
@@ -54,6 +56,20 @@ class ComposeSessionBrowserTest : public InteractiveBrowserTest {
 
   void TearDown() override { InteractiveBrowserTest::TearDown(); }
 
+  void SetUpOnMainThread() override {
+    InteractiveBrowserTest::SetUpOnMainThread();
+    MediaCaptureDevicesDispatcher::GetInstance()
+        ->desktop_capture_access_handler_for_test()
+        ->SetRequestApprovedForTest(true);
+  }
+
+  void TearDownOnMainThread() override {
+    MediaCaptureDevicesDispatcher::GetInstance()
+        ->desktop_capture_access_handler_for_test()
+        ->SetRequestApprovedForTest(false);
+    InteractiveBrowserTest::TearDownOnMainThread();
+  }
+
   feature_engagement::test::ScopedIphFeatureList* feature_list() {
     return &feature_list_;
   }
@@ -87,11 +103,11 @@ IN_PROC_BROWSER_TEST_F(ComposeSessionBrowserTest, LifetimeOfBubbleWrapper) {
 }
 
 // TODO(crbug.com/507917198): Re-enable this test
-#if BUILDFLAG(IS_LINUX)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
 #define MAYBE_ContextMenuPasteEnabled DISABLED_ContextMenuPasteEnabled
 #else
 #define MAYBE_ContextMenuPasteEnabled ContextMenuPasteEnabled
-#endif
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
 IN_PROC_BROWSER_TEST_F(ComposeSessionBrowserTest,
                        MAYBE_ContextMenuPasteEnabled) {
   content::BrowserTestClipboardScope test_clipboard_scope;
@@ -174,7 +190,7 @@ IN_PROC_BROWSER_TEST_F(ComposeSessionBrowserTest, OpenFeedbackPage) {
   // is flaky on Linux MSan builders. This requires further investigation, but
   // the MSBB dialog state is not on the feedback page testing path so the
   // current state still satisfies the test requirement.
-  PrefService* prefs = browser()->profile()->GetPrefs();
+  PrefService* prefs = browser()->GetProfile()->GetPrefs();
   prefs->SetBoolean(
       unified_consent::prefs::kUrlKeyedAnonymizedDataCollectionEnabled, true);
 

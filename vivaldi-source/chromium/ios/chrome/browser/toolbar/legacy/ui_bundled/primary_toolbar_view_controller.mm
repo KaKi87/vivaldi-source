@@ -154,7 +154,9 @@ BASE_FEATURE(kPrimaryToolbarViewDidLoadUpdateViews,
     progress = 1; // End Vivaldi
 
   // Sometimes an NTP may make a delegate call when it's no longer visible.
-  if (!self.isNTP) {
+  if (!self.isNTP ||
+      (!IsComposeboxIpadEnabled() &&
+       (!self.shouldHideOmniboxOnNTP || self.locationBarFocused))) {
     progress = 1;
   }
 
@@ -282,6 +284,20 @@ BASE_FEATURE(kPrimaryToolbarViewDidLoadUpdateViews,
   // This is hiding/showing and positionning the omnibox. This is only needed
   // if the omnibox should be hidden when there is only one toolbar.
   [self setScrollProgressForTabletOmnibox:(isNTP ? 0 : 1)];
+}
+
+- (void)setLocationBarFocused:(BOOL)locationBarFocused {
+  if (self.locationBarFocused == locationBarFocused) {
+    return;
+  }
+  [super setLocationBarFocused:locationBarFocused];
+
+  if (!IsComposeboxIpadEnabled()) {
+    [self setScrollProgressForTabletOmnibox:(self.isNTP &&
+                                             self.shouldHideOmniboxOnNTP)
+                                                ? 0
+                                                : 1];
+  }
 }
 
 - (BOOL)locationBarIsExpanded {

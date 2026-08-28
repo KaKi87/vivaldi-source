@@ -15,6 +15,7 @@
 <translation id="1728677426644403582">Dies ist der Quelltext einer Webseite</translation>
 <translation id="1734878702283171397">Setzen Sie sich mit dem Systemadministrator in Verbindung.</translation>
 <translation id="1768211456781949159"><ph name="BEGIN_LINK" />Versuchen Sie eine Windows Netzwerkdiagnose durchzuführen<ph name="END_LINK" />.</translation>
+<translation id="1932098463447129402">Nicht vor</translation>
 <translation id="1974060860693918893">Erweitert</translation>
 <translation id="2032962459168915086"><ph name="BEGIN_LINK" />Proxy und Firewall prüfen<ph name="END_LINK" /></translation>
 <translation id="2119505898009119320">Ausgestellt für: <ph name="ORGANIZATION" /> [<ph name="JURISDICTION" />]</translation>
@@ -28,11 +29,12 @@
 <translation id="2467694685043708798"><ph name="BEGIN_LINK" />Eine Netzwerkdiagnose durchführen<ph name="END_LINK" /></translation>
 <translation id="2491414235131909199">Diese Seite wurde von einer Erweiterung blockiert</translation>
 <translation id="255002559098805027"><ph name="HOST_NAME" /> hat eine ungültige Antwort gesendet.</translation>
+<translation id="2607101320794533334">Informationen zum öffentlichen Schlüssel des Antragstellers</translation>
 <translation id="2634124572758952069">Die IP-Adresse des Servers <ph name="HOST_NAME" /> wurde nicht gefunden.</translation>
-<translation id="2649204054376361687"><ph name="CITY" />, <ph name="COUNTRY" /></translation>
 <translation id="2650446666397867134">Der Zugriff auf die Datei wurde verweigert</translation>
 <translation id="2705137772291741111">Die (im Cache) gespeicherte Kopie dieser Website konnte nicht gelesen werden.</translation>
 <translation id="2730326759066348565"><ph name="BEGIN_LINK" />Verbindungsdiagnose ausführen<ph name="END_LINK" /></translation>
+<translation id="2738771556149464852">Nicht nach</translation>
 <translation id="2784949926578158345">Die Verbindung wurde zurückgesetzt.</translation>
 <translation id="2826760142808435982">Die Verbindung ist mit <ph name="CIPHER" /> verschlüsselt und authentifiziert und verwendet <ph name="KX" /> als Mechanismus für den Schlüsselaustausch.</translation>
 <translation id="2909946352844186028">Eine Netzwerkänderung ist aufgetreten.</translation>
@@ -54,24 +56,23 @@
 <translation id="3447884698081792621">Zertifikat anzeigen (ausgestellt von <ph name="ISSUER" />)</translation>
 <translation id="3462200631372590220">Erweiterte Informationen ausblenden</translation>
 <translation id="3484560055331845446">Sie könnten den Zugriff auf Ihr Google-Konto verlieren. Chrome empfiehlt Ihnen, Ihr Passwort jetzt zu ändern. Sie werden dazu aufgefordert, sich anzumelden.</translation>
+<translation id="3493881266323043047">Gültigkeit</translation>
 <translation id="3566021033012934673">Dies ist keine sichere Verbindung</translation>
-<translation id="3574305903863751447"><ph name="CITY" />, <ph name="STATE" /> <ph name="COUNTRY" /></translation>
 <translation id="3586931643579894722">Details ausblenden</translation>
 <translation id="3630155396527302611">Falls das Programm schon in der Liste mit erlaubtem Netzwerkzugriff eingetragen ist, entfernen Sie es aus der Liste und fügen Sie es noch einmal hinzu.</translation>
 <translation id="3658742229777143148">Überarbeitung</translation>
 <translation id="3681007416295224113">Zertifikatinformationen</translation>
 <translation id="3717027428350673159"><ph name="BEGIN_LINK" />Proxy, Firewall und DNS-Konfiguration prüfen<ph name="END_LINK" /></translation>
+<translation id="3798449238516105146">Version</translation>
 <translation id="382518646247711829">Falls Sie einen Proxyserver verwenden...</translation>
 <translation id="3950820424414687140">Anmelden</translation>
 <translation id="3973234410852337861"><ph name="HOST_NAME" /> ist gesperrt</translation>
 <translation id="3987940399970879459">Weniger als 1 MB</translation>
 <translation id="4075732493274867456">Client und Server unterstützen keine gemeinsamen SSL-Protokollversionen oder Verschlüsselungsverfahren.</translation>
-<translation id="4116663294526079822">Auf dieser Website immer zulassen</translation>
 <translation id="4130226655945681476">Prüfen Sie Netzwerkkabel, Modem und Router</translation>
 <translation id="4165986682804962316">Website-Einstellungen</translation>
 <translation id="4203896806696719780"><ph name="BEGIN_LINK" />Firewall und Antivirenkonfiguration prüfen<ph name="END_LINK" /></translation>
 <translation id="4226937834893929579"><ph name="BEGIN_LINK" />Versuchen Sie eine Netzwerkdiagnose durchzuführen<ph name="END_LINK" />.</translation>
-<translation id="4235360514405112390">Gültig</translation>
 <translation id="4250431568374086873">Die Verbindung zu dieser Website ist nicht volkommen sicher</translation>
 <translation id="4265872034478892965">Von Ihrem Administrator zugelassen</translation>
 <translation id="4305666528087210886">Zugriff auf die Datei nicht möglich</translation>
@@ -91,10 +92,10 @@
 <translation id="5023310440958281426">Informieren Sie sich über die von Ihrem Administrator festgelegten Richtlinien</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Proxyadresse prüfen<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-Bit)</translation>
+<translation id="5154702632169343078">Betreff</translation>
 <translation id="5355557959165512791">Sie können <ph name="SITE" /> zurzeit nicht aufrufen, da das Zertifikat widerrufen wurde. Netzwerkfehler und Angriffe sind in der Regel nur vorübergehend, sodass die Seite wahrscheinlich später wieder funktioniert.</translation>
 <translation id="5386426401304769735">Die Zertifikatskette für diese Site enthält ein mit SHA-1 signiertes Zertifikat.</translation>
 <translation id="5452270690849572955">Die Seite wurde auf <ph name="HOST_NAME" /> nicht gefunden</translation>
-<translation id="5457113250005438886">Ungültig</translation>
 <translation id="5492298309214877701">Diese Website im Intranet des Unternehmens, der Organisation oder der Schule hat die gleiche URL wie eine externe Website.
     <ph name="LINE_BREAK" />
     Wenden Sie sich an Ihren Systemadministrator.</translation>
@@ -107,6 +108,7 @@
 <translation id="5799902971440853357">Sie können <ph name="SITE" /> zurzeit nicht aufrufen, weil die Website verschlüsselte Informationen zur Identifikation gesendet hat, die Vivaldi nicht verarbeiten kann. Netzwerkfehler und Angriffe sind in der Regel nur vorübergehend, sodass die Seite wahrscheinlich später wieder funktionieren wird.</translation>
 <translation id="5810442152076338065">Ihre Verbindung zu <ph name="DOMAIN" /> ist mit einer veralteten Verschlüsselungs-Suite verschlüsselt.</translation>
 <translation id="5838278095973806738">Sie sollten keine vertraulichen Informationen wie Passwörter oder Kreditkartendaten auf dieser Website eingeben, da sie von Angreifern gestohlen werden könnten.</translation>
+<translation id="5851868085455377790">Aussteller</translation>
 <translation id="5869405914158311789">Diese Website ist nicht erreichbar</translation>
 <translation id="5932224571077948991">Website zeigt aufdringliche oder irreführende Werbung an</translation>
 <translation id="6051221802930200923">Sie können <ph name="SITE" /> zurzeit nicht aufrufen, da die Website Zertifikats-Pinning verwendet. Netzwerkfehler und Angriffe sind in der Regel nur vorübergehend, sodass die Seite wahrscheinlich später wieder funktioniert.</translation>
@@ -134,19 +136,15 @@
 <translation id="6897140037006041989">User-Agent</translation>
 <translation id="7096937462164235847">Die Identität dieser Website ist nicht verifiziert.</translation>
 <translation id="7108819624672055576">Von einer Erweiterung zugelassen</translation>
-<translation id="7111012039238467737">(Gültig)</translation>
 <translation id="7210863904660874423"><ph name="HOST_NAME" /> erfüllt die Sicherheitsstandards nicht.</translation>
 <translation id="7219179957768738017">Die Verbindung verwendet <ph name="SSL_VERSION" />.</translation>
 <translation id="7221855153210829124">Benachrichtigungen anzeigen</translation>
 <translation id="7353601530677266744">Befehlszeile</translation>
 <translation id="7419106976560586862">Profilpfad</translation>
-<translation id="7455133967321480974">Globalen Standard verwenden (Blockieren)</translation>
 <translation id="7518003948725431193">Für die folgende Webadresse wurde keine Webseite gefunden: <ph name="URL" /></translation>
 <translation id="7549584377607005141">Damit diese Webseite richtig angezeigt wird, werden die Daten benötigt, die Sie zuvor eingegeben haben. Sie können diese Daten erneut senden, dabei werden jedoch sämtliche Aktionen wiederholt, die zuvor durch diese Seite ausgeführt wurden.</translation>
 <translation id="759889825892636187"><ph name="HOST_NAME" /> kann diese Anfrage momentan nicht verarbeiten.</translation>
 <translation id="7662298039739062396">Einstellung wird von einer Erweiterung gesteuert</translation>
-<translation id="7663736086183791259">Zertifikat <ph name="CERTIFICATE_VALIDITY" /></translation>
-<translation id="7714464543167945231">Zertifikat</translation>
 <translation id="7716147886133743102">Von Ihrem Administrator blockiert</translation>
 <translation id="7716424297397655342">Diese Website kann nicht aus dem Cache geladen werden</translation>
 <translation id="7758069387465995638">Möglicherweise wurde die Verbindung von einer Firewall oder Antivirensoftware blockiert.</translation>
@@ -154,14 +152,11 @@
 <translation id="7834399512844817676"><ph name="SITE" /> schützt Ihre Daten in der Regel durch Verschlüsselung. Als Vivaldi dieses Mal versuchte, eine Verbindung zu <ph name="SITE" /> herzustellen, sendete die Website ungewöhnliche und falsche Informationen zurück, um sich zu identifizieren. Entweder versucht ein Angreifer, sich als <ph name="SITE" /> auszugeben, oder die Verbindung wurde durch eine WLAN-Anmeldeseite unterbrochen. Da Vivaldi die Verbindung vor dem Austausch von Daten unterbrochen hat, sind Ihre Informationen weiterhin sicher.</translation>
 <translation id="7878562273885520351">Ihr Passwort könnte kompromittiert sein</translation>
 <translation id="7951415247503192394">(32-Bit)</translation>
-<translation id="8041940743680923270">Globalen Standard verwenden (Nachfragen)</translation>
 <translation id="808894953321890993">Passwort ändern</translation>
 <translation id="8149426793427495338">Ihr Computer geht in den Ruhemodus.</translation>
 <translation id="8150722005171944719">Die Datei unter <ph name="URL" /> kann nicht gelesen werden. Sie wurde möglicherweise entfernt oder verschoben oder die Dateiberechtigungen verhindern den Zugriff.</translation>
-<translation id="8184538546369750125">Globalen Standard verwenden (Zulassen)</translation>
 <translation id="8211406090763984747">Verbindung ist sicher</translation>
 <translation id="8241707690549784388">Die gesuchte Seite hat die von Ihnen eingegebenen Informationen verwendet bzw. verarbeitet. Wenn Sie zu dieser Seite zurückgehen, wird eventuell eine schon ausgeführte Aktion wiederholt. Möchten Sie fortfahren?</translation>
-<translation id="8241712895048303527">Auf dieser Website blockieren</translation>
 <translation id="8286036467436129157">Anmelden</translation>
 <translation id="8288807391153049143">Zertifikat anzeigen</translation>
 <translation id="8289355894181816810">Wenn Sie weitere Informationen dazu benötigen, kann Ihnen Ihr Netzwerkadministrator weiterhelfen.</translation>
@@ -169,16 +164,15 @@
 <translation id="8498891568109133222"><ph name="HOST_NAME" /> antwortete dem Gateway nicht.</translation>
 <translation id="8503813439785031346">Nutzername</translation>
 <translation id="8703575177326907206">Die Verbindung zu <ph name="DOMAIN" /> ist nicht verschlüsselt.</translation>
+<translation id="8705331520020532516">Seriennummer</translation>
 <translation id="8740359287975076522">Die &lt;abbr id="dnsDefinition"&gt;DNS-Adresse&lt;/abbr&gt; von <ph name="HOST_NAME" /> wurde nicht gefunden. Eine Problemdiagnose wird durchgeführt.</translation>
 <translation id="8820817407110198400">Lesezeichen</translation>
 <translation id="8963117664422609631">Website-Einstellungen aufrufen</translation>
 <translation id="9001074447101275817">Für den Proxy <ph name="DOMAIN" /> sind ein Nutzername und ein Passwort erforderlich.</translation>
-<translation id="9025348182339809926">(Ungültig)</translation>
 <translation id="9039213469156557790">Darüber hinaus enthält diese Seite auch andere Ressourcen, die nicht sicher sind. Diese Ressourcen können von anderen während der Übertragung abgefangen und von einem Angreifer modifiziert werden, um das Verhalten der Seite zu ändern.</translation>
 <translation id="9062620674789239642">Eventuell wurde sie verschoben, bearbeitet oder gelöscht.</translation>
 <translation id="9069693763241529744">Von einer Erweiterung blockiert</translation>
 <translation id="9073799351042754113">Sie haben die Sicherheitswarnungen für diese Website deaktiviert.</translation>
-<translation id="9169664750068251925">Auf dieser Website immer blockieren</translation>
 <translation id="9183425211371246419"><ph name="HOST_NAME" /> verwendet ein nicht unterstütztes Protokoll.</translation>
 <translation id="936602727769022409">Sie könnten den Zugriff auf Ihr Google-Konto verlieren. Vivaldi empfiehlt Ihnen, Ihr Passwort jetzt zu ändern. Sie werden dazu aufgefordert, sich anzumelden.</translation>
 <translation id="969892804517981540">Offizieller Build</translation>

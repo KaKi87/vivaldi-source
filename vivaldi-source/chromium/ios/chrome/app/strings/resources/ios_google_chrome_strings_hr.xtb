@@ -61,6 +61,7 @@ Važne napomene:
 <translation id="2120238739383482109">Otvara Chromeove oznake.</translation>
 <translation id="2147651015520127414">Chrome je potvrdio da je <ph name="ISSUER" /> izdao certifikat web-lokacije.</translation>
 <translation id="2199719347983604670">Podaci s Chrome sinkronizacije</translation>
+<translation id="2212318912894837281">Unesite šifru da biste spremili ovu zaporku i imali pristup podacima iz Chromea na svim svojim uređajima</translation>
 <translation id="2213327331203157297">Da biste onemogućili način zaključavanja u Chromeu, isključite ga na iPhoneu.</translation>
 <translation id="2242467532204595597">Chrome možete upotrebljavati svaki put kad dodirnete veze u porukama, dokumentima i drugim aplikacijama.</translation>
 <translation id="2256384876478573507">Brže otvorite Chrome kad ste spremni za pregledavanje na iPhoneu.</translation>
@@ -264,6 +265,7 @@ Više postavki koje upotrebljavaju podatke za poboljšanje vašeg doživljaja u 
 <translation id="7038674195294813388">Otvorite postavke zadanih aplikacija na iOS-u, zatim dodirnite opciju Aplikacija preglednika i odaberite Chrome.</translation>
 <translation id="7056826488869329999">Otvara i pokreće sigurnosnu provjeru u Chromeu.</translation>
 <translation id="7061455974939528301">Pritisnite i zadržite ikonu Chromea pa kliknite Uredite početni zaslon</translation>
+<translation id="7095110968493193530">Na Google upravitelj zaporki za <ph name="EMAIL" /></translation>
 <translation id="7124339256045485976">Ažuriranje Chromea</translation>
 <translation id="7145599899567697473">Spremanje i automatsko popunjavanje zaporki u Chromeu</translation>
 <translation id="7161390184744336561">Google Chrome je zastario</translation>
@@ -371,6 +373,7 @@ Vaši su podaci šifrirani vašom šifrom <ph name="TIME" /> Unesite je da biste
 <translation id="9068336935206019333">Otvori u anonimnom načinu Chromea</translation>
 <translation id="9082304295862405388">Gemini može upotrebljavati vašu točnu lokaciju, ovisno o dopuštenju koje ste već dali Chromeu</translation>
 <translation id="909127538042363610">Odaberite najsnažniju Chromeovu zaštitu sigurnosti</translation>
+<translation id="9113725809421872108">Potvrdite svoj identitet da biste spremili ovu zaporku i imali pristup podacima iz Chromea na svim svojim uređajima</translation>
 <translation id="9122931302567044771">To znači da će Chrome svaki put zahtijevati web-lokaciju za računalo.</translation>
 <translation id="9176561303811134420">Upravljanje načinima plaćanja u Chromeu</translation>
 <translation id="9181628561061032322">Otvara nedavne kartice u Chromeu.</translation>

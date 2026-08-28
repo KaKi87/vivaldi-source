@@ -14,6 +14,7 @@
 #include "base/metrics/user_metrics.h"
 #include "base/metrics/user_metrics_action.h"
 #include "base/no_destructor.h"
+#include "base/notreached.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
 #include "chrome/app/vector_icons/vector_icons.h"
@@ -33,6 +34,7 @@
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/vector_icons/vector_icons.h"
+#include "components/omnibox/browser/vector_icons.h"
 #include "third_party/abseil-cpp/absl/functional/overload.h"
 #include "ui/actions/actions.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -98,7 +100,7 @@ ToolbarController::PopOutHandler::~PopOutHandler() = default;
 
 void ToolbarController::PopOutHandler::OnElementShown(
     ui::TrackedElement* element) {
-  controller_->PopOut(identifier_);
+  controller_->PopOut(identifier_, /*show_synchronously=*/false);
 }
 
 void ToolbarController::PopOutHandler::OnElementHidden(
@@ -212,16 +214,10 @@ ToolbarController::ToolbarController(
         overflow_id);
   }
 
-  // Adjust overflow order of WebUI toolbar. It doesn't have an entry in
-  // `responsive_elements` because it potentially adds multiple elements, so has
-  // to be handled separately.
-  auto* const web_ui_toolbar_element = FindToolbarElementWithId(
-      toolbar_container_view_, kWebUIToolbarElementIdentifier);
-  if (web_ui_toolbar_element) {
-    views::FlexSpecification flex_spec =
-        web_ui_toolbar_element->GetProperty(views::kFlexBehaviorKey)
-            ->WithOrder(id_to_order_map.at(kWebUIToolbarElementIdentifier));
-    web_ui_toolbar_element->SetProperty(views::kFlexBehaviorKey, flex_spec);
+  const auto it = id_to_order_map.find(kWebUIToolbarElementIdentifier);
+  // There may be no `kWebUIToolbarElementIdentifier` entry in unit tests.
+  if (it != id_to_order_map.end()) {
+    webui_toolbar_button_flex_order_ = it->second;
   }
 
   responsive_elements_ = GetResponsiveElementsWithOrderedActions();
@@ -235,7 +231,7 @@ ToolbarController::~ToolbarController() {
 
 std::vector<ToolbarController::ResponsiveElementInfo>
 ToolbarController::GetDefaultResponsiveElements(Browser* browser) {
-  bool is_incognito = browser->profile()->IsIncognitoProfile();
+  bool is_incognito = browser->GetProfile()->IsIncognitoProfile();
   // TODO(crbug.com/40912482): Fill in observed identifier.
   // Order matters because it should match overflow menu order top to bottom.
   std::vector<ToolbarController::ResponsiveElementInfo> elements = {
@@ -262,13 +258,16 @@ ToolbarController::GetDefaultResponsiveElements(Browser* browser) {
               IDS_OVERFLOW_MENU_ITEM_TEXT_SPLIT_VIEW,
               &(features::IsRoundedIconsEnabled() ? kSplitSceneIcon
                                                   : kSplitSceneOldIcon),
-              kToolbarSplitTabsToolbarButtonElementId},
+              kToolbarSplitTabsToolbarButtonElementId,
+              kToolbarSplitTabsMenuElementId},
           /*is_section_end=*/true),
       ToolbarController::ResponsiveElementInfo(
           ToolbarController::ElementIdInfo{
               kPinnedToolbarActionShowSidePanelContextualTasksElementId,
               IDS_OVERFLOW_MENU_ITEM_TEXT_CONTEXTUAL_TASKS,
-              &kDockToRightSparkCustomIcon,
+              &(features::IsRoundedIconsEnabled()
+                    ? omnibox::kSearchSparkIcon
+                    : omnibox::kSearchSparkOldIcon),
               kPinnedToolbarActionShowSidePanelContextualTasksElementId},
           /*is_section_end=*/false),
   };
@@ -279,7 +278,7 @@ ToolbarController::GetDefaultResponsiveElements(Browser* browser) {
     auto* root_item = browser_actions->root_action_item();
     if (root_item) {
       PinnedToolbarActionsModel* const pinned_actions_model =
-          PinnedToolbarActionsModel::Get(browser->profile());
+          PinnedToolbarActionsModel::Get(browser->GetProfile());
       for (const auto& item : root_item->GetChildren().children()) {
         auto id = item->GetActionId();
         // Add an item if it is pinnable and/or pinned. The tab search item may
@@ -348,10 +347,12 @@ std::vector<ui::ElementIdentifier>
 ToolbarController::GetDefaultOverflowOrder() {
   std::vector<ui::ElementIdentifier> order = {
       kToolbarMediaButtonElementId, kToolbarBatterySaverButtonElementId,
-      kToolbarHomeButtonElementId, kToolbarHomeButtonElementId,
-      // The WebUIToolbarWebView is between the home and forward button in
-      // overflow order, since it can include one or both of them, and hides
-      // them on overflow.
+      kToolbarHomeButtonElementId,
+      // `kWebUIToolbarElementIdentifier` is a placeholder element representing
+      // the order it uses for both the home and forward buttons, if it's
+      // displaying them. Using a value in the middle of the two means that it
+      // uses the correct relative order, even when only one of the two buttons
+      // is being handled by the WebUI toolbar.
       kWebUIToolbarElementIdentifier, kToolbarForwardButtonElementId,
       kToolbarAvatarButtonElementId, kToolbarSplitTabsToolbarButtonElementId,
       kPinnedToolbarActionShowSidePanelContextualTasksElementId};
@@ -374,7 +375,9 @@ std::string ToolbarController::GetActionNameFromElementIdentifier(
            {kToolbarBatterySaverButtonElementId, "BatterySaverButton"},
            {kExtensionsMenuButtonElementId, "ExtensionsMenuButton"},
            {kToolbarForwardButtonElementId, "ForwardButton"},
+           {kActionForward, "ForwardButton"},
            {kToolbarHomeButtonElementId, "HomeButton"},
+           {kActionHome, "HomeButton"},
            {kToolbarMediaButtonElementId, "MediaButton"},
            {kToolbarSidePanelButtonElementId, "SidePanelButton"},
            {kToolbarSplitTabsToolbarButtonElementId, "SplitTabs"},
@@ -390,12 +393,16 @@ std::string ToolbarController::GetActionNameFromElementIdentifier(
            {kActionQrCodeGenerator, "PinnedQrCodeGeneratorButton"},
            {kActionRouteMedia, "PinnedCastButton"},
            {kActionSendTabToSelf, "PinnedSendTabToSelfButton"},
+           {kActionShowAddresses, "PinnedShowAddressesBubbleOrPageButton"},
            {kActionShowAddressesBubbleOrPage,
             "PinnedShowAddressesBubbleOrPageButton"},
            {kActionShowChromeLabs, "PinnedShowChromeLabsButton"},
            {kActionShowDownloads, "PinnedShowDownloadsButton"},
+           {kActionShowPasswordManager,
+            "PinnedShowPasswordsBubbleOrPageButton"},
            {kActionShowPasswordsBubbleOrPage,
             "PinnedShowPasswordsBubbleOrPageButton"},
+           {kActionShowPaymentMethods, "PinnedShowPaymentsBubbleOrPageButton"},
            {kActionShowPaymentsBubbleOrPage,
             "PinnedShowPaymentsBubbleOrPageButton"},
            {kActionShowTranslate, "PinnedShowTranslateButton"},
@@ -415,7 +422,8 @@ std::string ToolbarController::GetActionNameFromElementIdentifier(
            {kActionTabSearch, "PinnedTabSearchButton"},
            {kActionSidePanelShowGlic, "PinnedGlicButton"},
            {kActionSidePanelShowTabsFromOtherDevices,
-            "PinnedTabsFromOtherDevicesButton"}});
+            "PinnedTabsFromOtherDevicesButton"},
+           {kGlicButtonElementId, "GlicButtonElementId"}});
 
   const auto it = identifier_to_action_name_map->find(identifier);
   return it == identifier_to_action_name_map->end()
@@ -424,7 +432,8 @@ std::string ToolbarController::GetActionNameFromElementIdentifier(
                              it->second});
 }
 
-bool ToolbarController::PopOut(ui::ElementIdentifier identifier) {
+bool ToolbarController::PopOut(ui::ElementIdentifier identifier,
+                               bool show_synchronously) {
   auto* const element =
       FindToolbarElementWithId(toolbar_container_view_, identifier);
 
@@ -465,6 +474,9 @@ bool ToolbarController::PopOut(ui::ElementIdentifier identifier) {
   }
 
   element->parent()->InvalidateLayout();
+  if (show_synchronously) {
+    toolbar_container_view_->DeprecatedLayoutImmediately();
+  }
   return true;
 }
 
@@ -599,8 +611,22 @@ views::View* ToolbarController::FindToolbarElementWithId(
   return nullptr;
 }
 
+bool ToolbarController::IsElementOverflowedForTesting(
+    ui::ElementIdentifier id) const {
+  for (const auto& responsive_element : responsive_elements_) {
+    const auto* element_id_info = std::get_if<ToolbarController::ElementIdInfo>(
+        &responsive_element.overflow_id);
+    if (!element_id_info || element_id_info->overflow_identifier != id) {
+      continue;
+    }
+    return IsOverflowed(responsive_element);
+  }
+  // Element cannot overflow, since it is not in `responsive_elements_`
+  NOTREACHED();
+}
+
 std::vector<const ToolbarController::ResponsiveElementInfo*>
-ToolbarController::GetOverflowedElements() {
+ToolbarController::GetOverflowedElements() const {
   std::vector<const ToolbarController::ResponsiveElementInfo*>
       overflowed_buttons;
   if (ToolbarControllerUtil::PreventOverflow()) {
@@ -807,11 +833,8 @@ void ToolbarController::ExecuteCommand(int command_id, int event_flags) {
           [&, this](actions::ActionId id) {
             pinned_actions_delegate_->GetActionItemFor(id)->InvokeAction(
                 actions::ActionInvocationContext::Builder()
-                    .SetProperty(
-                        kSidePanelOpenTriggerKey,
-                        static_cast<
-                            std::underlying_type_t<SidePanelOpenTrigger>>(
-                            SidePanelOpenTrigger::kOverflowMenu))
+                    .SetProperty(kSidePanelOpenTriggerKey,
+                                 SidePanelOpenTrigger::kOverflowMenu)
                     .Build());
             action_key.emplace<actions::ActionId>(id);
           },

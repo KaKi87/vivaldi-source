@@ -9,6 +9,7 @@
 #import "base/metrics/histogram_functions.h"
 #import "base/metrics/user_metrics.h"
 #import "base/metrics/user_metrics_action.h"
+#import "base/notimplemented.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/strings/utf_string_conversions.h"
 #import "components/bookmarks/browser/bookmark_model.h"
@@ -17,6 +18,7 @@
 #import "components/feature_engagement/public/event_constants.h"
 #import "components/feature_engagement/public/feature_constants.h"
 #import "components/feature_engagement/public/tracker.h"
+#import "components/image_fetcher/core/image_fetcher.h"
 #import "components/language/ios/browser/ios_language_detection_tab_helper.h"
 #import "components/language/ios/browser/ios_language_detection_tab_helper_observer_bridge.h"
 #import "components/password_manager/core/browser/manage_passwords_referrer.h"
@@ -29,26 +31,37 @@
 #import "components/search_engines/template_url_service.h"
 #import "components/send_tab_to_self/features.h"
 #import "components/signin/public/identity_manager/identity_manager.h"
+#import "components/signin/public/identity_manager/objc/identity_manager_observer_bridge.h"
+#import "components/signin/public/identity_manager/primary_account_change_event.h"
 #import "components/supervised_user/core/common/features.h"
 #import "components/supervised_user/core/common/supervised_user_constants.h"
 #import "components/sync/service/sync_service.h"
 #import "components/sync/service/sync_user_settings.h"
 #import "components/translate/core/browser/translate_manager.h"
 #import "components/translate/core/browser/translate_prefs.h"
+#import "ios/chrome/browser/authentication/account_menu/public/account_menu_constants.h"
 #import "ios/chrome/browser/bookmarks/model/bookmark_model_bridge_observer.h"
 #import "ios/chrome/browser/bubble/model/tab_based_iph_browser_agent.h"
 #import "ios/chrome/browser/commerce/model/push_notification/push_notification_feature.h"
 #import "ios/chrome/browser/default_browser/model/default_browser_interest_signals.h"
 #import "ios/chrome/browser/find_in_page/model/find_tab_helper.h"
+#import "ios/chrome/browser/home_customization/model/home_background_customization_service.h"
+#import "ios/chrome/browser/home_customization/model/user_uploaded_image_manager.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_service.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_service_factory.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_tab_helper.h"
+#import "ios/chrome/browser/intelligence/bwg/utils/gemini_availability.h"
 #import "ios/chrome/browser/intelligence/bwg/utils/gemini_constants.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/intents/model/intents_donation_helper.h"
-#import "ios/chrome/browser/lens_overlay/coordinator/lens_overlay_availability.h"
 #import "ios/chrome/browser/lens_overlay/model/lens_overlay_tab_helper.h"
+#import "ios/chrome/browser/lens_overlay/public/lens_overlay_availability.h"
+#import "ios/chrome/browser/lens_overlay/public/lens_overlay_availability_utils.h"
+#import "ios/chrome/browser/lens_overlay/public/lens_overlay_entrypoint.h"
 #import "ios/chrome/browser/ntp/shared/metrics/feed_metrics_recorder.h"
+#import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_color_palette.h"
+#import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_color_palette_util.h"
+#import "ios/chrome/browser/ntp/ui_bundled/theme_utils.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_presenter.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_presenter_observer_bridge.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_request.h"
@@ -57,6 +70,7 @@
 #import "ios/chrome/browser/policy/ui_bundled/user_policy_util.h"
 #import "ios/chrome/browser/popup_menu/overflow_menu/coordinator/overflow_menu_orderer.h"
 #import "ios/chrome/browser/popup_menu/overflow_menu/model/destination_usage_history.h"
+#import "ios/chrome/browser/popup_menu/overflow_menu/public/features.h"
 #import "ios/chrome/browser/popup_menu/overflow_menu/public/overflow_menu_constants.h"
 #import "ios/chrome/browser/popup_menu/overflow_menu/ui/overflow_menu_metrics.h"
 #import "ios/chrome/browser/popup_menu/overflow_menu/ui/ui_swift.h"
@@ -64,7 +78,6 @@
 #import "ios/chrome/browser/reader_mode/model/constants.h"
 #import "ios/chrome/browser/reader_mode/model/features.h"
 #import "ios/chrome/browser/reader_mode/model/reader_mode_tab_helper.h"
-#import "ios/chrome/browser/reading_list/model/offline_url_utils.h"
 #import "ios/chrome/browser/reading_list/ui_bundled/reading_list_utils.h"
 #import "ios/chrome/browser/search_engines/model/search_engine_observer_bridge.h"
 #import "ios/chrome/browser/search_engines/model/search_engines_util.h"
@@ -76,12 +89,13 @@
 #import "ios/chrome/browser/shared/public/commands/activity_service_commands.h"
 #import "ios/chrome/browser/shared/public/commands/bookmarks_commands.h"
 #import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
-#import "ios/chrome/browser/shared/public/commands/bwg_commands.h"
 #import "ios/chrome/browser/shared/public/commands/cobalt_commands.h"
 #import "ios/chrome/browser/shared/public/commands/find_in_page_commands.h"
+#import "ios/chrome/browser/shared/public/commands/gemini_commands.h"
 #import "ios/chrome/browser/shared/public/commands/help_commands.h"
 #import "ios/chrome/browser/shared/public/commands/lens_overlay_commands.h"
 #import "ios/chrome/browser/shared/public/commands/level_up_commands.h"
+#import "ios/chrome/browser/shared/public/commands/new_tab_page_commands.h"
 #import "ios/chrome/browser/shared/public/commands/open_new_tab_command.h"
 #import "ios/chrome/browser/shared/public/commands/overflow_menu_customization_commands.h"
 #import "ios/chrome/browser/shared/public/commands/page_action_menu_commands.h"
@@ -104,6 +118,9 @@
 #import "ios/chrome/browser/shared/ui/util/util_swift.h"
 #import "ios/chrome/browser/sharing/ui_bundled/sharing_metrics.h"
 #import "ios/chrome/browser/sharing/ui_bundled/sharing_params.h"
+#import "ios/chrome/browser/signin/model/authentication_service.h"
+#import "ios/chrome/browser/signin/model/authentication_service_observer_bridge.h"
+#import "ios/chrome/browser/signin/model/avatar/avatar_provider.h"
 #import "ios/chrome/browser/supervised_user/model/supervised_user_capabilities.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_utils.h"
 #import "ios/chrome/browser/translate/model/chrome_ios_translate_client.h"
@@ -111,6 +128,7 @@
 #import "ios/chrome/browser/web/model/web_navigation_browser_agent.h"
 #import "ios/chrome/browser/whats_new/coordinator/whats_new_util.h"
 #import "ios/chrome/browser/window_activities/model/window_activity_helpers.h"
+#import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/grit/ios_branded_strings.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ios/public/provider/chrome/browser/cobalt/cobalt_api.h"
@@ -123,6 +141,7 @@
 #import "ios/web/public/web_client.h"
 #import "ios/web/public/web_state.h"
 #import "ios/web/public/web_state_observer_bridge.h"
+#import "skia/ext/skia_utils_ios.h"
 #import "ui/base/l10n/l10n_util.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 
@@ -150,6 +169,9 @@ namespace {
 
 // Approximate number of visible page actions by default.
 const unsigned int kDefaultVisiblePageActionCount = 3u;
+
+// The size of the color palette preview image.
+constexpr CGFloat kPreviewImageSize = 24.0;
 
 // Struct used to count and store the number of active WhatsNew badges,
 // as the FET does not support showing multiple badges for the same FET feature
@@ -179,10 +201,67 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
                                           handler:handler];
 }
 
+// Retrieves a user-uploaded NTP background image using the
+// `user_uploaded_image_manager`.
+void GetUserUploadedNTPBackgroundPreview(
+    const HomeUserUploadedBackground* user_uploaded_background,
+    UserUploadedImageManager* user_uploaded_image_manager,
+    base::OnceCallback<void(UIImage*)> custom_background_fetcher_callback) {
+  CHECK(IsOverflowMenuHomeCustomizationEntrypointEnabled());
+  CHECK(user_uploaded_background);
+  CHECK(user_uploaded_image_manager);
+
+  base::FilePath image_path(user_uploaded_background->image_path);
+  CGSize target_size = CGSizeMake(kPreviewImageSize, kPreviewImageSize);
+
+  user_uploaded_image_manager->LoadUserUploadedImage(
+      image_path, target_size,
+      base::BindOnce(
+          [](base::OnceCallback<void(UIImage*)> callback,
+             UIImage* fetched_image, CGSize, UserUploadedImageError) {
+            std::move(callback).Run(fetched_image);
+          },
+          std::move(custom_background_fetcher_callback)));
+}
+
+// Retrieves a preset NTP background image using the `image_fetcher`.
+void GetPresetNTPBackgroundPreview(
+    const sync_pb::NtpCustomBackground* preset_image_background,
+    image_fetcher::ImageFetcher* image_fetcher,
+    base::OnceCallback<void(UIImage*)> custom_background_fetcher_callback) {
+  CHECK(IsOverflowMenuHomeCustomizationEntrypointEnabled());
+  CHECK(preset_image_background);
+  CHECK(custom_background_fetcher_callback);
+
+  const GURL image_url = GURL(preset_image_background->url());
+  GURL thumbnail_url =
+      AddOptionsToImageURL(RemoveOptionsFromImageURL(image_url.spec()).spec(),
+                           GetThumbnailImageOptions());
+  const char kImageFetcherUmaClient[] = "OverflowMenuNtpCustomization";
+
+  image_fetcher::ImageFetcherParams params(NO_TRAFFIC_ANNOTATION_YET,
+                                           kImageFetcherUmaClient);
+
+  image_fetcher->FetchImageData(
+      thumbnail_url,
+      base::BindOnce(
+          [](base::OnceCallback<void(UIImage*)> callback,
+             const std::string& image_data,
+             const image_fetcher::RequestMetadata&) {
+            NSData* data = [NSData dataWithBytes:image_data.data()
+                                          length:image_data.length()];
+            std::move(callback).Run([UIImage imageWithData:data]);
+          },
+          std::move(custom_background_fetcher_callback)),
+      params);
+}
+
 }  // namespace
 
-@interface OverflowMenuMediator () <BookmarkModelBridgeObserver,
+@interface OverflowMenuMediator () <AuthenticationServiceObserving,
+                                    BookmarkModelBridgeObserver,
                                     CRWWebStateObserver,
+                                    IdentityManagerObserving,
                                     IOSLanguageDetectionTabHelperObserving,
                                     OverflowMenuDestinationProvider,
                                     OverlayPresenterObserving,
@@ -215,6 +294,14 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
 
   // Whether or not model initialization has finished.
   BOOL _modelInitialized;
+
+  // Bridge to register for AuthenticationService changes.
+  std::unique_ptr<AuthenticationServiceObserverBridge>
+      _authServiceObserverBridge;
+
+  // Bridge to register for IdentityManager changes.
+  std::unique_ptr<signin::IdentityManagerObserverBridge>
+      _identityManagerObserverBridge;
 }
 
 // The current web state.
@@ -247,10 +334,14 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
 @property(nonatomic, strong) OverflowMenuDestination* cobaltDestination;
 @property(nonatomic, strong) OverflowMenuDestination* levelUpDestination;
 
+@property(nonatomic, strong) OverflowMenuActionGroup* identityActionsGroup;
+@property(nonatomic, strong) OverflowMenuActionGroup* customizationActionsGroup;
 @property(nonatomic, strong) OverflowMenuActionGroup* appActionsGroup;
 @property(nonatomic, strong) OverflowMenuActionGroup* pageActionsGroup;
 @property(nonatomic, strong) OverflowMenuActionGroup* helpActionsGroup;
 @property(nonatomic, strong) OverflowMenuActionGroup* editActionsGroup;
+
+@property(nonatomic, strong) OverflowMenuAction* identityAction;
 
 @property(nonatomic, strong) OverflowMenuAction* reloadAction;
 @property(nonatomic, strong) OverflowMenuAction* stopLoadAction;
@@ -283,6 +374,8 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
 @property(nonatomic, strong) OverflowMenuAction* askBWGAction;
 
 @property(nonatomic, strong) OverflowMenuAction* hideToolbarsAction;
+
+@property(nonatomic, strong) OverflowMenuAction* customizeHomepageAction;
 
 @property(nonatomic, strong) OverflowMenuAction* shareAction;
 
@@ -363,10 +456,98 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
 
   self.syncService = nullptr;
   self.browserManagementService = nullptr;
+
   _searchEngineObserver.reset();
+  _authenticationService = nullptr;
+  _authServiceObserverBridge.reset();
+  _identityManager = nullptr;
+  _identityManagerObserverBridge.reset();
+
+  self.navigationAgent = nullptr;
+  self.browserPolicyConnector = nullptr;
+  self.promosManager = nullptr;
+  self.readingListBrowserAgent = nullptr;
+  self.tabBasedIPHBrowserAgent = nullptr;
+  self.templateURLService = nullptr;
 }
 
 #pragma mark - Property getters/setters
+
+- (void)setBaseViewController:(UIViewController*)baseViewController {
+  if (_baseViewController == baseViewController) {
+    return;
+  }
+  _baseViewController = baseViewController;
+
+  if (IsOverflowMenuHomeCustomizationEntrypointEnabled() && !self.incognito) {
+    // Ensures the colors in the background preview are updated when
+    // transitioning to light/dark mode.
+    [_baseViewController
+        registerForTraitChanges:@[ UITraitUserInterfaceStyle.class ]
+                     withTarget:self
+                         action:
+                             @selector(
+                                 configureThemePreviewForCustomizeHomepageAction)];
+  }
+}
+
+- (OverflowMenuAction*)customizeHomepageAction {
+  CHECK(IsOverflowMenuHomeCustomizationEntrypointEnabled());
+  if (self.incognito || ![self isCurrentWebPageNTP]) {
+    // Only the non-incognito NTP supports the home customization action.
+    return nil;
+  }
+
+  __weak __typeof(self) weakSelf = self;
+  if (!_customizeHomepageAction) {
+    _customizeHomepageAction =
+        [self createOverflowMenuActionWithNameID:
+                  IDS_IOS_TOOLS_MENU_CUSTOMIZE_HOME_PAGE
+                                      actionType:overflow_menu::ActionType::
+                                                     CustomizeHomePage
+                                      symbolName:kChevronForwardSymbol
+                                    systemSymbol:YES
+                                monochromeSymbol:YES
+                                 accessibilityID:kToolsMenuCustomizeHomePageId
+                                    hideItemText:nil
+                                         handler:^{
+                                           [weakSelf openHomeCustomization];
+                                         }];
+    _customizeHomepageAction.symbolTintColor =
+        [UIColor colorNamed:kTextQuaternaryColor];
+    _customizeHomepageAction.fallbackPreviewImage =
+        DefaultSymbolWithConfiguration(kPencilSymbol, nil);
+  }
+  [self configureThemePreviewForCustomizeHomepageAction];
+  return _customizeHomepageAction;
+}
+
+- (OverflowMenuAction*)editActionsAction {
+  if (IsOverflowMenuNTPRefactorEnabled() && [self isCurrentWebPageNTP]) {
+    // NTP does not support the edit actions button.
+    return nil;
+  }
+
+  if (!_editActionsAction) {
+    __weak __typeof(self) weakSelf = self;
+
+    _editActionsAction = [self
+        createOverflowMenuActionWithNameID:IDS_IOS_OVERFLOW_MENU_EDIT_ACTIONS
+                                actionType:overflow_menu::ActionType::
+                                               EditActions
+                                symbolName:nil
+                              systemSymbol:NO
+                          monochromeSymbol:NO
+                           accessibilityID:kToolsMenuEditActionsId
+                              hideItemText:nil
+                                   handler:^{
+                                     [weakSelf beginCustomization];
+                                   }];
+    _editActionsAction.automaticallyUnhighlight = NO;
+    _editActionsAction.useButtonStyling = YES;
+  }
+  return _editActionsAction;
+}
 
 - (void)setModel:(OverflowMenuModel*)model {
   _model = model;
@@ -522,6 +703,28 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
   [self updateModel];
 }
 
+- (void)setIdentityManager:(signin::IdentityManager*)identityManager {
+  _identityManagerObserverBridge.reset();
+  _identityManager = identityManager;
+  if (_identityManager) {
+    _identityManagerObserverBridge =
+        std::make_unique<signin::IdentityManagerObserverBridge>(
+            _identityManager, self);
+  }
+  [self updateModel];
+}
+
+- (void)setAuthenticationService:(AuthenticationService*)authenticationService {
+  _authServiceObserverBridge.reset();
+  _authenticationService = authenticationService;
+  if (_authenticationService) {
+    _authServiceObserverBridge =
+        std::make_unique<AuthenticationServiceObserverBridge>(
+            _authenticationService, self);
+  }
+  [self updateModel];
+}
+
 - (void)setTemplateURLService:(TemplateURLService*)templateURLService {
   _templateURLService = templateURLService;
   if (_templateURLService) {
@@ -594,6 +797,11 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
   } // End Vivaldi
 
   [self logTranslateAvailability];
+
+  if (IsIdentityAwarenessEnabled()) {
+    self.identityAction = [self newIdentityAction];
+    [self updateIdentityAction];
+  }
 
   self.reloadAction =
       [self createOverflowMenuActionWithNameID:IDS_IOS_TOOLS_MENU_RELOAD
@@ -810,18 +1018,7 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
                                    [weakSelf showShareSheetForChromeApp];
                                  }];
 
-  self.editActionsAction = [self
-      createOverflowMenuActionWithNameID:IDS_IOS_OVERFLOW_MENU_EDIT_ACTIONS
-                              actionType:overflow_menu::ActionType::EditActions
-                              symbolName:nil
-                            systemSymbol:NO
-                        monochromeSymbol:NO
-                         accessibilityID:kToolsMenuEditActionsId
-                            hideItemText:nil
-                                 handler:^{
-                                   [weakSelf beginCustomization];
-                                 }];
-  if ([self isLensOverlayEnabled]) {
+  if ([self isLensOverlayAvailable]) {
     self.lensOverlayAction = [self openLensOverlayAction];
   }
 
@@ -829,7 +1026,7 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
     self.AIPrototypeAction = [self openAIPrototypeAction];
   }
 
-  if (base::FeatureList::IsEnabled(kHideToolbarsInOverflowMenu)) {
+  if (IsHideToolbarEnabled()) {
     self.hideToolbarsAction = [self collapseToolbars];
   }
 
@@ -844,9 +1041,6 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
   if (send_tab_to_self::AreIOSTabRemindersEnabled()) {
     self.setTabReminderAction = [self newSetTabReminderAction];
   }
-
-  self.editActionsAction.automaticallyUnhighlight = NO;
-  self.editActionsAction.useButtonStyling = YES;
 
   // The app actions vary based on page state, so they are set in
   // `-updateModel`.
@@ -871,13 +1065,31 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
 
   self.editActionsGroup = [[OverflowMenuActionGroup alloc]
       initWithGroupName:@"edit_actions"
-                actions:@[ self.editActionsAction ]
+                actions:self.editActionsAction ? @[ self.editActionsAction ]
+                                               : @[]
                  footer:nil];
+
+  if (IsIdentityAwarenessEnabled()) {
+    self.identityActionsGroup =
+        [[OverflowMenuActionGroup alloc] initWithGroupName:kIdentityGroupName
+                                                   actions:@[]
+                                                    footer:nil];
+  }
+
+  if (IsOverflowMenuHomeCustomizationEntrypointEnabled()) {
+    self.customizationActionsGroup = [[OverflowMenuActionGroup alloc]
+        initWithGroupName:@"customization_actions"
+                  actions:self.customizeHomepageAction
+                              ? @[ self.customizeHomepageAction ]
+                              : @[]
+                   footer:nil];
+  }
 
   if (IsVivaldiRunning()) {
     NSMutableArray* actionGroups = [[NSMutableArray alloc] init];
 
     self.addPageToAction = [self vivaldiAddPageToAction];
+    self.addPageToAction.submenuExpanded = YES;
     self.editPageAction = [self vivaldiEditPageAction];
 
     // The action group for vivaldi that contains the panel items and downloads.
@@ -933,7 +1145,7 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
   OverflowMenuAction* action = [self
       createOverflowMenuActionWithNameID:nameID
                               actionType:overflow_menu::ActionType::ReaderMode
-                              symbolName:GetReaderModeSymbolName()
+                              symbolName:kReaderModeSymbol
                             systemSymbol:YES
                         monochromeSymbol:NO
                          accessibilityID:kToolsMenuReaderMode
@@ -1035,7 +1247,7 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
                              accessibilityID:kToolsMenuOpenAskBWG
                                 hideItemText:nil
                                      handler:^{
-                                       [weakSelf startAskBWG];
+                                       [weakSelf startAskGemini];
                                      }];
 }
 
@@ -1153,6 +1365,23 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
                                  handler:^{
                                    [weakSelf openClearBrowsingData];
                                  }];
+}
+
+- (OverflowMenuAction*)newIdentityAction {
+  __weak __typeof(self) weakSelf = self;
+  // The name, the subtitle and the image will be will set in
+  // `updateIdentityAction` method.
+  return
+      [self createOverflowMenuActionWithName:@""
+                                  actionType:overflow_menu::ActionType::Identity
+                                  symbolName:kPersonCropCircleSymbol
+                                systemSymbol:YES
+                            monochromeSymbol:NO
+                             accessibilityID:kToolsMenuIdentityId
+                                hideItemText:nil
+                                     handler:^{
+                                       [weakSelf showAccountMenu];
+                                     }];
 }
 
 - (OverflowMenuAction*)newTranslateAction {
@@ -1592,29 +1821,30 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
                                             handler:handlerWithMetrics];
 
   result.destination = static_cast<NSInteger>(destination);
+  if (!IsOverflowMenuNTPRefactorEnabled() || ![self isCurrentWebPageNTP]) {
+    NSMutableArray<OverflowMenuLongPressItem*>* longPressItems =
+        [[NSMutableArray alloc] init];
 
-  NSMutableArray<OverflowMenuLongPressItem*>* longPressItems =
-      [[NSMutableArray alloc] init];
-
-  NSString* hideItemText = [self hideItemTextForDestination:destination];
-  if (hideItemText) {
-    [longPressItems addObject:[[OverflowMenuLongPressItem alloc]
-                                  initWithTitle:hideItemText
-                                     symbolName:@"eye.slash"
-                                        handler:^{
-                                          [weakSelf
-                                              hideDestination:destination];
-                                        }]];
+    NSString* hideItemText = [self hideItemTextForDestination:destination];
+    if (hideItemText) {
+      [longPressItems addObject:[[OverflowMenuLongPressItem alloc]
+                                    initWithTitle:hideItemText
+                                       symbolName:kHideActionSymbol
+                                          handler:^{
+                                            [weakSelf
+                                                hideDestination:destination];
+                                          }]];
+    }
+    [longPressItems
+        addObject:[[OverflowMenuLongPressItem alloc]
+                      initWithTitle:l10n_util::GetNSString(
+                                        IDS_IOS_OVERFLOW_MENU_EDIT_ACTIONS)
+                         symbolName:kEditActionSymbol
+                            handler:^{
+                              [weakSelf beginCustomization];
+                            }]];
+    result.longPressItems = longPressItems;
   }
-  [longPressItems
-      addObject:[[OverflowMenuLongPressItem alloc]
-                    initWithTitle:l10n_util::GetNSString(
-                                      IDS_IOS_OVERFLOW_MENU_EDIT_ACTIONS)
-                       symbolName:@"pencil"
-                          handler:^{
-                            [weakSelf beginCustomization];
-                          }]];
-  result.longPressItems = longPressItems;
 
   __weak __typeof(result) weakResult = result;
   result.onShownToggleCallback = ^{
@@ -1649,23 +1879,25 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
                                        handler:newHandler];
   action.actionType = static_cast<NSInteger>(actionType);
 
-  ActionRanking reorderableActions = [self basePageActions];
+  if (!IsOverflowMenuNTPRefactorEnabled() || ![self isCurrentWebPageNTP]) {
+    ActionRanking reorderableActions = [self basePageActions];
+    // If this action is not reorderable, then don't add any longpress items.
+    bool actionIsReorderable =
+        std::find(reorderableActions.begin(), reorderableActions.end(),
+                  actionType) != reorderableActions.end();
+    if (actionIsReorderable) {
+      action.longPressItems =
+          [self actionLongPressItemsForActionType:actionType
+                                     hideItemText:hideItemText];
 
-  if (IsVivaldiRunning()) {
-      ActionRanking vivaldiActions = [self vivaldiActions];
-      reorderableActions.insert(
-          reorderableActions.end(),
-          vivaldiActions.begin(), vivaldiActions.end());
-  } // End Vivaldi
+      if (IsVivaldiRunning()) {
+           ActionRanking vivaldiActions = [self vivaldiActions];
+           reorderableActions.insert(
+               reorderableActions.end(),
+               vivaldiActions.begin(), vivaldiActions.end());
+      } // End Vivaldi
 
-  // If this action is not reorderable, then don't add any longpress items.
-  bool actionIsReorderable =
-      std::find(reorderableActions.begin(), reorderableActions.end(),
-                actionType) != reorderableActions.end();
-  if (actionIsReorderable) {
-    action.longPressItems =
-        [self actionLongPressItemsForActionType:actionType
-                                   hideItemText:hideItemText];
+    }
   }
   return action;
 }
@@ -1704,7 +1936,7 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
     }
     // Ensures that the floaty doesn't show when another view controller is
     // presented as a result of an overflow item being tapped.
-    [weakSelf.BWGHandler
+    [weakSelf.geminiHandler
         hideFloatyIfInvokedAnimated:NO
                          fromSource:gemini::FloatyUpdateSource::ViewTransition];
     [weakSelf logFeatureEngagementEventForClickOnAction:actionType];
@@ -1724,7 +1956,7 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
   if (hideItemText) {
     [longPressItems addObject:[[OverflowMenuLongPressItem alloc]
                                   initWithTitle:hideItemText
-                                     symbolName:@"eye.slash"
+                                     symbolName:kHideActionSymbol
                                         handler:^{
                                           [weakSelf hideActionType:actionType];
                                         }]];
@@ -1733,7 +1965,7 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
       addObject:[[OverflowMenuLongPressItem alloc]
                     initWithTitle:l10n_util::GetNSString(
                                       IDS_IOS_OVERFLOW_MENU_EDIT_ACTIONS)
-                       symbolName:@"pencil"
+                       symbolName:kEditActionSymbol
                           handler:^{
                             [weakSelf
                                 beginCustomizationFromActionType:actionType];
@@ -1800,6 +2032,99 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
   return destinations;
   } // End Vivaldi
 
+}
+
+// Helper for `-actionForActionType:`. Returns the overflow menu action for the
+// given `actionType`.
+- (OverflowMenuAction*)baseActionForActionType:
+    (overflow_menu::ActionType)actionType {
+  switch (actionType) {
+    case overflow_menu::ActionType::Reload:
+      return ([self isPageLoading]) ? self.stopLoadAction : self.reloadAction;
+    case overflow_menu::ActionType::NewTab:
+      return self.openTabAction;
+    case overflow_menu::ActionType::NewIncognitoTab:
+      return self.openIncognitoTabAction;
+    case overflow_menu::ActionType::NewWindow:
+      return self.openNewWindowAction;
+    case overflow_menu::ActionType::Bookmark: {
+      BOOL pageIsBookmarked =
+          self.webState && self.bookmarkModel &&
+          self.bookmarkModel->IsBookmarked(self.webState->GetVisibleURL());
+      return (pageIsBookmarked) ? self.editBookmarkAction
+                                : self.addBookmarkAction;
+    }
+    case overflow_menu::ActionType::ReadingList:
+      return self.readLaterAction;
+    case overflow_menu::ActionType::ClearBrowsingData:
+      // Showing the Clear Browsing Data Action would be confusing in incognito.
+      return (self.incognito) ? nil : self.clearBrowsingDataAction;
+    case overflow_menu::ActionType::Translate:
+      return self.translateAction;
+    case overflow_menu::ActionType::DesktopSite:
+      return ([self userAgentType] != web::UserAgentType::DESKTOP)
+                 ? self.requestDesktopAction
+                 : self.requestMobileAction;
+    case overflow_menu::ActionType::FindInPage:
+      return self.findInPageAction;
+    case overflow_menu::ActionType::TextZoom:
+      return self.textZoomAction;
+    case overflow_menu::ActionType::ReportAnIssue:
+      return self.reportIssueAction;
+    case overflow_menu::ActionType::Help:
+      return self.helpAction;
+    case overflow_menu::ActionType::ShareChrome:
+      return self.shareChromeAction;
+    case overflow_menu::ActionType::EditActions:
+      return self.editActionsAction;
+    case overflow_menu::ActionType::LensOverlay:
+      return self.lensOverlayAction;
+    case overflow_menu::ActionType::AIPrototype:
+      return self.AIPrototypeAction;
+    case overflow_menu::ActionType::SetTabReminder:
+      return (self.incognito || !send_tab_to_self::AreIOSTabRemindersEnabled())
+                 ? nil
+                 : self.setTabReminderAction;
+    case overflow_menu::ActionType::ReaderMode:
+      return self.readerModeAction;
+    case overflow_menu::ActionType::AskBWG:
+      return self.askBWGAction;
+    case overflow_menu::ActionType::HideToolbars:
+      return self.hideToolbarsAction;
+    case overflow_menu::ActionType::TabGroupDeprecated:
+      NOTREACHED();
+    case overflow_menu::ActionType::ShareThisPage:
+      return self.shareAction;
+    case overflow_menu::ActionType::SigninDeprecated:
+      NOTREACHED();
+    case overflow_menu::ActionType::Identity:
+      return self.identityAction;
+    case overflow_menu::ActionType::CustomizeHomePage:
+      CHECK(IsOverflowMenuHomeCustomizationEntrypointEnabled());
+      return self.customizeHomepageAction;
+
+    // Vivaldi
+    case overflow_menu::ActionType::vBookmarks:
+      return self.bookmarksAction;
+    case overflow_menu::ActionType::vNotes:
+      return self.notesAction;
+    case overflow_menu::ActionType::vHistory:
+      return self.historyAction;
+    case overflow_menu::ActionType::vReadingList:
+      return self.readingListAction;
+    case overflow_menu::ActionType::vDownloads:
+      return self.downloadsAction;
+    case overflow_menu::ActionType::vAddPageTo:
+      return self.addPageToAction;
+    case overflow_menu::ActionType::vEditPage:
+      // Show edit action only if it has actions.
+      return ([[self editSubmenuActions] count] > 0) ?
+                  self.editPageAction : nil;
+    case overflow_menu::ActionType::vStartPage:
+      return nil;
+    // End Vivaldi
+
+  }
 }
 
 // Returns YES if the Overflow Menu should indicate an identity error.
@@ -1897,7 +2222,7 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
       IsIncognitoModeDisabled(self.profilePrefs);
 
   if (IsLensOverlayAllowedByPolicy(_profilePrefs)) {
-    self.lensOverlayAction.enabled = ![self isLensOverlayVisible];
+    self.lensOverlayAction.enabled = [self isLensOverlayEnabled];
   }
 
   if (IsReaderModeAvailable()) {
@@ -1906,7 +2231,7 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
 
   self.askBWGAction.enabled = [self isGeminiAvailable];
 
-  if (base::FeatureList::IsEnabled(kHideToolbarsInOverflowMenu)) {
+  if (IsHideToolbarEnabled()) {
     self.hideToolbarsAction.enabled = ![self isCurrentWebPageNTP];
   }
 
@@ -1921,6 +2246,13 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
 
     self.addPageToAction.submenuActions = [self addToSubmenuActions];
     self.editPageAction.submenuActions = [self editSubmenuActions];
+
+    // Keep the edit actions collapsed, but add actions should stay expanded
+    // so that users can find the way to add pages to bookmarks or startpage
+    // easily.
+    if ([self.editPageAction.submenuActions count] == 0) {
+      self.editPageAction.submenuExpanded = NO;
+    }
 
     self.addPageToAction.enabled =
         bookmarkEnabled || self.readLaterAction.enabled;
@@ -1949,10 +2281,16 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
     [appActions addObject:self.shareAction];
   }
 
-  // The reload/stop action is only shown when the reload button is not in the
-  // toolbar. The reload button is shown in the toolbar when the toolbar is not
-  // split.
-  if (IsSplitToolbarMode(self.baseViewController)) {
+  BOOL showReloadStopAction;
+  if (IsChromeNextIaEnabled()) {
+    showReloadStopAction = !CanShowTabStrip(self.baseViewController);
+  } else {
+    // The reload/stop action is only shown when the reload button is not in the
+    // toolbar. The reload button is shown in the toolbar when the toolbar is
+    // not split.
+    showReloadStopAction = IsSplitToolbarMode(self.baseViewController);
+  }
+  if (showReloadStopAction) {
     OverflowMenuAction* reloadStopAction =
         ([self isPageLoading]) ? self.stopLoadAction : self.reloadAction;
     [appActions addObject:reloadStopAction];
@@ -1989,6 +2327,136 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
   } // End Vivaldi
 
   self.helpActionsGroup.actions = helpActions;
+
+  NSMutableArray<OverflowMenuActionGroup*>* actionGroups =
+      [[NSMutableArray alloc] init];
+
+  if (IsIdentityAwarenessEnabled() && self.authenticationService &&
+      !self.incognito) {
+    NSMutableArray<OverflowMenuAction*>* identityActions =
+        [NSMutableArray array];
+    if (self.authenticationService->GetPrimaryIdentity()) {
+      [self updateIdentityAction];
+      [identityActions addObject:self.identityAction];
+    }
+    self.identityActionsGroup.actions = identityActions;
+
+    if (identityActions.count > 0) {
+      [actionGroups addObject:self.identityActionsGroup];
+    }
+  }
+
+  if (IsOverflowMenuHomeCustomizationEntrypointEnabled()) {
+    [actionGroups addObject:self.customizationActionsGroup];
+  }
+
+  [actionGroups addObjectsFromArray:@[
+    self.appActionsGroup, self.pageActionsGroup, self.editActionsGroup,
+    self.helpActionsGroup
+  ]];
+
+  self.model.actionGroups = actionGroups;
+}
+
+// Sets the colors or thumbnail image for a preview of the current NTP
+// background to be shown in the action to show the home customization menu.
+- (void)configureThemePreviewForCustomizeHomepageAction {
+  CHECK(IsOverflowMenuHomeCustomizationEntrypointEnabled());
+  CHECK(!self.incognito);
+  if (!self.backgroundCustomizationService) {
+    // Do not show a preview for the current background.
+    _customizeHomepageAction.previewImage = nil;
+    return;
+  }
+
+  std::optional<HomeCustomBackground> customBackground =
+      self.backgroundCustomizationService->GetCurrentCustomBackground();
+
+  if (customBackground.has_value()) {
+    // Custom background image.
+    const HomeUserUploadedBackground* userUploadedBackground =
+        std::get_if<HomeUserUploadedBackground>(&customBackground.value());
+    const sync_pb::NtpCustomBackground* presetImageBackground =
+        std::get_if<sync_pb::NtpCustomBackground>(&customBackground.value());
+
+    __weak OverflowMenuAction* customizeHomepageAction =
+        _customizeHomepageAction;
+
+    if (userUploadedBackground && self.userUploadedImageManager) {
+      // User-uploaded background active.
+      GetUserUploadedNTPBackgroundPreview(
+          userUploadedBackground, self.userUploadedImageManager,
+          base::BindOnce(^(UIImage* image) {
+            customizeHomepageAction.previewImage = image;
+          }));
+    } else if (presetImageBackground && self.imageFetcher) {
+      // Preset background active.
+      GetPresetNTPBackgroundPreview(presetImageBackground, self.imageFetcher,
+                                    base::BindOnce(^(UIImage* image) {
+                                      customizeHomepageAction.previewImage =
+                                          image;
+                                    }));
+    } else {
+      _customizeHomepageAction.previewImage = nil;
+    }
+    return;
+  }
+
+  // Preview image for a color palette.
+  std::optional<sync_pb::UserColorTheme> colorTheme =
+      self.backgroundCustomizationService->GetCurrentColorTheme();
+  UITraitCollection* traitCollection = self.baseViewController.traitCollection;
+
+  /// TODO(crbug.com/534705391): Investigate getting color palette previews from
+  /// home customization instead of drawing them in this mediator.
+  if (colorTheme.has_value()) {
+    // Custom color theme.
+    UIColor* seedColor = skia::UIColorFromSkColor(colorTheme->color());
+    ui::ColorProviderKey::SchemeVariant schemeVariant =
+        ProtoEnumToSchemeVariant(colorTheme->browser_color_variant());
+    NewTabPageColorPalette* customColorPalette =
+        CreateColorPaletteFromSeedColor(seedColor, schemeVariant);
+    _customizeHomepageAction.previewImage = CreatePreviewImageForColorPalette(
+        customColorPalette, kPreviewImageSize, traitCollection);
+  } else {
+    // Default (un-themed).
+    _customizeHomepageAction.previewImage = CreatePreviewImageForColorPalette(
+        DefaultNTPColorPalette(), kPreviewImageSize, traitCollection);
+  }
+}
+
+#pragma mark - AuthenticationServiceObserving
+
+- (void)onServiceStatusChanged {
+  [self updateModel];
+}
+
+#pragma mark - Private
+
+// Returns the center of the tools menu button in window coordinates.
+- (CGPoint)toolsMenuButtonCenter {
+  UIView* toolsMenu =
+      [self.layoutGuideCenter referencedViewUnderName:kToolsMenuGuide];
+  if (!toolsMenu) {
+    return CGPointZero;
+  }
+  return [toolsMenu.superview convertPoint:toolsMenu.center toView:nil];
+}
+
+- (void)updateIdentityAction {
+  if (self.incognito || !self.identityAction || !self.authenticationService ||
+      !self.authenticationService->HasPrimaryIdentity()) {
+    return;
+  }
+  id<SystemIdentity> primaryIdentity =
+      self.authenticationService->GetPrimaryIdentity();
+  self.identityAction.name = primaryIdentity.userFullName;
+  self.identityAction.subtitle = primaryIdentity.userEmail;
+  self.identityAction.symbolName = nil;
+  if (self.identityAvatarProvider) {
+    self.identityAction.image = self.identityAvatarProvider->GetIdentityAvatar(
+        primaryIdentity, IdentityAvatarSize::Regular);
+  }
 }
 
 // Returns whether the page can be manually translated. If `forceMenuLogging` is
@@ -2024,26 +2492,22 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
        base::FeatureList::IsEnabled(kEnableReaderModeTranslationWithInfobar));
 }
 
+// Returns whether lens overlay is enabled on the current page.
+- (BOOL)isLensOverlayAvailable {
+  return IsLensOverlayEntrypointAvailable(
+      LensOverlayEntrypoint::kOverflowMenu, _profilePrefs,
+      self.templateURLService, self.webState,
+      self.baseViewController.traitCollection);
+}
+
+// Returns whether lens overlay is enabled on the current page.
 - (BOOL)isLensOverlayEnabled {
-  BOOL isPortrait = !IsCompactHeight(self.baseViewController.traitCollection);
-  BOOL isSupported =
-      search_engines::SupportsSearchImageWithLens(self.templateURLService);
-  BOOL portraitOverride =
-      IsLensOverlayLandscapeOrientationEnabled(_profilePrefs);
-  BOOL isAvailable = IsLensOverlayAllowedByPolicy(_profilePrefs);
-  return isAvailable && isSupported && (isPortrait || portraitOverride) &&
-         ![self isLensOverlayVisible];
+  return !IsLensOverlayVisible(self.webState);
 }
 
 // Returns whether Lens Overlay is currently being displayed.
 - (BOOL)isLensOverlayVisible {
-  if (!self.webState) {
-    return NO;
-  }
-  LensOverlayTabHelper* lensOverlayTabHelper =
-      LensOverlayTabHelper::FromWebState(self.webState);
-  return lensOverlayTabHelper &&
-         lensOverlayTabHelper->IsLensOverlayUIAttachedAndAlive();
+  return IsLensOverlayVisible(self.webState);
 }
 
 // Determines whether or not translate is available on the page and logs the
@@ -2113,6 +2577,10 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
     }
   } // End Vivadi
 
+  if (IsOverflowMenuNTPRefactorEnabled() && [self isCurrentWebPageNTP]) {
+    return NO;
+  }
+
   FontSizeTabHelper* helper = FontSizeTabHelper::FromWebState(self.webState);
   if (!helper || helper->IsTextZoomUIActive()) {
     return NO;
@@ -2165,11 +2633,6 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
       self.webState->GetNavigationManager()->GetVisibleItem();
   if (!navItem) {
     return NO;
-  }
-  const GURL& URL = navItem->GetURL();
-  // Show site info for offline pages.
-  if (reading_list::IsOfflineURL(URL)) {
-    return YES;
   }
   // Do not show site info for NTP.
   if ([self isCurrentWebPageNTP]) {
@@ -2233,22 +2696,22 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
   }
 }
 
-/// Returns whether the Ask Gemini feature is currently available for the web
-/// state.
+// Returns whether the Ask Gemini feature is currently available for the web
+// state.
 - (BOOL)isGeminiAvailable {
-  if (!IsPageActionMenuEnabled()) {
+  if (!_webState) {
     return NO;
   }
-  if (!_webState) {
+
+  if (IsOverflowMenuNTPRefactorEnabled() && [self isCurrentWebPageNTP]) {
     return NO;
   }
 
   ProfileIOS* profile =
       ProfileIOS::FromBrowserState(_webState->GetBrowserState());
-  GeminiService* geminiService = GeminiServiceFactory::GetForProfile(profile);
-  GeminiTabHelper* tabHelper = GeminiTabHelper::FromWebState(_webState);
-  return tabHelper && tabHelper->IsGeminiAvailableForWebState() &&
-         geminiService && geminiService->IsProfileEligibleForGemini();
+  return gemini::IsGeminiAvailable(gemini::EntryPoint::OverflowMenu, profile,
+                                   _webState)
+      .enabled;
 }
 
 #pragma mark - CRWWebStateObserver
@@ -2604,7 +3067,7 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
   actions.push_back(overflow_menu::ActionType::FindInPage);
   actions.push_back(overflow_menu::ActionType::TextZoom);
 
-  if ([self isLensOverlayEnabled]) {
+  if ([self isLensOverlayAvailable]) {
     actions.push_back(overflow_menu::ActionType::LensOverlay);
   }
 
@@ -2619,7 +3082,7 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
   if (IsReaderModeAvailable()) {
     actions.push_back(overflow_menu::ActionType::ReaderMode);
   }
-  if (base::FeatureList::IsEnabled(kHideToolbarsInOverflowMenu)) {
+  if (IsHideToolbarEnabled()) {
     actions.push_back(overflow_menu::ActionType::HideToolbars);
   }
 
@@ -2628,86 +3091,14 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
 
 - (OverflowMenuAction*)actionForActionType:
     (overflow_menu::ActionType)actionType {
-  switch (actionType) {
-    case overflow_menu::ActionType::Reload:
-      return ([self isPageLoading]) ? self.stopLoadAction : self.reloadAction;
-    case overflow_menu::ActionType::NewTab:
-      return self.openTabAction;
-    case overflow_menu::ActionType::NewIncognitoTab:
-      return self.openIncognitoTabAction;
-    case overflow_menu::ActionType::NewWindow:
-      return self.openNewWindowAction;
-    case overflow_menu::ActionType::Bookmark: {
-      BOOL pageIsBookmarked =
-          self.webState && self.bookmarkModel &&
-          self.bookmarkModel->IsBookmarked(self.webState->GetVisibleURL());
-      return (pageIsBookmarked) ? self.editBookmarkAction
-                                : self.addBookmarkAction;
-    }
-    case overflow_menu::ActionType::ReadingList:
-      return self.readLaterAction;
-    case overflow_menu::ActionType::ClearBrowsingData:
-      // Showing the Clear Browsing Data Action would be confusing in incognito.
-      return (self.incognito) ? nil : self.clearBrowsingDataAction;
-    case overflow_menu::ActionType::Translate:
-      return self.translateAction;
-    case overflow_menu::ActionType::DesktopSite:
-      return ([self userAgentType] != web::UserAgentType::DESKTOP)
-                 ? self.requestDesktopAction
-                 : self.requestMobileAction;
-    case overflow_menu::ActionType::FindInPage:
-      return self.findInPageAction;
-    case overflow_menu::ActionType::TextZoom:
-      return self.textZoomAction;
-    case overflow_menu::ActionType::ReportAnIssue:
-      return self.reportIssueAction;
-    case overflow_menu::ActionType::Help:
-      return self.helpAction;
-    case overflow_menu::ActionType::ShareChrome:
-      return self.shareChromeAction;
-    case overflow_menu::ActionType::EditActions:
-      return self.editActionsAction;
-    case overflow_menu::ActionType::LensOverlay:
-      return self.lensOverlayAction;
-    case overflow_menu::ActionType::AIPrototype:
-      return self.AIPrototypeAction;
-    case overflow_menu::ActionType::SetTabReminder:
-      return (self.incognito || !send_tab_to_self::AreIOSTabRemindersEnabled())
-                 ? nil
-                 : self.setTabReminderAction;
-    case overflow_menu::ActionType::ReaderMode:
-      return self.readerModeAction;
-    case overflow_menu::ActionType::AskBWG:
-      return self.askBWGAction;
-    case overflow_menu::ActionType::HideToolbars:
-      return self.hideToolbarsAction;
-    case overflow_menu::ActionType::TabGroupDeprecated:
-      NOTREACHED();
-    case overflow_menu::ActionType::ShareThisPage:
-      return self.shareAction;
-
-    // Vivaldi
-    case overflow_menu::ActionType::vBookmarks:
-      return self.bookmarksAction;
-    case overflow_menu::ActionType::vNotes:
-      return self.notesAction;
-    case overflow_menu::ActionType::vHistory:
-      return self.historyAction;
-    case overflow_menu::ActionType::vReadingList:
-      return self.readingListAction;
-    case overflow_menu::ActionType::vDownloads:
-      return self.downloadsAction;
-    case overflow_menu::ActionType::vAddPageTo:
-      return self.addPageToAction;
-    case overflow_menu::ActionType::vEditPage:
-      // Show edit action only if it has actions.
-      return ([[self editSubmenuActions] count] > 0) ?
-                  self.editPageAction : nil;
-    case overflow_menu::ActionType::vStartPage:
+  OverflowMenuAction* action = [self baseActionForActionType:actionType];
+  if (IsOverflowMenuNTPRefactorEnabled()) {
+    if (action && !action.enabled && [self isCurrentWebPageNTP]) {
+      // NTP does not support disabled actions.
       return nil;
-    // End Vivaldi
-
+    }
   }
+  return action;
 }
 
 // Returns an action for the given `actionType` suitable for displaying in a
@@ -2727,6 +3118,9 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
     case overflow_menu::ActionType::ShareChrome:
     case overflow_menu::ActionType::EditActions:
     case overflow_menu::ActionType::ShareThisPage:
+    case overflow_menu::ActionType::SigninDeprecated:
+    case overflow_menu::ActionType::Identity:
+    case overflow_menu::ActionType::CustomizeHomePage:
       NOTREACHED();
     case overflow_menu::ActionType::Bookmark:
       return [self newAddBookmarkAction];
@@ -2785,15 +3179,25 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
 - (void)reload {
   RecordAction(UserMetricsAction("MobileMenuReload"));
   self.tabBasedIPHBrowserAgent->NotifyMultiGestureRefreshEvent();
+  // Dismissing the menu disconnects the mediator, so save anything cleaned up
+  // there.
+  WebNavigationBrowserAgent* navigationAgent = self.navigationAgent;
   [self dismissMenu];
-  self.navigationAgent->Reload();
+  if (navigationAgent) {
+    navigationAgent->Reload();
+  }
 }
 
 // Dismisses the menu and stops the current page load.
 - (void)stopLoading {
   RecordAction(UserMetricsAction("MobileMenuStop"));
+  // Dismissing the menu disconnects the mediator, so save anything cleaned up
+  // there.
+  WebNavigationBrowserAgent* navigationAgent = self.navigationAgent;
   [self dismissMenu];
-  self.navigationAgent->StopLoading();
+  if (navigationAgent) {
+    navigationAgent->StopLoading();
+  }
 }
 
 // Dismisses the menu and opens a new tab.
@@ -2803,7 +3207,9 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
 
   [self dismissMenu];
   [self.sceneHandler
-      openURLInNewTab:[OpenNewTabCommand commandWithIncognito:NO]];
+      openURLInNewTab:[OpenNewTabCommand
+                          commandWithIncognito:NO
+                                   originPoint:[self toolsMenuButtonCenter]]];
 }
 
 // Dismisses the menu and opens a new incognito tab.
@@ -2811,7 +3217,9 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
   RecordAction(UserMetricsAction("MobileMenuNewIncognitoTab"));
   [self dismissMenu];
   [self.sceneHandler
-      openURLInNewTab:[OpenNewTabCommand commandWithIncognito:YES]];
+      openURLInNewTab:[OpenNewTabCommand
+                          commandWithIncognito:YES
+                                   originPoint:[self toolsMenuButtonCenter]]];
 }
 
 // Dismisses the menu and opens a new window.
@@ -2876,8 +3284,13 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
 // Dismisses the menu and requests the desktop version of the current page
 - (void)requestDesktopSite {
   RecordAction(UserMetricsAction("MobileMenuRequestDesktopSite"));
+  // Dismissing the menu disconnects the mediator, so save anything cleaned up
+  // there.
+  WebNavigationBrowserAgent* navigationAgent = self.navigationAgent;
   [self dismissMenu];
-  self.navigationAgent->RequestDesktopSite();
+  if (navigationAgent) {
+    navigationAgent->RequestDesktopSite();
+  }
   [self.helpHandler
       presentInProductHelpWithType:InProductHelpType::kDefaultSiteView];
 }
@@ -2914,8 +3327,13 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
 // Dismisses the menu and requests the mobile version of the current page
 - (void)requestMobileSite {
   RecordAction(UserMetricsAction("MobileMenuRequestMobileSite"));
+  // Dismissing the menu disconnects the mediator, so save anything cleaned up
+  // there.
+  WebNavigationBrowserAgent* navigationAgent = self.navigationAgent;
   [self dismissMenu];
-  self.navigationAgent->RequestMobileSite();
+  if (navigationAgent) {
+    navigationAgent->RequestMobileSite();
+  }
 }
 
 // Dismisses the menu and opens Find In Page
@@ -2923,6 +3341,14 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
   RecordAction(UserMetricsAction("MobileMenuFindInPage"));
   [self dismissMenu];
   [self.findInPageHandler openFindInPage];
+}
+
+// Dismisses the menu and opens the account menu.
+- (void)showAccountMenu {
+  RecordAction(UserMetricsAction("MobileMenuIdentityMenu"));
+  [self dismissMenu];
+  [self.sceneHandler
+      showAccountMenuWithAccessPoint:AccountMenuAccessPoint::kOverflowMenu];
 }
 
 // Dismisses the menu and opens Text Zoom
@@ -2949,7 +3375,7 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
   }
   AccountInfo accountInfo =
       self.identityManager->FindExtendedAccountInfo(primaryAccount);
-  return accountInfo.capabilities.can_submit_feedback() !=
+  return accountInfo.GetAccountCapabilities().can_submit_feedback() !=
          signin::Tribool::kFalse;
 }
 
@@ -3034,10 +3460,10 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
   [self.sceneHandler openAIMenu];
 }
 
-// Starts ask BWG.
-- (void)startAskBWG {
+// Starts ask Gemini.
+- (void)startAskGemini {
   [self dismissMenu];
-  [self.BWGHandler
+  [self.geminiHandler
       startGeminiFlowWithStartupState:
           [[GeminiStartupState alloc]
               initWithEntryPoint:gemini::EntryPoint::OverflowMenu]];
@@ -3197,19 +3623,28 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
                                       BadgeTypePromo)];
 }
 
+// Presents the home customization menu.
+- (void)openHomeCustomization {
+  CHECK(IsOverflowMenuHomeCustomizationEntrypointEnabled());
+  [self dismissMenu];
+  [self.NTPCommandHandler customizationMenuWasTapped];
+}
+
 - (void)enterpriseLearnMore {
   [self dismissMenu];
-  [self.sceneHandler
-      openURLInNewTab:[OpenNewTabCommand commandWithURLFromChrome:
-                                             GURL(kChromeUIManagementURL)]];
+  OpenNewTabCommand* command =
+      [OpenNewTabCommand commandWithURLFromChrome:GURL(kChromeUIManagementURL)];
+  command.originPoint = [self toolsMenuButtonCenter];
+  [self.sceneHandler openURLInNewTab:command];
 }
 
 - (void)parentLearnMore {
   [self dismissMenu];
   GURL familyLinkURL = GURL(supervised_user::kManagedByParentUiMoreInfoUrl);
-  [self.sceneHandler
-      openURLInNewTab:[OpenNewTabCommand
-                          commandWithURLFromChrome:familyLinkURL]];
+  OpenNewTabCommand* command =
+      [OpenNewTabCommand commandWithURLFromChrome:familyLinkURL];
+  command.originPoint = [self toolsMenuButtonCenter];
+  [self.sceneHandler openURLInNewTab:command];
 }
 
 - (void)openSpotlightDebugger {
@@ -3268,6 +3703,24 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
   [self.menuOrderer customizationUpdateToggledShown:destination.shown
                                 forLinkedActionType:correspondingActionType
                                      actionSubtitle:subtitle];
+}
+
+#pragma mark - IdentityManagerObserving
+
+- (void)primaryAccountDidChange:
+    (const signin::PrimaryAccountChangeEvent&)event {
+  switch (event.GetEventTypeFor(signin::ConsentLevel::kSignin)) {
+    case signin::PrimaryAccountChangeEvent::Type::kNone:
+      break;
+    case signin::PrimaryAccountChangeEvent::Type::kSet:
+    case signin::PrimaryAccountChangeEvent::Type::kCleared:
+      [self updateModel];
+      break;
+  }
+}
+
+- (void)extendedAccountInfoDidUpdate:(const AccountInfo&)info {
+  [self updateModel];
 }
 
 #pragma mark: VIVALDI
@@ -3451,6 +3904,7 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
 }
 
 - (OverflowMenuAction*)vivaldiAddPageToAction {
+  __weak __typeof(self) weakSelf = self;
   NSString* hideItemText =
       l10n_util::GetNSString(IDS_IOS_OVERFLOW_MENU_HIDE_ACTIONS_ADD_TO);
   return [self
@@ -3463,10 +3917,13 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
                              monochromeSymbol:NO
                               accessibilityID:vToolsMenuAddPageToId
                                  hideItemText:hideItemText
-                                      handler:nil];
+                                      handler:^{
+                                        [weakSelf toggleAddPageToSubmenu];
+                                      }];
 }
 
 - (OverflowMenuAction*)vivaldiEditPageAction {
+  __weak __typeof(self) weakSelf = self;
   NSString* hideItemText =
       l10n_util::GetNSString(IDS_IOS_OVERFLOW_MENU_HIDE_ACTIONS_EDIT);
   return [self
@@ -3478,7 +3935,9 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
                              monochromeSymbol:NO
                               accessibilityID:vToolsMenuEditPageId
                                  hideItemText:hideItemText
-                                      handler:nil];
+                                      handler:^{
+                                        [weakSelf toggleEditPageSubmenu];
+                                      }];
 }
 
 - (OverflowMenuAction*)vivaldiAddOrEditStartPageAction:(BOOL)isAdded {
@@ -3546,6 +4005,10 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
   NSMutableArray<OverflowMenuAction*>* addActions =
       [[NSMutableArray alloc] init];
 
+  if (![self isCurrentURLWebURL]) {
+    return addActions;
+  }
+
   BOOL pageAddedToStartPage = self.webState && self.bookmarkModel &&
       vivaldi_bookmark_kit::IsURLAddedToStartPage(
           self.bookmarkModel, self.webState->GetVisibleURL());
@@ -3581,6 +4044,10 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
   NSMutableArray<OverflowMenuAction*>* editActions =
       [[NSMutableArray alloc] init];
 
+  if (![self isCurrentURLWebURL]) {
+    return editActions;
+  }
+
   BOOL pageAddedToStartPage = self.webState && self.bookmarkModel &&
       vivaldi_bookmark_kit::IsURLAddedToStartPage(
           self.bookmarkModel, self.webState->GetVisibleURL());
@@ -3601,6 +4068,22 @@ OverflowMenuFooter* CreateOverflowMenuManagedFooter(
         [self vivaldiAddOrEditBookmarksAction:pageIsBookmarked]];
   }
   return editActions;
+}
+
+- (void)toggleAddPageToSubmenu {
+  [self toggleExpandedSubmenuForAction:self.addPageToAction];
+}
+
+- (void)toggleEditPageSubmenu {
+  [self toggleExpandedSubmenuForAction:self.editPageAction];
+}
+
+- (void)toggleExpandedSubmenuForAction:(OverflowMenuAction*)action {
+  if ([action.submenuActions count] == 0) {
+    return;
+  }
+  action.submenuExpanded = !action.submenuExpanded;
+  [self.menuOrderer updatePageActions];
 }
 
 - (void)openNotes {

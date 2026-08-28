@@ -24,7 +24,8 @@
 #include "vivaldi/prefs/vivaldi_gen_prefs.h"
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-#include "extensions/api/tabs/tabs_private_api.h"
+#include "extensions/api/pwa/pwa_api.h"
+#include "extensions/api/tabs_private/tabs_private_api.h"
 #endif
 
 #if !BUILDFLAG(IS_ANDROID)
@@ -70,6 +71,7 @@ void VivaldiAttachTabHelpers(WebContents* web_contents) {
     // Attach a contentsobserver to update the renderer prefs we want to change.
     extensions::VivaldiGuestViewContentObserver::CreateForWebContents(
         web_contents);
+    extensions::PwaInstallabilityObserver::CreateForWebContents(web_contents);
   }
 #endif
 

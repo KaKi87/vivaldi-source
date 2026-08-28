@@ -10,25 +10,20 @@
 #include "base/feature_list.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
 #include "chrome/browser/ui/omnibox/omnibox_controller.h"
-#include "chrome/browser/ui/omnibox/omnibox_next_features.h"
 #include "chrome/browser/ui/omnibox/omnibox_popup_state_manager.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_popup_webui_content.h"
-#include "chrome/common/webui_url_constants.h"
 #include "components/omnibox/common/omnibox_features.h"
-#include "ui/views/view_utils.h"
 
 OmniboxPopupPresenter::OmniboxPopupPresenter(
     LocationBar* location_bar,
     OmniboxPopupPresenterDelegate& presenter_delegate,
     OmniboxController* controller)
     : OmniboxPopupPresenterBase(location_bar, presenter_delegate, controller) {
-  bool full_popup =
-      base::FeatureList::IsEnabled(omnibox::kWebUIOmniboxFullPopup);
   SetWebUIContent(std::make_unique<OmniboxPopupWebUIContent>(
       this, this->location_bar(), controller,
-      /*include_location_bar_cutout=*/!full_popup,
-      /*wants_focus=*/full_popup));
+      /*include_location_bar_cutout=*/true,
+      /*wants_focus=*/false));
 
   // By initializing `content_height_` to 1, we ensure the widget starts 1px
   // taller than the location bar on first show. This creates a tiny visible
@@ -80,13 +75,11 @@ void OmniboxPopupPresenter::WidgetDestroyed() {
 }
 
 bool OmniboxPopupPresenter::ShouldShowLocationBarCutout() const {
-  return views::AsViewClass<OmniboxPopupWebUIContent>(GetWebUIContent())
-      ->include_location_bar_cutout();
+  return true;
 }
 
 bool OmniboxPopupPresenter::ShouldReceiveFocus() const {
-  return views::AsViewClass<OmniboxPopupWebUIContent>(GetWebUIContent())
-      ->wants_focus();
+  return false;
 }
 
 std::optional<base::TimeDelta>

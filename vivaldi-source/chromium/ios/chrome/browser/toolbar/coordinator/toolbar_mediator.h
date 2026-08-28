@@ -10,6 +10,7 @@
 #import "ios/chrome/browser/toolbar/legacy/ui_bundled/banner_promo_view.h"
 #import "ios/chrome/browser/toolbar/ui/toolbar_mutator.h"
 
+class FullscreenBrowserAgent;
 @class BrowserActionFactory;
 @class DefaultBrowserBannerPromoAppAgent;
 @protocol FullscreenCommands;
@@ -28,8 +29,8 @@ class WebStateList;
 class TabBasedIPHBrowserAgent;
 
 class AuthenticationService;
-@protocol BWGCommands;
 class GeminiBrowserAgent;
+@protocol GeminiCommands;
 class GeminiService;
 
 // Mediator for the toolbar.
@@ -54,7 +55,7 @@ class GeminiService;
 @property(nonatomic, weak) id<SettingsCommands> settingsHandler;
 
 // Dispatcher for Gemini commands.
-@property(nonatomic, weak) id<BWGCommands> geminiHandler;
+@property(nonatomic, weak) id<GeminiCommands> geminiHandler;
 
 // Base view controller for presenting UI sheets.
 @property(nonatomic, weak) UIViewController* baseViewController;
@@ -68,6 +69,8 @@ class GeminiService;
                     actionFactory:(BrowserActionFactory*)actionFactory
                       prefService:(PrefService*)prefService
              fullscreenController:(FullscreenController*)fullscreenController
+           fullscreenBrowserAgent:
+               (FullscreenBrowserAgent*)fullscreenBrowserAgent
                       topPosition:(BOOL)topPosition
      defaultBrowserBannerAppAgent:
          (DefaultBrowserBannerPromoAppAgent*)defaultBrowserBannerAppAgent

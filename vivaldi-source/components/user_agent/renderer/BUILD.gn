@@ -1,0 +1,14 @@
+# Copyright (c) 2026 Vivaldi Technologies AS. All rights reserved
+
+static_library("renderer") {
+  sources = [
+    "vivaldi_user_agent_config_receiver.cc",
+    "vivaldi_user_agent_config_receiver.h",
+  ]
+  deps = [
+    "../mojom",
+    "//base",
+    "//content/public/common",
+    "//content/public/renderer",
+  ]
+}

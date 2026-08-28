@@ -25,6 +25,44 @@ if (is_android) {
   platform_unsupported_locales = []
 }
 
+if (is_ios) {
+  vivaldi_ios_bundle_locales = []
+  vivaldi_ios_bundle_output_locales = []
+  vivaldi_ios_extra_locales = []
+  vivaldi_ios_extra_output_locales = []
+  vivaldi_ios_app_output_locales = []
+
+  _vivaldi_ios_supported_locales = vivaldi_supported_locales
+  if (enable_pseudolocales) {
+    _vivaldi_ios_supported_locales -= pseudolocales
+  }
+
+  foreach(_locale, _vivaldi_ios_supported_locales) {
+    if (_locale == "en-US") {
+      _output_locale = "en"
+    } else if (_locale == "es-MX") {
+      _output_locale = "es_419"
+    } else if (_locale == "pt") {
+      _output_locale = "pt_BR"
+    } else {
+      _output_locale = string_replace(_locale, "-", "_")
+    }
+
+    vivaldi_ios_bundle_locales += [ _locale ]
+    vivaldi_ios_bundle_output_locales += [ _output_locale ]
+
+    _extra_locale = []
+    _extra_locale = [ _locale ] + platform_pak_locales - platform_pak_locales
+    if (_extra_locale != []) {
+      vivaldi_ios_extra_locales += [ _locale ]
+      vivaldi_ios_extra_output_locales += [ _output_locale ]
+    }
+  }
+
+  vivaldi_ios_app_output_locales =
+      locales_as_apple_outputs + vivaldi_ios_extra_output_locales
+}
+
 # Minimum set of supported locales is platform_pak_locales
 _foo =
     platform_pak_locales + vivaldi_supported_locales - vivaldi_supported_locales

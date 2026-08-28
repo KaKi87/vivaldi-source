@@ -76,7 +76,7 @@ public class NtpThemeMediatorUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Mock private Profile mProfile;
-    @Mock private Callback<Bitmap> mOnImageSelectedCallback;
+    @Mock private NtpCustomizationUtils.OnImageLoadedCallback mOnImageSelectedCallback;
     @Mock private BottomSheetDelegate mBottomSheetDelegate;
     @Mock private View mView;
     @Mock private NtpCustomizationConfigManager mNtpCustomizationConfigManager;
@@ -153,7 +153,7 @@ public class NtpThemeMediatorUnitTest {
                         histogramName, BottomSheetType.CHROME_DEFAULT);
 
         mMediator.handleChromeDefaultSectionClick(mView);
-        verify(mNtpCustomizationConfigManager).onBackgroundReset();
+        verify(mNtpCustomizationConfigManager).onBackgroundDataChanged(eq(mContext), eq(null));
         verify(mNtpThemeCollectionManager).resetCustomBackground();
         histogramWatcher.assertExpected();
     }

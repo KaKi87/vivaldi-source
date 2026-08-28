@@ -18,7 +18,6 @@
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/sessions/session_service.h"
 #include "chrome/browser/sessions/session_service_factory.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_tabrestore.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -41,11 +40,6 @@ using bookmarks::BookmarkNode;
 using vivaldi::NoteNode;
 using vivaldi::NotesModel;
 using vivaldi::NotesModelFactory;
-
-void ChromiumExtensionsImporterDeleter::operator()(
-    extension_importer::ChromiumExtensionsImporter* ptr) {
-  delete ptr;
-}
 
 namespace {
 
@@ -90,15 +84,17 @@ void RestoreTabsToBrowser(
   auto active_tab_handle = tab_strip_model->GetTabAtIndex(active_tab_index);
   auto prev_active_tab = tab_strip_model->GetActiveTab();
 
-  const base::Time epoch_time = base::Time::UnixEpoch();
-  const base::TimeTicks epoch_time_ticks = base::TimeTicks::UnixEpoch();
+  // Anchor both clocks to the current instant so the last active time (a
+  // base::Time) can be mapped onto the TimeTicks timeline WebContents wants.
+  const base::Time now = base::Time::Now();
+  const base::TimeTicks now_ticks = base::TimeTicks::Now();
 
   int tab_index = initial_tab_count;
 
   for (const auto& tab : tabs) {
     // Convert the last active time because WebContents needs a TimeTicks.
-    const base::TimeDelta delta = tab->last_active_time - epoch_time;
-    const base::TimeTicks last_active_time_ticks = epoch_time_ticks + delta;
+    const base::TimeTicks last_active_time_ticks =
+        now_ticks - (now - tab->last_active_time);
 
     // Skip tabs with empty navigations.
     if (tab->navigations.empty())
@@ -214,11 +210,10 @@ void ProfileWriter::AddNotes(const std::vector<ImportedNotesEntry>& notes,
 }
 
 void ProfileWriter::AddExtensions(const std::vector<std::string>& extensions) {
-  vivaldi_extensions_importer_ =
-      std::unique_ptr<extension_importer::ChromiumExtensionsImporter,
-                      ChromiumExtensionsImporterDeleter>(
-          new extension_importer::ChromiumExtensionsImporter(profile_));
-  vivaldi_extensions_importer_->AddExtensions(extensions);
+  auto importer =
+      base::MakeRefCounted<extension_importer::ChromiumExtensionsImporter>(
+          profile_);
+  importer->AddExtensions(extensions);
 }
 
 void ProfileWriter::AddOpenTabs(const std::vector<ImportedTabEntry>& tabs) {

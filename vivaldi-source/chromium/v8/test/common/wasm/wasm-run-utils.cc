@@ -107,9 +107,9 @@ class FunctionTargetAndImplicitArg {
 };
 
 TestingModuleBuilder::TestingModuleBuilder(
-    Zone* zone, ModuleOrigin origin, ManuallyImportedJSFunction* maybe_import,
+    Zone* zone, ManuallyImportedJSFunction* maybe_import,
     TestExecutionTier tier, Isolate* isolate)
-    : module_(std::make_shared<WasmModule>(origin)),
+    : module_(std::make_shared<WasmModule>()),
       isolate_(isolate),
       enabled_features_(WasmEnabledFeatures::FromIsolate(isolate_)),
       execution_tier_(tier) {
@@ -146,7 +146,7 @@ TestingModuleBuilder::TestingModuleBuilder(
     const wasm::CanonicalSig* sig =
         GetTypeCanonicalizer()->LookupFunctionSignature(sig_index);
     const wasm::CanonicalValueType type = wasm::CanonicalValueType::Ref(
-        sig_index, SharedFlag::kNo, wasm::RefTypeKind::kFunction);
+        sig_index, SharedFlag{false}, wasm::RefTypeKind::kFunction);
     ResolvedWasmImport resolved({}, -1, maybe_import->js_function, type, sig,
                                 WellKnownImport::kUninstantiated);
     ImportCallKind kind = resolved.kind();
@@ -188,18 +188,13 @@ uint8_t* TestingModuleBuilder::AddMemory(uint32_t size, SharedFlag shared,
   memory->initial_pages = initial_pages;
   memory->maximum_pages = maximum_pages;
   memory->address_type = address_type;
-  UpdateComputedInformation(memory, module_->origin);
+  UpdateComputedInformation(memory);
 
   // Create the WasmMemoryObject.
   DirectHandle<WasmMemoryObject> memory_object =
       WasmMemoryObject::New(isolate_, initial_pages, maximum_pages, shared,
                             address_type)
           .ToHandleChecked();
-  // For asm.js make sure that always the ArrayBuffer exists (like in
-  // production).
-  if (is_asmjs_module(module_.get())) {
-    WasmMemoryObject::GetArrayBuffer(isolate_, memory_object);
-  }
   DirectHandle<FixedArray> memory_objects =
       isolate_->factory()->NewFixedArray(1);
   memory_objects->set(0, *memory_object);
@@ -218,9 +213,7 @@ uint8_t* TestingModuleBuilder::AddMemory(uint32_t size, SharedFlag shared,
   mem0_size_ = size;
   CHECK(size == 0 || mem0_start_);
 
-  // TODO(14616): Add shared_trusted_instance_data_.
   WasmMemoryObject::UseInInstance(isolate_, memory_object,
-                                  trusted_instance_data_,
                                   trusted_instance_data_, 0);
   // TODO(wasm): Delete the following line when test-run-wasm will use a
   // multiple of kPageSize as memory size. At the moment, the effect of these
@@ -410,9 +403,9 @@ uint32_t TestingModuleBuilder::AddException(const FunctionSig* sig) {
   uint32_t index = static_cast<uint32_t>(module_->tags.size());
   module_->tags.emplace_back(sig, AddSignature(sig));
   DirectHandle<WasmExceptionTag> tag = WasmExceptionTag::New(isolate_, index);
-  DirectHandle<FixedArray> table(trusted_instance_data_->tags_table(),
-                                 isolate_);
-  table = isolate_->factory()->CopyFixedArrayAndGrow(table, 1);
+  DirectHandle<TrustedFixedArray> table(trusted_instance_data_->tags_table(),
+                                        isolate_);
+  table = isolate_->factory()->CopyTrustedFixedArrayAndGrow(table, 1);
   trusted_instance_data_->set_tags_table(*table);
   table->set(index, *tag);
   return index;
@@ -456,7 +449,7 @@ const WasmGlobal* TestingModuleBuilder::AddGlobal(ValueType type) {
   // space.
   module_->globals.reserve(kMaxGlobalsSize);
   module_->globals.push_back(
-      {type, true, {}, {global_offset_}, SharedFlag::kNo, false, false});
+      {type, true, {}, {global_offset_}, SharedFlag{false}, false, false});
   global_offset_ += size;
   // limit number of globals.
   CHECK_LT(global_offset_, kMaxGlobalsSize);
@@ -483,11 +476,6 @@ DirectHandle<WasmInstanceObject> TestingModuleBuilder::InitInstanceObject() {
   constexpr base::Vector<const char> kNoSourceUrl{"", 0};
   DirectHandle<Script> script =
       GetWasmEngine()->GetOrCreateScript(isolate_, native_module, kNoSourceUrl);
-  // Asm.js modules are expected to have "normal" scripts, not Wasm scripts.
-  if (is_asmjs_module(native_module->module())) {
-    script->set_type(Script::Type::kNormal);
-    script->set_infos(ReadOnlyRoots{isolate_}.empty_weak_fixed_array());
-  }
 
   DirectHandle<ByteArray> globals_buffer =
       isolate_->factory()->NewByteArray(kMaxGlobalsSize);
@@ -498,12 +486,13 @@ DirectHandle<WasmInstanceObject> TestingModuleBuilder::InitInstanceObject() {
 
   DirectHandle<WasmTrustedInstanceData> trusted_data =
       WasmTrustedInstanceData::New(isolate_, module_object,
-                                   std::move(native_module), SharedFlag::kNo);
+                                   std::move(native_module));
   // TODO(42204563): Avoid crashing if the instance object is not available.
   CHECK(trusted_data->has_instance_object());
   DirectHandle<WasmInstanceObject> instance_object(
       trusted_data->instance_object(), isolate_);
-  trusted_data->set_tags_table(ReadOnlyRoots{isolate_}.empty_fixed_array());
+  trusted_data->set_tags_table(
+      *isolate_->factory()->empty_trusted_fixed_array());
   trusted_data->set_untagged_globals_buffer(*globals_buffer);
   DirectHandle<FixedArray> feedback_vector =
       isolate_->factory()->NewFixedArrayWithZeroes(kMaxFunctions);
@@ -541,23 +530,17 @@ void WasmFunctionCompiler::Build(base::Vector<const uint8_t> bytes) {
   memcpy(func_wire_bytes.begin(), wire_bytes.begin() + function_->code.offset(),
          func_wire_bytes.size());
 
-  // TODO(14616): Extend this to shared functions.
   FunctionBody func_body{function_->sig, function_->code.offset(),
-                         func_wire_bytes.begin(), func_wire_bytes.end(),
-                         SharedFlag::kNo};
+                         func_wire_bytes.begin(), func_wire_bytes.end()};
   ForDebugging for_debugging =
       native_module->IsInDebugState() ? kForDebugging : kNotForDebugging;
 
   WasmDetectedFeatures unused_detected_features;
-  // Validate Wasm modules; asm.js is assumed to be always valid.
-  if (env.module->origin == kWasmOrigin) {
-    DecodeResult validation_result =
-        ValidateFunctionBody(zone_, env.enabled_features, env.module,
-                             &unused_detected_features, func_body);
-    if (validation_result.failed()) {
-      FATAL("Validation failed: %s",
-            validation_result.error().message().c_str());
-    }
+  DecodeResult validation_result =
+      ValidateFunctionBody(zone_, env.enabled_features, env.module,
+                           &unused_detected_features, func_body);
+  if (validation_result.failed()) {
+    FATAL("Validation failed: %s", validation_result.error().message().c_str());
   }
 
   if (v8_flags.wasm_jitless) return;
@@ -573,7 +556,7 @@ void WasmFunctionCompiler::Build(base::Vector<const uint8_t> bytes) {
                        .max_steps = builder_->max_steps_ptr()}));
   } else {
     WasmCompilationUnit unit(function_->func_index, builder_->execution_tier(),
-                             for_debugging, Validation::kAlreadyValidated);
+                             for_debugging, kAlreadyValidated);
     result.emplace(unit.ExecuteCompilation(
         &env, native_module->compilation_state()->GetWireBytesStorage().get(),
         native_module->counter_updates(), &unused_detected_features));

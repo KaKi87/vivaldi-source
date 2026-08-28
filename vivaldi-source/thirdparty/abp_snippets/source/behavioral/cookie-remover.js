@@ -14,20 +14,22 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 import {accessor} from "proxy-pants/accessor";
 
 import {getDebugger} from "../introspection/log.js";
 import {profile} from "../introspection/profile.js";
-import {formatArguments, toRegExp} from "../utils/general.js";
+import {
+  formatArguments, sendSnippetHitEvent, toRegExp
+} from "../utils/general.js";
 
 let {Error, URL} = $(window);
 let {cookie: documentCookies} = accessor(document);
 
 /**
- * Removes a specific cookie by setting it's expiration date in the past.
- * @alias module:content/snippets.cookie-remover
+ * @description Removes a specific cookie by setting
+ * it's expiration date in the past.
+ * @memberof module:snippets/behavioral
  *
  * @param {string} cookie The name of the cookie that we want removed.
  * If the string begins and ends with a slash (`/`),
@@ -38,6 +40,12 @@ let {cookie: documentCookies} = accessor(document);
  * monitor the targeted cookie, checking for its presence every 1000 ms.
  * If the cookie is found, it will be repeatedly removed.
  *
+ * @example
+ * cookie-remover adb
+ * => Any cookie that matches adb will be removed.
+ *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69960107/cookie-remover} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/behavioral-snippets/cookie-remover} for external documentation.
  * @since Adblock Plus 3.11.2
  */
 export function cookieRemover(cookie, autoRemoveCookie = false) {
@@ -48,6 +56,7 @@ export function cookieRemover(cookie, autoRemoveCookie = false) {
   let debugLog = getDebugger("cookie-remover");
   const {mark, end} = profile("cookie-remover");
   let re = toRegExp(cookie);
+  let hitEventSent = false;
 
   // In some cases, when the snippet is executed, the protocol is about:blank
   // thus preventing us from actually removing the cookie.
@@ -86,6 +95,12 @@ export function cookieRemover(cookie, autoRemoveCookie = false) {
         documentCookies(`${$(name).trim()}=;${expires};${path};domain=${domain}`);
         documentCookies(`${$(name).trim()}=;${expires};${path};domain=.${domain}`);
         debugLog("success", `Set expiration date on ${name}`, "\nFILTER: cookie-remover", formattedArguments);
+        if (!hitEventSent) {
+          hitEventSent = true;
+          sendSnippetHitEvent(
+            "cookie-remover " + formattedArguments
+          );
+        }
       }
     }
     end();

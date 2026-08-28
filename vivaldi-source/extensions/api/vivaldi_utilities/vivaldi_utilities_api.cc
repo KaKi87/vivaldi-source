@@ -54,7 +54,6 @@
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_select_file_dialog_controller.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
@@ -103,7 +102,7 @@
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
-#include "extensions/api/runtime/runtime_api.h"
+#include "extensions/api/runtime_private/runtime_private_api.h"
 #include "extensions/api/vivaldi_utilities/drag_download_items.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/helper/file_selection_options.h"
@@ -772,6 +771,10 @@ void UtilitiesCanOpenUrlExternallyFunction::
 }
 
 ExtensionFunction::ResponseAction UtilitiesGetUrlFragmentsFunction::Run() {
+  return RespondNow(Error("Unexpected call to the browser process"));
+}
+
+ExtensionFunction::ResponseAction UtilitiesCalculateFunction::Run() {
   return RespondNow(Error("Unexpected call to the browser process"));
 }
 
@@ -2908,6 +2911,9 @@ UtilitiesShowAdditionalStartupPagesFunction::Run() {
   } else if (base::mac::MacOSVersion() < 12'00'00) {
     // Less than Monterey (e.g. Big Sur)
     maybe_deprecation_page = "https://vivaldi.com/os-support-notice-macos-11/";
+  } else if (base::mac::MacOSVersion() < 13'00'00) {
+    // Less than Ventura (e.g. Monterey)
+    maybe_deprecation_page = "https://vivaldi.com/os-support-notice-macos-12/";
   }
 #endif
 

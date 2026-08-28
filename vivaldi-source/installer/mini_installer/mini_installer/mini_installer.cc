@@ -28,6 +28,8 @@
 
 #include <windows.h>
 
+#include "base/compiler_specific.h"
+
 // #define needed to link in RtlGenRandom(), a.k.a. SystemFunction036.  See the
 // "Community Additions" comment on MSDN here:
 // http://msdn.microsoft.com/en-us/library/windows/desktop/aa387694.aspx
@@ -194,13 +196,13 @@ void AppendCommandLineFlags(const wchar_t* command_line,
   wchar_t a_char = 0;
   if (*command_line == L'"') {
     // Scan forward past the closing double quote.
-    ++command_line;
+    UNSAFE_TODO(++command_line);
     while (true) {
       a_char = *command_line;
       if (!a_char) {
         break;
       }
-      ++command_line;
+      UNSAFE_TODO(++command_line);
       if (a_char == L'"') {
         a_char = *command_line;
         break;
@@ -213,7 +215,7 @@ void AppendCommandLineFlags(const wchar_t* command_line,
       if (!a_char || a_char == L' ' || a_char == L'\t') {
         break;
       }
-      ++command_line;
+      UNSAFE_TODO(++command_line);
     }  // postcondition: |a_char| contains the character at *command_line.
   }
 
@@ -710,7 +712,7 @@ bool CreateWorkDir(const wchar_t* base_path,
     // because of little endianness, but we don't care since it's just
     // a name. Since we checked capaity at the front end, we don't need to
     // duplicate it here.
-    HexEncode(&id, sizeof(id), work_dir->get() + end,
+    HexEncode(&id, sizeof(id), UNSAFE_TODO(work_dir->get() + end),
               work_dir->capacity() - end);
 
     // We only want the first 5 digits to remain within the 8.3 file name

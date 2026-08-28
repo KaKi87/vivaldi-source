@@ -1051,7 +1051,15 @@ public class BookmarkManagerMediator // Vivaldi
             mStateStack.removeLast();
         }
 
-        mStateStack.addLast(state);
+        // If the state is already in the stack, this is a back-navigation.
+        // Pop the forward history to keep our stack synced with tab history.
+        if (mStateStack.contains(state)) {
+            while (!mStateStack.isEmpty() && !mStateStack.peekLast().equals(state)) {
+                mStateStack.removeLast();
+            }
+        } else {
+            mStateStack.addLast(state);
+        }
         notifyUi(state, preserveFolderBookmarksOnEmptySearch);
     }
 
@@ -1220,6 +1228,15 @@ public class BookmarkManagerMediator // Vivaldi
 
         updateAllLocations();
         syncAdapterAndSelectionDelegate();
+
+        String query = getCurrentSearchText();
+        if (getCurrentUiMode() == BookmarkUiMode.SEARCHING && !TextUtils.isEmpty(query)) {
+            int count = bookmarkListEntryList.size();
+            String announcement =
+                    mContext.getResources()
+                            .getQuantityString(R.plurals.bookmark_search_num_results, count, count);
+            mSelectableListLayout.announceAccessibilityText(announcement);
+        }
     }
 
     private void updateOrAdd(int index, ListItem listItem) {
@@ -2072,7 +2089,7 @@ public class BookmarkManagerMediator // Vivaldi
 
     public @Nullable String getCurrentUrl() {
       if (mStateStack.isEmpty()) return null;
-      return mStateStack.peek().mUrl;
+      return mStateStack.getLast().mUrl;
     }
 
     public void setBookmarksPageObserver(VivaldiBookmarksPageObserver observer) {

@@ -28,12 +28,12 @@
 #include <tuple>
 #include <vector>
 
-#include "src/dawn/common/Assert.h"
 #include "src/dawn/common/Constants.h"
 #include "src/dawn/common/Math.h"
 #include "src/dawn/tests/DawnTest.h"
 #include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
 #include "src/dawn/utils/WGPUHelpers.h"
+#include "src/utils/assert.h"
 
 namespace dawn {
 namespace {
@@ -499,7 +499,7 @@ TEST_P(MultipleWriteThenMultipleReadTests, SeparateBuffers) {
     cpDesc.compute.module = csModule;
     wgpu::ComputePipeline cp = device.CreateComputePipeline(&cpDesc);
     wgpu::Buffer vertexBuffer = CreateZeroedBuffer(
-        kVertexBufferStride * 4,
+        kVertexBufferStride * 4ULL,
         wgpu::BufferUsage::Vertex | wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
     wgpu::Buffer indexBuffer = CreateZeroedBuffer(
         sizeof(int) * 4 * 2,

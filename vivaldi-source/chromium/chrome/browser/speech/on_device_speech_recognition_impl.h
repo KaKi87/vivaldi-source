@@ -82,17 +82,24 @@ class OnDeviceSpeechRecognitionImpl
   base::Value GetOnDeviceLanguagesDownloadedValue();
   void SetOnDeviceLanguagesDownloadedContentSetting(
       base::Value on_device_languages_downloaded);
-  bool HasOnDeviceLanguageDownloaded(std::string_view language);
+  bool IsLanguageAvailabilityMaskedForOrigin(std::string_view language,
+                                             bool has_mic_and_accept_lang,
+                                             PrefService* profile_prefs);
   void SetOnDeviceLanguageDownloaded(std::string_view);
 
   // Mask on-device speech recognition availability by requiring a call to
   // installOnDevice() for a language before the language is available to the
   // origin.
-  media::mojom::AvailabilityStatus GetMaskedAvailabilityStatus(
+  void GetMaskedAvailabilityStatusAsync(
       std::string_view language,
-      media::mojom::SpeechRecognitionQuality quality);
+      media::mojom::SpeechRecognitionQuality quality,
+      const std::vector<std::string_view>& accept_languages_list,
+      bool has_mic_permission,
+      PrefService* profile_prefs,
+      base::OnceCallback<void(media::mojom::AvailabilityStatus)> callback);
 
   void OnModelClientAvailable(
+      std::set<std::string> languages,
       base::WeakPtr<optimization_guide::ModelClient> client);
 
   // A set of languages that have been downloaded for the current document. This

@@ -109,7 +109,6 @@
 #include "chrome/browser/unified_consent/unified_consent_service_factory.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/common/chrome_paths.h"
-#include "chrome/common/extensions/extension_constants.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "chromeos/ash/components/dbus/session_manager/fake_session_manager_client.h"
 #include "chromeos/ash/components/login/auth/public/user_context.h"
@@ -2917,6 +2916,44 @@ IN_PROC_BROWSER_TEST_F(DeviceLocalAccountUkmTest, ReportUkmOnShutdown) {
   std::unique_ptr<ukm::Report> report = ukm_test_helper.GetUkmReport();
   ASSERT_EQ(1, report->sources_size());
   EXPECT_EQ(ukm::SourceType::APP_ID, report->sources().Get(0).type());
+}
+
+IN_PROC_BROWSER_TEST_F(
+    DeviceLocalAccountTest,
+    ManagedGuestSession_AllowedInputMethods_PreservesActive) {
+  em::StringListPolicyProto* allowed_input_methods =
+      device_local_account_policy_.payload().mutable_allowedinputmethods();
+  allowed_input_methods->mutable_value()->add_entries("xkb:fr::fra");
+  allowed_input_methods->mutable_value()->add_entries("xkb:us::eng");
+
+  UploadAndInstallDeviceLocalAccountPolicy();
+  AddPublicSessionToDevicePolicy(kAccountId1);
+
+  WaitForPolicy();
+
+  ash::input_method::InputMethodManager::Get()
+      ->GetActiveIMEState()
+      ->EnableInputMethod(
+          ash::extension_ime_util::GetInputMethodIDByEngineID("xkb:fr::fra"));
+  ash::input_method::InputMethodManager::Get()
+      ->GetActiveIMEState()
+      ->ChangeInputMethod(
+          ash::extension_ime_util::GetInputMethodIDByEngineID("xkb:fr::fra"),
+          false /* show_message */);
+
+  ASSERT_NO_FATAL_FAILURE(StartLogin(
+      std::string(),
+      ash::extension_ime_util::GetInputMethodIDByEngineID("xkb:us::eng")));
+  WaitForSessionStart();
+
+  Profile* profile = GetProfileForTest();
+  ASSERT_TRUE(profile);
+  PrefService* prefs = profile->GetPrefs();
+
+  EXPECT_EQ(ash::extension_ime_util::GetInputMethodIDByEngineID("xkb:us::eng"),
+            prefs->GetString(ash::prefs::kLanguageCurrentInputMethod));
+  EXPECT_EQ(ash::extension_ime_util::GetInputMethodIDByEngineID("xkb:fr::fra"),
+            prefs->GetString(ash::prefs::kLanguagePreviousInputMethod));
 }
 
 class AmbientAuthenticationManagedGuestSessionTest

@@ -107,24 +107,24 @@ BASE_FEATURE(kInternalPageReaderMode,
              "VivaldiInternalPageReaderMode",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
+BASE_FEATURE(kLocalCalculator,
+             "VivaldiLocalCalculator",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
 BASE_FEATURE(kNoteEditor,
              "VivaldiNewNoteEditor",
              base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kRelatedTabs,
-             "VivaldiRelatedTabs",
-             base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kSettings20,
              "VivaldiSettings20",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
+BASE_FEATURE(kToolbarOverflow,
+             "VivaldiToolbarOverflow",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
 #if BUILDFLAG(IS_IOS)
 // iOS specific feature flags should be delcared within this block.
-
-BASE_FEATURE(kBankIDDigIDLatencyWorkaround,
-             "VivaldiBankIDDigIDLatencyWorkaround",
-             base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kVivaldiIOSCopySanitizedLink,
              "VivaldiIOSCopySanitizedLink",

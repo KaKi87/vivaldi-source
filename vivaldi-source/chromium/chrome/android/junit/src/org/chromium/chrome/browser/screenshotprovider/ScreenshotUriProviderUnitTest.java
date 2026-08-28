@@ -21,14 +21,17 @@ import android.net.Uri;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.content.browser.RenderCoordinatesImpl;
@@ -41,6 +44,8 @@ import java.util.function.Supplier;
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 public class ScreenshotUriProviderUnitTest {
+    @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
+
     private static final String TARGET_PACKAGE = "com.example.app";
 
     @Mock private Tab mTab;
@@ -51,7 +56,6 @@ public class ScreenshotUriProviderUnitTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
         mTabSupplier = () -> mTab;
         RenderCoordinatesImpl.setInstanceForTesting(mRenderCoordinates);
 
@@ -128,5 +132,42 @@ public class ScreenshotUriProviderUnitTest {
 
         assertNull(ScreenshotUriProvider.getInvocationState(invocationId));
         verify(mContext).revokeUriPermission(eq(uri), anyInt());
+    }
+
+    @Test
+    public void testGetScreenshotUriForCurrentTabLogsSuccessMetric() {
+        ScreenshotUriProvider.clearCachedContent(null);
+        var watcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Android.ScreenshotUriProvider.Events",
+                        ScreenshotContentProviderMetrics.ScreenshotUriProviderEvent
+                                .GET_CONTENT_URI_SUCCESS);
+        ScreenshotUriProvider.getScreenshotUriForCurrentTab(mTabSupplier, TARGET_PACKAGE);
+        watcher.assertExpected();
+    }
+
+    @Test
+    public void testGetScreenshotUriForCurrentTabLogsReusedMetric() {
+        ScreenshotUriProvider.clearCachedContent(null);
+        ScreenshotUriProvider.getScreenshotUriForCurrentTab(mTabSupplier, TARGET_PACKAGE);
+        var watcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Android.ScreenshotUriProvider.Events",
+                        ScreenshotContentProviderMetrics.ScreenshotUriProviderEvent
+                                .GET_CONTENT_URI_REUSED);
+        ScreenshotUriProvider.getScreenshotUriForCurrentTab(mTabSupplier, TARGET_PACKAGE);
+        watcher.assertExpected();
+    }
+
+    @Test
+    public void testGetScreenshotUriForCurrentTabLogsFailedMetric() {
+        ScreenshotUriProvider.clearCachedContent(null);
+        var watcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Android.ScreenshotUriProvider.Events",
+                        ScreenshotContentProviderMetrics.ScreenshotUriProviderEvent
+                                .GET_CONTENT_URI_FAILED);
+        ScreenshotUriProvider.getScreenshotUriForCurrentTab(() -> null, TARGET_PACKAGE);
+        watcher.assertExpected();
     }
 }

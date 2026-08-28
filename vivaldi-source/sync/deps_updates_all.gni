@@ -9,12 +9,4 @@ update_target("//components/sync/base:base") {
 }
 update_target("//components/sync/engine:engine") {
   deps += [ "//vivaldi/sync/test:fake_server" ]
-  allow_circular_includes_from = [
-    "//components/sync/base:base",
-    "//vivaldi/sync/test:fake_server",
-  ]
-}
-
-update_target("//components/sync/protocol:util") {
-  allow_circular_includes_from = [ "//components/sync/base:base" ]
 }

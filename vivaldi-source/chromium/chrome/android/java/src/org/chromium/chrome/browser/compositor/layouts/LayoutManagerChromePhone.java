@@ -11,15 +11,18 @@ import android.view.ViewGroup;
 
 import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.bookmarks.TabBookmarker;
 import org.chromium.chrome.browser.compositor.CompositorViewHolder;
 import org.chromium.chrome.browser.compositor.layouts.phone.NewTabAnimationLayout;
+import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutHelper;
 import org.chromium.chrome.browser.hub.HubLayoutDependencyHolder;
 import org.chromium.chrome.browser.layouts.LayoutType;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tab.TabObscuringHandler;
 import org.chromium.chrome.browser.tab_ui.ActionConfirmationManager;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tab_ui.TabSwitcher;
@@ -31,6 +34,7 @@ import org.chromium.chrome.browser.toolbar.ToolbarManager;
 import org.chromium.chrome.browser.ui.edge_to_edge.TopInsetProvider;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
 
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 // Vivaldi
@@ -48,11 +52,11 @@ import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.multiwindow.MultiInstanceManager;
 import org.chromium.chrome.browser.share.ShareDelegate;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
+import org.chromium.chrome.browser.ui.side_ui.SideUiStateProvider;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
+import org.chromium.ui.base.ActivityWindowAndroid;
 import org.chromium.ui.dragdrop.DragAndDropDelegate;
-
-import org.chromium.ui.base.WindowAndroid;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -106,25 +110,30 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
             NonNullObservableSupplier<Boolean> scrimVisibilitySupplier,
             TopInsetProvider topInsetProvider,
 
-            @NonNull ViewStub tabStripTooltipViewStub, // Vivaldi
-            MonotonicObservableSupplier<StripLayoutHelperManager.TabModelStartupInfo>  // Vivaldi
-                    tabModelStartupInfoSupplier,  // Vivaldi
-            ActivityLifecycleDispatcher lifecycleDispatcher, // Vivaldi
-            MultiInstanceManager multiInstanceManager,  // Vivaldi
-            DragAndDropDelegate dragAndDropDelegate, // Vivaldi
-            View toolbarContainerView, //Vivaldi
-            ViewStub tabHoverCardViewStub, // Vivaldi
-            ViewStub tabHoverCardViewStubStack, // Vivaldi
-            WindowAndroid windowAndroid, // Vivaldi
-            DesktopWindowStateManager desktopWindowStateManager, // Vivaldi
-            ActionConfirmationManager actionConfirmationManager, // Vivaldi
-            BrowserControlsStateProvider browserControlsStateProvider, // Vivaldi
-            DataSharingTabManager dataSharingTabManager, // Vivaldi
-            BottomSheetController bottomSheetController, // Vivaldi
-            MonotonicObservableSupplier<ShareDelegate> shareDelegateSupplier, // Vivaldi
-            Supplier<TabBookmarker> tabBookmarkerSupplier, // Vivaldi
+            // From here are all custom Vivaldi parameters
+            @NonNull ViewStub tabStripTooltipViewStub,
+            MonotonicObservableSupplier<StripLayoutHelperManager.TabModelStartupInfo>
+                    tabModelStartupInfoSupplier,
+            ActivityLifecycleDispatcher lifecycleDispatcher,
+            MultiInstanceManager multiInstanceManager,
+            DragAndDropDelegate dragAndDropDelegate,
+            View toolbarContainerView,
+            ViewStub tabHoverCardViewStub,
+            ViewStub tabHoverCardViewStubStack,
+            ActivityWindowAndroid windowAndroid,
+            DesktopWindowStateManager desktopWindowStateManager,
+            ActionConfirmationManager actionConfirmationManager,
+            BrowserControlsStateProvider browserControlsStateProvider,
+            DataSharingTabManager dataSharingTabManager,
+            BottomSheetController bottomSheetController,
+            MonotonicObservableSupplier<ShareDelegate> shareDelegateSupplier,
+            Supplier<TabBookmarker> tabBookmarkerSupplier,
             BackPressManager backPressManager,
-            SnackbarManager snackbarManager) { // Vivaldi
+            SnackbarManager snackbarManager,
+            StripLayoutHelper.LeadingButtonDelegate leadingButtonDelegate,
+            OneshotSupplier<SideUiStateProvider> sideUiStateProviderSupplier,
+            TabObscuringHandler tabObscuringHandler,
+            @Nullable BooleanSupplier canActivateTabLayoutToggleMenuSupplier) {
         super(
                 host,
                 contentContainer,
@@ -169,6 +178,10 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
                             backPressManager,
                             snackbarManager,
                             null,
+                            leadingButtonDelegate,
+                            sideUiStateProviderSupplier,
+                            tabObscuringHandler,
+                            canActivateTabLayoutToggleMenuSupplier,
                             /* isStackStrip */ (i > 0))); // Vivaldi
             addObserver(mTabStrips.get(i).getTabSwitcherObserver());
         }
@@ -245,11 +258,11 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
         if (BuildConfig.IS_VIVALDI)
             showOverview = false;
 
-        if (getActiveLayoutType() != LayoutType.TAB_SWITCHER && showOverview) {
+        if (getActiveLayoutType() != LayoutType.HUB && showOverview) {
             // Since there will be no 'next' tab to display, switch to
             // overview mode when the animation is finished.
             if (getActiveLayoutType() == LayoutType.SIMPLE_ANIMATION) {
-                setNextLayout(getLayoutForType(LayoutType.TAB_SWITCHER), true);
+                setNextLayout(getLayoutForType(LayoutType.HUB), true);
             } else {
                 super.tabClosed(id, nextId, incognito, tabRemoved);
             }
@@ -267,7 +280,7 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
             // smoothly.
             getActiveLayout().onTabCreating(sourceId);
         } else if (animationsEnabled()) {
-            if (!isLayoutVisible(LayoutType.TAB_SWITCHER)) {
+            if (!isLayoutVisible(LayoutType.HUB)) {
                 if (getActiveLayout() != null && getActiveLayout().isStartingToHide()) {
                     setNextLayout(mNewTabAnimationLayout, true);
                     // The method Layout#doneHiding() will automatically show the next layout.

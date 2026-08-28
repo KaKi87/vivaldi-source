@@ -14,6 +14,7 @@
 #include "chrome/common/importer/importer_bridge.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/user_data_importer/common/importer_data_types.h"
+#include "importer/import_limits.h"
 #include "importer/viv_import_result.h"
 #include "importer/viv_importer.h"
 #include "importer/viv_importer_utils.h"
@@ -111,7 +112,8 @@ bool DecryptMasterPasswordKeys(const std::string& password,
 
   OPENSSL_cleanse(key, sizeof(key));
   OPENSSL_cleanse(iv, sizeof(iv));
-  out_data->resize(in_data.length());
+  // Allow enough space in output buffer for additional block
+  out_data->resize(in_data.length() + EVP_MAX_BLOCK_LENGTH);
 
   int out_len = 0;
   int total_len = 0;
@@ -322,7 +324,8 @@ bool WandReadEncryptedField(std::string::iterator* buffer,
                    digest_buffer + 24, 0);
 
     OPENSSL_cleanse(digest_buffer, sizeof(digest_buffer));
-    out_data.resize(in_data.length());
+    // Allow enough space in output buffer for additional block
+    out_data.resize(in_data.length() + EVP_MAX_BLOCK_LENGTH);
 
     int out_len = 0;
     int total_len = 0;
@@ -447,6 +450,12 @@ bool OperaImporter::ImportWand_ReadEntryHTML(
 
   if (!WandReadUint32(buffer, buffer_end, &field_count))
     return false;
+
+  // field_count cannot be bigger than bytes remaining in the file,
+  // reject any bogus value.
+  if (field_count > static_cast<size_t>(buffer_end - *buffer)) {
+    return false;
+  }
 
   fields.resize(field_count);
 
@@ -599,7 +608,10 @@ bool OperaImporter::GetMasterPasswordInfo() {
     return false;
 
   std::string sec_data;
-  base::ReadFileToString(file, &sec_data);
+  if (!base::ReadFileToStringWithMaxSize(
+          file, &sec_data, vivaldi_importer::kMaxImportFileSize)) {
+    return false;
+  }
 
   std::string::iterator sec_buffer = sec_data.begin();
   std::string::iterator sec_buffer_end = sec_data.end();
@@ -689,7 +701,10 @@ ImportResult OperaImporter::ImportWand() {
   }
 
   std::string wand_data;
-  base::ReadFileToString(file, &wand_data);
+  if (!base::ReadFileToStringWithMaxSize(
+          file, &wand_data, vivaldi_importer::kMaxImportFileSize)) {
+    return import_result::Error(IDS_IMPORT_ERROR_OPERA_WAND_FILE_NOT_FOUND);
+  }
 
   std::string::iterator wand_buffer = wand_data.begin();
   std::string::iterator wand_buffer_end = wand_data.end();

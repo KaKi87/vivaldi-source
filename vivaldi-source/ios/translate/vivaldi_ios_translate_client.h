@@ -14,6 +14,7 @@
 #import <memory>
 #import <string>
 
+#import "base/functional/callback.h"
 #import "base/gtest_prod_util.h"
 #import "base/memory/raw_ptr.h"
 #import "components/translate/core/browser/translate_client.h"
@@ -74,6 +75,8 @@ class VivaldiIOSTranslateClient
                        translate::TranslateErrors error_type,
                        bool triggered_from_menu) override;
   bool IsTranslatableURL(const GURL& url) override;
+  void CheckIfPdfIsTranslatable(
+      base::OnceCallback<void(bool)> callback) override;
 
  private:
   friend class web::WebStateUserData<VivaldiIOSTranslateClient>;

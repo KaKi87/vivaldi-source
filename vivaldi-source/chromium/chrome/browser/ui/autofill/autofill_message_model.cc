@@ -4,14 +4,21 @@
 
 #include "chrome/browser/ui/autofill/autofill_message_model.h"
 
+#include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/ptr_util.h"
+#include "chrome/browser/android/android_theme_resources.h"
+#include "chrome/browser/android/preferences/autofill/settings_navigation_helper.h"
 #include "chrome/browser/android/resource_mapper.h"
 #include "components/autofill/core/browser/ui/payments/save_payment_method_and_virtual_card_enroll_confirmation_ui_params.h"
 #include "components/autofill/core/common/autofill_payments_features.h"
 #include "components/grit/components_scaled_resources.h"
 #include "components/messages/android/message_enums.h"
 #include "components/messages/android/message_wrapper.h"
+#include "components/resources/android/theme_resources.h"
+#include "components/strings/grit/components_strings.h"
+#include "content/public/browser/web_contents.h"
+#include "ui/base/l10n/l10n_util.h"
 
 namespace autofill {
 
@@ -82,6 +89,47 @@ AutofillMessageModel::CreateForVirtualCardEnrollFailure(
       std::move(message), Type::kVirtualCardEnrollFailure));
 }
 
+std::unique_ptr<AutofillMessageModel>
+AutofillMessageModel::CreateForPersonalContextFetchingFailure() {
+  std::unique_ptr<messages::MessageWrapper> message =
+      std::make_unique<messages::MessageWrapper>(
+          messages::MessageIdentifier::PERSONAL_CONTEXT_FETCHING_FAILURE);
+  message->SetTitle(
+      l10n_util::GetStringUTF16(IDS_AUTOFILL_AI_PRE_FETCH_ERROR_MESSAGE));
+  message->SetPrimaryButtonText(l10n_util::GetStringUTF16(
+      IDS_AUTOFILL_AI_PRE_FETCH_ERROR_MESSAGE_BUTTON_TEXT));
+  message->SetIconResourceId(ResourceMapper::MapToJavaDrawableId(
+      IDR_ANDROID_AUTOFILL_ID_CHROME_PRODUCT));
+
+  return base::WrapUnique(new AutofillMessageModel(
+      std::move(message), Type::kPersonalContextFetchingFailure));
+}
+
+std::unique_ptr<AutofillMessageModel>
+AutofillMessageModel::CreateForPrivateInferenceNotice(
+    content::WebContents* web_contents,
+    base::OnceClosure action_callback) {
+  std::unique_ptr<messages::MessageWrapper> message =
+      std::make_unique<messages::MessageWrapper>(
+          messages::MessageIdentifier::PRIVATE_INFERENCE_NOTICE);
+  message->SetTitle(l10n_util::GetStringUTF16(
+      IDS_AUTOFILL_AI_PRIVATE_INFERENCE_NOTICE_TITLE));
+  message->SetDescription(l10n_util::GetStringUTF16(
+      IDS_AUTOFILL_AI_PRIVATE_INFERENCE_NOTICE_DESCRIPTION));
+  message->SetPrimaryButtonText(l10n_util::GetStringUTF16(
+      IDS_AUTOFILL_AI_PRIVATE_INFERENCE_NOTICE_PRIMARY_BUTTON_TEXT));
+  message->SetIconResourceId(ResourceMapper::MapToJavaDrawableId(
+      IDR_ANDROID_AUTOFILL_ID_CHROME_PRODUCT));
+  message->SetSecondaryIconResourceId(
+      ResourceMapper::MapToJavaDrawableId(IDR_ANDROID_MESSAGE_SETTINGS));
+  message->SetSecondaryActionCallback(
+      base::BindRepeating(&ShowAutofillSettings, web_contents));
+
+  return base::WrapUnique(new AutofillMessageModel(
+      std::move(message), Type::kPrivateInferenceNotice,
+      std::move(action_callback), base::DoNothing()));
+}
+
 std::string_view AutofillMessageModel::TypeToString(Type message_type) {
   switch (message_type) {
     case Type::kUnspecified:
@@ -94,6 +142,10 @@ std::string_view AutofillMessageModel::TypeToString(Type message_type) {
       return "EntitySaveUpdateFlow";
     case Type::kAddressSaveUpdateFlow:
       return "AddressSaveUpdateFlow";
+    case Type::kPersonalContextFetchingFailure:
+      return "PersonalContextFetchingFailure";
+    case Type::kPrivateInferenceNotice:
+      return "PrivateInferenceNotice";
   }
 }
 

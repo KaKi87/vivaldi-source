@@ -31,6 +31,7 @@ import org.chromium.build.annotations.Nullable;
 
 import java.io.IOException;
 import java.net.Socket;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Adds convenience methods for interacting with ConnectivityManager in production code and in
@@ -39,6 +40,23 @@ import java.net.Socket;
 @NullMarked
 public class ConnectivityManagerWrapper {
     private static final String TAG = "ConnectivityManagerW";
+
+    // Mirror of the kDeriveConnectionTypeFromCapabilities feature flag, set from native.
+    // Defaults to true (the flag's ENABLED_BY_DEFAULT value) so Cronet — which excludes
+    // FeatureList/FeatureMap classes — still uses the IPC-free path. AtomicBoolean because the
+    // native side may set this from the network thread while a NetworkChangeNotifier constructed
+    // on another thread reads it (e.g. BackgroundSyncNetworkObserver).
+    private static final AtomicBoolean sDeriveConnectionTypeFromCapabilities =
+            new AtomicBoolean(true);
+
+    static void setDeriveConnectionTypeFromCapabilities(boolean enabled) {
+        sDeriveConnectionTypeFromCapabilities.set(enabled);
+    }
+
+    @VisibleForTesting
+    public static boolean getDeriveConnectionTypeFromCapabilities() {
+        return sDeriveConnectionTypeFromCapabilities.get();
+    }
 
     @SuppressWarnings("NullAway.Init") // Due to test-only constructor.
     private final ConnectivityManager mConnectivityManager;
@@ -89,10 +107,18 @@ public class ConnectivityManagerWrapper {
     NetworkState getNetworkState(
             NetworkChangeNotifierAutoDetect.@Nullable WifiManagerDelegate wifiManagerDelegate) {
         Network network = null;
-        NetworkInfo networkInfo;
+        NetworkInfo networkInfo = null;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             network = getDefaultNetwork();
-            networkInfo = getNetworkInfo(network);
+            // Skip the getNetworkInfo() IPC when we can derive everything from capabilities.
+            if (getDeriveConnectionTypeFromCapabilities()) {
+                NetworkState state = getNetworkStateFromCapabilities(network);
+                if (state != null) {
+                    return state;
+                }
+            } else {
+                networkInfo = getNetworkInfo(network);
+            }
         } else {
             networkInfo = mConnectivityManager.getActiveNetworkInfo();
         }
@@ -156,6 +182,38 @@ public class ConnectivityManagerWrapper {
                 true, networkInfo.getType(), networkInfo.getSubtype(), false, null, false, "");
     }
 
+    // Builds NetworkState from NetworkCapabilities alone, avoiding the getNetworkInfo() IPC.
+    // Returns null when the network or its capabilities are unavailable, so the caller falls back
+    // to
+    // the NetworkInfo path for the connected/disconnected decision. Does not special-case
+    // BLOCKED-but-foreground networks (crbug.com/677365).
+    @RequiresApi(Build.VERSION_CODES.M)
+    private @Nullable NetworkState getNetworkStateFromCapabilities(@Nullable Network network) {
+        if (network == null) {
+            return null;
+        }
+        NetworkCapabilitiesWrapper capabilities = getNetworkCapabilities(network);
+        if (capabilities == null) {
+            return null;
+        }
+        int type = connectivityTypeFromCapabilities(capabilities);
+        int subtype =
+                type == ConnectivityManager.TYPE_MOBILE
+                        ? cellularSubtypeFromKbps(capabilities.getLinkDownstreamBandwidthKbps())
+                        : TelephonyManager.NETWORK_TYPE_UNKNOWN;
+        boolean isMetered =
+                !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
+        DnsStatus dnsStatus = AndroidNetworkLibrary.getDnsStatus(network);
+        return new NetworkState(
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET),
+                type,
+                subtype,
+                isMetered,
+                String.valueOf(networkToNetId(network)),
+                dnsStatus != null && dnsStatus.getPrivateDnsActive(),
+                dnsStatus == null ? "" : dnsStatus.getPrivateDnsServerName());
+    }
+
     /**
      * Fetches NetworkInfo for |network|. Does not account for underlying VPNs; see
      * getNetworkInfo(Network) for a method that does.
@@ -193,6 +251,64 @@ public class ConnectivityManagerWrapper {
             return convertToConnectionType(networkInfo.getType(), networkInfo.getSubtype());
         }
         return ConnectionType.CONNECTION_NONE;
+    }
+
+    /**
+     * Derives the connection type from NetworkCapabilities, mimicking what the deprecated {@link
+     * android.net.NetworkInfo#getType} would have returned, while avoiding the synchronous
+     * ConnectivityManager calls that {@link #getConnectionType} makes. Unlike NetworkInfo,
+     * NetworkCapabilities has no cellular subtype, so it is approximated from {@link
+     * android.net.NetworkCapabilities#getLinkDownstreamBandwidthKbps}. A VPN with no underlying
+     * transport returns {@link ConnectionType#CONNECTION_UNKNOWN} to match the IPC path's default
+     * for {@code TYPE_VPN}.
+     */
+    @ConnectionType
+    static int getConnectionTypeFromCapabilities(NetworkCapabilitiesWrapper capabilities) {
+        int type = connectivityTypeFromCapabilities(capabilities);
+        int subtype =
+                type == ConnectivityManager.TYPE_MOBILE
+                        ? cellularSubtypeFromKbps(capabilities.getLinkDownstreamBandwidthKbps())
+                        : TelephonyManager.NETWORK_TYPE_UNKNOWN;
+        return convertToConnectionType(type, subtype);
+    }
+
+    // Maps a network's transports to the ConnectivityManager.TYPE_* that NetworkInfo#getType would
+    // have returned, or -1 if no known transport is set. Both -1 and TYPE_VPN are mapped to
+    // CONNECTION_UNKNOWN by convertToConnectionType, matching the IPC path.
+    static int connectivityTypeFromCapabilities(NetworkCapabilitiesWrapper capabilities) {
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI_AWARE)) {
+            return ConnectivityManager.TYPE_WIFI;
+        }
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) {
+            return ConnectivityManager.TYPE_MOBILE;
+        }
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) {
+            return ConnectivityManager.TYPE_ETHERNET;
+        }
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH)) {
+            return ConnectivityManager.TYPE_BLUETOOTH;
+        }
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
+            return ConnectivityManager.TYPE_VPN;
+        }
+        return -1;
+    }
+
+    /**
+     * Approximates a {@link TelephonyManager} RAT type from a cellular downstream bandwidth
+     * estimate. Bucket bounds (100/20000/40000 Kbps) cover the canonical AOSP values from
+     * {@code LinkBandwidthEstimator.AVG_BW_PER_RAT}: 2G (14-70), 3G (115-13000), LTE (30000),
+     * NR (47000-145000). Non-positive {@code kbps} (unknown) falls back to LTE since the caller
+     * has already confirmed the transport is cellular.
+     */
+    @VisibleForTesting
+    static int cellularSubtypeFromKbps(int kbps) {
+        if (kbps <= 0) return TelephonyManager.NETWORK_TYPE_LTE;
+        if (kbps < 100) return TelephonyManager.NETWORK_TYPE_GPRS;
+        if (kbps < 20000) return TelephonyManager.NETWORK_TYPE_UMTS;
+        if (kbps < 40000) return TelephonyManager.NETWORK_TYPE_LTE;
+        return TelephonyManager.NETWORK_TYPE_NR;
     }
 
     /**
@@ -555,5 +671,9 @@ public class ConnectivityManagerWrapper {
             // getNetworkHandle() returns a long.
             return Integer.parseInt(network.toString());
         }
+    }
+
+    public static void setDeriveConnectionTypeFromCapabilitiesForTesting(boolean enabled) {
+        sDeriveConnectionTypeFromCapabilities.set(enabled);
     }
 }

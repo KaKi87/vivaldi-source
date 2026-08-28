@@ -14,7 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 import {apply, call} from "proxy-pants/function";
 
@@ -22,7 +21,9 @@ import {log} from "../introspection/log.js";
 import {debug} from "../introspection/debug.js";
 import {hideElement, initQueryAll} from "../utils/dom.js";
 import {wrapPropertyAccess} from "../utils/execution.js";
-import {randomId, toRegExp} from "../utils/general.js";
+import {
+  formatArguments, randomId, sendSnippetHitEvent, toRegExp
+} from "../utils/general.js";
 
 // These classes cannot be secured in a meaningful way because new nodes
 // would not use the secured prototype and the secured environment is obtained
@@ -48,8 +49,8 @@ let {
 let {getOwnPropertyDescriptor} = Object;
 
 /**
- * Freezes a DOM element so it prevents adding new nodes inside it.
- * @alias module:content/snippets.freeze-element
+ * @description Freezes a DOM element so it prevents adding new nodes inside it.
+ * @memberof module:snippets/behavioral
  *
  * @param {string} selector The CSS selector for the parent element that
  *   we want to freeze
@@ -64,10 +65,18 @@ let {getOwnPropertyDescriptor} = Object;
  *   Each array item can be:
  *   **selector** (targeting Element nodes);
  *   **regex** (targeting Text nodes, identified by slash);
+ * @example
+ * freeze-element ol#b_results subtree .organic-result #header
+ * => Any addition of a node to the entire subtree of ol#b_results
+ * element will be blocked except for the elements with the
+ * organic-result class or the id of header.
  *
- * @since Adblock Plus 3.9.5
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69963667/freeze-element} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/behavioral-snippets/freeze-element} for external documentation.
+ * @since Adblock Plus 3.10
  */
 export function freezeElement(selector, options = "", ...exceptions) {
+  const formattedArguments = formatArguments(arguments);
   let observer;
   let subtree = false;
   let shouldAbort = false;
@@ -232,7 +241,7 @@ export function freezeElement(selector, options = "", ...exceptions) {
                (variables.frozen.has(node) ||
                variables.frozen.has($(node).parentNode));
       }
-      catch (error) {
+      catch (_error) {
         return false;
       }
     }
@@ -244,7 +253,7 @@ export function freezeElement(selector, options = "", ...exceptions) {
                 variables.frozen.has($(node).parentNode) &&
                 !isInsideTarget);
       }
-      catch (error) {
+      catch (_error) {
         return false;
       }
     }
@@ -260,7 +269,7 @@ export function freezeElement(selector, options = "", ...exceptions) {
         let parent = $(node).parentNode;
         return variables.frozen.get(parent);
       }
-      catch (error) {}
+      catch (_error) {}
     }
 
     function getSnippetDataBasedOnTarget(node, isInsideTarget) {
@@ -270,7 +279,7 @@ export function freezeElement(selector, options = "", ...exceptions) {
         let parent = $(node).parentNode;
         return variables.frozen.get(parent);
       }
-      catch (error) {}
+      catch (_error) {}
     }
   }
 
@@ -365,7 +374,13 @@ export function freezeElement(selector, options = "", ...exceptions) {
     return false;
   }
 
+  let hitEventSent = false;
+
   function abort(id) {
+    if (!hitEventSent) {
+      hitEventSent = true;
+      sendSnippetHitEvent("freeze-element " + formattedArguments);
+    }
     throw new ReferenceError(id);
   }
 

@@ -5,16 +5,22 @@
 #import "ios/chrome/browser/autofill/model/bottom_sheet/autofill_bottom_sheet_java_script_feature.h"
 
 #import "base/feature_list.h"
+#import "base/time/time.h"
 #import "base/values.h"
 #import "components/autofill/core/common/password_form_fill_data.h"
+#import "components/autofill/ios/common/autofill_optimization_features.h"
 #import "components/autofill/ios/common/javascript_feature_util.h"
 #import "components/webauthn/ios/features.h"
 #import "ios/chrome/browser/autofill/model/bottom_sheet/autofill_bottom_sheet_tab_helper.h"
 #import "ios/chrome/browser/autofill/model/features.h"
+#import "ios/web/public/js_messaging/web_frame.h"
 
 namespace {
 constexpr char kScriptName[] = "bottom_sheet";
 constexpr char kScriptMessageName[] = "BottomSheetMessage";
+
+// The timeout for any JavaScript call in this file.
+constexpr base::TimeDelta kJavaScriptExecutionTimeout = base::Seconds(5);
 }  // namespace
 
 std::optional<std::string>
@@ -46,7 +52,19 @@ AutofillBottomSheetJavaScriptFeature::AutofillBottomSheetJavaScriptFeature()
               kScriptName,
               FeatureScript::InjectionTime::kDocumentStart,
               FeatureScript::TargetFrames::kAllFrames,
-              FeatureScript::ReinjectionBehavior::kInjectOncePerWindow)}) {}
+              FeatureScript::ReinjectionBehavior::kInjectOncePerWindow,
+              base::BindRepeating(
+                  []() -> FeatureScript::PlaceholderReplacements {
+                    return @{
+                      @"window."
+                      @"gCrWebPlaceholderAutofillOptimizationFormSearch" :
+                              base::FeatureList::IsEnabled(
+                                  autofill::features::
+                                      kAutofillOptimizationFormSearchIos)
+                          ? @"true"
+                          : @"false",
+                    };
+                  }))}) {}
 
 AutofillBottomSheetJavaScriptFeature::~AutofillBottomSheetJavaScriptFeature() =
     default;
@@ -93,7 +111,11 @@ void AutofillBottomSheetJavaScriptFeature::DetachListeners(
 }
 
 void AutofillBottomSheetJavaScriptFeature::RefocusElementIfNeeded(
-    web::WebFrame* frame) {
+    web::WebFrame* frame,
+    base::OnceClosure callback) {
   CHECK(frame);
-  CallJavaScriptFunction(frame, "bottomSheet.refocusLastBlurredElement", {});
+  CallJavaScriptFunction(
+      frame, "bottomSheet.refocusLastBlurredElement", {},
+      base::IgnoreArgs<const base::Value*>(std::move(callback)),
+      kJavaScriptExecutionTimeout);
 }

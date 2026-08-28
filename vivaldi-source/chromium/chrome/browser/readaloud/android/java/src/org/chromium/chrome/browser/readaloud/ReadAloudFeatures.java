@@ -20,6 +20,8 @@ import org.chromium.chrome.browser.signin.services.UnifiedConsentServiceBridge;
 import org.chromium.components.search_engines.TemplateUrl;
 import org.chromium.components.search_engines.TemplateUrlService;
 import org.chromium.components.user_prefs.UserPrefs;
+import org.chromium.ui.accessibility.AccessibilityFeatures;
+import org.chromium.ui.accessibility.AccessibilityFeaturesMap;
 
 import java.util.List;
 
@@ -102,9 +104,9 @@ public final class ReadAloudFeatures {
         return sIneligibilityReason;
     }
 
-    /** Returns true if playback is enabled. */
-    public static boolean isPlaybackEnabled() {
-        return ChromeFeatureList.isEnabled(ChromeFeatureList.READALOUD_PLAYBACK);
+    /** Returns true if the native C++ Read Aloud implementation is enabled. */
+    public static boolean isNativeEnabled() {
+        return AccessibilityFeaturesMap.isEnabled(AccessibilityFeatures.READ_ALOUD_NATIVE);
     }
 
     /** Returns true if the ReadAloud CCT IPH should highlight the menu button. */

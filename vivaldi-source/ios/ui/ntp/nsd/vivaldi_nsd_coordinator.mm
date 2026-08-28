@@ -188,13 +188,13 @@ using bookmarks::BookmarkNode;
   if (!self.folderItem.bookmarkNode)
     return;
 
-  std::set<raw_ptr<const bookmarks::BookmarkNode>> hiddenNodes;
+  std::set<raw_ptr<const bookmarks::BookmarkNode>> movedNodes;
   _folderChooserCoordinator = [[BookmarksFolderChooserCoordinator alloc]
       initWithBaseNavigationController:_baseNavigationController
                                            ? _baseNavigationController
                                            : _navigationController
                                browser:self.browser
-                           hiddenNodes:hiddenNodes];
+                            movedNodes:movedNodes];
   _folderChooserCoordinator.allowsNewFolders = _allowsNewFolders;
   [_folderChooserCoordinator setSelectedFolder:self.folderItem.bookmarkNode];
   _folderChooserCoordinator.delegate = self;

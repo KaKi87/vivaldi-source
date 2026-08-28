@@ -29,11 +29,11 @@
 #include <cmath>
 #include <vector>
 
-#include "src/dawn/common/Assert.h"
 #include "src/dawn/common/Constants.h"
 #include "src/dawn/tests/DawnTest.h"
 #include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
 #include "src/dawn/utils/WGPUHelpers.h"
+#include "src/utils/assert.h"
 
 namespace dawn {
 namespace {
@@ -89,6 +89,9 @@ class SamplerTest : public DawnTest {
   protected:
     void SetUp() override {
         DawnTest::SetUp();
+        // TODO(crbug.com/523272951): Produces incorrect result on Pixel 10.
+        DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
+
         mRenderPass = utils::CreateBasicRenderPass(device, kRTSize, kRTSize);
 
         wgpu::TextureDescriptor descriptor;
@@ -104,7 +107,7 @@ class SamplerTest : public DawnTest {
 
         // Create a 2x2 checkerboard texture, with black in the top left and bottom right corners.
         const uint32_t rowPixels = kTextureBytesPerRowAlignment / sizeof(utils::RGBA8);
-        std::array<utils::RGBA8, rowPixels * 2> pixels;
+        std::array<utils::RGBA8, static_cast<size_t>(rowPixels) * 2> pixels;
         pixels[0] = pixels[rowPixels + 1] = utils::RGBA8::kBlack;
         pixels[1] = pixels[rowPixels] = utils::RGBA8::kWhite;
 
@@ -316,6 +319,9 @@ class StaticSamplerTest : public SamplerTest {
 // Test drawing a rect with a checkerboard texture using a static sampler with different address
 // modes.
 TEST_P(StaticSamplerTest, AddressMode) {
+    // TODO(crbug.com/523272955): Produces incorrect result on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
+
     DAWN_SUPPRESS_TEST_IF(IsWARP());
     // TODO(crbug.com/465184301): Fix static sampler feature.
     DAWN_SUPPRESS_TEST_IF(IsWebGPUOnWebGPU());
@@ -340,6 +346,9 @@ TEST_P(StaticSamplerTest, AddressMode) {
 // Test that passing texture and static sampler objects through user-defined functions works
 // correctly.
 TEST_P(StaticSamplerTest, PassThroughUserFunctionParameters) {
+    // TODO(crbug.com/523272955): Produces incorrect result on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
+
     DAWN_SUPPRESS_TEST_IF(IsWARP());
     // TODO(crbug.com/465184301): Fix static sampler feature.
     DAWN_SUPPRESS_TEST_IF(IsWebGPUOnWebGPU());

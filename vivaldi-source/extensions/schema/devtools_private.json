@@ -5,7 +5,7 @@
     "namespace": "devtoolsPrivate",
     "description": "Use the <code>vivaldi.devtoolsPrivate</code> API to manage devtools.",
     "compiler_options": {
-      "implemented_in": "extensions/api/devtools/devtools_private_api.h"
+      "implemented_in": "extensions/api/devtools_private/devtools_private_api.h"
     },
     "types": [
       {

@@ -24,23 +24,64 @@ export function getHtml(this: ComposeboxElement) {
         .energyEffectAnimationEnabled="${this.energyEffectAnimationEnabled}"
         .isZeroState="${this.isZeroState}"
         .darkThemeColorsEnabled="${this.entrypointName !== ''}"
+        .showingOnlyCarouselOnTopOfInput="${this.showFileCarousel
+            && !this.inToolMode
+            && this.carouselOnTop_
+            && this.voiceSearchCoherenceEnabled}"
         exportparts="composebox-background">
+      ${this.showFileCarousel && this.shouldShowVoiceSearchAnimation() &&
+          this.voiceSearchCoherenceEnabled ? html`
+        <div id="voiceCarouselContainer"
+            slot="carousel"
+            part="carousel-container">
+          <div id="voiceCarouselContainerInner"
+              class="carousel-container-inner">
+            <cr-composebox-file-carousel
+              id="voiceSearchCarousel"
+              class="${this.carouselOnTop_ ? 'top'
+                  : ''}"
+              .files="${this.getFilteredCarouselFiles()}"
+              enable-scrolling
+              @delete-file="${this.onDeleteFile}">
+            </cr-composebox-file-carousel>
+          </div>
+        </div>
+      ` : ''}
+      ${this.shouldShowVoiceSearchAnimation() &&
+            this.voiceSearchCoherenceEnabled && this.inToolMode
+          ? html`<div class=
+              "context-menu-container voice-context-menu-container"
+                    id="voiceToolChipsContainer"
+                    slot="tool-chip"
+                    part="tool-chips-container">
+                  <cr-composebox-tool-chip
+                    exportparts="tool-chip-label"
+                    .inputState="${this.inputState}"
+                    .isCanvasQuerySubmitted="
+                        ${this.isCanvasQuerySubmitted}"
+                    @tool-click="${this.onToolClick}"
+                    part="tool-chip">
+                  </cr-composebox-tool-chip>
+                </div>
+      ` : ''}
     </search-animated-glow>
   ` : ''}
-    <ntp-error-scrim id="errorScrim" part="error-scrim"
-        ?compact-mode="${this.searchboxLayoutMode === 'Compact' &&
-                         this.files.size === 0}"
-        .errorMessage="${this.errorMessage}"
-        @dismiss-error-scrim="${this.onDismissErrorScrim}">
-    </ntp-error-scrim>
-    <div id="composebox" part="composebox" ?inert="${!!this.errorMessage}"
+  ${this.errorMessage ?
+      html`<ntp-error-scrim id="errorScrim" part="error-scrim"
+          ?compact-mode="${this.searchboxLayoutMode === 'Compact' &&
+                          this.files.size === 0}"
+          .errorMessage="${this.errorMessage}"
+          @dismiss-error-scrim="${this.onDismissErrorScrim}">
+      </ntp-error-scrim>`
+  : ''}
+  <div id="composebox" part="composebox" ?inert="${!!this.errorMessage}"
         @keydown="${this.onKeydown}"
         @focusin="${this.onComposeboxFocusin_}"
         @focusout="${this.onComposeboxFocusout_}"
-        @dragenter="${this.dragAndDropHandler_.handleDragEnter}"
-        @dragover="${this.dragAndDropHandler_.handleDragOver}"
-        @dragleave="${this.dragAndDropHandler_.handleDragLeave}"
-        @drop="${this.dragAndDropHandler_.handleDrop}"
+        @dragenter="${this.dragAndDropHandler.handleDragEnter}"
+        @dragover="${this.dragAndDropHandler.handleDragOver}"
+        @dragleave="${this.dragAndDropHandler.handleDragLeave}"
+        @drop="${this.dragAndDropHandler.handleDrop}"
         @paste="${this.onPaste}">
       <div id="inputContainer" part="input-container">
         <cr-composebox-input id="composeboxInput"

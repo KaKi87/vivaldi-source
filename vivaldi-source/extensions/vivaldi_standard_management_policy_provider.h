@@ -5,7 +5,9 @@
 
 #include <string>
 
+#include "base/memory/raw_ptr.h"
 #include "chrome/browser/extensions/standard_management_policy_provider.h"
+#include "components/prefs/pref_change_registrar.h"
 
 namespace extensions {
 
@@ -41,6 +43,13 @@ class VivaldiStandardManagementPolicyProvider
                            std::u16string* error) const override;
   bool ShouldForceUninstall(const Extension* extension,
                             std::u16string* error) const override;
+
+ private:
+  bool IsVpnBlockedByPolicy(const Extension* extension) const;
+  void OnVpnPolicyChanged();
+
+  const raw_ptr<Profile> profile_;
+  PrefChangeRegistrar pref_change_registrar_;
 };
 
 }  // namespace extensions

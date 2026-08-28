@@ -782,7 +782,6 @@ TEST(PermissionsTest, PermissionMessages) {
   skip.insert(APIPermissionID::kGcm);
   skip.insert(APIPermissionID::kIdle);
   skip.insert(APIPermissionID::kImeWindowEnabled);
-  skip.insert(APIPermissionID::kIdltest);
   skip.insert(APIPermissionID::kLoginState);
   skip.insert(APIPermissionID::kOffscreen);
   skip.insert(APIPermissionID::kOverrideEscFullscreen);
@@ -903,6 +902,7 @@ TEST(PermissionsTest, PermissionMessages) {
   skip.insert(APIPermissionID::kSystemLog);
   skip.insert(APIPermissionID::kOdfsConfigPrivate);
   skip.insert(APIPermissionID::kIndigoPrivate);
+  skip.insert(APIPermissionID::kDictationPrivate);
 
   // Warned as part of host permissions.
   skip.insert(APIPermissionID::kDevtools);

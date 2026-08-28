@@ -10,8 +10,9 @@
 #import "ios/chrome/browser/fullscreen/public/fullscreen_metrics.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_animator.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
+#import "ios/chrome/browser/ntp/shared/metrics/home_metrics.h"
 #import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
-#import "ios/chrome/browser/shared/public/commands/bwg_commands.h"
+#import "ios/chrome/browser/shared/public/commands/gemini_commands.h"
 #import "ios/chrome/browser/shared/public/commands/omnibox_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
@@ -66,6 +67,7 @@ const base::TimeDelta kProgressBarEndAnimationDuration =
 // Whether a page is loading.
 @property(nonatomic, assign, getter=isLoading) BOOL loading;
 @property(nonatomic, assign) BOOL isNTP;
+@property(nonatomic, assign) BOOL isStartSurface;
 // The last progress of fullscreen registered. The progress range is between 0
 // and 1.
 @property(nonatomic, assign) CGFloat previousFullscreenProgress;
@@ -88,6 +90,7 @@ const base::TimeDelta kProgressBarEndAnimationDuration =
 @synthesize buttonFactory = _buttonFactory;
 @synthesize loading = _loading;
 @synthesize isNTP = _isNTP;
+@synthesize isStartSurface = _isStartSurface;
 
 // Vivaldi
 @synthesize isOmniboxFocused = _isOmniboxFocused;
@@ -170,10 +173,6 @@ const base::TimeDelta kProgressBarEndAnimationDuration =
 }
 
 - (void)disconnect {
-  if (!IsGeminiCopresenceEnabled()) {
-    return;
-  }
-
   for (LegacyToolbarButton* button in self.view.allButtons) {
     // Ensures that unrecognized command selectors aren't called and context
     // menu interactions are disabled after disconnecting view controller.
@@ -417,6 +416,10 @@ const base::TimeDelta kProgressBarEndAnimationDuration =
   _isNTP = isNTP;
 }
 
+- (void)setIsStartSurface:(BOOL)isStartSurface {
+  _isStartSurface = isStartSurface;
+}
+
 - (void)updateTabGroupState:(ToolbarTabGroupState)tabGroupState {
   [self.view updateTabGroupState:tabGroupState];
 }
@@ -642,6 +645,7 @@ const base::TimeDelta kProgressBarEndAnimationDuration =
     if (self.isNTP) {
       base::RecordAction(
           base::UserMetricsAction("MobileToolbarShowStackViewOnNTP"));
+      RecordHomeAction(IOSHomeActionType::kTabSwitcher, self.isStartSurface);
     }
     base::RecordAction(base::UserMetricsAction("MobileToolbarShowStackView"));
   } else if (sender == self.view.shareButton) {

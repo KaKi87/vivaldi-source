@@ -38,7 +38,6 @@
 <translation id="1601560923496285236">Použít</translation>
 <translation id="1603914832182249871">(Soukromý režim)</translation>
 <translation id="1627276047960621195">Popisovače souborů</translation>
-<translation id="1654713139320245449">Nenalezeny žádné cíle pro odesílání. Potřebujete pomoc?</translation>
 <translation id="166278006618318542">Algoritmus veřejného klíče subjektu</translation>
 <translation id="1682548588986054654">Nové soukromé okno</translation>
 <translation id="1708338024780164500">(Nečinný)</translation>
@@ -58,7 +57,6 @@
 <translation id="1906488504371069394">Objevte další rozšíření a motivy v <ph name="BEGIN_LINK" />Internetovém obchodě Chrome<ph name="END_LINK" /></translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">Zadejte vlastní webovou adresu</translation>
-<translation id="1932098463447129402">Nikoli před</translation>
 <translation id="1936931585862840749">Počet kopií k tisku zadejte jako číslo (od 1 do <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">&amp;Otevřít zvuk v novém listu</translation>
 <translation id="2050339315714019657">Na výšku</translation>
@@ -95,7 +93,6 @@
 <translation id="253557089021624350">Aktivity zabraňující ukončení</translation>
 <translation id="2550212893339833758">Stránkovaná paměť</translation>
 <translation id="2553440850688409052">Skrýt tento plugin</translation>
-<translation id="2607101320794533334">Informace o veřejném klíči subjektu</translation>
 <translation id="26224892172169984">Nepovolovat žádným stránkám zpracovávat protokoly</translation>
 <translation id="2653275834716714682">Nahrazení textu</translation>
 <translation id="265390580714150011">Hodnota pole</translation>
@@ -103,7 +100,6 @@
 <translation id="2678063897982469759">Znovu aktivovat</translation>
 <translation id="2719936478972253983">Následující soubory cookie byly zablokovány</translation>
 <translation id="2721037002783622288">&amp;Vyhledat obrázek pomocí vyhledávače <ph name="SEARCH_ENGINE" /></translation>
-<translation id="2738771556149464852">Nikoli po</translation>
 <translation id="2749881179542288782">Zkontrolovat pravopis a gramatiku</translation>
 <translation id="2785873697295365461">Popisovače souborů</translation>
 <translation id="2825758591930162672">Veřejný klíč subjektu</translation>
@@ -150,7 +146,6 @@
 <translation id="3387614642886316601">Použít vylepšenou kontrolu pravopisu</translation>
 <translation id="3390013585654699824">Podrobnosti aplikace</translation>
 <translation id="345693547134384690">Otevřít obrázek v novém l&amp;istu</translation>
-<translation id="3493881266323043047">Platnost</translation>
 <translation id="3511307672085573050">Kopírovat adr&amp;esu odkazu</translation>
 <translation id="354068948465830244">Rozšíření může číst a měnit data webů</translation>
 <translation id="3560034655160545939">&amp;Kontrola pravopisu</translation>
@@ -164,7 +159,6 @@
 <translation id="3760460896538743390">Prozkoumat stránku na &amp;pozadí</translation>
 <translation id="3786224729726357296">Vymazat data a oprávnění webu <ph name="SITE" /></translation>
 <translation id="3797900183766075808">&amp;Vyhledat „<ph name="SEARCH_TERMS" />“ pomocí vyhledávače <ph name="SEARCH_ENGINE" /></translation>
-<translation id="3798449238516105146">Verze</translation>
 <translation id="3810973564298564668">Spravovat</translation>
 <translation id="3838085852053358637">Rozšíření se nepodařilo načíst</translation>
 <translation id="383891835335927981">Žádné stránky nebyly přiblížené ani oddálené</translation>
@@ -247,7 +241,6 @@
 <translation id="5063480226653192405">Využití</translation>
 <translation id="5116628073786783676">Uložit &amp;zvuk jako…</translation>
 <translation id="5154108062446123722">Rozšířené nastavení tiskárny <ph name="PRINTING_DESTINATION" /></translation>
-<translation id="5154702632169343078">Předmět</translation>
 <translation id="5171343362375269016">Stránkovaná paměť</translation>
 <translation id="5233231016133573565">ID úlohy</translation>
 <translation id="5233736638227740678">&amp;Vložit</translation>
@@ -288,7 +281,6 @@
 <translation id="5780973441651030252">Priorita procesu</translation>
 <translation id="5804241973901381774">Oprávnění</translation>
 <translation id="5828633471261496623">Tiskne se…</translation>
-<translation id="5851868085455377790">Vydavatel</translation>
 <translation id="5860491529813859533">Zapnout</translation>
 <translation id="5910363049092958439">Uložit o&amp;brázek jako…</translation>
 <translation id="5914724413750400082">Modul (<ph name="MODULUS_NUM_BITS" /> bitů):
@@ -433,7 +425,6 @@ Svůj soubor klíče uchovávejte na bezpečném místě. Budete jej potřebovat
 <translation id="862750493060684461">Mezipaměť CSS</translation>
 <translation id="8661290697478713397">Otevřít odkaz v &amp;soukromém okně</translation>
 <translation id="8664389313780386848">Zobrazit zdrojo&amp;vý kód stránky</translation>
-<translation id="8705331520020532516">Sériové číslo</translation>
 <translation id="8708000541097332489">Smazat při ukončení</translation>
 <translation id="8714838604780058252">Grafika na pozadí</translation>
 <translation id="8725066075913043281">Zkusit znovu</translation>

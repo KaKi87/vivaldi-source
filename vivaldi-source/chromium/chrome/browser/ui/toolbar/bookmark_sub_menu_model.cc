@@ -11,7 +11,9 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/bookmarks/bookmark_utils.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/toolbar/app_menu_model.h"
 #include "chrome/browser/ui/toolbar/reading_list_sub_menu_model.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/bookmarks/common/bookmark_pref_names.h"
 #include "components/commerce/core/commerce_feature_list.h"
@@ -72,7 +74,7 @@ void BookmarkSubMenuModel::Build(Browser* browser) {
         kShowBookmarkBarMenuItem);
   } else {
     AddItemWithStringId(IDC_SHOW_BOOKMARK_BAR,
-                        browser->profile()->GetPrefs()->GetBoolean(
+                        browser->GetProfile()->GetPrefs()->GetBoolean(
                             bookmarks::prefs::kShowBookmarkBar)
                             ? IDS_HIDE_BOOKMARK_BAR
                             : IDS_SHOW_BOOKMARK_BAR);
@@ -86,7 +88,11 @@ void BookmarkSubMenuModel::Build(Browser* browser) {
       GetIndexOfCommandId(IDC_SHOW_BOOKMARK_SIDE_PANEL).value(),
       kShowBookmarkSidePanelItem);
 
-  AddItemWithStringId(IDC_SHOW_BOOKMARK_MANAGER, IDS_BOOKMARK_MANAGER);
+  if (features::IsMenuSimplificationEnabled()) {
+    AddItemWithStringId(IDC_SHOW_BOOKMARK_MANAGER, IDS_BOOKMARK_MANAGER_V2);
+  } else {
+    AddItemWithStringId(IDC_SHOW_BOOKMARK_MANAGER, IDS_BOOKMARK_MANAGER);
+  }
 
 #if !BUILDFLAG(IS_CHROMEOS)
   AddItemWithStringId(IDC_IMPORT_SETTINGS, IDS_IMPORT_SETTINGS_MENU_LABEL);
@@ -97,13 +103,14 @@ void BookmarkSubMenuModel::Build(Browser* browser) {
   reading_list_sub_menu_model_ =
       std::make_unique<ReadingListSubMenuModel>(delegate());
   AddSubMenuWithStringIdAndIcon(
-      IDC_READING_LIST_MENU, IDS_READING_LIST_MENU,
+      AppMenuModel::kReadingListMenuPlaceholder, IDS_READING_LIST_MENU,
       reading_list_sub_menu_model_.get(),
       ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
                                          ? kListAltIcon
                                          : kReadingListOldIcon));
-  SetElementIdentifierAt(GetIndexOfCommandId(IDC_READING_LIST_MENU).value(),
-                         kReadingListMenuItem);
+  SetElementIdentifierAt(
+      GetIndexOfCommandId(AppMenuModel::kReadingListMenuPlaceholder).value(),
+      kReadingListMenuItem);
 
   auto set_icon = [this](int command_id, const gfx::VectorIcon& vector_icon) {
     auto index = GetIndexOfCommandId(command_id);

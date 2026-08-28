@@ -5,7 +5,9 @@
 #include "chrome/browser/glic/glic_metrics.h"
 
 #include <optional>
+#include <utility>
 
+#include "base/memory/raw_ptr.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/metrics/user_action_tester.h"
 #include "chrome/browser/glic/glic_pref_names.h"
@@ -26,10 +28,10 @@
 #include "chrome/browser/status_icons/status_tray.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/common/chrome_features.h"
-#include "chrome/common/pref_names.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/base/testing_profile_manager.h"
+#include "components/optimization_guide/core/feature_registry/feature_registration.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/testing_pref_service.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
@@ -75,7 +77,8 @@ class MockDelegate : public GlicMetrics::Delegate {
     return contents_.get();
   }
   int32_t GetNumPinnedTabs() const override { return num_pinned_tabs; }
-  std::vector<content::WebContents*> GetPinnedAndSharedWebContents() override {
+  std::vector<raw_ptr<content::WebContents>> GetPinnedAndSharedWebContents()
+      override {
     return pinned_shared_tabs;
   }
 
@@ -89,7 +92,7 @@ class MockDelegate : public GlicMetrics::Delegate {
   bool showing = false;
   bool attached = false;
   int32_t num_pinned_tabs = 0;
-  std::vector<content::WebContents*> pinned_shared_tabs;
+  std::vector<raw_ptr<content::WebContents>> pinned_shared_tabs;
 
  private:
   raw_ptr<content::WebContents> contents_;
@@ -222,7 +225,7 @@ class GlicMetricsTest : public GlicMetricsTestBase {
         /*disabled_features=*/{features::kGlicFixTimeToFirstQueryKillSwitch});
     GlicMetricsTestBase::SetUp();
 
-    enabling_ = std::make_unique<GlicEnabling>(
+    enabling_ = GlicEnabling::CreateForTesting(
         profile(), &profile_manager()->GetProfileAttributesStorage());
     metrics_ = std::make_unique<GlicMetrics>(profile(), enabling_.get());
     auto delegate = std::make_unique<MockDelegate>();
@@ -692,6 +695,15 @@ TEST_F(GlicMetricsTest, LogGetContextFromFocusedTabError_ChangingModes) {
       "Glic.Api.GetContextFromFocusedTab.Error.Unknown", 0);
 }
 
+TEST_F(GlicMetricsTest, LogGetImageBytesFromTabError) {
+  metrics()->LogGetImageBytesFromTabError(
+      GlicGetContextFromTabError::kTabNotFound);
+
+  histogram_tester().ExpectUniqueSample(
+      "Glic.Api.GetImageBytesFromTab.Error",
+      GlicGetContextFromTabError::kTabNotFound, 1);
+}
+
 TEST_F(GlicMetricsTest, ImpressionBeforeFreNotPermittedByPolicy) {
   enabling()->SetCompletedFre(prefs::FreStatus::kNotStarted);
 
@@ -735,7 +747,7 @@ TEST_F(GlicMetricsFeaturesEnabledTest, TimeToEnabledFromStartupDelayed) {
   // Create new GlicMetrics that starts with glic disabled.
   // We use a manual instance here to avoid interference with the one in
   // GlicKeyedService which might already have recorded something.
-  auto enabling = std::make_unique<GlicEnabling>(
+  auto enabling = GlicEnabling::CreateForTesting(
       profile(), &profile_manager()->GetProfileAttributesStorage());
   base::HistogramTester delayed_histogram_tester;
   auto manual_metrics =
@@ -804,8 +816,9 @@ TEST_F(GlicMetricsFeaturesEnabledTest, ImpressionAfterFreNotPermittedByPolicy) {
 
   // Disable kGeminiSettings
   profile()->GetPrefs()->SetInteger(
-      ::prefs::kGeminiSettings,
-      static_cast<int>(glic::prefs::SettingsPolicyState::kDisabled));
+      optimization_guide::prefs::kGeminiSettings,
+      std::to_underlying(
+          optimization_guide::prefs::GeminiSettingsPolicyState::kDisabled));
 
   ExpectEntryPointImpressionLogged(EntryPointStatus::kAfterFreNotEligible);
 }
@@ -827,14 +840,16 @@ TEST_F(GlicMetricsFeaturesEnabledTest, EnablingChanged) {
   EXPECT_EQ(user_action_tester().GetActionCount("Glic.Enabled"), 2);
 
   profile()->GetPrefs()->SetInteger(
-      ::prefs::kGeminiSettings,
-      static_cast<int>(glic::prefs::SettingsPolicyState::kDisabled));
+      optimization_guide::prefs::kGeminiSettings,
+      std::to_underlying(
+          optimization_guide::prefs::GeminiSettingsPolicyState::kDisabled));
   EXPECT_EQ(user_action_tester().GetActionCount("Glic.Disabled"), 2);
   EXPECT_EQ(user_action_tester().GetActionCount("Glic.Enabled"), 2);
 
   profile()->GetPrefs()->SetInteger(
-      ::prefs::kGeminiSettings,
-      static_cast<int>(glic::prefs::SettingsPolicyState::kEnabled));
+      optimization_guide::prefs::kGeminiSettings,
+      std::to_underlying(
+          optimization_guide::prefs::GeminiSettingsPolicyState::kEnabled));
   EXPECT_EQ(user_action_tester().GetActionCount("Glic.Disabled"), 2);
   EXPECT_EQ(user_action_tester().GetActionCount("Glic.Enabled"), 3);
 
@@ -844,6 +859,16 @@ TEST_F(GlicMetricsFeaturesEnabledTest, EnablingChanged) {
   EXPECT_EQ(user_action_tester().GetActionCount("Glic.Enabled"), 3);
 }
 
+TEST_F(GlicMetricsFeaturesEnabledTest, PinnedChanged) {
+  EXPECT_EQ(user_action_tester().GetActionCount("Glic.Pinned"), 0);
+  EXPECT_EQ(user_action_tester().GetActionCount("Glic.Unpinned"), 0);
+  profile()->GetPrefs()->SetBoolean(prefs::kGlicPinnedToTabstrip, false);
+  EXPECT_EQ(user_action_tester().GetActionCount("Glic.Pinned"), 0);
+  EXPECT_EQ(user_action_tester().GetActionCount("Glic.Unpinned"), 1);
+  profile()->GetPrefs()->SetBoolean(prefs::kGlicPinnedToTabstrip, true);
+  EXPECT_EQ(user_action_tester().GetActionCount("Glic.Pinned"), 1);
+  EXPECT_EQ(user_action_tester().GetActionCount("Glic.Unpinned"), 1);
+}
 
 TEST_F(GlicMetricsFeaturesEnabledTest, ShortcutStatus) {
   task_environment().FastForwardBy(base::Minutes(16));
@@ -995,7 +1020,7 @@ class GlicMetricsTrustFirstOnboardingTest : public GlicMetricsTest {
         {}, {features::kGlicFixTimeToFirstQueryKillSwitch});
     GlicMetricsTestBase::SetUp();
 
-    enabling_ = std::make_unique<GlicEnabling>(
+    enabling_ = GlicEnabling::CreateForTesting(
         profile(), &profile_manager()->GetProfileAttributesStorage());
     metrics_ = std::make_unique<GlicMetrics>(profile(), enabling_.get());
     auto delegate = std::make_unique<MockDelegate>();
@@ -1011,16 +1036,12 @@ TEST_F(GlicMetricsTrustFirstOnboardingTest, ShownAndDismissed) {
   metrics()->OnGlicWindowStartedOpening(/*attached=*/false,
                                         mojom::InvocationSource::kOsButton);
   EXPECT_EQ(user_action_tester().GetActionCount("Glic.Fre.Shown"), 1);
-  EXPECT_EQ(user_action_tester().GetActionCount("Glic.Fre.Shown.Onboarding"),
-            1);
   histogram_tester().ExpectUniqueSample("Glic.Fre.Shown.FlowSource",
                                         OptInFlow::kGlicFre, 1);
 
   // Closing without accept triggers "Dismissed".
   metrics()->OnInstanceClosed();
   EXPECT_EQ(user_action_tester().GetActionCount("Glic.Fre.Dismissed"), 1);
-  EXPECT_EQ(
-      user_action_tester().GetActionCount("Glic.Fre.Dismissed.Onboarding"), 1);
   histogram_tester().ExpectTotalCount("Glic.Fre.TotalTime.Dismissed.Onboarding",
                                       1);
   histogram_tester().ExpectUniqueSample("Glic.Fre.Shown.InvocationSource",
@@ -1035,14 +1056,11 @@ TEST_F(GlicMetricsTrustFirstOnboardingTest, ShownAndAccepted) {
   metrics()->OnGlicWindowStartedOpening(/*attached=*/false,
                                         mojom::InvocationSource::kOsButton);
   EXPECT_EQ(user_action_tester().GetActionCount("Glic.Fre.Shown"), 1);
-  EXPECT_EQ(user_action_tester().GetActionCount("Glic.Fre.Shown.Onboarding"),
-            1);
   histogram_tester().ExpectUniqueSample("Glic.Fre.Shown.FlowSource",
                                         OptInFlow::kGlicFre, 1);
 
   metrics()->OnTrustFirstOnboardingAccept();
-  EXPECT_EQ(user_action_tester().GetActionCount("Glic.Fre.Accept"), 1);
-  EXPECT_EQ(user_action_tester().GetActionCount("Glic.Fre.Accept.Onboarding"),
+  EXPECT_EQ(user_action_tester().GetActionCount("Glic.Onboarding.OptInAccept"),
             1);
   histogram_tester().ExpectTotalCount("Glic.Fre.TotalTime.Accepted.Onboarding",
                                       1);
@@ -1050,8 +1068,6 @@ TEST_F(GlicMetricsTrustFirstOnboardingTest, ShownAndAccepted) {
   // Closing after accept should NOT trigger "Dismissed".
   metrics()->OnGlicWindowClose(nullptr, std::nullopt, gfx::Rect());
   EXPECT_EQ(user_action_tester().GetActionCount("Glic.Fre.Dismissed"), 0);
-  EXPECT_EQ(
-      user_action_tester().GetActionCount("Glic.Fre.Dismissed.Onboarding"), 0);
   histogram_tester().ExpectUniqueSample("Glic.Fre.Shown.InvocationSource",
                                         mojom::InvocationSource::kOsButton, 1);
   histogram_tester().ExpectUniqueSample("Glic.Fre.Accept.InvocationSource",
@@ -1059,6 +1075,21 @@ TEST_F(GlicMetricsTrustFirstOnboardingTest, ShownAndAccepted) {
   histogram_tester().ExpectUniqueSample("Glic.Fre.Accept.FlowSource",
                                         OptInFlow::kGlicFre, 1);
   histogram_tester().ExpectTotalCount("Glic.Fre.Dismissed.InvocationSource", 0);
+}
+
+TEST_F(GlicMetricsTrustFirstOnboardingTest, ShownAndAccepted_FeatureDisabled) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndDisableFeature(
+      features::kGlicOnboardingMetricsMigration);
+
+  metrics()->OnGlicWindowStartedOpening(/*attached=*/false,
+                                        mojom::InvocationSource::kOsButton);
+  EXPECT_EQ(user_action_tester().GetActionCount("Glic.Fre.Shown"), 1);
+
+  metrics()->OnTrustFirstOnboardingAccept();
+  // Glic.Fre.Accept was renamed and the two metrics are mutually exclusive.
+  EXPECT_EQ(user_action_tester().GetActionCount("Glic.Fre.Accept"), 1);
+  EXPECT_EQ(user_action_tester().GetActionCount("Glic.Onboarding.Accept"), 0);
 }
 
 TEST_F(GlicMetricsTrustFirstOnboardingTest, NotShownIfConsented) {

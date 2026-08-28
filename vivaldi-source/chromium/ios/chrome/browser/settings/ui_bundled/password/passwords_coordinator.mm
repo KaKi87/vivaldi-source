@@ -20,6 +20,8 @@
 #import "ios/chrome/browser/authentication/ui_bundled/continuation.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_context_style.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_coordinator.h"
+#import "ios/chrome/browser/bubble/ui_bundled/bubble_constants.h"
+#import "ios/chrome/browser/bubble/ui_bundled/bubble_view_controller_presenter.h"
 #import "ios/chrome/browser/credential_exchange/coordinator/credential_import_coordinator.h"
 #import "ios/chrome/browser/favicon/model/favicon_loader.h"
 #import "ios/chrome/browser/favicon/model/ios_chrome_favicon_loader_factory.h"
@@ -30,6 +32,7 @@
 #import "ios/chrome/browser/passwords/model/metrics/ios_password_manager_visits_recorder.h"
 #import "ios/chrome/browser/passwords/model/password_checkup_metrics.h"
 #import "ios/chrome/browser/passwords/model/password_checkup_utils.h"
+#import "ios/chrome/browser/settings/ui_bundled/cells/settings_check_item.h"
 #import "ios/chrome/browser/settings/ui_bundled/password/password_checkup/password_checkup_coordinator.h"
 #import "ios/chrome/browser/settings/ui_bundled/password/password_details/add_password_coordinator.h"
 #import "ios/chrome/browser/settings/ui_bundled/password/password_details/add_password_coordinator_delegate.h"
@@ -52,6 +55,8 @@
 #import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/settings_commands.h"
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
+#import "ios/chrome/browser/signin/model/authentication_service.h"
+#import "ios/chrome/browser/signin/model/authentication_service_factory.h"
 #import "ios/chrome/browser/signin/model/identity_manager_factory.h"
 #import "ios/chrome/browser/sync/model/sync_service_factory.h"
 #import "ios/chrome/grit/ios_strings.h"
@@ -64,12 +69,12 @@
 @interface PasswordsCoordinator () <
     AddPasswordCoordinatorDelegate,
     CredentialImportCoordinatorDelegate,
+    PasswordManagerViewControllerPresentationDelegate,
+    LocalReauthenticationCoordinatorDelegate,
     PasswordDetailsCoordinatorDelegate,
     PasswordCheckupCoordinatorDelegate,
     PasswordSettingsCoordinatorDelegate,
     PasswordsSettingsCommands,
-    PasswordManagerViewControllerPresentationDelegate,
-    LocalReauthenticationCoordinatorDelegate,
     TrustedVaultReauthenticationCoordinatorDelegate,
     WidgetPromoInstructionsCoordinatorDelegate>
 
@@ -106,6 +111,10 @@
 // Manager widget.
 @property(nonatomic, strong)
     WidgetPromoInstructionsCoordinator* widgetPromoInstructionsCoordinator;
+
+// Presenter for the Level Up walkthrough IPH.
+@property(nonatomic, strong)
+    BubbleViewControllerPresenter* levelUpWalkthroughIPHPresenter;
 
 @end
 
@@ -245,6 +254,9 @@
   self.reauthCoordinator = nil;
   [self dismissActionSheetCoordinator];
   [self dismissTrustedVaultReauthenticationCoordinator];
+
+  [self.levelUpWalkthroughIPHPresenter dismissAnimated:NO];
+  self.levelUpWalkthroughIPHPresenter = nil;
 
   [self.mediator disconnect];
 }
@@ -423,6 +435,59 @@
   [_trustedVaultReauthenticationCoordinator start];
 }
 
+- (void)showLevelUpWalkthroughIPH {
+  if (!self.shouldShowLevelUpWalkthroughIPH) {
+    return;
+  }
+
+  UIView* targetView = self.passwordsViewController.view;
+  if (!targetView || !targetView.window) {
+    return;
+  }
+
+  CGPoint anchorPoint = CGPointZero;
+  BubbleArrowDirection arrowDirection = BubbleArrowDirectionDown;
+
+  NSIndexPath* passwordProblemsItemIndexPath =
+      [self.passwordsViewController indexPathForLevelUpWalkthrough];
+  if (passwordProblemsItemIndexPath) {
+    UITableViewCell* cell = [self.passwordsViewController.tableView
+        cellForRowAtIndexPath:passwordProblemsItemIndexPath];
+    if (cell && cell.window) {
+      CGPoint anchorPointInCell =
+          CGPointMake(CGRectGetMidX(cell.bounds), CGRectGetMaxY(cell.bounds));
+      anchorPoint = [cell convertPoint:anchorPointInCell toView:cell.window];
+      arrowDirection = BubbleArrowDirectionUp;
+    }
+  }
+
+  NSString* text = l10n_util::GetNSString(
+      IDS_IOS_LEVEL_UP_WALKTHROUGH_OPEN_PASSWORD_CHECKUP);
+  __weak __typeof(self) weakSelf = self;
+  CallbackWithIPHDismissalReasonType dismissalCallback =
+      ^(IPHDismissalReasonType reason) {
+        [weakSelf levelUpWalkthroughIPHDidDismissWithReasonType:reason];
+      };
+
+  BubbleViewControllerPresenter* presenter =
+      [[BubbleViewControllerPresenter alloc]
+               initWithText:text
+                      title:nil
+             arrowDirection:arrowDirection
+                  alignment:BubbleAlignmentBottomOrTrailing
+                 bubbleType:BubbleViewTypeRichWithNext
+            pageControlPage:BubblePageControlPageThird
+          dismissalCallback:dismissalCallback];
+  presenter.dismissalTimerDisabled = YES;
+
+  if ([presenter canPresentInView:targetView anchorPoint:anchorPoint]) {
+    self.shouldShowLevelUpWalkthroughIPH = NO;
+    self.levelUpWalkthroughIPHPresenter = presenter;
+    [presenter presentInViewController:self.passwordsViewController
+                           anchorPoint:anchorPoint];
+  }
+}
+
 #pragma mark - PasswordCheckupCoordinatorDelegate
 
 - (void)passwordCheckupCoordinatorDidRemove:
@@ -530,6 +595,7 @@
 - (void)willPushReauthenticationViewController {
   [self dismissActionSheetCoordinator];
   [self dismissTrustedVaultReauthenticationCoordinator];
+  [self dismissSigninCoordinator];
 }
 
 #pragma mark - WidgetPromoInstructionsCoordinatorDelegate
@@ -562,6 +628,15 @@
 }
 
 #pragma mark - Private
+
+// Handles next button tap on the Level Up walkthrough IPH.
+- (void)levelUpWalkthroughIPHDidDismissWithReasonType:
+    (IPHDismissalReasonType)reason {
+  self.levelUpWalkthroughIPHPresenter = nil;
+  if (reason == IPHDismissalReasonType::kTappedNext) {
+    [self showPasswordCheckup];
+  }
+}
 
 // Returns a coordinator that displays the Trusted Vault reauthentication
 // dialog. This method is being used for the testing purposes.
@@ -663,7 +738,20 @@
     return;
   }
 
-  CHECK(!_signinCoordinator, base::NotFatalUntil::M151);
+  AuthenticationService* authenticationService =
+      AuthenticationServiceFactory::GetForProfile(self.profile);
+  if (!authenticationService->SigninEnabled()) {
+    // TODO(crbug.com/450982128): Display some error message to the user.
+    self.credentialImportUUID = nil;
+    return;
+  }
+
+  // According to crbug.com/527063033 two signin coordinator may be opened
+  // simultaneously. This seems rare and it’s not clear why. Maybe because the
+  // consistency coordinator view is dismissed before the coordinator is
+  // stopped; giving a very short time to reopen this view. Let’s just stop
+  // the first one and re-open one.
+  [_signinCoordinator stop];
   signin_metrics::AccessPoint accessPoint =
       signin_metrics::AccessPoint::kSettings;
   _signinCoordinator = [SigninCoordinator
@@ -674,6 +762,7 @@
                                                      SigninContextStyle::
                                                          kDefault
                                                   accessPoint:accessPoint
+                                         confirmChangeProfile:nil
                                          prepareChangeProfile:nil
                                          continuationProvider:
                                              DoNothingContinuationProvider()];

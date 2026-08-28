@@ -16,7 +16,7 @@
 #include "base/time/time.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/glic/public/context/glic_sharing_manager.h"
-#include "chrome/browser/glic/public/glic_instance.h"
+#include "chrome/browser/glic/public/glic_instance_id.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/global_routing_id.h"
 
@@ -55,13 +55,43 @@ struct NewTab {
   raw_ptr<BrowserWindowInterface> window = nullptr;
   bool open_in_foreground = true;
 };
+
+// Use the last active surface for the instance. If there is no last active
+// surface, falls back to creating a new tab in the specified window (or a new
+// window if null).
+struct LastActiveOrNew {
+  // The window to open the new tab in, used only for the fallback case where a
+  // new tab ends up being created.
+  raw_ptr<BrowserWindowInterface> window = nullptr;
+  // Whether to open the new tab in the foreground, used only for the fallback
+  // case where a new tab ends up being created.
+  bool open_in_foreground = true;
+};
+
+// Intended for internal use only. If you believe you need access to this
+// option, please reach out to c/b/glic/API_OWNERS.
+struct Floating {
+ private:
+  friend class GlicInstanceImpl;
+  friend class GlicInstanceCoordinatorImpl;
+  friend class GlicInvokeHandler;
+  Floating() = default;
+};
+
 // The target for the invocation.
 struct Target {
+  using Surface = std::variant<DefaultSurface,
+                               NewTab,
+                               tabs::TabHandle,
+                               Floating,
+                               LastActiveOrNew>;
+
   Target();
-  explicit Target(tabs::TabInterface* tab);
+  explicit Target(tabs::TabInterface& tab);
   explicit Target(BrowserWindowInterface* window);
   explicit Target(NewTab new_tab);
-  Target(tabs::TabInterface* tab,
+  explicit Target(LastActiveOrNew last_active_or_new);
+  Target(tabs::TabInterface& tab,
          std::variant<DefaultConversation,
                       NewConversation,
                       ConversationId,
@@ -78,10 +108,12 @@ struct Target {
   // - DefaultSurface: Resolves to the active tab of the specified browser
   //   window, or creates a new window if no browser is specified.
   // - NewTab: Creates a new tab in the specified window, or a new window if
-  // null.
-  // - TabInterface*: Targets a specific tab. Must not be null.
-  std::variant<DefaultSurface, NewTab, raw_ptr<tabs::TabInterface>> surface =
-      DefaultSurface();
+  //   null.
+  // - TabHandle: Targets a specific tab.
+  // - Floating: Targets the floating panel.
+  // - LastActiveOrNew: Uses the last active embedder for the instance, or falls
+  //   back to creating a new tab.
+  Surface surface = DefaultSurface();
 
   // Specifies which conversation to use or create.
   // - DefaultConversation: Uses the conversation already bound to the target
@@ -167,12 +199,20 @@ enum class GlicInvokeError {
   // Could not create clipboard metadata for policy checks. This is likely due
   // to the context type not yet being supported.
   kAdditionalContextNoClipboardMetadata = 14,
-  kMaxValue = kAdditionalContextNoClipboardMetadata,
+  // The targeted Glic InstanceId could not be found or has closed.
+  kInstanceNotFound = 15,
+  // Profile is not enabled for Glic.
+  kProfileNotEnabled = 16,
+  // The invocation was cancelled.
+  kCancelled = 17,
+  // The invocation handler was superseded by another invocation.
+  kSuperseded = 18,
+  kMaxValue = kSuperseded,
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicInvokeResult,//chrome/browser/glic/host/glic_internals_page_handler.cc:GlicInvokeError)
 
 // Details for invoking Glic with tabs shared. See
-// GlicSharingManager::PinTabs().
+// GlicSharingManagerInternal::PinTabs().
 struct TabSharingOptions {
   TabSharingOptions();
   TabSharingOptions(std::vector<tabs::TabHandle> tabs_to_pin,
@@ -187,6 +227,14 @@ struct TabSharingOptions {
   // Reason for pinning tabs, required to be set to something besides kUnknown
   // if `tabs_to_pin` isn't empty.
   GlicPinTrigger pin_trigger;
+};
+
+// Specifies how to wait for the First Run Experience (FRE) to complete.
+enum class FreCompletionWaitMode {
+  // Whether or not we wait depends on the FRE override.
+  kDefault,
+  // We do not wait for the FRE to complete, regardless of the FRE override.
+  kNever,
 };
 
 // Configuration options for invoking Glic.
@@ -251,11 +299,23 @@ struct GlicInvokeOptions {
   // The amount of time to wait before canceling the invocation.
   std::optional<base::TimeDelta> timeout;
 
+  // Whether to supersede and cancel an existing in-progress invocation on the
+  // target instance instead of failing with kInvokeInProgress.
+  bool supersede_if_in_progress = false;
+
   // Whether to wait until the side panel has fully opened and the web
   // contents have stabilized before sending the invoke payload to the client.
   // Defaults to false. If the panel was already open when the invoke was
   // triggered, this flag is ignored.
   bool wait_for_panel_open = false;
+
+  // Whether to focus the side panel when shown.
+  bool focus_on_show = true;
+
+  // Specifies how to wait for the First Run Experience (FRE) to complete
+  // before proceeding with the invocation.
+  FreCompletionWaitMode fre_completion_wait_mode =
+      FreCompletionWaitMode::kDefault;
 
   // Browser-specific callback for when the side panel is opened (and stabilized
   // if wait_for_panel_open is true).

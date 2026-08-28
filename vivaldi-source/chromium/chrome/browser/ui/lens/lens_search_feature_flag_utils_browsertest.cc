@@ -37,6 +37,7 @@ class TestingAimEligibilityService : public ChromeAimEligibilityService {
       bool is_locally_eligible,
       bool is_server_eligible,
       bool server_eligibility_enabled,
+      bool is_fusebox_eligible,
       PrefService& pref_service,
       TemplateURLService* template_url_service)
       : ChromeAimEligibilityService(pref_service,
@@ -46,7 +47,8 @@ class TestingAimEligibilityService : public ChromeAimEligibilityService {
                                     /*configuration=*/{}),
         is_locally_eligible_(is_locally_eligible),
         is_server_eligible_(is_server_eligible),
-        server_eligibility_enabled_(server_eligibility_enabled) {}
+        server_eligibility_enabled_(server_eligibility_enabled),
+        is_fusebox_eligible_(is_fusebox_eligible) {}
 
   variations::VariationsService* GetVariationsService() const override {
     return nullptr;
@@ -67,11 +69,13 @@ class TestingAimEligibilityService : public ChromeAimEligibilityService {
     }
     return true;
   }
+  bool IsFuseboxEligible() const override { return is_fusebox_eligible_; }
 
  private:
   bool is_locally_eligible_;
   bool is_server_eligible_;
   bool server_eligibility_enabled_;
+  bool is_fusebox_eligible_;
 };
 
 class LensSearchFeatureFlagsUtilsBrowserTestBase : public InProcessBrowserTest {
@@ -89,17 +93,20 @@ class LensSearchFeatureFlagsUtilsBrowserTestBase : public InProcessBrowserTest {
  protected:
   void SetUpAimEligibilityService(bool is_locally_eligible,
                                   bool is_server_eligible,
-                                  bool server_eligibility_enabled) {
+                                  bool server_eligibility_enabled,
+                                  bool is_fusebox_eligible = false) {
     AimEligibilityServiceFactory::GetInstance()->SetTestingFactory(
-        browser()->profile(),
+        browser()->GetProfile(),
         base::BindLambdaForTesting(
             [is_locally_eligible, is_server_eligible,
-             server_eligibility_enabled](content::BrowserContext* context) {
+             server_eligibility_enabled,
+             is_fusebox_eligible](content::BrowserContext* context) {
               Profile* profile = Profile::FromBrowserContext(context);
               return static_cast<std::unique_ptr<KeyedService>>(
                   std::make_unique<TestingAimEligibilityService>(
                       is_locally_eligible, is_server_eligible,
-                      server_eligibility_enabled, *profile->GetPrefs(),
+                      server_eligibility_enabled, is_fusebox_eligible,
+                      *profile->GetPrefs(),
                       TemplateURLServiceFactory::GetForProfile(profile)));
             }));
   }
@@ -120,17 +127,28 @@ IN_PROC_BROWSER_TEST_F(LensSearchFeatureFlagsUtilsAimM3EnabledTest,
                        TestIsAimM3Enabled_IsTrue) {
   SetUpAimEligibilityService(/*is_locally_eligible=*/true,
                              /*is_server_eligible=*/true,
-                             /*server_eligibility_enabled=*/true);
-  EXPECT_TRUE(lens::IsAimM3Enabled(browser()->profile()));
+                             /*server_eligibility_enabled=*/true,
+                             /*is_fusebox_eligible=*/true);
+  EXPECT_TRUE(lens::IsAimM3Enabled(browser()->GetProfile()));
 
   // Returns true when server eligibility checking is disabled as long as the
   // local eligibility check passes.
   SetUpAimEligibilityService(/*is_locally_eligible=*/true,
                              /*is_server_eligible=*/false,
-                             /*server_eligibility_enabled=*/false);
-  EXPECT_TRUE(lens::IsAimM3Enabled(browser()->profile()));
+                             /*server_eligibility_enabled=*/false,
+                             /*is_fusebox_eligible=*/true);
+  EXPECT_TRUE(lens::IsAimM3Enabled(browser()->GetProfile()));
 }
 
+IN_PROC_BROWSER_TEST_F(LensSearchFeatureFlagsUtilsAimM3EnabledTest,
+                       TestIsAimM3Enabled_FuseboxIneligible_IsFalse) {
+  // Returns false if fusebox is ineligible, even if AIM is eligible.
+  SetUpAimEligibilityService(/*is_locally_eligible=*/true,
+                             /*is_server_eligible=*/true,
+                             /*server_eligibility_enabled=*/true,
+                             /*is_fusebox_eligible=*/false);
+  EXPECT_FALSE(lens::IsAimM3Enabled(browser()->GetProfile()));
+}
 
 // Test fixture with kLensSearchAimM3 feature disabled.
 class LensSearchFeatureFlagsUtilsAimM3DisabledTest
@@ -153,7 +171,7 @@ IN_PROC_BROWSER_TEST_F(LensSearchFeatureFlagsUtilsAimM3DisabledTest,
   SetUpAimEligibilityService(/*is_locally_eligible=*/true,
                              /*is_server_eligible=*/true,
                              /*server_eligibility_enabled=*/true);
-  EXPECT_FALSE(lens::IsAimM3Enabled(browser()->profile()));
+  EXPECT_FALSE(lens::IsAimM3Enabled(browser()->GetProfile()));
 }
 
 // Test fixture with kLensSearchAimM3EnUs enabled and kLensSearchAimM3 default.
@@ -178,8 +196,9 @@ IN_PROC_BROWSER_TEST_F(LensSearchFeatureFlagsUtilsAimM3EnUsEnabledTest,
   // enabled, and locale is en-US.
   SetUpAimEligibilityService(/*is_locally_eligible=*/true,
                              /*is_server_eligible=*/false,
-                             /*server_eligibility_enabled=*/false);
-  EXPECT_TRUE(lens::IsAimM3Enabled(browser()->profile()));
+                             /*server_eligibility_enabled=*/false,
+                             /*is_fusebox_eligible=*/true);
+  EXPECT_TRUE(lens::IsAimM3Enabled(browser()->GetProfile()));
 }
 
 IN_PROC_BROWSER_TEST_F(LensSearchFeatureFlagsUtilsAimM3EnUsEnabledTest,
@@ -192,14 +211,14 @@ IN_PROC_BROWSER_TEST_F(LensSearchFeatureFlagsUtilsAimM3EnUsEnabledTest,
   SetUpAimEligibilityService(/*is_locally_eligible=*/false,
                              /*is_server_eligible=*/false,
                              /*server_eligibility_enabled=*/false);
-  EXPECT_FALSE(lens::IsAimM3Enabled(browser()->profile()));
+  EXPECT_FALSE(lens::IsAimM3Enabled(browser()->GetProfile()));
 
   // Returns false when server eligibility checking is enabled and the server
   // returns ineligible.
   SetUpAimEligibilityService(/*is_locally_eligible=*/true,
                              /*is_server_eligible=*/false,
                              /*server_eligibility_enabled=*/true);
-  EXPECT_FALSE(lens::IsAimM3Enabled(browser()->profile()));
+  EXPECT_FALSE(lens::IsAimM3Enabled(browser()->GetProfile()));
 
   // Country is not US.
   {
@@ -209,7 +228,7 @@ IN_PROC_BROWSER_TEST_F(LensSearchFeatureFlagsUtilsAimM3EnUsEnabledTest,
     SetUpAimEligibilityService(/*is_locally_eligible=*/true,
                                /*is_server_eligible=*/false,
                                /*server_eligibility_enabled=*/false);
-    EXPECT_FALSE(lens::IsAimM3Enabled(browser()->profile()));
+    EXPECT_FALSE(lens::IsAimM3Enabled(browser()->GetProfile()));
   }
 
   // Locale is not en.
@@ -220,7 +239,7 @@ IN_PROC_BROWSER_TEST_F(LensSearchFeatureFlagsUtilsAimM3EnUsEnabledTest,
     SetUpAimEligibilityService(/*is_locally_eligible=*/true,
                                /*is_server_eligible=*/false,
                                /*server_eligibility_enabled=*/false);
-    EXPECT_FALSE(lens::IsAimM3Enabled(browser()->profile()));
+    EXPECT_FALSE(lens::IsAimM3Enabled(browser()->GetProfile()));
   }
 }
 
@@ -247,15 +266,17 @@ IN_PROC_BROWSER_TEST_F(LensSearchFeatureFlagsUtilsAimM3EnUsUsesEligibilityTest,
   // true.
   SetUpAimEligibilityService(/*is_locally_eligible=*/true,
                              /*is_server_eligible=*/true,
-                             /*server_eligibility_enabled=*/true);
-  EXPECT_TRUE(lens::IsAimM3Enabled(browser()->profile()));
+                             /*server_eligibility_enabled=*/true,
+                             /*is_fusebox_eligible=*/true);
+  EXPECT_TRUE(lens::IsAimM3Enabled(browser()->GetProfile()));
 
   // When the eligibility service returns ineligible, IsAimM3Enabled should be
   // false.
   SetUpAimEligibilityService(/*is_locally_eligible=*/false,
                              /*is_server_eligible=*/false,
-                             /*server_eligibility_enabled=*/false);
-  EXPECT_FALSE(lens::IsAimM3Enabled(browser()->profile()));
+                             /*server_eligibility_enabled=*/false,
+                             /*is_fusebox_eligible=*/true);
+  EXPECT_FALSE(lens::IsAimM3Enabled(browser()->GetProfile()));
 }
 
 // Test fixture for verifying that other users follow the
@@ -297,22 +318,25 @@ IN_PROC_BROWSER_TEST_P(
     // true.
     SetUpAimEligibilityService(/*is_locally_eligible=*/true,
                                /*is_server_eligible=*/true,
-                               /*server_eligibility_enabled=*/true);
-    EXPECT_TRUE(lens::IsAimM3Enabled(browser()->profile()));
+                               /*server_eligibility_enabled=*/true,
+                               /*is_fusebox_eligible=*/true);
+    EXPECT_TRUE(lens::IsAimM3Enabled(browser()->GetProfile()));
 
     // When the eligibility service returns ineligible, IsAimM3Enabled should be
     // false.
     SetUpAimEligibilityService(/*is_locally_eligible=*/false,
                                /*is_server_eligible=*/false,
-                               /*server_eligibility_enabled=*/false);
-    EXPECT_FALSE(lens::IsAimM3Enabled(browser()->profile()));
+                               /*server_eligibility_enabled=*/false,
+                               /*is_fusebox_eligible=*/true);
+    EXPECT_FALSE(lens::IsAimM3Enabled(browser()->GetProfile()));
   } else {
     // If not using the AIM service, the result depends on kLensSearchAimM3. In
     // this test fixture, we have it enabled.
     SetUpAimEligibilityService(/*is_locally_eligible=*/true,
                                /*is_server_eligible=*/false,
-                               /*server_eligibility_enabled=*/false);
-    EXPECT_TRUE(lens::IsAimM3Enabled(browser()->profile()));
+                               /*server_eligibility_enabled=*/false,
+                               /*is_fusebox_eligible=*/true);
+    EXPECT_TRUE(lens::IsAimM3Enabled(browser()->GetProfile()));
   }
 }
 
@@ -347,20 +371,25 @@ class LensSearchFeatureFlagsUtilsFrequencyCapEnabledTest
 IN_PROC_BROWSER_TEST_F(
     LensSearchFeatureFlagsUtilsFrequencyCapEnabledTest,
     ShouldShowLensOverlayEduActionChip_ReturnsFalseAboveMaxShownCount) {
-  EXPECT_TRUE(lens::ShouldShowLensOverlayEduActionChip(browser()->profile()));
-  lens::RecordLensOverlayEduActionChipShown(browser()->profile());
+  EXPECT_TRUE(
+      lens::ShouldShowLensOverlayEduActionChip(browser()->GetProfile()));
+  lens::RecordLensOverlayEduActionChipShown(browser()->GetProfile());
 
-  EXPECT_TRUE(lens::ShouldShowLensOverlayEduActionChip(browser()->profile()));
-  lens::RecordLensOverlayEduActionChipShown(browser()->profile());
+  EXPECT_TRUE(
+      lens::ShouldShowLensOverlayEduActionChip(browser()->GetProfile()));
+  lens::RecordLensOverlayEduActionChipShown(browser()->GetProfile());
 
-  EXPECT_TRUE(lens::ShouldShowLensOverlayEduActionChip(browser()->profile()));
-  lens::RecordLensOverlayEduActionChipShown(browser()->profile());
+  EXPECT_TRUE(
+      lens::ShouldShowLensOverlayEduActionChip(browser()->GetProfile()));
+  lens::RecordLensOverlayEduActionChipShown(browser()->GetProfile());
 
-  EXPECT_TRUE(lens::ShouldShowLensOverlayEduActionChip(browser()->profile()));
-  lens::RecordLensOverlayEduActionChipShown(browser()->profile());
+  EXPECT_TRUE(
+      lens::ShouldShowLensOverlayEduActionChip(browser()->GetProfile()));
+  lens::RecordLensOverlayEduActionChipShown(browser()->GetProfile());
 
   // Expect false after max shown count exceeded.
-  EXPECT_FALSE(lens::ShouldShowLensOverlayEduActionChip(browser()->profile()));
+  EXPECT_FALSE(
+      lens::ShouldShowLensOverlayEduActionChip(browser()->GetProfile()));
 }
 
 IN_PROC_BROWSER_TEST_F(
@@ -371,14 +400,16 @@ IN_PROC_BROWSER_TEST_F(
       &GetMockTime, /*time_ticks_override=*/nullptr,
       /*thread_ticks_override=*/nullptr);
 
-  EXPECT_TRUE(lens::ShouldShowLensOverlayEduActionChip(browser()->profile()));
-  lens::RecordLensOverlayEduActionChipShown(browser()->profile());
+  EXPECT_TRUE(
+      lens::ShouldShowLensOverlayEduActionChip(browser()->GetProfile()));
+  lens::RecordLensOverlayEduActionChipShown(browser()->GetProfile());
 
   // Wait less than the 1 second debounce interval.
   SetMockTime(GetMockTime() + base::Milliseconds(500));
 
   // Expect true since the debounce interval has not passed.
-  EXPECT_TRUE(lens::ShouldShowLensOverlayEduActionChip(browser()->profile()));
+  EXPECT_TRUE(
+      lens::ShouldShowLensOverlayEduActionChip(browser()->GetProfile()));
 }
 
 IN_PROC_BROWSER_TEST_F(
@@ -389,14 +420,16 @@ IN_PROC_BROWSER_TEST_F(
       &GetMockTime, /*time_ticks_override=*/nullptr,
       /*thread_ticks_override=*/nullptr);
 
-  EXPECT_TRUE(lens::ShouldShowLensOverlayEduActionChip(browser()->profile()));
-  lens::RecordLensOverlayEduActionChipShown(browser()->profile());
+  EXPECT_TRUE(
+      lens::ShouldShowLensOverlayEduActionChip(browser()->GetProfile()));
+  lens::RecordLensOverlayEduActionChipShown(browser()->GetProfile());
 
   // Wait more than the 1 second debounce interval.
   SetMockTime(GetMockTime() + base::Milliseconds(1500));
 
   // Expect false since the debounce interval has passed.
-  EXPECT_FALSE(lens::ShouldShowLensOverlayEduActionChip(browser()->profile()));
+  EXPECT_FALSE(
+      lens::ShouldShowLensOverlayEduActionChip(browser()->GetProfile()));
 }
 
 IN_PROC_BROWSER_TEST_F(
@@ -407,14 +440,16 @@ IN_PROC_BROWSER_TEST_F(
       &GetMockTime, /*time_ticks_override=*/nullptr,
       /*thread_ticks_override=*/nullptr);
 
-  EXPECT_TRUE(lens::ShouldShowLensOverlayEduActionChip(browser()->profile()));
-  lens::RecordLensOverlayEduActionChipShown(browser()->profile());
+  EXPECT_TRUE(
+      lens::ShouldShowLensOverlayEduActionChip(browser()->GetProfile()));
+  lens::RecordLensOverlayEduActionChipShown(browser()->GetProfile());
 
   // Wait less than the 6 hour interval.
   SetMockTime(GetMockTime() + base::Minutes(359));
 
   // Expect false since the interval has not passed.
-  EXPECT_FALSE(lens::ShouldShowLensOverlayEduActionChip(browser()->profile()));
+  EXPECT_FALSE(
+      lens::ShouldShowLensOverlayEduActionChip(browser()->GetProfile()));
 }
 
 IN_PROC_BROWSER_TEST_F(
@@ -425,12 +460,119 @@ IN_PROC_BROWSER_TEST_F(
       &GetMockTime, /*time_ticks_override=*/nullptr,
       /*thread_ticks_override=*/nullptr);
 
-  EXPECT_TRUE(lens::ShouldShowLensOverlayEduActionChip(browser()->profile()));
-  lens::RecordLensOverlayEduActionChipShown(browser()->profile());
+  EXPECT_TRUE(
+      lens::ShouldShowLensOverlayEduActionChip(browser()->GetProfile()));
+  lens::RecordLensOverlayEduActionChipShown(browser()->GetProfile());
 
   // Wait more than the 6 hour interval.
   SetMockTime(GetMockTime() + base::Minutes(361));
 
   // Expect true since the interval has passed.
-  EXPECT_TRUE(lens::ShouldShowLensOverlayEduActionChip(browser()->profile()));
+  EXPECT_TRUE(
+      lens::ShouldShowLensOverlayEduActionChip(browser()->GetProfile()));
+}
+
+IN_PROC_BROWSER_TEST_F(
+    LensSearchFeatureFlagsUtilsBrowserTestBase,
+    TestIsLensOverlayContextualSearchboxEnabled_AimIneligible) {
+  // If AIM is ineligible, it should return false regardless of fusebox.
+  SetUpAimEligibilityService(/*is_locally_eligible=*/false,
+                             /*is_server_eligible=*/false,
+                             /*server_eligibility_enabled=*/false,
+                             /*is_fusebox_eligible=*/true);
+  EXPECT_FALSE(
+      lens::IsLensOverlayContextualSearchboxEnabled(browser()->GetProfile()));
+}
+
+IN_PROC_BROWSER_TEST_F(
+    LensSearchFeatureFlagsUtilsBrowserTestBase,
+    TestIsLensOverlayContextualSearchboxEnabled_FuseboxEligible) {
+  // If AIM is eligible and fusebox is eligible, it should return true.
+  SetUpAimEligibilityService(/*is_locally_eligible=*/true,
+                             /*is_server_eligible=*/true,
+                             /*server_eligibility_enabled=*/true,
+                             /*is_fusebox_eligible=*/true);
+  EXPECT_TRUE(
+      lens::IsLensOverlayContextualSearchboxEnabled(browser()->GetProfile()));
+}
+
+IN_PROC_BROWSER_TEST_F(
+    LensSearchFeatureFlagsUtilsBrowserTestBase,
+    TestIsLensOverlayContextualSearchboxEnabled_FuseboxIneligible) {
+  // If AIM is eligible but fusebox is ineligible, it should return false.
+  SetUpAimEligibilityService(/*is_locally_eligible=*/true,
+                             /*is_server_eligible=*/true,
+                             /*server_eligibility_enabled=*/true,
+                             /*is_fusebox_eligible=*/false);
+  EXPECT_FALSE(
+      lens::IsLensOverlayContextualSearchboxEnabled(browser()->GetProfile()));
+}
+
+// Test fixture with kLensOverlayContextualSearchbox feature enabled.
+class LensSearchFeatureFlagsUtilsContextualSearchboxEnabledTest
+    : public LensSearchFeatureFlagsUtilsBrowserTestBase {
+ public:
+  LensSearchFeatureFlagsUtilsContextualSearchboxEnabledTest() {
+    feature_list_.InitAndEnableFeature(
+        lens::features::kLensOverlayContextualSearchbox);
+  }
+  ~LensSearchFeatureFlagsUtilsContextualSearchboxEnabledTest() override =
+      default;
+
+ protected:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+IN_PROC_BROWSER_TEST_F(
+    LensSearchFeatureFlagsUtilsContextualSearchboxEnabledTest,
+    TestIsLensOverlayContextualSearchboxEnabled_FeatureOverriddenEnabled_ButFuseboxIneligible) {
+  // If feature is overridden to enabled, it should still return false if
+  // fusebox is ineligible.
+  SetUpAimEligibilityService(/*is_locally_eligible=*/true,
+                             /*is_server_eligible=*/true,
+                             /*server_eligibility_enabled=*/true,
+                             /*is_fusebox_eligible=*/false);
+  EXPECT_FALSE(
+      lens::IsLensOverlayContextualSearchboxEnabled(browser()->GetProfile()));
+}
+
+IN_PROC_BROWSER_TEST_F(
+    LensSearchFeatureFlagsUtilsContextualSearchboxEnabledTest,
+    TestIsLensOverlayContextualSearchboxEnabled_FeatureOverriddenEnabled_AndFuseboxEligible) {
+  // If feature is overridden to enabled, it should return true if fusebox
+  // is eligible.
+  SetUpAimEligibilityService(/*is_locally_eligible=*/true,
+                             /*is_server_eligible=*/true,
+                             /*server_eligibility_enabled=*/true,
+                             /*is_fusebox_eligible=*/true);
+  EXPECT_TRUE(
+      lens::IsLensOverlayContextualSearchboxEnabled(browser()->GetProfile()));
+}
+
+// Test fixture with kLensOverlayContextualSearchbox feature disabled.
+class LensSearchFeatureFlagsUtilsContextualSearchboxDisabledTest
+    : public LensSearchFeatureFlagsUtilsBrowserTestBase {
+ public:
+  LensSearchFeatureFlagsUtilsContextualSearchboxDisabledTest() {
+    feature_list_.InitAndDisableFeature(
+        lens::features::kLensOverlayContextualSearchbox);
+  }
+  ~LensSearchFeatureFlagsUtilsContextualSearchboxDisabledTest() override =
+      default;
+
+ protected:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+IN_PROC_BROWSER_TEST_F(
+    LensSearchFeatureFlagsUtilsContextualSearchboxDisabledTest,
+    TestIsLensOverlayContextualSearchboxEnabled_FeatureOverriddenDisabled) {
+  // If feature is overridden to disabled, it should return false even if
+  // fusebox is eligible.
+  SetUpAimEligibilityService(/*is_locally_eligible=*/true,
+                             /*is_server_eligible=*/true,
+                             /*server_eligibility_enabled=*/true,
+                             /*is_fusebox_eligible=*/true);
+  EXPECT_FALSE(
+      lens::IsLensOverlayContextualSearchboxEnabled(browser()->GetProfile()));
 }

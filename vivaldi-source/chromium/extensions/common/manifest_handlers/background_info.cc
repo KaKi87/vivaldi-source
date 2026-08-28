@@ -44,8 +44,7 @@ static base::LazyInstance<BackgroundInfo>::DestructorAtExit
     g_empty_background_info = LAZY_INSTANCE_INITIALIZER;
 
 const BackgroundInfo& GetBackgroundInfo(const Extension* extension) {
-  const BackgroundInfo* info = static_cast<const BackgroundInfo*>(
-      extension->GetManifestData(kBackground));
+  const BackgroundInfo* info = extension->GetManifestData<BackgroundInfo>();
   if (!info) {
     return g_empty_background_info.Get();
   }
@@ -53,6 +52,9 @@ const BackgroundInfo& GetBackgroundInfo(const Extension* extension) {
 }
 
 }  // namespace
+
+// static
+const char* BackgroundInfo::kManifestDataKey = kBackground;
 
 BackgroundInfo::BackgroundInfo()
     : is_persistent_(true),
@@ -74,7 +76,7 @@ GURL BackgroundInfo::GetBackgroundURL(const Extension* extension) {
 const GURL& BackgroundInfo::GetBackgroundServiceWorkerScriptURL(
     const Extension* extension) {
   const BackgroundInfo& info = GetBackgroundInfo(extension);
-  DCHECK(info.background_service_worker_script_url_.has_value());
+  CHECK(info.background_service_worker_script_url_.has_value());
   return *info.background_service_worker_script_url_;
 }
 
@@ -265,7 +267,7 @@ bool BackgroundInfo::LoadBackgroundServiceWorkerScript(
     return true;
   }
 
-  DCHECK(scripts_value);
+  CHECK(scripts_value);
   if (!scripts_value->is_string()) {
     *error = errors::kInvalidBackgroundServiceWorkerScript;
     return false;
@@ -285,7 +287,7 @@ bool BackgroundInfo::LoadBackgroundServiceWorkerScript(
     return true;
   }
 
-  DCHECK(scripts_type);
+  CHECK(scripts_type);
   if (!scripts_type->is_string()) {
     *error = errors::kInvalidBackgroundServiceWorkerType;
     return false;
@@ -389,7 +391,7 @@ bool BackgroundManifestHandler::Parse(Extension* extension,
     return false;
   }
 
-  extension->SetManifestData(kBackground, std::move(info));
+  extension->SetManifestData(std::move(info));
   return true;
 }
 
@@ -411,9 +413,9 @@ bool BackgroundManifestHandler::Validate(
   }
 
   if (BackgroundInfo::IsServiceWorkerBased(&extension)) {
-    DCHECK(extension.is_extension() ||
-           extension.is_chromeos_system_extension() ||
-           extension.is_login_screen_extension());
+    CHECK(extension.is_extension() ||
+          extension.is_chromeos_system_extension() ||
+          extension.is_login_screen_extension());
     base::FilePath path = file_util::ExtensionURLToAbsoluteFilePath(
         extension,
         BackgroundInfo::GetBackgroundServiceWorkerScriptURL(&extension));

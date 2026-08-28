@@ -14,36 +14,69 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 import {debug} from "../introspection/debug.js";
 import {getDebugger} from "../introspection/log.js";
 import {profile} from "../introspection/profile.js";
-import {formatArguments, toRegExp} from "../utils/general.js";
+import {
+  formatArguments, sendSnippetHitEvent, toRegExp
+} from "../utils/general.js";
+import {overrideValue} from "../utils/execution.js";
+import {JSONPath} from "../utils/jsonpath.js";
+import {addPostResponseCallback} from "../utils/xhrManipulation.js";
 
-let {RegExp, XMLHttpRequest, WeakMap} = $(window);
-let xhrInFlightRequests;
+let {JSON, RegExp} = $(window);
 let xhrRules;
+const hitFilters = new Set();
 
 /**
- * Replaces the response of XMLHttpRequest (XHR) requests
+ * @description Replaces the response of XMLHttpRequest (XHR) requests
  * if the response text matches a given string.
+ * @memberof module:snippets/behavioral
  *
  * @param {string} search - The string or regex pattern to match
- * 	in the response text.
+ * 	in the response text. If the value starts with "jsonpath(",
+ * 	it is treated as a JSONPath query: the response is parsed
+ * 	as JSON, matching properties are replaced with the
+ * 	replacement value (interpreted via overrideValue), and
+ * 	the result is re-serialized.
  * @param {?string} [replacement=""] - The string to replace
- * 	the matched pattern with.
+ * 	the matched pattern with. When using JSONPath, this value
+ * 	is interpreted via overrideValue (supports "false", "true",
+ * 	"null", "emptyArray", "emptyObj", etc.).
  * @param {?string} [needle=null] - An optional string
  * representing properties to match in the XMLHttpRequest details.
  *
  * @example
- * // Replaces "Hello" with "Hi" in the response text of all XHR requests.
+ * // Replaces "Hello" with "Hi" in the response text
+ * // of all XHR requests.
  * replaceXhrResponse(/Hello/, "Hi");
  *
  * @example
- * // Replaces "Hello" with "Hi" in the response text of XHR requests
- * only if the URL includes "example.com".
+ * // Replaces "Hello" with "Hi" in the response text of
+ * // XHR requests only if the URL includes "example.com".
  * replaceXhrResponse(/Hello/, "Hi", "url:example.com");
+ *
+ * @example
+ * replace-xhr-response '/ads:\\[(.*?)\\]/' => Will remove
+ * anything that looks like ads:[<<any-string>>] from every
+ * response body.
+ *
+ * @example
+ * // Uses JSONPath to set all "enabled" properties inside
+ * // the "ads" array to false.
+ * replaceXhrResponse("jsonpath($.ads[*].enabled)", "false");
+ *
+ * @example
+ * // Uses JSONPath with needle: only applies if the response
+ * // contains "tracking".
+ * replaceXhrResponse(
+ *   "jsonpath($..trackingId)", "null", "tracking"
+ * );
+ *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/176422979/replace-xhr-response} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/behavioral-snippets/replace-xhr-response} for external documentation.
+ * @since Adblock Plus 4.4
  */
 export function replaceXhrResponse(search, replacement = "", needle = null) {
   const formattedArgsToLog = formatArguments(arguments);
@@ -55,98 +88,135 @@ export function replaceXhrResponse(search, replacement = "", needle = null) {
     return;
   }
 
-  // Override the XMLHttpRequest class only once
-  if (!xhrInFlightRequests) {
-    xhrInFlightRequests = new WeakMap();
+  if (!xhrRules) {
     xhrRules = new Map();
     debugLog("info", "XMLHttpRequest proxied");
-    // Intercept XMLHttpRequest open method
-    window.XMLHttpRequest = class extends XMLHttpRequest {
-      open(method, url, ...args) {
-        const originalXhr = this;
-        const xhrData = {method, url};
-        xhrInFlightRequests.set(originalXhr, xhrData);
-        return super.open(method, url, ...args);
-      }
-      /* In some websites it has been observed that importing XMLHttpRequest
-       from $(window) might make the send method read-only.
-       Here we override it without changing its behavior.
-       This prevents the method from becoming read-only.
-      */
-      send(...args) {
-        return super.send(...args);
-      }
-      get response() {
-        const innerResponse = super.response;
-        const xhrData = xhrInFlightRequests.get(this);
-        if (typeof xhrData === "undefined")
-          return innerResponse;
-        mark();
-        // Optimization: if response wasn't changed since last time,
-        // return the cached response
-        const responseLength = typeof innerResponse === "string" ?
-          innerResponse.length : void 0;
-        if (xhrData.lastResponseLength !== responseLength) {
-          xhrData.response = void 0;
-          xhrData.lastResponseLength = responseLength;
-        }
 
-        // If we have a cached transformed response, return it
-        if (typeof xhrData.response !== "undefined")
-          return xhrData.response;
-
-        // If the response is not a string we can't replace anything,
-        // return it untransformed
-        if (typeof innerResponse !== "string")
-          return (xhrData.response = innerResponse);
-
-        let replacedText = innerResponse;
-        // eslint-disable-next-line max-len
-        for (const [thisSearch, {replacement: thisReplacement, needle: thisNeedle, formattedArgs}] of xhrRules) {
-          if (thisNeedle) {
-            const needleRegex = toRegExp(thisNeedle);
-            // Needle found
-            if (needleRegex.test(replacedText)) {
-              if (debug()) {
-                console.groupCollapsed(`DEBUG [replace-xhr-response] success: '${thisNeedle}' found in XHR response`);
-                debugLog("info", replacedText);
-                console.groupEnd();
-              }
-            }
-            else {
-              if (debug()) {
-                console.groupCollapsed(`DEBUG [replace-xhr-response] warn: '${thisNeedle}' not found in XHR response`);
-                debugLog("warn", replacedText);
-                console.groupEnd();
-              }
-              continue;
+    addPostResponseCallback(responseText => {
+      mark();
+      let replacedText = responseText;
+      for (const [thisSearch, {
+        replacement: thisReplacement,
+        needle: thisNeedle,
+        formattedArgs,
+        isJsonPath,
+        jsonPathEngine
+      }] of xhrRules) {
+        if (thisNeedle) {
+          const needleRegex = toRegExp(thisNeedle);
+          if (needleRegex.test(replacedText)) {
+            if (debug()) {
+              console.groupCollapsed(`DEBUG [replace-xhr-response] success: '${thisNeedle}' found in XHR response`);
+              debugLog("info", replacedText);
+              console.groupEnd();
             }
           }
+          else {
+            if (debug()) {
+              console.groupCollapsed(`DEBUG [replace-xhr-response] warn: '${thisNeedle}' not found in XHR response`);
+              debugLog("warn", replacedText);
+              console.groupEnd();
+            }
+            continue;
+          }
+        }
+
+        if (isJsonPath) {
+          try {
+            let obj = JSON.parse(replacedText);
+            const matches =
+              jsonPathEngine.evaluate(obj);
+            $(matches).forEach(({parent, key}) => {
+              parent[key] =
+                overrideValue(thisReplacement);
+              debugLog(
+                "success",
+                "JSONPath match at " +
+                `[${key}], replaced with ` +
+                thisReplacement,
+                "\nFILTER: replace-xhr-response " +
+                formattedArgs
+              );
+              const filter = "replace-xhr-response " + formattedArgs;
+              if (!hitFilters.has(filter)) {
+                hitFilters.add(filter);
+                sendSnippetHitEvent(filter);
+              }
+            });
+            replacedText = JSON.stringify(obj);
+          }
+          catch (e) {
+            debugLog(
+              "info",
+              "JSONPath: skipping non-JSON " +
+              "response or evaluation error: " +
+              e.message
+            );
+          }
+        }
+        else {
           replacedText =
-            $(replacedText).replace(thisSearch, thisReplacement).toString();
-          if (debug() && innerResponse.toString() !== replacedText.toString()) {
-            console.groupCollapsed(`DEBUG [replace-xhr-response] success: '${thisSearch}' replaced with '${thisReplacement}' in XHR response`,
-                                    `\nFILTER: replace-xhr-response ${formattedArgs}`);
-            debugLog("success", replacedText);
-            console.groupEnd();
+            $(replacedText)
+              .replace(thisSearch, thisReplacement)
+              .toString();
+          if (
+            responseText.toString() !==
+            replacedText.toString()
+          ) {
+            const filter = "replace-xhr-response " + formattedArgs;
+            if (!hitFilters.has(filter)) {
+              hitFilters.add(filter);
+              sendSnippetHitEvent(filter);
+            }
+            if (debug()) {
+              console.groupCollapsed(`DEBUG [replace-xhr-response] success: '${thisSearch}' replaced with '${thisReplacement}' in XHR response`,
+                                     "\nFILTER: replace-xhr-response " +
+                formattedArgs);
+              debugLog("success", replacedText);
+              console.groupEnd();
+            }
           }
         }
-        end();
-        return (xhrData.response = replacedText.toString());
       }
-      get responseText() {
-        const response = this.response;
-        if (typeof response !== "string")
-          return super.responseText;
-
-        return response;
-      }
-    };
+      end();
+      return replacedText.toString();
+    });
   }
 
-  const regex = toRegExp(search);
-  // replaceAll is not supported in older browsers, this simulates it.
-  const globalisedRegEx = new RegExp(regex, "g");
-  xhrRules.set(globalisedRegEx,
-               {replacement, needle, formattedArgs: formattedArgsToLog});
+  if ($(search).startsWith("jsonpath(")) {
+    let jsonPathEngine;
+    try {
+      const query =
+        $(search).slice(9, -1).toString();
+      jsonPathEngine = new JSONPath(query);
+    }
+    catch (e) {
+      debugLog(
+        "error",
+        `Invalid JSONPath query: ${search}. ` +
+        `Error: ${e.message}`
+      );
+      return;
+    }
+    xhrRules.set(search, {
+      replacement,
+      needle,
+      formattedArgs: formattedArgsToLog,
+      isJsonPath: true,
+      jsonPathEngine
+    });
+  }
+  else {
+    const regex = toRegExp(search);
+    // replaceAll is not supported in older browsers,
+    // this simulates it.
+    const globalisedRegEx = new RegExp(regex, "g");
+    xhrRules.set(globalisedRegEx, {
+      replacement,
+      needle,
+      formattedArgs: formattedArgsToLog,
+      isJsonPath: false,
+      jsonPathEngine: null
+    });
+  }
 }

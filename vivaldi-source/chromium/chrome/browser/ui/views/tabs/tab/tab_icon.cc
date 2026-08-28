@@ -7,29 +7,26 @@
 #include "base/check.h"
 #include "base/i18n/rtl.h"
 #include "base/memory/raw_ptr.h"
+#include "base/metrics/histogram_functions.h"
 #include "base/time/default_tick_clock.h"
 #include "base/time/time.h"
-#include "base/timer/elapsed_timer.h"
 #include "base/trace_event/trace_event.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/favicon/favicon_utils.h"
-#include "chrome/browser/themes/theme_properties.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/interaction/browser_elements.h"
-#include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/tabs/tab_data.h"
+#include "chrome/browser/ui/tabs/tab_favicon_theming.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
 #include "chrome/browser/ui/views/dotted_icon.h"
-#include "chrome/common/webui_url_constants.h"
 #include "components/feature_engagement/public/feature_constants.h"
 #include "components/grit/components_scaled_resources.h"
 #include "components/performance_manager/public/user_tuning/prefs.h"
 #include "components/prefs/pref_service.h"
-#include "content/public/common/url_constants.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/theme_provider.h"
@@ -43,8 +40,6 @@
 #include "ui/gfx/animation/linear_animation.h"
 #include "ui/gfx/animation/tween.h"
 #include "ui/gfx/canvas.h"
-#include "ui/gfx/color_palette.h"
-#include "ui/gfx/color_utils.h"
 #include "ui/gfx/favicon_size.h"
 #include "ui/gfx/geometry/transform_util.h"
 #include "ui/gfx/image/image_skia_operations.h"
@@ -52,14 +47,12 @@
 #include "ui/gfx/paint_throbber.h"
 #include "ui/gfx/scoped_canvas.h"
 #include "ui/native_theme/native_theme.h"
-#include "ui/resources/grit/ui_resources.h"
 #include "ui/views/border.h"
 #include "ui/views/cascading_property.h"
 #include "ui/views/interaction/element_tracker_views.h"
 #include "ui/views/property_effects.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
-#include "url/gurl.h"
 
 namespace {
 
@@ -420,8 +413,8 @@ gfx::ImageSkia TabIcon::GetIconToPaint() {
     if (crashed_icon_.isNull()) {
       // Lazily create a themed sad tab icon.
       ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
-      crashed_icon_ =
-          ThemeFavicon(*rb.GetImageSkiaNamed(IDR_CRASH_SAD_FAVICON));
+      crashed_icon_ = tabs::ThemeFaviconForTab(
+          *rb.GetImageSkiaNamed(IDR_CRASH_SAD_FAVICON), *GetColorProvider());
     }
     return crashed_icon_;
   }
@@ -612,13 +605,10 @@ bool TabIcon::GetCrashed() const {
 }
 
 void TabIcon::UpdateThrobber() {
-  const gfx::Rect contents_bounds = GetContentsBounds();
-  if (contents_bounds.IsEmpty()) {
-    if (throbber_view_) {
-      RemoveChildViewT(std::exchange(throbber_view_, nullptr));
-    }
-    return;
-  }
+  TRACE_EVENT0("ui", "TabIcon::UpdateThrobber");
+  base::ScopedUmaHistogramTimer timer(
+      "Tab.Icon.UpdateThrobber.Time",
+      base::ScopedUmaHistogramTimer::ScopedHistogramTiming::kMicrosecondTimes);
 
   // Since the loading animation can run for a long time, paint to a
   // separate layer when possible to reduce repaint overhead.
@@ -627,6 +617,11 @@ void TabIcon::UpdateThrobber() {
       (GetShowingLoadingAnimation() || favicon_size_animation_.is_animating() ||
        tab_discard_animation_.is_animating());
   if (should_paint_to_layer != !!layer()) {
+    TRACE_EVENT0("ui", "TabIcon::UpdateThrobber (Toggle Layer)");
+    std::optional<base::ScopedUmaHistogramTimer> not_cached_timer;
+    not_cached_timer.emplace("Tab.Icon.UpdateThrobber.Time.NotCached",
+                             base::ScopedUmaHistogramTimer::
+                                 ScopedHistogramTiming::kMicrosecondTimes);
     // Change layer mode. Promoting to a layer reduces composition cost
     // regardless of whether we use the compositor-driven throbber or not.
     if (should_paint_to_layer) {
@@ -643,6 +638,14 @@ void TabIcon::UpdateThrobber() {
       GetShowingLoadingAnimation();
 
   if (use_compositor_throbber) {
+    const gfx::Rect contents_bounds = GetContentsBounds();
+    if (contents_bounds.IsEmpty()) {
+      if (throbber_view_) {
+        RemoveChildViewT(std::exchange(throbber_view_, nullptr));
+      }
+      return;
+    }
+
     if (!throbber_view_) {
       throbber_view_ = AddChildView(std::make_unique<ThrobberView>());
     }
@@ -704,32 +707,18 @@ void TabIcon::UpdateThrobber() {
   }
 }
 
-gfx::ImageSkia TabIcon::ThemeFavicon(const gfx::ImageSkia& source) {
-  const auto* cp = GetColorProvider();
-  return favicon::ThemeFavicon(
-      source, cp->GetColor(kColorToolbarButtonIcon),
-      cp->GetColor(kColorTabBackgroundActiveFrameActive),
-      cp->GetColor(kColorTabBackgroundInactiveFrameActive));
-}
-
-gfx::ImageSkia TabIcon::ThemeMonochromeFavicon(const gfx::ImageSkia& source) {
-  const auto* cp = GetColorProvider();
-  return favicon::ThemeMonochromeFavicon(
-      source, is_active_tab_
-                  ? cp->GetColor(kColorTabBackgroundActiveFrameActive)
-                  : cp->GetColor(kColorTabBackgroundInactiveFrameActive));
-}
-
 void TabIcon::UpdateThemedFavicon() {
   if (!GetWidget()) {
     return;
   }
 
   if (!GetNonDefaultFavicon() || should_themify_favicon_) {
-    themed_favicon_ = ThemeFavicon(favicon_.Rasterize(GetColorProvider()));
+    themed_favicon_ = tabs::ThemeFaviconForTab(
+        favicon_.Rasterize(GetColorProvider()), *GetColorProvider());
   } else if (is_monochrome_favicon_) {
-    themed_favicon_ =
-        ThemeMonochromeFavicon(favicon_.Rasterize(GetColorProvider()));
+    themed_favicon_ = tabs::ThemeMonochromeFaviconForTab(
+        favicon_.Rasterize(GetColorProvider()), *GetColorProvider(),
+        is_active_tab_);
   } else {
     themed_favicon_ = gfx::ImageSkia();
   }

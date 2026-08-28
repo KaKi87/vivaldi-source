@@ -210,6 +210,7 @@ class ComponentUpdateService {
   // required components are up to date.
   virtual void EnsureRequiredComponentsReady(base::TimeDelta timeout) = 0;
 #endif
+  virtual void Stop() = 0;
 
  private:
   friend class screen_ai::ScreenAIDownloaderNonChromeOS;
@@ -248,6 +249,9 @@ class OnDemandUpdater {
   friend class CrOSComponentInstaller;
 #endif  // BUILDFLAG(IS_CHROMEOS)
   friend class IwaKeyDistributionComponentInstallerPolicy;
+  friend class PlatformRuntimeComponentInstallerPolicy;
+  friend void UpdateAIEmbeddingsComponentOnDemand(Priority priority,
+                                                  Callback callback);
 
   // Vivaldi:
   friend class extensions::AutoUpdateAPI;

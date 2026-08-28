@@ -14,13 +14,13 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
+import getLibEnvironment from "../environment.js";
 
-let {Array, Math, RegExp} = $(window);
+let {Array, document, Math, RegExp} = $(window);
 
 /**
- * Escapes regular expression special characters in a string.
+ * @description Escapes regular expression special characters in a string.
  *
  * The returned string may be passed to the `RegExp` constructor to match the
  * original string.
@@ -35,7 +35,7 @@ function regexEscape(string) {
 }
 
 /**
- * Converts a given pattern to a regular expression.
+ * @description Converts a given pattern to a regular expression.
  *
  * @param {string} pattern The pattern to convert. If the pattern begins and
  *   ends with a slash (`/`), the text in between is treated as a regular
@@ -63,6 +63,46 @@ export function toRegExp(pattern) {
   }
 
   return new RegExp(regexEscape(pattern));
+}
+
+/**
+ * Fires a detection event via env.sendDetectionEvent if it is available.
+ *
+ * @param {string} type - Detection type label (e.g. "acme-adwall").
+ * @param {string|null} specifier - Optional specifier for BigQuery filtering.
+ * @private
+ */
+export function sendDetectionEvent(type, specifier) {
+  const env = getLibEnvironment();
+  if (typeof env.sendDetectionEvent !== "function")
+    return;
+  try {
+    env.sendDetectionEvent(type, document.location.hostname, specifier);
+  }
+  catch (e) {
+    // telemetry must never break snippet execution
+  }
+}
+
+/**
+ * Fires a snippet hit event via env.sendSnippetHitEvent if available.
+ * Works in both isolated-world and main-world contexts — the SDK provides
+ * the appropriate implementation for each world.
+ *
+ * @param {string} filter - The full filter body that fired,
+ *   e.g. "json-prune ads userId".
+ * @private
+ */
+export function sendSnippetHitEvent(filter) {
+  const env = getLibEnvironment();
+  if (typeof env.sendSnippetHitEvent !== "function")
+    return;
+  try {
+    env.sendSnippetHitEvent(filter, document.location.hostname);
+  }
+  catch (e) {
+    // telemetry must never break snippet execution
+  }
 }
 
 /**

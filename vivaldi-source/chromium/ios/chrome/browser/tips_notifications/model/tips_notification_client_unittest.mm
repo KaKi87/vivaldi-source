@@ -16,6 +16,7 @@
 #import "components/feature_engagement/public/tracker.h"
 #import "components/prefs/scoped_user_pref_update.h"
 #import "components/safe_browsing/core/common/safe_browsing_prefs.h"
+#import "components/sync/test/test_sync_service.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin_presenter.h"
 #import "ios/chrome/browser/content_suggestions/ui/content_suggestions_commands.h"
 #import "ios/chrome/browser/default_browser/model/promo_source.h"
@@ -46,6 +47,8 @@
 #import "ios/chrome/browser/signin/model/fake_authentication_service_delegate.h"
 #import "ios/chrome/browser/signin/model/fake_system_identity.h"
 #import "ios/chrome/browser/signin/model/fake_system_identity_manager.h"
+#import "ios/chrome/browser/sync/model/sync_service_factory.h"
+#import "ios/chrome/browser/sync/model/test_sync_service_utils.h"
 #import "ios/chrome/browser/tips_notifications/model/utils.h"
 #import "ios/chrome/test/ios_chrome_scoped_testing_local_state.h"
 #import "ios/testing/scoped_block_swizzler.h"
@@ -91,12 +94,13 @@ class TipsNotificationClientTest : public PlatformTest {
         AuthenticationServiceFactory::GetInstance(),
         AuthenticationServiceFactory::GetFactoryWithDelegate(
             std::make_unique<FakeAuthenticationServiceDelegate>()));
+    builder.AddTestingFactory(SyncServiceFactory::GetInstance(),
+                              base::BindRepeating(&CreateTestSyncService));
     profile_ = profile_manager_.AddProfileWithBuilder(std::move(builder));
     BrowserList* list = BrowserListFactory::GetForProfile(profile_);
-    mock_scene_state_ = OCMClassMock([SceneState class]);
-    OCMStub([mock_scene_state_ activationLevel])
-        .andReturn(SceneActivationLevelForegroundActive);
-    browser_ = std::make_unique<TestBrowser>(profile_, mock_scene_state_);
+    scene_state_ = [[SceneState alloc] init];
+    scene_state_.activationLevel = SceneActivationLevelForegroundActive;
+    browser_ = std::make_unique<TestBrowser>(profile_, scene_state_);
     list->AddBrowser(browser_.get());
     client_ = std::make_unique<TipsNotificationClient>();
     ScopedDictPrefUpdate update(GetApplicationContext()->GetLocalState(),
@@ -314,7 +318,7 @@ class TipsNotificationClientTest : public PlatformTest {
   TestProfileManagerIOS profile_manager_;
   raw_ptr<feature_engagement::Tracker> tracker_;
   base::SimpleTestClock test_clock_;
-  id mock_scene_state_;
+  SceneState* scene_state_;
   UNNotificationResponse* mock_notification_response_;
   std::unique_ptr<TestBrowser> browser_;
   std::unique_ptr<TipsNotificationClient> client_;

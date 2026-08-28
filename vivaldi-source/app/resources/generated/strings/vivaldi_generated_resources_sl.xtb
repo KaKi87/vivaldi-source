@@ -39,7 +39,6 @@
 <translation id="1601560923496285236">Uporabi</translation>
 <translation id="1603914832182249871">(Privatno)</translation>
 <translation id="1627276047960621195">Deskriptorji datotek</translation>
-<translation id="1654713139320245449">Najden ni bil noben cilj igralca. Potrebujete pomoč?</translation>
 <translation id="166278006618318542">Algoritem javnega ključa subjekta</translation>
 <translation id="1682548588986054654">Novo okno brez beleženja zgodovine</translation>
 <translation id="1708338024780164500">(Nеaktivno)</translation>
@@ -60,7 +59,6 @@
 <translation id="1906488504371069394">Odkrijte več razširitev in tem v <ph name="BEGIN_LINK" />Spletni trgovini Chrome<ph name="END_LINK" /></translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">Vnesite spletni naslov po meri</translation>
-<translation id="1932098463447129402">Ne pred</translation>
 <translation id="1936157145127842922">Prikaži v mapi</translation>
 <translation id="1936931585862840749">Vnesite število izvodov, ki jih želite natisniti (od 1 do <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">&amp;Odpri zvočni posnetek v novem zavihku</translation>
@@ -102,7 +100,6 @@
 <translation id="253557089021624350">Štetje ohranjanja dejavnosti</translation>
 <translation id="2550212893339833758">Zamenjan pomnilnik</translation>
 <translation id="2553440850688409052">Skrij ta vtičnik</translation>
-<translation id="2607101320794533334">Informacije o javnem ključu subjekta</translation>
 <translation id="261305050785128654">Sporočite spletnim mestom, katere jezike govorite. Kadar koli bo mogoče, bodo prikazala vsebino v teh jezikih.</translation>
 <translation id="26224892172169984">Ne dovoli nobenemu spletnemu mestu obravnave protokolov</translation>
 <translation id="2653275834716714682">Zamenjava besedila</translation>
@@ -112,7 +109,6 @@
 <translation id="2719936478972253983">Blokirani so bili naslednji piškotki</translation>
 <translation id="2721037002783622288">&amp;Išči sliko tu <ph name="SEARCH_ENGINE" /></translation>
 <translation id="2722547199758472013">ID: <ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">Ne po</translation>
 <translation id="2749881179542288782">Preveri slovnico s črkovanjem</translation>
 <translation id="2785873697295365461">Deskriptorji datotek</translation>
 <translation id="2825758591930162672">Javni ključ subjekta</translation>
@@ -163,7 +159,6 @@
 <translation id="3387614642886316601">Uporabi izboljšano preverjanje črkovanja</translation>
 <translation id="3390013585654699824">Podrobnosti o aplikaciji</translation>
 <translation id="345693547134384690">Odpri &amp;sliko v novem zavihku</translation>
-<translation id="3493881266323043047">Veljavnost</translation>
 <translation id="3511307672085573050">Kopiraj naslov pov&amp;ezave</translation>
 <translation id="354068948465830244">Lahko bere in spreminja podatke spletnega mesta</translation>
 <translation id="3555812735919707620">Odstrani razširitev</translation>
@@ -179,7 +174,6 @@
 <translation id="3760460896538743390">Preglej &amp;stran v ozadju</translation>
 <translation id="3786224729726357296">Izbriši podatke in dovoljenja spletnega mesta za <ph name="SITE" /></translation>
 <translation id="3797900183766075808">&amp;Išči <ph name="SEARCH_ENGINE" /> za “<ph name="SEARCH_TERMS" />”</translation>
-<translation id="3798449238516105146">Različica</translation>
 <translation id="3810973564298564668">Upravljanje</translation>
 <translation id="3838085852053358637">Razširitve ni bilo mogoče naložiti</translation>
 <translation id="383891835335927981">Nobeno spletno mesto ni povečano ali pomanjšano</translation>
@@ -266,12 +260,10 @@
 <translation id="5063480226653192405">Uporaba</translation>
 <translation id="5116628073786783676">Shr&amp;ani zvočni zapis kot...</translation>
 <translation id="5154108062446123722">Dodatne nastavitve za: <ph name="PRINTING_DESTINATION" /></translation>
-<translation id="5154702632169343078">Zadeva</translation>
 <translation id="5170568018924773124">Prikaži v mapi</translation>
 <translation id="5171343362375269016">Zamenjan pomnilnik</translation>
 <translation id="5233231016133573565">ID procesa</translation>
 <translation id="5233736638227740678">&amp;Prilepi</translation>
-<translation id="5244466461749935369">Obdrži za zdaj</translation>
 <translation id="5256861893479663409">Na vseh spletnih mestih</translation>
 <translation id="5260334392110301220">Pametni navedki</translation>
 <translation id="5269977353971873915">Tiskanje ni uspelo</translation>
@@ -310,7 +302,6 @@
 <translation id="5780973441651030252">Prioriteta postopkov</translation>
 <translation id="5804241973901381774">Dovoljenja</translation>
 <translation id="5828633471261496623">Tiskanje...</translation>
-<translation id="5851868085455377790">Izdajatelj</translation>
 <translation id="5860491529813859533">Vklop</translation>
 <translation id="5910363049092958439">Sh&amp;rani sliko kot ...</translation>
 <translation id="5914724413750400082">Modul (<ph name="MODULUS_NUM_BITS" /> bitov):
@@ -460,7 +451,6 @@ Datoteko s ključem shranite na varnem. Potrebovali jo boste za izdelavo novih r
 <translation id="862750493060684461">Predpomnilnik CSS</translation>
 <translation id="8661290697478713397">Odpri povezavo v oknu brez bele&amp;ženja zgodovine</translation>
 <translation id="8664389313780386848">&amp;Ogled vira strani</translation>
-<translation id="8705331520020532516">Serijska številka</translation>
 <translation id="8708000541097332489">Počisti ob izhodu</translation>
 <translation id="8714838604780058252">Grafika v ozadju</translation>
 <translation id="8725066075913043281">Poskusite znova</translation>

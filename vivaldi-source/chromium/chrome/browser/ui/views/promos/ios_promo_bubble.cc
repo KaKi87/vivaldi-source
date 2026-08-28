@@ -10,15 +10,12 @@
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
-#include "base/not_fatal_until.h"
 #include "build/branding_buildflags.h"
-#include "chrome/browser/desktop_to_mobile_promos/promos_pref_names.h"
 #include "chrome/browser/desktop_to_mobile_promos/promos_utils.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
-#include "chrome/browser/ui/ui_features.h"
-#include "chrome/browser/ui/views/chrome_typography.h"
 #include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
+#include "chrome/browser/ui/views/page_action/page_action_view_interface.h"
 #include "chrome/browser/ui/views/promos/ios_promo_constants.h"
 #include "chrome/grit/branded_strings.h"
 #include "chrome/grit/generated_resources.h"
@@ -29,19 +26,14 @@
 #include "components/prefs/pref_service.h"
 #include "components/qr_code_generator/bitmap_generator.h"
 #include "components/strings/grit/components_strings.h"
-#include "content/public/browser/page_navigator.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/dialog_model.h"
 #include "ui/base/models/image_model.h"
-#include "ui/base/page_transition_types.h"
-#include "ui/base/window_open_disposition.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/bubble/bubble_dialog_model_host.h"
 #include "ui/views/interaction/element_tracker_views.h"
 #include "ui/views/layout/fill_layout.h"
 #include "ui/views/layout/flex_layout_types.h"
-#include "ui/views/layout/flex_layout_view.h"
-#include "ui/views/layout/layout_types.h"
 #include "ui/views/metadata/view_factory.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/view_utils.h"
@@ -491,15 +483,21 @@ std::unique_ptr<views::View> IOSPromoBubble::CreateImageAndBodyTextView(
     BubbleType bubble_type) {
   views::Builder<views::View> image_view;
   if (!ios_promo_config.promo_image.IsEmpty()) {
+    const int corner_radius =
+        views::LayoutProvider::Get()->GetCornerRadiusMetric(
+            views::Emphasis::kHigh);
     auto image_view_builder =
         views::Builder<views::ImageView>()
             .SetID(IOSPromoConstants::kImageViewID)
             .SetImage(ios_promo_config.promo_image)
             .SetImageSize(gfx::Size(IOSPromoConstants::kImageSize,
                                     IOSPromoConstants::kImageSize))
-            .SetCornerRadius(
-                views::LayoutProvider::Get()->GetCornerRadiusMetric(
-                    views::Emphasis::kHigh));
+            // The QR code images have a border thickness of 1. Adjust the
+            // corner radius to accommodate for the different inner rounding
+            // when the QR code is shown.
+            .SetCornerRadius(bubble_type == BubbleType::kQRCode
+                                 ? corner_radius - 1
+                                 : corner_radius);
 
     if (bubble_type == BubbleType::kQRCode) {
       image_view_builder.SetAccessibleName(
@@ -552,7 +550,7 @@ std::unique_ptr<views::View> IOSPromoBubble::CreateImageAndBodyTextView(
 // static
 void IOSPromoBubble::ShowPromoBubble(
     Anchor anchor,
-    views::Button* highlighted_button,
+    page_actions::PageActionViewInterface* highlighted_button,
     std::optional<ui::ElementIdentifier> highlighted_element,
     Profile* profile,
     PromoType promo_type,

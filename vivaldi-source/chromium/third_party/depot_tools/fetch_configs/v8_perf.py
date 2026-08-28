@@ -1,4 +1,4 @@
-# Copyright 2025 The Chromium Authors. All rights reserved.
+# Copyright 2025 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -14,30 +14,29 @@ class V8Perf(config_util.Config):
 
     @staticmethod
     def fetch_spec(props):
-        url = 'https://chrome-internal.googlesource.com/v8/v8-perf.git'
+        url = "https://chrome-internal.googlesource.com/v8/v8-perf.git"
         solution = {
-            'name': 'v8-perf',
-            'url': url,
-            'deps_file': 'DEPS',
-            'managed': False,
-            'custom_deps': {},
+            "name": "v8-perf",
+            "url": url,
+            "deps_file": "DEPS",
+            "custom_deps": {},
         }
         spec = {
-            'solutions': [solution],
+            "solutions": [solution],
         }
         return {
-            'type': 'gclient_git',
-            'gclient_git_spec': spec,
+            "type": "gclient_git",
+            "gclient_git_spec": spec,
         }
 
     @staticmethod
     def expected_root(_props):
-        return 'v8-perf'
+        return "v8-perf"
 
 
 def main(argv=None):
     return V8Perf().handle_args(argv)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main(sys.argv))

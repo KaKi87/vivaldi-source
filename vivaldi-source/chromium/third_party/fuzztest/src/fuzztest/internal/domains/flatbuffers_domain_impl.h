@@ -26,9 +26,9 @@
 #include <variant>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/base/nullability.h"
 #include "absl/base/thread_annotations.h"
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/bit_gen_ref.h"
@@ -37,6 +37,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 #include "flatbuffers/base.h"
+#include "flatbuffers/buffer.h"
 #include "flatbuffers/flatbuffer_builder.h"
 #include "flatbuffers/reflection_generated.h"
 #include "flatbuffers/string.h"
@@ -358,6 +359,8 @@ class FlatbuffersTableUntypedDomainImpl
  private:
   const reflection::Schema* absl_nonnull schema_;
   const reflection::Object* absl_nonnull table_object_;
+  absl::btree_map<typename corpus_type::key_type, const reflection::Field*>
+      fields_by_id_;
   mutable absl::Mutex mutex_;
   mutable absl::flat_hash_map<typename corpus_type::key_type, CopyableAny>
       domains_ ABSL_GUARDED_BY(mutex_);
@@ -365,7 +368,7 @@ class FlatbuffersTableUntypedDomainImpl
   bool IsSupportedField(const reflection::Field* absl_nonnull field) const;
 
   uint32_t BuildTable(const corpus_type& value,
-                      flatbuffers::FlatBufferBuilder& builder) const;
+                      flatbuffers::FlatBufferBuilder64& builder) const;
 
   // Returns the domain for the given field.
   // The domain is cached, and the same instance is returned for the same field.
@@ -395,10 +398,10 @@ class FlatbuffersTableUntypedDomainImpl
 
   const reflection::Field* absl_nullable GetFieldById(
       typename corpus_type::key_type id) const {
-    const auto it =
-        absl::c_find_if(*table_object_->fields(),
-                        [id](const auto* field) { return field->id() == id; });
-    return it != table_object_->fields()->end() ? *it : nullptr;
+    if (auto it = fields_by_id_.find(id); it != fields_by_id_.end()) {
+      return it->second;
+    }
+    return nullptr;
   }
 
   struct SerializeVisitor {
@@ -441,9 +444,15 @@ class FlatbuffersTableUntypedDomainImpl
         }
       } else if constexpr (std::is_same_v<T, std::string>) {
         if (user_value->CheckField(field->offset())) {
-          inner_value = std::optional(
-              user_value->GetPointer<flatbuffers::String*>(field->offset())
-                  ->str());
+          if (field->offset64()) {
+            inner_value = std::optional(
+                user_value->GetPointer64<flatbuffers::String*>(field->offset())
+                    ->str());
+          } else {
+            inner_value = std::optional(
+                user_value->GetPointer<flatbuffers::String*>(field->offset())
+                    ->str());
+          }
         }
       } else if constexpr (std::is_same_v<T, FlatbuffersTableTag>) {
         auto sub_object = self.schema_->objects()->Get(field->type()->index());
@@ -464,9 +473,9 @@ class FlatbuffersTableUntypedDomainImpl
   // Create out-of-line table fields, see `BuildTable` for details.
   struct TableFieldBuilderVisitor {
     const FlatbuffersTableUntypedDomainImpl& self;
-    flatbuffers::FlatBufferBuilder& builder;
-    absl::flat_hash_map<typename corpus_type::key_type, flatbuffers::uoffset_t>&
-        offsets;
+    flatbuffers::FlatBufferBuilder64& builder;
+    absl::flat_hash_map<typename corpus_type::key_type,
+                        flatbuffers::uoffset64_t>& offsets;
     const typename corpus_type::mapped_type& corpus_value;
 
     template <typename T>
@@ -475,8 +484,16 @@ class FlatbuffersTableUntypedDomainImpl
         auto& domain = self.GetCachedDomain<T>(field);
         auto user_value = domain.GetValue(corpus_value);
         if (user_value.has_value()) {
-          auto offset =
-              builder.CreateString(user_value->data(), user_value->size()).o;
+          flatbuffers::uoffset64_t offset;
+          if (field->offset64()) {
+            offset = builder
+                         .CreateString<flatbuffers::Offset64>(
+                             user_value->data(), user_value->size())
+                         .o;
+          } else {
+            offset =
+                builder.CreateString(user_value->data(), user_value->size()).o;
+          }
           offsets.insert({field->id(), offset});
         }
       } else if constexpr (std::is_same_v<T, FlatbuffersTableTag>) {
@@ -502,9 +519,9 @@ class FlatbuffersTableUntypedDomainImpl
   // offsets for "out-of-line fields". See `BuildTable` for details.
   struct TableBuilderVisitor {
     const FlatbuffersTableUntypedDomainImpl& self;
-    flatbuffers::FlatBufferBuilder& builder;
-    const absl::flat_hash_map<typename corpus_type::key_type,
-                              flatbuffers::uoffset_t>& offsets;
+    flatbuffers::FlatBufferBuilder64& builder;
+    absl::flat_hash_map<typename corpus_type::key_type,
+                        flatbuffers::uoffset64_t>& offsets;
     const typename corpus_type::value_type::second_type& corpus_value;
 
     template <typename T>
@@ -521,9 +538,15 @@ class FlatbuffersTableUntypedDomainImpl
       } else if constexpr (std::is_same_v<T, std::string>) {
         // "Out-of-line field". Store just offset.
         if (auto it = offsets.find(field->id()); it != offsets.end()) {
-          builder.AddOffset(
-              field->offset(),
-              flatbuffers::Offset<flatbuffers::String>(it->second));
+          if (field->offset64()) {
+            builder.AddOffset(
+                field->offset(),
+                flatbuffers::Offset64<flatbuffers::String>(it->second));
+          } else {
+            builder.AddOffset(
+                field->offset(),
+                flatbuffers::Offset<flatbuffers::String>(it->second));
+          }
         }
       } else if constexpr (std::is_same_v<T, FlatbuffersTableTag>) {
         // "Out-of-line field". Store just offset.
@@ -577,42 +600,53 @@ class FlatbuffersTableUntypedDomainImpl
 
   struct CountNumberOfMutableFieldsVisitor {
     const FlatbuffersTableUntypedDomainImpl& self;
-    uint64_t& total_weight;
-    corpus_type& val;
-    bool only_shrink = false;
-
-    template <typename T>
-    void Visit(const reflection::Field* absl_nonnull field) const {
-      if (!self.IsSupportedField(field)) return;
-      if (only_shrink && !val.contains(field->id())) return;
-
-      // Add the weight of the field itself.
-      total_weight += 1;
-
-      auto& domain = self.GetCachedDomain<T>(field);
-      if (auto it = val.find(field->id()); it != val.end()) {
-        // Add the weight of the field corpus.
-        total_weight += domain.CountNumberOfFields(it->second);
-      }
-    }
-  };
-
-  struct MutateVisitor {
-    FlatbuffersTableUntypedDomainImpl& self;
-    absl::BitGenRef prng;
-    const domain_implementor::MutationMetadata& metadata;
-    bool only_shrink;
+    uint64_t& field_count;
     corpus_type& corpus_value;
+    const bool only_shrink = false;
 
     template <typename T>
     void Visit(const reflection::Field* absl_nonnull field) {
-      auto& domain = self.GetCachedDomain<T>(field);
+      if (!self.IsSupportedField(field)) return;
       auto it = corpus_value.find(field->id());
-      if (it == corpus_value.end()) {
-        if (only_shrink) return;
-        it = corpus_value.try_emplace(field->id(), domain.Init(prng)).first;
+      if (only_shrink && it == corpus_value.end()) return;
+
+      field_count++;
+
+      if (it == corpus_value.end()) return;
+      auto& domain = self.GetCachedDomain<T>(field);
+      field_count += domain.CountNumberOfFields(it->second);
+    }
+  };
+
+  struct MutateSelectedFieldVisitor {
+    FlatbuffersTableUntypedDomainImpl& self;
+    uint64_t& field_counter;
+    corpus_type& corpus_value;
+    absl::BitGenRef prng;
+    const domain_implementor::MutationMetadata& metadata;
+    const bool only_shrink;
+    const uint64_t selected_field_index;
+
+    template <typename T>
+    void Visit(const reflection::Field* absl_nonnull field) {
+      if (!self.IsSupportedField(field)) return;
+      auto it = corpus_value.find(field->id());
+      if (only_shrink && it == corpus_value.end()) return;
+
+      field_counter++;
+      auto& domain = self.GetCachedDomain<T>(field);
+      if (field_counter == selected_field_index) {
+        if (it == corpus_value.end()) {
+          it = corpus_value.try_emplace(field->id(), domain.Init(prng)).first;
+        }
+        domain.Mutate(it->second, prng, metadata, only_shrink);
+        return;
       }
-      domain.Mutate(it->second, prng, metadata, only_shrink);
+
+      if (it == corpus_value.end()) return;
+      field_counter +=
+          domain.MutateSelectedField(it->second, prng, metadata, only_shrink,
+                                     selected_field_index - field_counter);
     }
   };
 
@@ -743,6 +777,14 @@ class FlatbuffersTableDomainImpl
     return inner_->CountNumberOfFields(val.untyped_corpus);
   }
 
+  uint64_t MutateSelectedField(
+      corpus_type& val, absl::BitGenRef prng,
+      const domain_implementor::MutationMetadata& metadata, bool only_shrink,
+      uint64_t selected_field_index) {
+    return inner_->MutateSelectedField(val.untyped_corpus, prng, metadata,
+                                       only_shrink, selected_field_index);
+  }
+
   // Mutates the given corpus value.
   void Mutate(corpus_type& val, absl::BitGenRef prng,
               const domain_implementor::MutationMetadata& metadata,
@@ -753,7 +795,7 @@ class FlatbuffersTableDomainImpl
 
   // Converts corpus value into the exact flatbuffer.
   value_type GetValue(const corpus_type& value) const {
-    flatbuffers::FlatBufferBuilder builder;
+    flatbuffers::FlatBufferBuilder64 builder;
     const uint32_t offset = inner_->BuildTable(value.untyped_corpus, builder);
     builder.Finish(flatbuffers::Offset<flatbuffers::Table>(offset));
     value.buffer =

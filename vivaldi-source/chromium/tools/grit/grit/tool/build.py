@@ -759,6 +759,8 @@ Duplicate actual output files:
                                  outputs[0].GetOutputFilename())
 
     output_file = os.path.relpath(output_file, depdir)
+
+    # Vivaldi: Reverted to this older code due to issues with cross-compile environments on Linux and Windows with the new one
     # The path prefix to prepend to dependencies in the depfile.
     prefix = os.path.relpath(os.getcwd(), depdir)
     deps_text = ' '.join([os.path.join(prefix, i) for i in infiles])

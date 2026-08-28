@@ -135,7 +135,7 @@ bool PageActionModel::GetShouldAnimateChipIn() const {
 }
 
 bool PageActionModel::GetShouldAnimateImage() const {
-  return image_animation_resource_id_.has_value() && !did_animate_image_;
+  return image_animation_parameters_.has_value() && !did_animate_image_;
 }
 
 bool PageActionModel::GetShouldAnnounceChip() const {
@@ -147,9 +147,9 @@ const ui::ImageModel& PageActionModel::GetImage() const {
                                      : action_item_image_;
 }
 
-int PageActionModel::GetImageAnimationResourceId() const {
-  CHECK(image_animation_resource_id_.has_value());
-  return image_animation_resource_id_.value();
+std::optional<PageActionAnimationParams>
+PageActionModel::GetImageAnimationParameters() const {
+  return image_animation_parameters_;
 }
 
 const std::u16string& PageActionModel::GetText() const {
@@ -203,14 +203,14 @@ void PageActionModel::SetOverrideImage(
     PageActionPassKey,
     const std::optional<ui::ImageModel>& override_image,
     PageActionColorSource color_source,
-    std::optional<int> animation_resource_id) {
+    std::optional<PageActionAnimationParams> animation_parameters) {
   if (override_image_ == override_image && color_source == color_source_ &&
-      image_animation_resource_id_ == animation_resource_id) {
+      image_animation_parameters_ == animation_parameters) {
     return;
   }
   override_image_ = override_image;
   color_source_ = color_source;
-  image_animation_resource_id_ = animation_resource_id;
+  image_animation_parameters_ = animation_parameters;
   did_animate_image_ = false;
   NotifyChange(Property::kOverrideImage);
 }
@@ -261,6 +261,33 @@ void PageActionModel::SetActionActive(PageActionPassKey, bool is_active) {
 
   action_active_ = is_active;
   NotifyChange(Property::kActionActive);
+}
+
+void PageActionModel::SetAnimationStyle(PageActionPassKey,
+                                        PageActionAnimationStyle style) {
+  if (animation_style_ == style) {
+    return;
+  }
+  animation_style_ = style;
+  NotifyChange(Property::kAnimationStyle);
+}
+
+void PageActionModel::SetTrailingImage(
+    PageActionPassKey,
+    const std::optional<ui::ImageModel>& image) {
+  if (trailing_image_ == image) {
+    return;
+  }
+  trailing_image_ = image;
+  NotifyChange(Property::kTrailingImage);
+}
+
+void PageActionModel::SetShowTrailingIcon(PageActionPassKey, bool show) {
+  if (show_trailing_icon_ == show) {
+    return;
+  }
+  show_trailing_icon_ = show;
+  NotifyChange(Property::kShowTrailingIcon);
 }
 
 void PageActionModel::AddObserver(PageActionModelObserver* observer) {
@@ -384,6 +411,33 @@ const std::optional<ui::ImageModel>& PageActionModel::GetAnchoredMessageIcon()
 const std::optional<AnchoredMessageExpandableContent>&
 PageActionModel::GetAnchoredMessageExpandableContent() const {
   return expandable_content_;
+}
+
+PageActionAnimationStyle PageActionModel::GetAnimationStyle() const {
+  return animation_style_;
+}
+
+std::optional<ui::ImageModel> PageActionModel::GetTrailingImage() const {
+  return trailing_image_;
+}
+
+bool PageActionModel::GetShowTrailingIcon() const {
+  return show_trailing_icon_;
+}
+
+void PageActionModel::SetOverrideBackgroundColorId(
+    PageActionPassKey,
+    std::optional<ui::ColorId> override_background_color_id) {
+  if (override_background_color_id_ == override_background_color_id) {
+    return;
+  }
+  override_background_color_id_ = override_background_color_id;
+  NotifyChange(Property::kOverrideBackgroundColor);
+}
+
+std::optional<ui::ColorId> PageActionModel::GetOverrideBackgroundColorId()
+    const {
+  return override_background_color_id_;
 }
 
 }  // namespace page_actions

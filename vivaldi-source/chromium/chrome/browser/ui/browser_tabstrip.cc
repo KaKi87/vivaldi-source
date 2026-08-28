@@ -47,7 +47,9 @@ content::WebContents* AddAndReturnTabAt(
   if (pinned) {
     params.tabstrip_add_types |= AddTabTypes::ADD_PINNED;
   }
-  params.pwa_navigation_capturing_force_off = true;
+
+  params.web_app_navigation_data.emplace();
+  params.web_app_navigation_data->SetNavigationCapturingForceOff(true);
   Navigate(&params);
 
   if (!params.navigated_or_inserted_contents) {
@@ -71,12 +73,13 @@ void AddTabAt(BrowserWindowInterface* browser,
                              pinned);
 }
 
-content::WebContents* AddSelectedTabWithURL(Browser* browser,
+content::WebContents* AddSelectedTabWithURL(BrowserWindowInterface* browser,
                                             const GURL& url,
                                             ui::PageTransition transition) {
   NavigateParams params(browser, url, transition);
   params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
-  params.pwa_navigation_capturing_force_off = true;
+  params.web_app_navigation_data.emplace();
+  params.web_app_navigation_data->SetNavigationCapturingForceOff(true);
   Navigate(&params);
   return params.navigated_or_inserted_contents;
 }

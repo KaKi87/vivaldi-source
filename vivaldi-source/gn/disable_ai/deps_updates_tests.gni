@@ -1,8 +1,11 @@
 # AI disablings for tests
 
 deps_test_update_list = [
+  "//chrome/browser/dictation:browser_tests",
+  "//chrome/browser/dictation:interactive_ui_tests",
   "//chrome/browser/renderer_context_menu:interactive_ui_tests",
   "//chrome/browser/sync/test/integration:sync_integration_tests_impl",
+  "//chrome/browser/ui/webui/settings:browser_tests",
 ]
 
 deps_test_update_templ_list = [
@@ -12,11 +15,16 @@ deps_test_update_templ_list = [
   "//chrome/test:unit_tests",
   "//chrome/test/data/webui:browser_tests",
   "//chrome/test/data/webui:interactive_ui_tests",
+  "//chrome/browser:core_browser_tests",
   "//chrome/browser/actor/ui/task_list_bubble:interactive_ui_tests",
   "//chrome/browser/actor/ui/task_list_bubble:unit_tests",
-  "//chrome/browser/ui/autofill:unit_tests",
+  "//chrome/browser/devtools:platform_browser_tests",
+  "//chrome/browser/extensions:browser_tests",
   "//chrome/browser/indigo:unit_tests",
+  "//chrome/browser/password_manager:browser_tests",
+  "//chrome/browser/profiles:unit_tests",
   "//chrome/browser/record_replay:unit_tests",
+  "//chrome/browser/ui/autofill:unit_tests",
   "//chrome/browser/ui/tabs:browser_tests",
   "//chrome/browser/ui/tabs:test_support",
   "//chrome/browser/ui/tabs:unit_tests",
@@ -70,14 +78,10 @@ update_target("//chrome/browser/actor/ui:unit_tests") {
   deps = []
 }
 
-update_target("//chrome/browser/ui/tabs/projects:browser_tests") {
+update_target("//chrome/browser/ui/tabs/organizer:interactive_ui_tests") {
   deps = []
 }
 
-update_target("//chrome/browser/ui/tabs/projects:interactive_ui_tests") {
-  deps = []
-}
-
-update_target("//chrome/browser/ui/tabs/projects:unit_tests") {
+update_target("//chrome/browser/ui/tabs/organizer:unit_tests") {
   deps = []
 }

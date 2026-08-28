@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2014 The Chromium Authors. All rights reserved.
+# Copyright 2014 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -27,8 +27,10 @@ def CMDthaw(parser, args):
 
 def main(args):
     if gclient_utils.IsEnvCog():
-        print(f'{args[0]} command is not supported in non-git environment.',
-              file=sys.stderr)
+        print(
+            f"{args[0]} command is not supported in non-git environment.",
+            file=sys.stderr,
+        )
         return 1
     dispatcher = subcommand.CommandDispatcher(__name__)
     ret = dispatcher.execute(optparse.OptionParser(), args)
@@ -37,9 +39,9 @@ def main(args):
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
     except KeyboardInterrupt:
-        sys.stderr.write('interrupted\n')
+        sys.stderr.write("interrupted\n")
         sys.exit(1)

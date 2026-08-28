@@ -26,7 +26,6 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/base/ui_base_features.h"
-#include "ui/views/controls/label.h"
 #include "ui/views/widget/widget.h"
 
 #if !BUILDFLAG(IS_CHROMEOS)
@@ -153,8 +152,13 @@ void ConsentDialogCoordinator::Show() {
     return;
   }
   base::RecordAction(base::UserMetricsAction("DeviceSignalsConsent_Shown"));
-  dialog_widget_ = chrome::ShowBrowserModal(
+
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+  views::Widget* widget = chrome::ShowBrowserModal(
       browser_, CreateDeviceSignalsConsentDialogModel());
+  if (weak_this) {
+    dialog_widget_ = widget;
+  }
 }
 
 void ConsentDialogCoordinator::OnConsentDialogAccept() {

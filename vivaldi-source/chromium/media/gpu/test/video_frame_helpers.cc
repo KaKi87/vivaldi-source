@@ -433,9 +433,14 @@ scoped_refptr<VideoFrame> CreateMappableSharedImageVideoFrame(
   // Setting some default usage in order to get a mappable shared image.
   const auto si_usage = gpu::SHARED_IMAGE_USAGE_CPU_WRITE_ONLY |
                         gpu::SHARED_IMAGE_USAGE_DISPLAY_READ;
+  gfx::ColorSpace color_space = frame->ColorSpace();
+  if (!color_space.IsValid()) {
+    color_space = si_format->is_multi_plane() ? gfx::ColorSpace::CreateREC709()
+                                              : gfx::ColorSpace::CreateSRGB();
+  }
   // Create a mappable shared image.
   auto shared_image = test_sii->CreateSharedImage(
-      {*si_format, frame->coded_size(), gfx::ColorSpace(),
+      {*si_format, frame->coded_size(), color_space,
        gpu::SharedImageUsageSet(si_usage), "VideoFrameTestHelpers"},
       gpu::kNullSurfaceHandle, buffer_usage, std::move(gmb_handle));
   if (!shared_image) {
@@ -450,6 +455,7 @@ scoped_refptr<VideoFrame> CreateMappableSharedImageVideoFrame(
           base::NullCallback(), frame->visible_rect(), frame->natural_size(),
           frame->timestamp());
 
+  video_frame->set_color_space(color_space);
   video_frame->metadata().tracking_token = base::UnguessableToken::Create();
 
   return video_frame;
@@ -463,7 +469,8 @@ scoped_refptr<const VideoFrame> CreateVideoFrameFromImage(const Image& image) {
   const auto format = image.PixelFormat();
   const auto& image_size = image.Size();
   // Loaded image data must be tight.
-  DCHECK_EQ(image.DataSize(), VideoFrame::AllocationSize(format, image_size));
+  DCHECK_EQ(image.DataSpan().size(),
+            VideoFrame::AllocationSize(format, image_size));
 
   // Create planes for layout. We cannot use WrapExternalData() because it
   // calls GetDefaultLayout() and it supports only a few pixel formats.

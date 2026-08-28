@@ -14,6 +14,7 @@
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_service.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_service_factory.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_tab_helper.h"
+#import "ios/chrome/browser/intelligence/bwg/utils/gemini_availability.h"
 #import "ios/chrome/browser/intelligence/bwg/utils/gemini_constants.h"
 #import "ios/chrome/browser/intelligence/bwg/utils/gemini_entry_flow_result.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
@@ -32,9 +33,9 @@
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
-#import "ios/chrome/browser/shared/public/commands/bwg_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/contextual_sheet_commands.h"
+#import "ios/chrome/browser/shared/public/commands/gemini_commands.h"
 #import "ios/chrome/browser/shared/public/commands/lens_overlay_commands.h"
 #import "ios/chrome/browser/shared/public/commands/page_action_menu_commands.h"
 #import "ios/chrome/browser/shared/public/commands/reader_mode_commands.h"
@@ -51,9 +52,9 @@
 @interface PageActionMenuCoordinator () <
     AccountMenuCoordinatorDelegate,
     PageActionMenuViewControllerDelegate,
-    UINavigationControllerDelegate,
+    ReaderModeOptionsCommands,
     UIAdaptivePresentationControllerDelegate,
-    ReaderModeOptionsCommands>
+    UINavigationControllerDelegate>
 @end
 
 namespace {
@@ -138,8 +139,8 @@ constexpr NSTimeInterval kEligibilityPollTimeout = 5.0;
       self.browser->GetCommandDispatcher(), ReaderModeCommands);
   _viewController.pageActionMenuHandler = pageActionMenuHandler;
   if ([_mediator isUserSignedIn]) {
-    _viewController.BWGHandler =
-        HandlerForProtocol(self.browser->GetCommandDispatcher(), BWGCommands);
+    _viewController.geminiHandler = HandlerForProtocol(
+        self.browser->GetCommandDispatcher(), GeminiCommands);
   }
 
   // If Lens is not available for the profile, then the handler has not been
@@ -238,21 +239,19 @@ constexpr NSTimeInterval kEligibilityPollTimeout = 5.0;
   [self startGeminiAuthFlowDirectly];
 }
 
-// Starts the Gemini entry flow via the generalized BWGCommands method.
+// Starts the Gemini entry flow via the generalized GeminiCommands method.
 // Used when GeneralizedGeminiEntryFlow is enabled.
 - (void)startGeminiEntryFlowViaCommand {
   __weak __typeof(self) weakSelf = self;
 
-  id<BWGCommands> bwgHandler =
-      HandlerForProtocol(self.browser->GetCommandDispatcher(), BWGCommands);
+  id<GeminiCommands> geminiHandler =
+      HandlerForProtocol(self.browser->GetCommandDispatcher(), GeminiCommands);
 
-  [bwgHandler
+  [geminiHandler
       startGeminiEntryFlowWithStartupState:
           [[GeminiStartupState alloc]
               initWithEntryPoint:gemini::EntryPoint::AIHubSignInSheet]
                         baseViewController:_navigationController
-                               accessPoint:signin_metrics::AccessPoint::
-                                               kIosPageActionMenu
                   showSnackbarOnCompletion:YES
                                 completion:^(GeminiEntryFlowResult result) {
                                   [weakSelf handleEntryFlowResult:result];
@@ -362,12 +361,13 @@ constexpr NSTimeInterval kEligibilityPollTimeout = 5.0;
     (AccountMenuCoordinator*)coordinator {
   [self stopAccountMenu];
 
-  raw_ptr<GeminiService> geminiService =
-      GeminiServiceFactory::GetForProfile(self.profile);
-
+  web::WebState* activeWebState =
+      self.browser->GetWebStateList()->GetActiveWebState();
   // Re-check eligibility after the account menu closes.
   if ([_mediator isUserSignedIn] &&
-      geminiService->IsProfileEligibleForGemini()) {
+      gemini::IsGeminiAvailable(gemini::EntryPoint::AIHub, self.profile,
+                                activeWebState)
+          .enabled) {
     [self startGeminiSession];
     return;
   }
@@ -489,8 +489,8 @@ constexpr NSTimeInterval kEligibilityPollTimeout = 5.0;
 
 // Dismisses the PAM and starts the Gemini session.
 - (void)startGeminiSession {
-  id<BWGCommands> geminiHandler =
-      HandlerForProtocol(self.browser->GetCommandDispatcher(), BWGCommands);
+  id<GeminiCommands> geminiHandler =
+      HandlerForProtocol(self.browser->GetCommandDispatcher(), GeminiCommands);
   [self.pageActionMenuHandler dismissPageActionMenuWithCompletion:^{
     [geminiHandler
         startGeminiFlowWithStartupState:

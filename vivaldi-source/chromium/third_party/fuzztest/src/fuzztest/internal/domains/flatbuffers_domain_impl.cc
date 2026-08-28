@@ -38,13 +38,18 @@ namespace fuzztest::internal {
 FlatbuffersTableUntypedDomainImpl::FlatbuffersTableUntypedDomainImpl(
     const reflection::Schema* absl_nonnull schema,
     const reflection::Object* absl_nonnull table_object)
-    : schema_(schema), table_object_(table_object) {}
+    : schema_(schema), table_object_(table_object) {
+  for (const auto* field : *table_object_->fields()) {
+    fields_by_id_[field->id()] = field;
+  }
+}
 
 FlatbuffersTableUntypedDomainImpl::FlatbuffersTableUntypedDomainImpl(
     const FlatbuffersTableUntypedDomainImpl& other)
     : DomainBase(other),
       schema_(other.schema_),
-      table_object_(other.table_object_) {
+      table_object_(other.table_object_),
+      fields_by_id_(other.fields_by_id_) {
   absl::MutexLock l_other(other.mutex_);
   absl::MutexLock l_this(mutex_);
   domains_ = other.domains_;
@@ -55,6 +60,7 @@ FlatbuffersTableUntypedDomainImpl& FlatbuffersTableUntypedDomainImpl::operator=(
   DomainBase::operator=(other);
   schema_ = other.schema_;
   table_object_ = other.table_object_;
+  fields_by_id_ = other.fields_by_id_;
   absl::MutexLock l_other(other.mutex_);
   absl::MutexLock l_this(mutex_);
   domains_ = other.domains_;
@@ -63,7 +69,9 @@ FlatbuffersTableUntypedDomainImpl& FlatbuffersTableUntypedDomainImpl::operator=(
 
 FlatbuffersTableUntypedDomainImpl::FlatbuffersTableUntypedDomainImpl(
     FlatbuffersTableUntypedDomainImpl&& other)
-    : schema_(other.schema_), table_object_(other.table_object_) {
+    : schema_(other.schema_),
+      table_object_(other.table_object_),
+      fields_by_id_(std::move(other.fields_by_id_)) {
   absl::MutexLock l_other(other.mutex_);
   absl::MutexLock l_this(mutex_);
   domains_ = std::move(other.domains_);
@@ -74,6 +82,7 @@ FlatbuffersTableUntypedDomainImpl& FlatbuffersTableUntypedDomainImpl::operator=(
     FlatbuffersTableUntypedDomainImpl&& other) {
   schema_ = other.schema_;
   table_object_ = other.table_object_;
+  fields_by_id_ = std::move(other.fields_by_id_);
   absl::MutexLock l_other(other.mutex_);
   absl::MutexLock l_this(mutex_);
   domains_ = std::move(other.domains_);
@@ -87,7 +96,7 @@ FlatbuffersTableUntypedDomainImpl::Init(absl::BitGenRef prng) {
     return *seed;
   }
   corpus_type val;
-  for (const auto* field : *table_object_->fields()) {
+  for (const auto& [_, field] : fields_by_id_) {
     VisitFlatbufferField(schema_, field, InitializeVisitor{*this, prng, val});
   }
   return val;
@@ -98,7 +107,7 @@ void FlatbuffersTableUntypedDomainImpl::Mutate(
     corpus_type& val, absl::BitGenRef prng,
     const domain_implementor::MutationMetadata& metadata, bool only_shrink) {
   uint64_t field_count = 0;
-  for (const auto* field : *table_object_->fields()) {
+  for (const auto& [_, field] : fields_by_id_) {
     VisitFlatbufferField(schema_, field,
                          CountNumberOfMutableFieldsVisitor{*this, field_count,
                                                            val, only_shrink});
@@ -112,7 +121,7 @@ void FlatbuffersTableUntypedDomainImpl::Mutate(
 uint64_t FlatbuffersTableUntypedDomainImpl::CountNumberOfFields(
     corpus_type& val) {
   uint64_t field_count = 0;
-  for (const auto* field : *table_object_->fields()) {
+  for (const auto& [_, field] : fields_by_id_) {
     VisitFlatbufferField(
         schema_, field,
         CountNumberOfMutableFieldsVisitor{*this, field_count, val});
@@ -130,29 +139,14 @@ uint64_t FlatbuffersTableUntypedDomainImpl::MutateSelectedField(
     return fields_count;
   }
 
-  for (const auto* field : *table_object_->fields()) {
-    if (!IsSupportedField(field)) {
-      if (only_shrink && !val.contains(field->id())) continue;
-    }
+  for (const auto& [_, field] : fields_by_id_) {
+    if (!IsSupportedField(field)) continue;
+    if (only_shrink && !val.contains(field->id())) continue;
 
-    ++field_counter;
-    if (field_counter == selected_field_index) {
-      VisitFlatbufferField(
-          schema_, field,
-          MutateVisitor{*this, prng, metadata, only_shrink, val});
-      return field_counter;
-    }
-
-    if (field->type()->base_type() == reflection::BaseType::Obj) {
-      auto sub_object = schema_->objects()->Get(field->type()->index());
-      if (!sub_object->is_struct()) {
-        field_counter +=
-            GetCachedDomain<FlatbuffersTableTag>(field).MutateSelectedField(
-                val[field->id()], prng, metadata, only_shrink,
-                selected_field_index - field_counter);
-      }
-      // TODO: Add support for structs.
-    }
+    VisitFlatbufferField(
+        schema_, field,
+        MutateSelectedFieldVisitor{*this, field_counter, val, prng, metadata,
+                                   only_shrink, selected_field_index});
 
     if (field_counter >= selected_field_index) {
       return field_counter;
@@ -163,7 +157,7 @@ uint64_t FlatbuffersTableUntypedDomainImpl::MutateSelectedField(
 
 absl::Status FlatbuffersTableUntypedDomainImpl::ValidateCorpusValue(
     const corpus_type& corpus_value) const {
-  for (const auto* field : *table_object_->fields()) {
+  for (const auto& [_, field] : fields_by_id_) {
     absl::Status result;
     GenericDomainCorpusType field_corpus;
     if (auto it = corpus_value.find(field->id()); it != corpus_value.end()) {
@@ -183,7 +177,7 @@ FlatbuffersTableUntypedDomainImpl::FromValue(const value_type& value) const {
     return std::nullopt;
   }
   corpus_type ret;
-  for (const auto* field : *table_object_->fields()) {
+  for (const auto& [_, field] : fields_by_id_) {
     VisitFlatbufferField(schema_, field, FromValueVisitor{*this, value, ret});
   }
   return ret;
@@ -276,11 +270,11 @@ bool FlatbuffersTableUntypedDomainImpl::IsSupportedField(
 }
 
 uint32_t FlatbuffersTableUntypedDomainImpl::BuildTable(
-    const corpus_type& value, flatbuffers::FlatBufferBuilder& builder) const {
+    const corpus_type& value, flatbuffers::FlatBufferBuilder64& builder) const {
   // Add all the fields to the builder.
 
   // Offsets is the map of field id to its offset in the table.
-  absl::flat_hash_map<typename corpus_type::key_type, flatbuffers::uoffset_t>
+  absl::flat_hash_map<typename corpus_type::key_type, flatbuffers::uoffset64_t>
       offsets;
 
   // Some fields are stored inline in the flatbuffer table itself (a.k.a

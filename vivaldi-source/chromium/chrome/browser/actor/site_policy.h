@@ -8,24 +8,15 @@
 #include "base/functional/callback_forward.h"
 #include "base/functional/function_ref.h"
 #include "base/types/expected.h"
-#include "chrome/browser/actor/enterprise_policy_checker.h"
 #include "chrome/common/actor.mojom-forward.h"
-#include "components/actor/core/task_id.h"
 #include "components/actor/public/mojom/actor_types.mojom-forward.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
 #include "url/origin.h"
-
-namespace tabs {
-class TabInterface;
-}
 
 class GURL;
 class Profile;
 
 namespace actor {
-
-class AggregatedJournal;
-class OriginChecker;
 
 // Called during initialization of the given profile, to load the blocklist.
 void InitActionBlocklist(Profile* profile);
@@ -48,36 +39,6 @@ enum class MayActOnUrlBlockReason {
 using DecisionCallback = base::OnceCallback<void(/*may_act=*/bool)>;
 using DecisionCallbackWithReason =
     base::OnceCallback<void(MayActOnUrlBlockReason reason)>;
-
-// Checks whether the actor may perform actions on the given tab based on the
-// last committed document and URL. Invokes the callback with true if it is
-// allowed.
-// `MayActOnTab` takes a set of `allowed_origins` where for which do not apply
-// the optimization guide check. We do so because `MayActOnTab` is called before
-// any navigations can take place, so we need to check if the current URL when a
-// task starts. However, any future URLs the actor navigates to should undergo
-// blocklist checks in `MayActOnUrl` or
-// `ShouldBlockNavigationUrlForOriginGating`.
-// `policy_checker` is used to evaluate the URL based on enterprise policy
-// allow/blocklists.
-void MayActOnTab(const tabs::TabInterface& tab,
-                 AggregatedJournal& journal,
-                 TaskId task_id,
-                 const OriginChecker& origin_checker,
-                 const EnterprisePolicyChecker& policy_checker,
-                 DecisionCallbackWithReason callback);
-
-// Like MayActOnTab, but considers a URL on its own.
-// This can optionally allow insecure HTTP URLs as in practice sites may have
-// HTTP links that will get upgraded. Rejecting HTTP URLs before this can happen
-// would be too serious of an impediment.
-void MayActOnUrl(const GURL& url,
-                 bool allow_insecure_http,
-                 Profile* profile,
-                 AggregatedJournal& journal,
-                 TaskId task_id,
-                 const EnterprisePolicyChecker& policy_checker,
-                 DecisionCallbackWithReason callback);
 
 // Checks if navigation to `url` should be blocked using
 // OptimizationGuideService. If the callback is invoked with `may_act` set to

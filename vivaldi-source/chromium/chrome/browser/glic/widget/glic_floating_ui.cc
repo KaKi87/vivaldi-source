@@ -89,7 +89,11 @@ GlicFloatingUi::~GlicFloatingUi() {
         &web_modal::ModalDialogHostObserver::OnHostDestroying);
   }
 
-  GlicProfileManager::GetInstance()->SetCurrentDetachedGlic(nullptr);
+  // Only clear the current detached glic if this is being torn
+  // down before the profile manager is torn down.
+  if (auto* profile_manager = GlicProfileManager::GetInstance()) {
+    profile_manager->SetCurrentDetachedGlic(nullptr);
+  }
 
   ClearWebContentsDelegate();
   PictureInPictureOcclusionTracker* tracker =
@@ -204,7 +208,7 @@ void GlicFloatingUi::ShowTitleBarContextMenuAt(gfx::Point event_loc) {
 #if !BUILDFLAG(IS_ANDROID)
 bool GlicFloatingUi::HasSelectionOverlay() {
   tabs::TabInterface* focused_tab =
-      delegate_->host().sharing_manager().GetFocusedTabData().focus();
+      delegate_->host().GetSharingManagerInternal().GetFocusedTabData().focus();
   if (!focused_tab || focused_tab->IsActivated()) {
     return false;
   }
@@ -217,7 +221,7 @@ bool GlicFloatingUi::HasSelectionOverlay() {
 
 void GlicFloatingUi::CloseSelectionOverlay() {
   tabs::TabInterface* focused_tab =
-      delegate_->host().sharing_manager().GetFocusedTabData().focus();
+      delegate_->host().GetSharingManagerInternal().GetFocusedTabData().focus();
   if (!focused_tab || focused_tab->IsActivated()) {
     return;
   }
@@ -505,7 +509,7 @@ void GlicFloatingUi::SwitchConversation(
 void GlicFloatingUi::CaptureScreenshot(
     glic::mojom::WebClientHandler::CaptureScreenshotCallback callback) {
   if (!screenshot_capturer_) {
-    screenshot_capturer_ = std::make_unique<GlicScreenshotCapturer>();
+    screenshot_capturer_ = GlicScreenshotCapturer::Create();
   }
   screenshot_capturer_->CaptureScreenshot(GetGlicWidget()->GetNativeWindow(),
                                           std::move(callback));

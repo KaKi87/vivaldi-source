@@ -188,7 +188,7 @@ class GlicActorGeneralUiTest : public GlicActorUiTest {
     return browser()->GetTabStripModel()->GetActiveTab()->GetHandle();
   }
 
-  PrefService* prefs() { return browser()->profile()->GetPrefs(); }
+  PrefService* prefs() { return browser()->GetProfile()->GetPrefs(); }
 
   tabs::TabHandle null_tab_handle_;
 };
@@ -342,6 +342,8 @@ IN_PROC_BROWSER_TEST_F(GlicActorGeneralUiTest, ActionTargetNotFound) {
   RunTestSequence(
       InitializeWithOpenGlicWindow(),
       StartActorTaskInNewTab(task_url, kNewActorTabId),
+      // Save APC before sending the fake target id.
+      GetPageContextForActorTab(),
       ExecuteAction(std::move(click_provider),
                     actor::mojom::ActionResultCode::kInvalidDomNodeId));
 }
@@ -1365,10 +1367,10 @@ IN_PROC_BROWSER_TEST_F(GlicActorUiTest, ScreenshotInMinimizedWindow) {
 
     // Minimize the window and wait until it is minimized.
     Steps(Do([this](){
-      browser()->window()->Minimize();
+      browser()->GetWindow()->Minimize();
     })),
     PollState(kIsMinimizedState, [this]() {
-      return browser()->window()->IsMinimized();
+      return browser()->GetWindow()->IsMinimized();
     }),
     WaitForState(kIsMinimizedState, true),
 
@@ -1408,10 +1410,10 @@ IN_PROC_BROWSER_TEST_F(GlicActorUiTest, ScreenshotInInitiallyMinimizedWindow) {
 
     // Minimize the window and wait until it is minimized.
     Steps(Do([this](){
-      browser()->window()->Minimize();
+      browser()->GetWindow()->Minimize();
     })),
     PollState(kIsMinimizedState, [this]() {
-      return browser()->window()->IsMinimized();
+      return browser()->GetWindow()->IsMinimized();
     }),
     WaitForState(kIsMinimizedState, true),
 
@@ -1469,10 +1471,10 @@ IN_PROC_BROWSER_TEST_F(GlicActorUiTest, ScreenshotInMinimizedWindowWithFloaty) {
 
     // // Minimize the window and wait until it is minimized.
     Steps(Do([this](){
-      browser()->window()->Minimize();
+      browser()->GetWindow()->Minimize();
     })),
     PollState(kIsMinimizedState, [this]() {
-      return browser()->window()->IsMinimized();
+      return browser()->GetWindow()->IsMinimized();
     }),
     WaitForState(kIsMinimizedState, true),
 

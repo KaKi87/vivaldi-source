@@ -15,8 +15,8 @@
 
 class ParsedSearchEngines {
  public:
-  using PrepopulateEnginesList =
-      std::vector<const TemplateURLPrepopulateData::PrepopulatedEngine*>;
+  using PrepopulateEnginesList = std::vector<
+      raw_ptr<const TemplateURLPrepopulateData::PrepopulatedEngine>>;
 
   struct EnginesListWithDefaults {
     PrepopulateEnginesList list;

@@ -7,18 +7,29 @@
 
 #import <UIKit/UIKit.h>
 
+#import "ios/chrome/browser/autofill/form_input_accessory/public/autofill_suggestion_context_menu_handler.h"
+
 @class FormSuggestion;
 @protocol FormSuggestionClient;
 @class FormSuggestionView;
 @class LayoutGuideCenter;
 
-@protocol FormSuggestionViewDelegate <NSObject>
+@protocol
+    FormSuggestionViewDelegate <NSObject, AutofillSuggestionContextMenuHandler>
 
 // User accepted a suggestion from FormSuggestionView. `index` indicates the
 // position of the selected suggestion among the available suggestions.
 - (void)formSuggestionView:(FormSuggestionView*)formSuggestionView
        didAcceptSuggestion:(FormSuggestion*)suggestion
                    atIndex:(NSInteger)index;
+
+// Requests if the suggestion label should show its RP ID.
+- (BOOL)formSuggestionView:(FormSuggestionView*)formSuggestionView
+            shouldShowRPId:(NSString*)rpId;
+
+// Requests the username for a passkey suggestion.
+- (NSString*)formSuggestionView:(FormSuggestionView*)formSuggestionView
+          usernameForSuggestion:(FormSuggestion*)suggestion;
 
 @end
 
@@ -48,7 +59,7 @@
 // adapt to the compact size class if necessary.
 - (void)setIsCompact:(BOOL)isCompact;
 
-// Reset content insets back to zero and sets the delegate to nil. Used to stop
+// Resets content insets back to zero and sets the delegate to nil. Used to stop
 // hearing for the pull gesture to reset and unlock the trailing view.
 - (void)resetContentInsetAndDelegateAnimated:(BOOL)animated;
 

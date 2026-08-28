@@ -21,13 +21,13 @@
 //#include "chrome/browser/glic/public/glic_invoke_options.h"
 //#include "chrome/browser/glic/public/glic_keyed_service.h"
 //#include "chrome/browser/glic/public/glic_passkeys.h"
-#include "chrome/browser/password_manager/actor_login/password_change_from_checkup_actor_login_service.h"
 #include "chrome/browser/password_manager/chrome_password_manager_client.h"
 #include "chrome/browser/password_manager/password_change/change_password_form_waiter.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/actor_webui.mojom.h"
 #include "chrome/grit/browser_resources.h"
 #include "components/autofill/core/browser/logging/log_manager.h"
+#include "components/password_manager/core/browser/actor_login/password_change_from_checkup_actor_login_service.h"
 #include "components/password_manager/core/browser/browser_save_password_progress_logger.h"
 #include "components/password_manager/core/browser/password_form_manager.h"
 #include "components/password_manager/core/browser/password_generation_frame_helper.h"
@@ -84,22 +84,6 @@ std::optional<actor::TaskId> CreateDummyTaskAndTiedTab(
   return dummy_task_id;
 }
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-
-void RemoveActuationTabFromTask(std::optional<actor::TaskId> task_id,
-                                content::WebContents* web_contents) {
-  if (!task_id || !web_contents) {
-    return;
-  }
-  actor::ActorKeyedService* actor_service = actor::ActorKeyedService::Get(
-      Profile::FromBrowserContext(web_contents->GetBrowserContext()));
-  CHECK(actor_service);
-  tabs::TabInterface* actuation_tab =
-      tabs::TabInterface::MaybeGetFromContents(web_contents);
-  CHECK(actuation_tab);
-  actor::ActorTask* task = actor_service->GetTask(*task_id);
-  CHECK(task);
-  task->RemoveTab(actuation_tab->GetHandle());
-}
 
 std::string GetReachFormPrompt(const std::string& domain,
                                const std::string& username) {
@@ -199,15 +183,18 @@ PasswordChangeFromCheckupDelegate::PasswordChangeFromCheckupDelegate(
     password_manager::PasswordManagerClient* client)
     : client_(client) {}
 
-PasswordChangeFromCheckupDelegate::~PasswordChangeFromCheckupDelegate() =
-    default;
+PasswordChangeFromCheckupDelegate::~PasswordChangeFromCheckupDelegate() {
+  Stop(actor::ActorTask::StoppedReason::kShutdown);
+}
 
 void PasswordChangeFromCheckupDelegate::StartPasswordChangeFlow(
     const password_manager::CredentialUIEntry& credential,
-    base::WeakPtr<content::WebContents> web_contents) {
+    base::WeakPtr<content::WebContents> web_contents,
+    StateChangeCallback callback) {
   if (!web_contents) {
     return;
   }
+  state_change_callback_ = std::move(callback);
   originator_ = std::move(web_contents);
 
   // TODO(crbug.com/485620841): Handle non-web URLs for Android passwords.
@@ -254,7 +241,7 @@ void PasswordChangeFromCheckupDelegate::StartPasswordChangeFlow(
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   glic::GlicInvokeOptions options(
-      glic::Target(new_tab_interface),
+      glic::Target(*new_tab_interface),
       glic::mojom::InvocationSource::kPasswordChange);
   options.prompts.push_back(std::move(reach_form_prompt));
   options.target.actuation_target = glic::mojom::ActuationTarget::kCurrentTab;
@@ -270,11 +257,66 @@ void PasswordChangeFromCheckupDelegate::StartPasswordChangeFlow(
       logger->LogMessage(
           Logger::STRING_PASSWORD_CHANGE_FROM_CHECKUP_START_FLOW);
     }
-    CreateDummyTaskAndTiedTab(glic_service, new_contents);
+    dummy_task_id_ = CreateDummyTaskAndTiedTab(glic_service, new_contents);
     actor_task_state_subscription_ =
         actor_service->AddTaskStateChangedCallback(base::BindRepeating(
             &PasswordChangeFromCheckupDelegate::OnFindFormTaskStateChanged,
             base::Unretained(this)));
+    if (state_change_callback_) {
+      state_change_callback_.Run(
+          PasswordAutomaticChangeState::kAttemptingSignIn);
+    }
+  }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+}
+
+void PasswordChangeFromCheckupDelegate::Stop(
+    actor::ActorTask::StoppedReason stop_reason) {
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  glic::GlicKeyedService* glic_service = GetGlicService();
+  if (actuation_web_contents_) {
+    if (glic_service) {
+      glic_service->CloseAndShutdown(
+          actuation_web_contents_->GetPrimaryMainFrame());
+    }
+    actor::ActorKeyedService* actor_service =
+        actor::ActorKeyedService::Get(Profile::FromBrowserContext(
+            actuation_web_contents_->GetBrowserContext()));
+    if (actor_service) {
+      if (find_form_task_id_.has_value() &&
+          actor_service->GetTask(*find_form_task_id_)) {
+        actor_service->StopTask(*find_form_task_id_, stop_reason);
+      }
+      if (verification_task_id_.has_value() &&
+          actor_service->GetTask(*verification_task_id_)) {
+        actor_service->StopTask(*verification_task_id_, stop_reason);
+      }
+    }
+  }
+
+  StopDummyTask();
+
+  form_filler_.reset();
+  form_waiter_.reset();
+  saved_form_manager_.reset();
+  verification_timer_.Stop();
+  actor_task_state_subscription_ = {};
+
+  if (find_form_task_id_.has_value()) {
+    find_form_task_state_ = actor::ActorTask::State::kCancelled;
+  }
+  find_form_task_id_ = std::nullopt;
+  verification_task_id_ = std::nullopt;
+  dummy_task_id_ = std::nullopt;
+
+  if (actuation_web_contents_) {
+    actuation_web_contents_->Close();
+    actuation_web_contents_ = nullptr;
+  }
+
+  if (state_change_callback_) {
+    state_change_callback_.Run(PasswordAutomaticChangeState::kInactive);
+    state_change_callback_.Reset();
   }
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 }
@@ -327,12 +369,16 @@ void PasswordChangeFromCheckupDelegate::OnFindFormTaskStateChanged(
     }
     task.Stop(actor::ActorTask::StoppedReason::kShutdown);
     actor_task_state_subscription_ = {};
+    if (state_change_callback_) {
+      state_change_callback_.Run(PasswordAutomaticChangeState::kError);
+    }
     return;
   }
 
   if (new_state == actor::ActorTask::State::kFinished) {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     actor_task_state_subscription_ = {};
+    StopDummyTask();
     dummy_task_id_ = CreateDummyTaskAndTiedTab(GetGlicService(),
                                                actuation_web_contents_.get());
     form_waiter_ = ChangePasswordFormWaiter::Builder(
@@ -365,6 +411,10 @@ void PasswordChangeFromCheckupDelegate::OnChangePasswordFormManagerFound(
     logger->LogMessage(Logger::STRING_PASSWORD_CHANGE_FROM_CHECKUP_FORM_FOUND);
   }
 
+  if (state_change_callback_) {
+    state_change_callback_.Run(PasswordAutomaticChangeState::kChangingPassword);
+  }
+
   form_filler_ = std::make_unique<ChangePasswordFormFiller>(
       actuation_web_contents_.get(),
       ChromePasswordManagerClient::FromWebContents(
@@ -394,6 +444,11 @@ void PasswordChangeFromCheckupDelegate::OnChangePasswordFormFilled(
 
   if (auto logger = GetLoggerIfAvailable(client_)) {
     logger->LogMessage(Logger::STRING_PASSWORD_CHANGE_FROM_CHECKUP_FORM_FILLED);
+  }
+
+  if (state_change_callback_) {
+    state_change_callback_.Run(
+        PasswordAutomaticChangeState::kConfirmingChangedPassword);
   }
 
   glic::GlicKeyedService* glic_service = GetGlicService();
@@ -485,25 +540,37 @@ void PasswordChangeFromCheckupDelegate::OnVerificationTaskStateChanged(
           actuation_web_contents_->GetPrimaryMainFrame());
     }
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    StopDummyTask();
     HandleMaybeSuccessfulPasswordChange();
   }
 }
 
 void PasswordChangeFromCheckupDelegate::OnVerificationTimeout() {
-  if (!verification_task_created_) {
-    if (auto logger = GetLoggerIfAvailable(client_)) {
-      logger->LogMessage(Logger::STRING_PASSWORD_CHANGE_FROM_CHECKUP_TIMEOUT);
-    }
-    actor_task_state_subscription_ = {};
-    RemoveActuationTabFromTask(dummy_task_id_, actuation_web_contents_.get());
-    HandleMaybeSuccessfulPasswordChange();
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  if (auto logger = GetLoggerIfAvailable(client_)) {
+    logger->LogMessage(Logger::STRING_PASSWORD_CHANGE_FROM_CHECKUP_TIMEOUT);
   }
+  actor_task_state_subscription_ = {};
+  glic::GlicKeyedService* glic_service = GetGlicService();
+  if (glic_service && actuation_web_contents_) {
+    glic_service->CloseAndShutdown(
+        actuation_web_contents_->GetPrimaryMainFrame());
+  }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  StopDummyTask();
+  HandleMaybeSuccessfulPasswordChange();
 }
 
 void PasswordChangeFromCheckupDelegate::HandleMaybeSuccessfulPasswordChange() {
   if (saved_form_manager_) {
     saved_form_manager_->Save();
     saved_form_manager_.reset();
+    if (state_change_callback_) {
+      state_change_callback_.Run(
+          PasswordAutomaticChangeState::kPasswordChangedSuccessfully);
+    }
+  } else if (state_change_callback_) {
+    state_change_callback_.Run(PasswordAutomaticChangeState::kError);
   }
 }
 
@@ -525,10 +592,7 @@ void PasswordChangeFromCheckupDelegate::InvokeVerificationFlow(
   if (glic_instance_ && glic_instance_->conversation_id()) {
     conversation_id = *glic_instance_->conversation_id();
   }
-  glic::Target target =
-      conversation_id.empty()
-          ? glic::Target(tab_interface, glic::NewConversation())
-          : glic::Target(tab_interface, glic::ConversationId(conversation_id));
+  glic::Target target = glic::Target(*tab_interface, glic::NewConversation());
   glic::GlicInvokeOptions options(
       std::move(target), glic::mojom::InvocationSource::kPasswordChange);
   options.prompts.push_back(std::move(post_submission_prompt));
@@ -557,4 +621,22 @@ void PasswordChangeFromCheckupDelegate::InvokeVerificationFlow(
       base::BindOnce(&PasswordChangeFromCheckupDelegate::OnVerificationTimeout,
                      weak_ptr_factory_.GetWeakPtr()));
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+}
+
+void PasswordChangeFromCheckupDelegate::StopDummyTask() {
+  if (!dummy_task_id_) {
+    return;
+  }
+
+  if (actuation_web_contents_) {
+    actor::ActorKeyedService* actor_service =
+        actor::ActorKeyedService::Get(Profile::FromBrowserContext(
+            actuation_web_contents_->GetBrowserContext()));
+    if (actor_service && actor_service->GetTask(*dummy_task_id_)) {
+      actor_service->StopTask(*dummy_task_id_,
+                              actor::ActorTask::StoppedReason::kTaskComplete);
+    }
+  }
+
+  dummy_task_id_ = std::nullopt;
 }

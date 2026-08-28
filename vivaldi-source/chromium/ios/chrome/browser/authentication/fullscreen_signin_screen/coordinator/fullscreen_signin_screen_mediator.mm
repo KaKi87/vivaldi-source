@@ -58,10 +58,9 @@ enum class SigninScreenState {
 };
 }  // namespace
 
-@interface FullscreenSigninScreenMediator () <
-    AuthenticationFlowDelegate,
-    AuthenticationServiceObserving,
-    IdentityManagerObserverBridgeDelegate> {
+@interface FullscreenSigninScreenMediator () <AuthenticationFlowDelegate,
+                                              AuthenticationServiceObserving,
+                                              IdentityManagerObserving> {
 }
 
 // Application local pref.
@@ -269,11 +268,6 @@ enum class SigninScreenState {
                                       self.UMAReportingUserChoice);
     } // End Vivaldi
 
-    metrics::MetricsReportingLevel level =
-        self.UMAReportingUserChoice ? metrics::MetricsReportingLevel::kBasic
-                                    : metrics::MetricsReportingLevel::kNone;
-    metrics::MetricsReportingChoiceService::SetMetricsReportingLevel(
-        self.localPrefService, level);
     self.localPrefService->CommitPendingWrite();
   }
 }
@@ -454,22 +448,22 @@ enum class SigninScreenState {
   return NO;
 }
 
-#pragma mark -  IdentityManagerObserverBridgeDelegate
+#pragma mark -  IdentityManagerObserving
 
-- (void)onAccountsOnDeviceChanged {
+- (void)accountsOnDeviceDidChange {
   if (![self selectedIdentityIsValid]) {
     self.selectedIdentity = signin::GetDefaultIdentityOnDevice(
         _identityManager, _accountManagerService);
   }
 }
 
-- (void)onExtendedAccountInfoUpdated:(const AccountInfo&)info {
+- (void)extendedAccountInfoDidUpdate:(const AccountInfo&)info {
   id<SystemIdentity> identity =
       _accountManagerService->GetIdentityOnDeviceWithGaiaID(info.gaia);
   [self handleIdentityUpdated:identity];
 }
 
-- (void)onPrimaryAccountChanged:
+- (void)primaryAccountDidChange:
     (const signin::PrimaryAccountChangeEvent&)event {
   if (self.signinInProgress) {
     return;

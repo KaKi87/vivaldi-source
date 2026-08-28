@@ -64,6 +64,7 @@ void NavigateParams::FillNavigateParamsFromOpenURLParams(
   this->initiator_frame_token = params.initiator_frame_token;
   this->initiator_process_id = params.initiator_process_id;
   this->initiator_origin = params.initiator_origin;
+  this->initiator_navigation_state = params.initiator_navigation_state;
   this->referrer = params.referrer;
   this->reload_type = params.reload_type;
   this->source_site_instance = params.source_site_instance;
@@ -87,10 +88,15 @@ void NavigateParams::FillNavigateParamsFromOpenURLParams(
   this->user_gesture = params.user_gesture;
   this->blob_url_loader_factory = params.blob_url_loader_factory;
   this->href_translate = params.href_translate;
-  this->impression = params.impression;
   this->internal_scroll_to_text_fragment =
       params.internal_scroll_to_text_fragment;
   this->started_by_ad = params.started_by_ad;
+
+  // NOTE(ondrej@vivaldi.com) Propagate positioning_params to
+  // navigate params. Implemented while fixing VB-129611.
+  if (params.positioning_params) {
+    this->positioning_params = params.positioning_params;
+  }
 
   // Implementation notes:
   //   The following NavigateParams don't have an equivalent in OpenURLParams:

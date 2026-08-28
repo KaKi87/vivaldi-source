@@ -136,6 +136,10 @@ bool AutocompleteController::VivaldiShouldRunProvider(
       return provider_client_.get()->GetPrefs()->GetBoolean(
                  vivaldiprefs::kAddressBarOmniboxShowTypedHistory) &&
              input_.IsZeroSuggest();
+    case AutocompleteProvider::TYPE_VIVALDI_CALCULATOR:
+      return provider_client_.get()->GetPrefs()->GetBoolean(
+          vivaldiprefs::kAddressBarOmniboxShowVivaldiCalculator);
+
     default:
       return false;
   }

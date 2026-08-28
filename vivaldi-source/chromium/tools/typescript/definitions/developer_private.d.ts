@@ -254,6 +254,7 @@ declare global {
         pinnedToToolbar?: boolean;
         isAffectedByMV2Deprecation: boolean;
         canUploadAsAccountExtension: boolean;
+        isManifestV2: boolean;
       }
 
       export interface ProfileInfo {
@@ -263,6 +264,7 @@ declare global {
         isIncognitoAvailable: boolean;
         isChildAccount: boolean;
         isMv2DeprecationNoticeDismissed: boolean;
+        extensionsPinnedByDefault: boolean;
       }
 
       export interface ExtensionConfigurationUpdate {
@@ -280,6 +282,7 @@ declare global {
       export interface ProfileConfigurationUpdate {
         inDeveloperMode?: boolean;
         isMv2DeprecationNoticeDismissed?: boolean;
+        extensionsPinnedByDefault?: boolean;
       }
 
       export interface ExtensionCommandUpdate {

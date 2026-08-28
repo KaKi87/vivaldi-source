@@ -410,14 +410,26 @@ public class CustomTabsConnection {
             postMessageHandler = new PostMessageHandler(serviceConnection);
             engagementSignalsHandler = new EngagementSignalsHandler(customTabSession);
         }
-        return mClientManager.newSession(
-                session,
-                Binder.getCallingUid(),
-                Binder.getCallingPid(),
-                onDisconnect,
-                postMessageHandler,
-                serviceConnection,
-                engagementSignalsHandler);
+        boolean success =
+                mClientManager.newSession(
+                        session,
+                        Binder.getCallingUid(),
+                        Binder.getCallingPid(),
+                        onDisconnect,
+                        postMessageHandler,
+                        serviceConnection,
+                        engagementSignalsHandler);
+        if (success) {
+            String packageName = getClientPackageNameForSession(session);
+            Log.i(
+                    TAG,
+                    "New Custom Tab session created by package: "
+                            + packageName
+                            + " (UID: "
+                            + Binder.getCallingUid()
+                            + ")");
+        }
+        return success;
     }
 
     /**
@@ -802,8 +814,7 @@ public class CustomTabsConnection {
     public @Nullable Bundle extraCommand(String commandName, @Nullable Bundle args) {
         if (commandName.equals(IS_AUTH_TAB_SUPPORTED)) {
             var bundle = new Bundle();
-            boolean supported = ChromeFeatureList.sCctAuthTab.isEnabled();
-            bundle.putBoolean(AUTH_TAB_SUPPORTED_KEY, supported);
+            bundle.putBoolean(AUTH_TAB_SUPPORTED_KEY, true);
             return bundle;
         }
         return null;
@@ -996,10 +1007,23 @@ public class CustomTabsConnection {
      * @param intent The intent to verify.
      */
     public boolean isFirstPartyOriginForIntent(Intent intent) {
+        return isFirstPartyOriginForIntent(intent, IntentHandler.getUrlFromIntent(intent));
+    }
+
+    /**
+     * Returns whether an intent is first-party with respect to its session, that is if the
+     * application linked to the session has a relation with the provided origin.
+     *
+     * @param intent The intent to verify.
+     * @param url The url to verify against.
+     */
+    public boolean isFirstPartyOriginForIntent(Intent intent, @Nullable String url) {
         SessionHolder<?> session = SessionHolder.getSessionHolderFromIntent(intent);
         if (session == null) return false;
 
-        Origin origin = Origin.create(intent.getData());
+        if (url == null) return false;
+
+        Origin origin = Origin.create(url);
         if (origin == null) return false;
 
         return mClientManager.isFirstPartyOriginForSession(session, origin);
@@ -1380,6 +1404,16 @@ public class CustomTabsConnection {
     /** See {@link ClientManager#getClientPackageNameForSession(SessionHolder)} */
     public @Nullable String getClientPackageNameForSession(@Nullable SessionHolder<?> session) {
         return mClientManager.getClientPackageNameForSession(session);
+    }
+
+    /** See {@link ClientManager#getClientUidForSession(SessionHolder)} */
+    public int getClientUidForSession(@Nullable SessionHolder<?> session) {
+        return mClientManager.getClientUidForSession(session);
+    }
+
+    /** See {@link ClientManager#getClientPidForSession(SessionHolder)} */
+    public int getClientPidForSession(@Nullable SessionHolder<?> session) {
+        return mClientManager.getClientPidForSession(session);
     }
 
     /**
@@ -2124,8 +2158,20 @@ public class CustomTabsConnection {
 
     public boolean receiveFile(
             CustomTabsSessionToken sessionToken, Uri uri, int purpose, @Nullable Bundle extras) {
+        if (ContextUtils.getApplicationContext()
+                        .checkUriPermission(
+                                uri,
+                                Binder.getCallingPid(),
+                                Binder.getCallingUid(),
+                                Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                != PackageManager.PERMISSION_GRANTED) {
+            logCall("receiveFile()", false);
+            return false;
+        }
+        SessionHolder<?> session = new SessionHolder<>(sessionToken);
+        if (!mClientManager.isSessionValid(session)) return false;
         return CustomTabsClientFileProcessor.getInstance()
-                .processFile(new SessionHolder<>(sessionToken), uri, purpose, extras);
+                .processFile(session, uri, purpose, extras);
     }
 
     public void setCustomTabIsInForeground(

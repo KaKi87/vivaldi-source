@@ -31,6 +31,7 @@ import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.regional_capabilities.RegionalCapabilitiesServiceFactory;
 import org.chromium.chrome.browser.search_engines.R;
@@ -42,6 +43,7 @@ import org.chromium.components.favicon.LargeIconBridge;
 import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.components.regional_capabilities.RegionalCapabilitiesService;
 import org.chromium.components.search_engines.ChoiceMadeLocation;
+import org.chromium.components.search_engines.PrepopulatedAndRecentlyVisitedTemplateURLs;
 import org.chromium.components.search_engines.TemplateUrl;
 import org.chromium.components.search_engines.TemplateUrlService;
 import org.chromium.url.GURL;
@@ -49,6 +51,7 @@ import org.chromium.url.GURL;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -60,14 +63,10 @@ import java.util.Objects;
 // Vivaldi
 import android.os.Bundle;
 import android.annotation.SuppressLint;
-import android.graphics.BitmapFactory;
 import android.widget.PopupMenu;
 
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
-
-import java.net.MalformedURLException;
-import java.net.URL;
 
 import org.chromium.base.Log;
 import org.chromium.build.BuildConfig;
@@ -125,10 +124,10 @@ public class SearchEngineAdapter extends BaseAdapter
     private LargeIconBridge mLargeIconBridge;
 
     /** The list of prepopulated and default search engines. */
-    private List<TemplateUrl> mPrepopulatedSearchEngines = new ArrayList<>();
+    private List<TemplateUrlSnapshot> mPrepopulatedSearchEngines = new ArrayList<>();
 
     /** The list of recently visited search engines. */
-    private List<TemplateUrl> mRecentSearchEngines = new ArrayList<>();
+    private List<TemplateUrlSnapshot> mRecentSearchEngines = new ArrayList<>();
 
     /** Cache for storing fetched search icon bitmaps. */
     private final Map<GURL, Bitmap> mIconCache = new HashMap<>();
@@ -231,9 +230,8 @@ public class SearchEngineAdapter extends BaseAdapter
             return; // Flow continues in onTemplateUrlServiceLoaded below.
         }
 
-        RegionalCapabilitiesService regionalCapabilities =
-                RegionalCapabilitiesServiceFactory.getForProfile(mProfile);
-        List<TemplateUrl> templateUrls = templateUrlService.getTemplateUrls();
+        boolean forceRefresh = mIsLocationPermissionChanged;
+        mIsLocationPermissionChanged = false;
 
         // Note: DSE may be null if explicitly blocked by policy.
         @Nullable TemplateUrl defaultSearchEngineTemplateUrl;
@@ -249,68 +247,95 @@ public class SearchEngineAdapter extends BaseAdapter
         } // End Vivaldi
 
         // Vivaldi
-        boolean defaultSearchEngineChanged = false;
         if (defaultSearchEngineTemplateUrl != null
                 && mCurrentDefaultSearchEngine != defaultSearchEngineTemplateUrl.getNativePtr()) {
             mCurrentDefaultSearchEngine = defaultSearchEngineTemplateUrl.getNativePtr();
-            defaultSearchEngineChanged = true;
         } // End Vivaldi
 
-        assert defaultSearchEngineTemplateUrl != null;
-        // In Vivaldi, we get everything sorted on the native side.
-        if (!BuildConfig.IS_VIVALDI)
-        sortAndFilterUnnecessaryTemplateUrl(
-                templateUrls,
-                defaultSearchEngineTemplateUrl,
-                regionalCapabilities.isInEeaCountry());
-        boolean forceRefresh = mIsLocationPermissionChanged;
-        mIsLocationPermissionChanged = false;
-        // Vivaldi
-        if (!defaultSearchEngineChanged && !didSearchEnginesChange(templateUrls)) {
-            if (forceRefresh) notifyDataSetChanged();
-            return;
-        }
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.SEARCH_SETTINGS_UPDATE_V2)) {
+            PrepopulatedAndRecentlyVisitedTemplateURLs engines =
+                    templateUrlService.getPrepopulatedAndRecentlyVisitedTemplateURLs();
 
-        mPrepopulatedSearchEngines = new ArrayList<>();
-        mRecentSearchEngines = new ArrayList<>();
+            // Recently visited search engines may be disabled as site search can set more advanced
+            // settings.
+            List<TemplateUrl> recentlyVisitedUrls =
+                    OmniboxFeatures.sOmniboxSiteSearch.isEnabled()
+                            ? Collections.emptyList()
+                            : engines.getRecentlyVisitedUrls();
 
-        for (int i = 0; i < templateUrls.size(); i++) {
-            // Vivaldi NOTE(jarle@vivaldi.com): Vivaldi for desktop does not have the concept of
-            // recent search engines, so don't populate the mRecentSearchEngines list.
-            if (BuildConfig.IS_VIVALDI) {
-                // Note (nagamani@vivaldi.com): We hide the starter pack search engines from normal
-                // search engine list. Ref: VAB-11558
-                if (templateUrls.get(i).getStarterPackId() == 0)
-                    mPrepopulatedSearchEngines.add(templateUrls.get(i));
-            } else { // Vivaldi End
-            TemplateUrl templateUrl = templateUrls.get(i);
-            if (getSearchEngineSourceType(templateUrl, defaultSearchEngineTemplateUrl)
-                    == TemplateUrlSourceType.RECENT) {
-                mRecentSearchEngines.add(templateUrl);
-            } else {
-                mPrepopulatedSearchEngines.add(templateUrl);
+            if (!didSearchEnginesChange(engines.getPrepopulatedUrls(), mPrepopulatedSearchEngines)
+                    && !didSearchEnginesChange(recentlyVisitedUrls, mRecentSearchEngines)) {
+                if (forceRefresh) notifyDataSetChanged();
+                return;
+            }
+
+            mPrepopulatedSearchEngines = toSnapshots(engines.getPrepopulatedUrls());
+            mRecentSearchEngines = toSnapshots(recentlyVisitedUrls);
+        } else {
+            RegionalCapabilitiesService regionalCapabilities =
+                    RegionalCapabilitiesServiceFactory.getForProfile(mProfile);
+
+            List<TemplateUrl> templateUrls = templateUrlService.getTemplateUrls();
+            sortAndFilterUnnecessaryTemplateUrl(
+                    templateUrls,
+                    defaultSearchEngineTemplateUrl,
+                    regionalCapabilities.isInEeaCountry());
+
+            List<TemplateUrlSnapshot> combinedLists = new ArrayList<>(mPrepopulatedSearchEngines);
+            combinedLists.addAll(mRecentSearchEngines);
+
+            if (!didSearchEnginesChange(templateUrls, combinedLists)) {
+                if (forceRefresh) notifyDataSetChanged();
+                return;
+            }
+
+            mPrepopulatedSearchEngines = new ArrayList<>();
+            mRecentSearchEngines = new ArrayList<>();
+
+            for (int i = 0; i < templateUrls.size(); i++) {
+                // Vivaldi NOTE(jarle@vivaldi.com): Vivaldi for desktop does not have the concept of
+                // recent search engines, so don't populate the mRecentSearchEngines list.
+                if (BuildConfig.IS_VIVALDI) {
+                    // Note (nagamani@vivaldi.com): We hide the starter pack search engines from normal
+                    // search engine list. Ref: VAB-11558
+                    if (templateUrls.get(i).getStarterPackId() == 0)
+                        mPrepopulatedSearchEngines.add(
+                                TemplateUrlSnapshot.from(templateUrls.get(i)));
+                } else { // Vivaldi End
+                TemplateUrl templateUrl = templateUrls.get(i);
+                TemplateUrlSnapshot snapshot = TemplateUrlSnapshot.from(templateUrl);
+                if (getSearchEngineSourceType(templateUrl, defaultSearchEngineTemplateUrl)
+                        == TemplateUrlSourceType.RECENT) {
+                    mRecentSearchEngines.add(snapshot);
+                } else {
+                    mPrepopulatedSearchEngines.add(snapshot);
+                }
             }
             } // Vivaldi
         }
 
         // Convert the TemplateUrl index into an index of mSearchEngines.
         mSelectedSearchEnginePosition = -1;
-        for (int i = 0; i < mPrepopulatedSearchEngines.size(); ++i) {
-            if (Objects.equals(mPrepopulatedSearchEngines.get(i), defaultSearchEngineTemplateUrl)) {
-                mSelectedSearchEnginePosition = i;
+        if (defaultSearchEngineTemplateUrl != null) {
+            for (int i = 0; i < mPrepopulatedSearchEngines.size(); ++i) {
+                TemplateUrlSnapshot snapshot = mPrepopulatedSearchEngines.get(i);
+                if (snapshot.getId() == defaultSearchEngineTemplateUrl.getId()) {
+                    mSelectedSearchEnginePosition = i;
+                }
             }
-        }
 
-        for (int i = 0; i < mRecentSearchEngines.size(); ++i) {
-            if (Objects.equals(mRecentSearchEngines.get(i), defaultSearchEngineTemplateUrl)) {
-                // Add one to offset the title for the recent search engine list.
-                mSelectedSearchEnginePosition = i + computeStartIndexForRecentSearchEngines();
+            for (int i = 0; i < mRecentSearchEngines.size(); ++i) {
+                TemplateUrlSnapshot snapshot = mRecentSearchEngines.get(i);
+                if (snapshot.getId() == defaultSearchEngineTemplateUrl.getId()) {
+                    // Add one to offset the title for the recent search engine list.
+                    mSelectedSearchEnginePosition = i + computeStartIndexForRecentSearchEngines();
+                }
             }
         }
 
         if (mSelectedSearchEnginePosition == -1) {
             if (defaultSearchEngineTemplateUrl != null) {
-                mRecentSearchEngines.add(defaultSearchEngineTemplateUrl);
+                mRecentSearchEngines.add(TemplateUrlSnapshot.from(defaultSearchEngineTemplateUrl));
                 mSelectedSearchEnginePosition = mRecentSearchEngines.size() - 1;
             }
 
@@ -367,6 +392,9 @@ public class SearchEngineAdapter extends BaseAdapter
         // stick to the order of prepopulated engines provided by the service.
         boolean sortPrepopulatedEngines = !isEeaChoiceCountry;
         templateUrls.sort(templateUrlsComparatorWith(defaultSearchEngine, sortPrepopulatedEngines));
+
+        // Vivaldi VAB-13360: Keep custom engines in the list, even if they haven't been used yet.
+        if (BuildConfig.IS_VIVALDI) return;
 
         int recentEngineNum = 0;
         long displayTime = System.currentTimeMillis() - MAX_DISPLAY_TIME_SPAN_MS;
@@ -435,7 +463,7 @@ public class SearchEngineAdapter extends BaseAdapter
         if (templateUrl.getIsPrepopulated()) {
             return TemplateUrlSourceType.PREPOPULATED;
         } else if (defaultSearchEngine != null
-                && templateUrl.getNativePtr() == defaultSearchEngine.getNativePtr()) {
+                && templateUrl.getId() == defaultSearchEngine.getId()) {
             return TemplateUrlSourceType.DEFAULT;
         } else {
             return TemplateUrlSourceType.RECENT;
@@ -443,31 +471,24 @@ public class SearchEngineAdapter extends BaseAdapter
     }
 
     private static boolean containsTemplateUrl(
-            List<TemplateUrl> templateUrls, TemplateUrl targetTemplateUrl) {
-        for (int i = 0; i < templateUrls.size(); i++) {
-            TemplateUrl templateUrl = templateUrls.get(i);
-            // Explicitly excluding TemplateUrlSourceType and Index as they might change if a search
-            // engine is set as default.
-            if (templateUrl.getIsPrepopulated() == targetTemplateUrl.getIsPrepopulated()
-                    && TextUtils.equals(templateUrl.getKeyword(), targetTemplateUrl.getKeyword())
-                    && TextUtils.equals(
-                            templateUrl.getShortName(), targetTemplateUrl.getShortName())) {
+            List<TemplateUrlSnapshot> stashedUrls, TemplateUrl targetTemplateUrl) {
+        for (int i = 0; i < stashedUrls.size(); i++) {
+            TemplateUrlSnapshot snapshot = stashedUrls.get(i);
+            if (snapshot.getId() == targetTemplateUrl.getId()) {
                 return true;
             }
         }
         return false;
     }
 
-    private boolean didSearchEnginesChange(List<TemplateUrl> templateUrls) {
-        if (templateUrls.size()
-                != mPrepopulatedSearchEngines.size() + mRecentSearchEngines.size()) {
+    private boolean didSearchEnginesChange(
+            List<TemplateUrl> templateUrls, List<TemplateUrlSnapshot> stashedUrls) {
+        if (templateUrls.size() != stashedUrls.size()) {
             return true;
         }
         for (int i = 0; i < templateUrls.size(); i++) {
             TemplateUrl templateUrl = templateUrls.get(i);
-            if (!containsTemplateUrl(mPrepopulatedSearchEngines, templateUrl)
-                    && !SearchEngineAdapter.containsTemplateUrl(
-                            mRecentSearchEngines, templateUrl)) {
+            if (!containsTemplateUrl(stashedUrls, templateUrl)) {
                 return true;
             }
         }
@@ -507,7 +528,7 @@ public class SearchEngineAdapter extends BaseAdapter
     }
 
     @Override
-    public @Nullable Object getItem(int pos) {
+    public @Nullable TemplateUrlSnapshot getItem(int pos) {
         if (getItemViewType(pos) == ViewType.SITE_SEARCH_SETTINGS) {
             return null;
         }
@@ -571,8 +592,11 @@ public class SearchEngineAdapter extends BaseAdapter
                 mContainmentItemController
                         .createStandardBuilder(isTop, isBottom, /* isSingleLine= */ true)
                         .build();
+        // Vivaldi VAB-13361: Only style the rows as cards when containment is on.
+        if (ChromeFeatureList.sAndroidSettingsContainment.isEnabled()) {
         ContainmentViewStyler.applyBackgroundStyle(containerView, containerStyle);
         ContainmentViewStyler.applyMargins(containerView, containerStyle);
+        }
 
         if (itemViewType == ViewType.SITE_SEARCH_SETTINGS) {
             view.setOnClickListener(this);
@@ -590,13 +614,13 @@ public class SearchEngineAdapter extends BaseAdapter
 
         TextView description = view.findViewById(R.id.name);
 
-        TemplateUrl templateUrl = (TemplateUrl) getItem(position);
-        assumeNonNull(templateUrl);
-        description.setText(templateUrl.getShortName());
+        TemplateUrlSnapshot snapshot = getItem(position);
+        assumeNonNull(snapshot);
+        description.setText(snapshot.getShortName());
 
         TextView url = view.findViewById(R.id.url);
-        url.setText(templateUrl.getKeyword());
-        if (TextUtils.isEmpty(templateUrl.getKeyword())) {
+        url.setText(snapshot.getKeyword());
+        if (TextUtils.isEmpty(snapshot.getKeyword())) {
             url.setVisibility(View.GONE);
         }
 
@@ -604,9 +628,9 @@ public class SearchEngineAdapter extends BaseAdapter
         GURL faviconUrl =
                 new GURL(
                         templateUrlService.getSearchEngineUrlFromTemplateUrl(
-                                templateUrl.getKeyword()));
+                                snapshot.getKeyword()));
 
-        updateLogo(logoView, templateUrl, faviconUrl);
+        updateLogo(logoView, snapshot, faviconUrl);
 
         radioButton.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         containerView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -618,6 +642,7 @@ public class SearchEngineAdapter extends BaseAdapter
                             View host, AccessibilityNodeInfo info) {
                         super.onInitializeAccessibilityNodeInfo(host, info);
                         info.setSelected(selected);
+                        info.setClassName(RadioButton.class.getName());
                     }
                 });
 
@@ -625,29 +650,20 @@ public class SearchEngineAdapter extends BaseAdapter
         // Vivaldi - Custom search engine changes
         TextView shortcut = view.findViewById(R.id.shortcut);
         if (shortcut != null) { // Vivaldi VAB-9739
-        shortcut.setText(templateUrl.getKeyword());
-        }
-        try {
-            URL itemUrl = new URL(templateUrl.getURL());
-            if (BuildConfig.IS_VIVALDI && templateUrl.getKeyword() != null)
-                url.setText(templateUrl.getKeyword());
-            else
-            url.setText(itemUrl.getHost());
-        } catch (MalformedURLException e) {
-            if (templateUrl.getURL().contains("{google:baseURL}"))
-                // Vivaldi - Handling the corner case for Google search engine. Ref: VAB-11667
-                if (BuildConfig.IS_VIVALDI && templateUrl.getKeyword() != null) {
-                    url.setText(templateUrl.getKeyword());
-                } else // Vivaldi End
-                url.setText("google.com");
-        }
+            shortcut.setText(snapshot.getKeyword());
+        } // End Vivaldi
 
         return view;
     }
 
-    private void updateLogo(ImageView logoView, TemplateUrl templateUrl, GURL faviconUrl) {
+    private void updateLogo(ImageView logoView, TemplateUrlSnapshot templateUrl, GURL faviconUrl) {
         SearchEngineIconUtils.updateIcon(
-                mContext, logoView, templateUrl, faviconUrl, mLargeIconBridge, mIconCache);
+                mContext,
+                logoView,
+                templateUrl.getBuiltInIcon(),
+                faviconUrl,
+                mLargeIconBridge,
+                mIconCache);
     }
 
     // TemplateUrlService.LoadListener
@@ -706,6 +722,18 @@ public class SearchEngineAdapter extends BaseAdapter
             return mPrepopulatedSearchEngines.size() + 1;
         }
         return mPrepopulatedSearchEngines.size();
+    }
+
+    void setDisableAutoSwitchRunnable(Runnable runnable) {
+        mDisableAutoSwitchRunnable = runnable;
+    }
+
+    private static List<TemplateUrlSnapshot> toSnapshots(List<TemplateUrl> templateUrls) {
+        List<TemplateUrlSnapshot> snapshots = new ArrayList<>();
+        for (int i = 0; i < templateUrls.size(); i++) {
+            snapshots.add(TemplateUrlSnapshot.from(templateUrls.get(i)));
+        }
+        return snapshots;
     }
 
     // Vivaldi
@@ -788,7 +816,4 @@ public class SearchEngineAdapter extends BaseAdapter
         popupMenu.show();
         return true;
     } // End Vivaldi
-    void setDisableAutoSwitchRunnable(Runnable runnable) {
-        mDisableAutoSwitchRunnable = runnable;
-    }
 }

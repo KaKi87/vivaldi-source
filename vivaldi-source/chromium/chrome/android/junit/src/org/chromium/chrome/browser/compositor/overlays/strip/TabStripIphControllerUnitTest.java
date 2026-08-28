@@ -6,6 +6,8 @@ package org.chromium.chrome.browser.compositor.overlays.strip;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -32,6 +34,7 @@ import org.chromium.base.Token;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.compositor.layouts.LayoutUpdateHost;
+import org.chromium.chrome.browser.compositor.layouts.components.CompositorButton;
 import org.chromium.chrome.browser.compositor.overlays.strip.TabLoadTracker.TabLoadTrackerCallback;
 import org.chromium.chrome.browser.compositor.overlays.strip.TabStripIphController.IphType;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
@@ -58,6 +61,7 @@ public class TabStripIphControllerUnitTest {
     @Mock private Tracker mTracker;
     @Mock private View mContainerView;
     @Mock private StripLayoutView.StripLayoutViewOnClickHandler mClickHandler;
+    @Mock private StripLayoutView.StripLayoutViewOnLongClickHandler mLongClickHandler;
     @Mock private StripLayoutView.StripLayoutViewOnKeyboardFocusHandler mKeyboardFocusHandler;
     @Mock private TabLoadTrackerCallback mLoadTrackerCallback;
     @Mock private LayoutUpdateHost mUpdateHost;
@@ -87,7 +91,10 @@ public class TabStripIphControllerUnitTest {
                 new StripLayoutGroupTitle(
                         mContext,
                         mStripLayoutGroupTitleDelegate,
+                        mClickHandler,
+                        mLongClickHandler,
                         mKeyboardFocusHandler,
+                        /* accessibilityFocusHandler= */ null,
                         /* incognito= */ false,
                         TAB_GROUP_ID);
         mTab =
@@ -95,7 +102,9 @@ public class TabStripIphControllerUnitTest {
                         mContext,
                         TAB_ID,
                         mClickHandler,
+                        mLongClickHandler,
                         mKeyboardFocusHandler,
+                        /* accessibilityFocusHandler= */ null,
                         mLoadTrackerCallback,
                         mUpdateHost,
                         /* incognito= */ false,
@@ -272,5 +281,53 @@ public class TabStripIphControllerUnitTest {
         // Assert: feature name and snooze mode.
         assertEquals(FeatureConstants.IPH_TAB_TEARING_XR, cmd.featureName);
         assertEquals(true, cmd.enableSnoozeMode);
+    }
+
+    @Test
+    public void testIphProperties_Glic() {
+        CompositorButton button = mock(CompositorButton.class);
+        Rect anchorRect = new Rect(10, 20, 30, 40);
+        doAnswer(
+                        invocation -> {
+                            Rect out = invocation.getArgument(0);
+                            out.set(anchorRect);
+                            return null;
+                        })
+                .when(button)
+                .getAnchorRect(any());
+
+        mController.showIphOnCompositorButton(
+                button, mContainerView, IphType.GLIC_PROMO, /* enableSnoozeMode= */ false);
+
+        var captor = ArgumentCaptor.forClass(IphCommand.class);
+        verify(mUserEducationHelper).requestShowIph(captor.capture());
+        var cmd = captor.getValue();
+
+        // Assert: feature name and iph string.
+        assertEquals(FeatureConstants.GLIC_PROMO_ANDROID_FEATURE, cmd.featureName);
+        assertEquals(R.string.iph_glic_promo_text, cmd.stringId);
+
+        // Assert: anchor rect bounds.
+        assertEquals(10, cmd.anchorRect.left);
+        assertEquals(20, cmd.anchorRect.top);
+        assertEquals(30, cmd.anchorRect.right);
+        assertEquals(40, cmd.anchorRect.bottom);
+    }
+
+    @Test
+    public void testIphProperties_VerticalTabsPromo() {
+        mController.showIphOnTabStrip(
+                null, mTab, mContainerView, IphType.VERTICAL_TABS_PROMO, TAB_STRIP_HEIGHT, false);
+        var captor = ArgumentCaptor.forClass(IphCommand.class);
+        verify(mUserEducationHelper).requestShowIph(captor.capture());
+        var cmd = captor.getValue();
+
+        // Assert: feature name and iph string.
+        assertEquals(FeatureConstants.ANDROID_VERTICAL_TABS_PROMO_FEATURE, cmd.featureName);
+        assertEquals(R.string.iph_android_vertical_tabs_promo_touch, cmd.stringId);
+
+        // Assert: anchor rect bounds.
+        Rect anchorRect = cmd.anchorRect;
+        assertEquals("Iph anchor rect bottom bound is incorrect ", 40, anchorRect.bottom);
     }
 }

@@ -22,7 +22,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageView;
-import android.widget.PopupWindow;
 import android.widget.TextView;
 
 import androidx.constraintlayout.widget.ConstraintLayout;
@@ -37,13 +36,17 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
+import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.pdf.PdfUtils.PdfToolbarAction;
 import org.chromium.ui.base.TestActivity;
+import org.chromium.ui.widget.ChromePopupWindow;
 import org.chromium.ui.widget.UiWidgetFactory;
 
 @RunWith(BaseRobolectricTestRunner.class)
-@EnableFeatures(ChromeFeatureList.INLINE_PDF_V2)
+@EnableFeatures({ChromeFeatureList.INLINE_PDF_V2, ChromeFeatureList.INLINE_PDF_V2_DOWNLOAD})
 public class PdfToolbarCoordinatorUnitTest {
     @Rule
     public ActivityScenarioRule<TestActivity> mActivityScenarioRule =
@@ -56,7 +59,7 @@ public class PdfToolbarCoordinatorUnitTest {
     private PdfToolbarCoordinator mPdfToolbarCoordinator;
     private AutoCloseable mCloseableMocks;
     private UiWidgetFactory mMockUiWidgetFactory;
-    private PopupWindow mSpyPopupWindow;
+    private ChromePopupWindow mSpyPopupWindow;
 
     @Before
     public void setUp() {
@@ -64,7 +67,7 @@ public class PdfToolbarCoordinatorUnitTest {
         mActivityScenarioRule.getScenario().onActivity(activity -> mActivity = activity);
 
         mMockUiWidgetFactory = mock(UiWidgetFactory.class);
-        mSpyPopupWindow = spy(new PopupWindow(mActivity));
+        mSpyPopupWindow = spy(new ChromePopupWindow(mActivity));
         UiWidgetFactory.setInstance(mMockUiWidgetFactory);
         when(mMockUiWidgetFactory.createPopupWindow(any())).thenReturn(mSpyPopupWindow);
         doNothing()
@@ -128,6 +131,15 @@ public class PdfToolbarCoordinatorUnitTest {
         // Should revert to 99
         assertEquals("99", currentPage.getText().toString());
         assertFalse(currentPage.isFocused());
+
+        // Number overflow / excessively large input string
+        assertTrue(currentPage.requestFocus());
+        assertTrue(currentPage.isFocused());
+        currentPage.setText("7868768761");
+        currentPage.onEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_GO);
+        // Should revert to 99
+        assertEquals("99", currentPage.getText().toString());
+        assertFalse(currentPage.isFocused());
     }
 
     @Test
@@ -188,6 +200,89 @@ public class PdfToolbarCoordinatorUnitTest {
     }
 
     @Test
+    public void testZoomInClick_recordsMetric() {
+        var histogramWatcher = HistogramWatcher.newSingleRecordWatcher(
+                "Android.Pdf.ToolbarAction", PdfToolbarAction.ZOOM_IN);
+        View zoomIncreaseButton = mPdfPageView.findViewById(R.id.zoom_increase_button);
+        zoomIncreaseButton.performClick();
+        histogramWatcher.assertExpected();
+    }
+
+    @Test
+    public void testZoomOutClick_recordsMetric() {
+        var histogramWatcher = HistogramWatcher.newSingleRecordWatcher(
+                "Android.Pdf.ToolbarAction", PdfToolbarAction.ZOOM_OUT);
+        View zoomDecreaseButton = mPdfPageView.findViewById(R.id.zoom_decrease_button);
+        zoomDecreaseButton.performClick();
+        histogramWatcher.assertExpected();
+    }
+
+    @Test
+    public void testFitToPageToggle_recordsMetric() {
+        View fitToPageButton = mPdfPageView.findViewById(R.id.fit_to_page_button);
+
+        // First click (vertical)
+        var histogramWatcherVertical =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Android.Pdf.ToolbarAction", PdfToolbarAction.FIT_TO_PAGE_VERTICAL);
+        fitToPageButton.performClick();
+        histogramWatcherVertical.assertExpected();
+
+        // Second click (horizontal)
+        var histogramWatcherHorizontal =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Android.Pdf.ToolbarAction", PdfToolbarAction.FIT_TO_PAGE_HORIZONTAL);
+        fitToPageButton.performClick();
+        histogramWatcherHorizontal.assertExpected();
+    }
+
+    @Test
+    public void testFitToPageViaMenu_recordsMetric() {
+        PdfToolbar toolbar = mPdfPageView.findViewById(R.id.pdf_toolbar);
+        float density = mActivity.getResources().getDisplayMetrics().density;
+        // Layout narrow to hide fit-to-page button and show it in the menu
+        int widthPx = (int) (680 * density);
+        toolbar.layout(0, 0, widthPx, 56);
+
+        View moreMenuButton = mPdfPageView.findViewById(R.id.more_menu_button);
+        moreMenuButton.performClick();
+
+        View contentView = mSpyPopupWindow.getContentView();
+        android.widget.ListView listView = contentView.findViewById(R.id.menu_list);
+        View fitItemView = null;
+        for (int i = 0; i < listView.getAdapter().getCount(); i++) {
+            View itemView = listView.getAdapter().getView(i, null, listView);
+            TextView textView = itemView.findViewById(R.id.menu_item_text);
+            String text = textView.getText().toString();
+            if (text.equals(mActivity.getString(R.string.pdf_fit_height))
+                    || text.equals(mActivity.getString(R.string.pdf_fit_width))) {
+                fitItemView = itemView;
+                break;
+            }
+        }
+        org.junit.Assert.assertNotNull("Fit to page menu item should be found", fitItemView);
+
+        var histogramWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Android.Pdf.ToolbarAction", PdfToolbarAction.FIT_TO_PAGE_VERTICAL);
+        fitItemView.performClick();
+        histogramWatcher.assertExpected();
+    }
+
+    @Test
+    public void testPageNumberEdit_recordsMetric() {
+        EditText currentPage = mPdfPageView.findViewById(R.id.current_page);
+        assertTrue(currentPage.requestFocus());
+        currentPage.setText("50");
+
+        var histogramWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Android.Pdf.ToolbarAction", PdfToolbarAction.PAGE_NAVIGATION);
+        currentPage.onEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_GO);
+        histogramWatcher.assertExpected();
+    }
+
+    @Test
     public void testOnDocumentLoaded() {
         // Initial state from constructor is 99/100
         mPdfToolbarCoordinator.onDocumentLoaded(50, "test_title.pdf");
@@ -243,7 +338,7 @@ public class PdfToolbarCoordinatorUnitTest {
 
         // 2. Second State: Two Page View is active (TWO_PAGES_PER_ROW_ACTIVE = true)
         // Reset the spy for the next popup window creation
-        mSpyPopupWindow = spy(new PopupWindow(mActivity));
+        mSpyPopupWindow = spy(new ChromePopupWindow(mActivity));
         when(mMockUiWidgetFactory.createPopupWindow(any())).thenReturn(mSpyPopupWindow);
         doNothing()
                 .when(mSpyPopupWindow)
@@ -275,12 +370,15 @@ public class PdfToolbarCoordinatorUnitTest {
         org.junit.Assert.assertNotNull("Toolbar should not be null", toolbar);
 
         View downloadButton = mPdfPageView.findViewById(R.id.download_button);
-        View rotateButton = mPdfPageView.findViewById(R.id.rotate_button);
         View fitToPageButton = mPdfPageView.findViewById(R.id.fit_to_page_button);
         View zoomDecreaseButton = mPdfPageView.findViewById(R.id.zoom_decrease_button);
         View currentPage = mPdfPageView.findViewById(R.id.current_page);
         View editButton = mPdfPageView.findViewById(R.id.edit_button);
         View title = mPdfPageView.findViewById(R.id.pdf_title);
+
+        View pageZoomDivider = mPdfPageView.findViewById(R.id.page_zoom_divider);
+        View zoomFitDivider = mPdfPageView.findViewById(R.id.zoom_fit_divider);
+        View fitEditDivider = mPdfPageView.findViewById(R.id.fit_edit_divider);
 
         float density = mActivity.getResources().getDisplayMetrics().density;
 
@@ -288,12 +386,16 @@ public class PdfToolbarCoordinatorUnitTest {
         int widthPx = (int) (900 * density);
         toolbar.layout(0, 0, widthPx, 56);
 
-        assertEquals(View.VISIBLE, downloadButton.getVisibility());
-        assertEquals(View.VISIBLE, rotateButton.getVisibility());
+        assertEquals(
+                PdfUtils.isInlinePdfV2Enabled() ? View.VISIBLE : View.GONE,
+                downloadButton.getVisibility());
         assertEquals(View.VISIBLE, fitToPageButton.getVisibility());
         assertEquals(View.VISIBLE, zoomDecreaseButton.getVisibility());
         assertEquals(View.VISIBLE, currentPage.getVisibility());
         assertEquals(View.VISIBLE, editButton.getVisibility());
+        assertEquals(View.VISIBLE, pageZoomDivider.getVisibility());
+        assertEquals(View.VISIBLE, zoomFitDivider.getVisibility());
+        assertEquals(View.VISIBLE, fitEditDivider.getVisibility());
 
         // Verify title is constrained to center group
         ConstraintLayout.LayoutParams layoutParams =
@@ -304,51 +406,63 @@ public class PdfToolbarCoordinatorUnitTest {
         widthPx = (int) (780 * density);
         toolbar.layout(0, 0, widthPx, 56);
         assertEquals(View.GONE, downloadButton.getVisibility());
-        assertEquals(View.VISIBLE, rotateButton.getVisibility());
         assertEquals(View.VISIBLE, fitToPageButton.getVisibility());
         assertEquals(View.VISIBLE, zoomDecreaseButton.getVisibility());
         assertEquals(View.VISIBLE, currentPage.getVisibility());
         assertEquals(View.VISIBLE, editButton.getVisibility());
+        assertEquals(View.VISIBLE, pageZoomDivider.getVisibility());
+        assertEquals(View.VISIBLE, zoomFitDivider.getVisibility());
+        assertEquals(View.VISIBLE, fitEditDivider.getVisibility());
 
-        // State 3: Narrower (e.g. 720dp) -> Download and Rotate GONE
+        // State 3: Narrower (e.g. 720dp) -> Download GONE, others VISIBLE (was Download and Rotate
+        // GONE)
         widthPx = (int) (720 * density);
         toolbar.layout(0, 0, widthPx, 56);
         assertEquals(View.GONE, downloadButton.getVisibility());
-        assertEquals(View.GONE, rotateButton.getVisibility());
         assertEquals(View.VISIBLE, fitToPageButton.getVisibility());
         assertEquals(View.VISIBLE, zoomDecreaseButton.getVisibility());
         assertEquals(View.VISIBLE, currentPage.getVisibility());
         assertEquals(View.VISIBLE, editButton.getVisibility());
+        assertEquals(View.VISIBLE, pageZoomDivider.getVisibility());
+        assertEquals(View.VISIBLE, zoomFitDivider.getVisibility());
+        assertEquals(View.VISIBLE, fitEditDivider.getVisibility());
 
-        // State 4: Narrower (e.g. 680dp) -> Download, Rotate, Fit GONE
+        // State 4: Narrower (e.g. 680dp) -> Download, Fit GONE (was Download, Rotate, Fit GONE)
         widthPx = (int) (680 * density);
         toolbar.layout(0, 0, widthPx, 56);
         assertEquals(View.GONE, downloadButton.getVisibility());
-        assertEquals(View.GONE, rotateButton.getVisibility());
         assertEquals(View.GONE, fitToPageButton.getVisibility());
         assertEquals(View.VISIBLE, zoomDecreaseButton.getVisibility());
         assertEquals(View.VISIBLE, currentPage.getVisibility());
         assertEquals(View.VISIBLE, editButton.getVisibility());
+        assertEquals(View.VISIBLE, pageZoomDivider.getVisibility());
+        assertEquals(View.GONE, zoomFitDivider.getVisibility());
+        assertEquals(View.GONE, fitEditDivider.getVisibility());
 
-        // State 5: Narrower (e.g. 620dp) -> Download, Rotate, Fit, Zoom GONE
+        // State 5: Narrower (e.g. 620dp) -> Download, Fit, Zoom GONE (was Download, Rotate, Fit,
+        // Zoom GONE)
         widthPx = (int) (620 * density);
         toolbar.layout(0, 0, widthPx, 56);
         assertEquals(View.GONE, downloadButton.getVisibility());
-        assertEquals(View.GONE, rotateButton.getVisibility());
         assertEquals(View.GONE, fitToPageButton.getVisibility());
         assertEquals(View.GONE, zoomDecreaseButton.getVisibility());
         assertEquals(View.VISIBLE, currentPage.getVisibility());
         assertEquals(View.VISIBLE, editButton.getVisibility());
+        assertEquals(View.GONE, pageZoomDivider.getVisibility());
+        assertEquals(View.GONE, zoomFitDivider.getVisibility());
+        assertEquals(View.GONE, fitEditDivider.getVisibility());
 
         // State 6: Most narrow (e.g. 550dp) -> All center gone, only print/menu/title remain
         widthPx = (int) (550 * density);
         toolbar.layout(0, 0, widthPx, 56);
         assertEquals(View.GONE, downloadButton.getVisibility());
-        assertEquals(View.GONE, rotateButton.getVisibility());
         assertEquals(View.GONE, fitToPageButton.getVisibility());
         assertEquals(View.GONE, zoomDecreaseButton.getVisibility());
         assertEquals(View.GONE, currentPage.getVisibility());
         assertEquals(View.GONE, editButton.getVisibility());
+        assertEquals(View.GONE, pageZoomDivider.getVisibility());
+        assertEquals(View.GONE, zoomFitDivider.getVisibility());
+        assertEquals(View.GONE, fitEditDivider.getVisibility());
 
         // Print and More menu should still be visible
         View printButton = mPdfPageView.findViewById(R.id.print_button);
@@ -399,5 +513,157 @@ public class PdfToolbarCoordinatorUnitTest {
         KeyEvent event = new KeyEvent(0, 0, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_EQUALS, 0, 0);
         assertFalse(mPdfToolbarCoordinator.onKey(mPdfPageView, KeyEvent.KEYCODE_EQUALS, event));
         verify(mDelegate, org.mockito.Mockito.never()).changeZoomLevel(anyFloat());
+    }
+
+    @Test
+    public void testPrintButtonClick() {
+        View printButton = mPdfPageView.findViewById(R.id.print_button);
+        org.junit.Assert.assertNotNull("Print button should not be null", printButton);
+        printButton.performClick();
+        verify(mDelegate).print();
+    }
+
+    @Test
+    public void testEditButtonClick() {
+        View editButton = mPdfPageView.findViewById(R.id.edit_button);
+        org.junit.Assert.assertNotNull("Edit button should not be null", editButton);
+
+        // Initial state: EDIT_MODE_ACTIVE is false (default)
+        // Click should toggle it to true, calling setEditMode(true)
+        editButton.performClick();
+        verify(mDelegate).setEditMode(true);
+
+        // Now set the model to active (simulating delegate callback -> coordinator -> model update)
+        mPdfToolbarCoordinator.setEditModeActive(true);
+
+        // Click again should toggle it to false, calling setEditMode(false)
+        editButton.performClick();
+        verify(mDelegate).setEditMode(false);
+    }
+
+    @Test
+    @DisableFeatures(ChromeFeatureList.INLINE_PDF_V2_DOWNLOAD)
+    public void testDownloadButton_FeatureDisabled() {
+        PdfToolbar toolbar = mPdfPageView.findViewById(R.id.pdf_toolbar);
+        org.junit.Assert.assertNotNull("Toolbar should not be null", toolbar);
+
+        View downloadButton = mPdfPageView.findViewById(R.id.download_button);
+        float density = mActivity.getResources().getDisplayMetrics().density;
+
+        // Wide screen (e.g. 900dp) -> Should still be GONE because feature is disabled
+        int widthPx = (int) (900 * density);
+        toolbar.layout(0, 0, widthPx, 56);
+
+        assertEquals(View.GONE, downloadButton.getVisibility());
+    }
+
+    @Test
+    public void testDoneButtonVisibilityAndClick() {
+        PdfToolbar toolbar = mPdfPageView.findViewById(R.id.pdf_toolbar);
+        View doneButton = mPdfPageView.findViewById(R.id.done_button);
+        View editButton = mPdfPageView.findViewById(R.id.edit_button);
+        org.junit.Assert.assertNotNull("Done button should not be null", doneButton);
+        float density = mActivity.getResources().getDisplayMetrics().density;
+
+        // 1. Initial State: Edit mode inactive, wide screen -> Done button GONE
+        int wideWidthPx = (int) (900 * density);
+        toolbar.layout(0, 0, wideWidthPx, 56);
+        assertEquals(View.GONE, doneButton.getVisibility());
+
+        // 2. Wide screen, Edit mode active -> Done button VISIBLE (along with edit button)
+        mPdfToolbarCoordinator.setEditModeActive(true);
+        assertEquals(View.VISIBLE, editButton.getVisibility());
+        assertEquals(View.VISIBLE, doneButton.getVisibility());
+
+        // 3. Narrow screen (edit button hidden), Edit mode active -> Done button still VISIBLE
+        int narrowWidthPx = (int) (550 * density);
+        toolbar.layout(0, 0, narrowWidthPx, 56);
+        assertEquals(View.GONE, editButton.getVisibility());
+        assertEquals(View.VISIBLE, doneButton.getVisibility());
+
+        // 4. Click Done button -> should call setEditMode(false)
+        doneButton.performClick();
+        verify(mDelegate).setEditMode(false);
+
+        // 5. Narrow screen, Edit mode inactive -> Done button GONE
+        mPdfToolbarCoordinator.setEditModeActive(false);
+        assertEquals(View.GONE, doneButton.getVisibility());
+    }
+
+    @Test
+    public void testPrintButtonClick_recordsMetric() {
+        var histogramWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Android.Pdf.ToolbarAction", PdfToolbarAction.PRINT);
+        View printButton = mPdfPageView.findViewById(R.id.print_button);
+        printButton.performClick();
+        histogramWatcher.assertExpected();
+    }
+
+    @Test
+    public void testTwoPagesPerRowToggle_viaMenu_recordsMetric() {
+        // Initial state is single page view (two page view inactive)
+        View moreMenuButton = mPdfPageView.findViewById(R.id.more_menu_button);
+        moreMenuButton.performClick();
+
+        View contentView = mSpyPopupWindow.getContentView();
+        android.widget.ListView listView = contentView.findViewById(R.id.menu_list);
+        View itemView = listView.getAdapter().getView(0, null, listView); // Two-page view item
+
+        // Click "Two-page view" -> toggles to true, should record TWO_PAGE_VIEW
+        var histogramWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Android.Pdf.ToolbarAction", PdfToolbarAction.TWO_PAGE_VIEW);
+        itemView.performClick();
+        histogramWatcher.assertExpected();
+
+        // Reset the spy for the next popup window creation
+        mSpyPopupWindow = spy(new ChromePopupWindow(mActivity));
+        when(mMockUiWidgetFactory.createPopupWindow(any())).thenReturn(mSpyPopupWindow);
+        doNothing()
+                .when(mSpyPopupWindow)
+                .showAtLocation(any(View.class), anyInt(), anyInt(), anyInt());
+
+        // Click more menu button again
+        moreMenuButton.performClick();
+
+        contentView = mSpyPopupWindow.getContentView();
+        listView = contentView.findViewById(R.id.menu_list);
+        itemView = listView.getAdapter().getView(0, null, listView); // Single page view item
+
+        // Click "Single page view" -> toggles to false, should record SINGLE_PAGE_VIEW
+        histogramWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Android.Pdf.ToolbarAction", PdfToolbarAction.SINGLE_PAGE_VIEW);
+        itemView.performClick();
+        histogramWatcher.assertExpected();
+    }
+
+    @Test
+    public void testDocumentPropertiesClick_recordsMetric() {
+        View moreMenuButton = mPdfPageView.findViewById(R.id.more_menu_button);
+        moreMenuButton.performClick();
+
+        View contentView = mSpyPopupWindow.getContentView();
+        android.widget.ListView listView = contentView.findViewById(R.id.menu_list);
+        View propertiesItemView = null;
+        for (int i = 0; i < listView.getAdapter().getCount(); i++) {
+            View itemView = listView.getAdapter().getView(i, null, listView);
+            TextView textView = itemView.findViewById(R.id.menu_item_text);
+            if (textView.getText()
+                    .toString()
+                    .equals(mActivity.getString(R.string.pdf_document_properties))) {
+                propertiesItemView = itemView;
+                break;
+            }
+        }
+        org.junit.Assert.assertNotNull(
+                "Document properties menu item should be found", propertiesItemView);
+
+        var histogramWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Android.Pdf.ToolbarAction", PdfToolbarAction.DOCUMENT_PROPERTIES);
+        propertiesItemView.performClick();
+        histogramWatcher.assertExpected();
     }
 }

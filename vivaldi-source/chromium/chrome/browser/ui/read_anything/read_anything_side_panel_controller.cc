@@ -32,9 +32,8 @@
 #include "chrome/browser/ui/side_panel/side_panel_ui.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/ui_features.h"
-#include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/user_education/browser_user_education_interface.h"
 #include "chrome/browser/ui/views/interaction/browser_elements_views.h"
-#include "chrome/browser/ui/views/side_panel/side_panel_web_ui_view.h"
 #include "chrome/browser/ui/webui/side_panel/read_anything/read_anything_untrusted_page_handler.h"
 #include "chrome/browser/ui/webui/side_panel/read_anything/read_anything_untrusted_ui.h"
 #include "chrome/browser/ui/webui_browser/webui_browser.h"
@@ -55,11 +54,6 @@
 #include "ui/base/metadata/metadata_types.h"
 
 #include "app/vivaldi_apptools.h"
-
-using SidePanelWebUIViewT_ReadAnythingUntrustedUI =
-    SidePanelWebUIViewT<ReadAnythingUntrustedUI>;
-DECLARE_TEMPLATE_METADATA(SidePanelWebUIViewT_ReadAnythingUntrustedUI,
-                          SidePanelWebUIViewT);
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(ReadAnythingSidePanelControllerGlue);
 
@@ -167,11 +161,11 @@ void ReadAnythingSidePanelController::OnEntryShown(SidePanelEntry* entry) {
   // Build and record UKM record for SidePanelShown to true on the current
   // source Id
   std::optional<SidePanelOpenTrigger> open_trigger = entry->last_open_trigger();
-  std::optional<ReadAnythingOpenTrigger> read_anything_trigger =
+  ReadAnythingOpenTrigger read_anything_trigger =
       open_trigger.has_value()
           ? read_anything::SidePanelToReadAnythingOpenTrigger(
                 open_trigger.value())
-          : std::optional<ReadAnythingOpenTrigger>();
+          : ReadAnythingOpenTrigger::kUnknown;
   if (auto* contents = web_contents()) {
     if (content::RenderFrameHost* main_frame =
             contents->GetPrimaryMainFrame()) {
@@ -230,7 +224,7 @@ void ReadAnythingSidePanelController::OnEntryHidden(SidePanelEntry* entry) {
     controller->OnEntryHidden();
   } else {
     observers_.Notify(&Observer::Activate, /*active=*/false,
-                      /*trigger=*/std::optional<ReadAnythingOpenTrigger>(),
+                      /*trigger=*/ReadAnythingOpenTrigger::kUnknown,
                       /*completed_session_duration=*/std::nullopt);
   }
 

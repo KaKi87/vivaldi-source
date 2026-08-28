@@ -14,7 +14,7 @@ import type {InspectedPage} from '../shared/target-helper.js';
 
 import {openCommandMenu} from './quick_open-helpers.js';
 
-const RECORDER_CONTROLLER_TAG_NAME = 'devtools-recorder-controller' as const;
+const RECORDER_PANEL_TAG_NAME = 'devtools-recorder-panel' as const;
 const TEST_RECORDING_NAME = 'New Recording';
 
 export async function record(devToolsPage: DevToolsPage, inspectedPage: InspectedPage) {
@@ -26,14 +26,14 @@ export async function record(devToolsPage: DevToolsPage, inspectedPage: Inspecte
   await devToolsPage.bringToFront();
 }
 
-export async function getRecordingController(devToolsPage: DevToolsPage) {
+export async function getRecordingPanel(devToolsPage: DevToolsPage) {
   return await devToolsPage.waitFor(
-      RECORDER_CONTROLLER_TAG_NAME,
+      RECORDER_PANEL_TAG_NAME,
   );
 }
 
 export async function onRecordingStateChanged(devToolsPage: DevToolsPage): Promise<UserFlow> {
-  const view = await getRecordingController(devToolsPage);
+  const view = await getRecordingPanel(devToolsPage);
   return await view.evaluate(el => {
     return new Promise<UserFlow>(resolve => {
       el.addEventListener(
@@ -58,7 +58,7 @@ export async function onRecorderAttachedToTarget(devToolsPage: DevToolsPage): Pr
 }
 
 export async function onReplayFinished(devToolsPage: DevToolsPage): Promise<unknown> {
-  const view = await getRecordingController(devToolsPage);
+  const view = await getRecordingPanel(devToolsPage);
   return await view.evaluate(el => {
     return new Promise(resolve => {
       el.addEventListener('replayfinished', resolve, {once: true});
@@ -115,7 +115,7 @@ export async function openRecorderPanel(devToolsPage: DevToolsPage) {
   await openCommandMenu(devToolsPage);
   await devToolsPage.typeText('Show Recorder');
   await devToolsPage.pressKey('Enter');
-  await devToolsPage.waitFor(RECORDER_CONTROLLER_TAG_NAME);
+  await devToolsPage.waitFor(RECORDER_PANEL_TAG_NAME);
 }
 
 interface StartRecordingOptions {
@@ -210,7 +210,7 @@ export const processAndVerifyBaseRecording = (
           deviceScaleFactor: 1,
           isMobile: false,
           hasTouch: false,
-          isLandscape: false
+          isLandscape: false,
         },
     );
     assert.deepEqual(
@@ -222,7 +222,7 @@ export const processAndVerifyBaseRecording = (
             type: 'navigation',
             url: `https://localhost:<test-port>/test/e2e/resources/${resource}`,
             title: '',
-          }]
+          }],
         },
     );
 
@@ -233,9 +233,11 @@ export const processAndVerifyBaseRecording = (
 };
 
 async function setCode(flow: string, devToolsPage: DevToolsPage) {
-  const view = await getRecordingController(devToolsPage);
-  await view.evaluate((el, flow) => {
+  const view = await getRecordingPanel(devToolsPage);
+  await view.evaluate(async (el, flow) => {
+    const promise = new Promise(resolve => el.addEventListener('setrecordingfinished', resolve, {once: true}));
     el.dispatchEvent(new CustomEvent('setrecording', {detail: flow}));
+    await promise;
   }, flow);
 }
 
@@ -279,9 +281,17 @@ export async function getCurrentRecording(
     devToolsPage: DevToolsPage,
     ): Promise<UserFlow> {
   await devToolsPage.bringToFront();
-  const controller = await devToolsPage.$(RECORDER_CONTROLLER_TAG_NAME);
-  const recording = (await controller?.evaluate(
-      el => JSON.stringify(el.getUserFlow()),
+  const panel = await devToolsPage.$(RECORDER_PANEL_TAG_NAME);
+  const recording = (await panel?.evaluate(
+      async el => {
+        const path = './ui/legacy/legacy.js';
+        const UI = await import(path);
+        const widget = UI.Widget.Widget.get(el);
+        if (!widget) {
+          throw new Error('Could not find Widget for panel element');
+        }
+        return JSON.stringify((widget as {getUserFlow(): unknown}).getUserFlow());
+      },
       ));
   return JSON.parse(recording ?? '');
 }

@@ -122,13 +122,26 @@ update_target("//chrome/browser/ui:ui") {
       "//vivaldi/sync/vivaldi_browser_synced_window_delegate.cc",
       "//vivaldi/sync/vivaldi_browser_synced_window_delegate.h",
     ]
-    sources -= [ "webui/settings/settings_default_browser_handler.h" ]
   }
   if (toolkit_views) {
     sources += [ "//vivaldi/browser/ui/viv_page_info_bubble_view.cc" ]
   }
   if (is_mac) {
     sources += [ "//vivaldi/browser/ui/viv_accelerators_cocoa.mm" ]
+  }
+  if (!is_android) {
+    deps += [
+      "//vivaldi/extensions/api:apis",
+    ]
+  }
+}
+
+if (!is_android) {
+  update_target("//chrome/browser/ui/webui/settings:settings") {
+    sources -= [ "settings_default_browser_handler.h" ]
+  }
+  update_target("//chrome/browser/ui/webui/settings:impl") {
+    sources -= [ "settings_default_browser_handler.cc" ]
   }
 }
 
@@ -156,15 +169,19 @@ if (!is_android) {
       sources += [
         "//vivaldi/browser/stats_reporter_unittest.cc",
         "//vivaldi/browser/translate/vivaldi_translate_server_request_unittests.cc",
-        "//vivaldi/extensions/api/tabs/tabs_motion_helper_unittest.cc",
+        "//vivaldi/extensions/api/tabs_private/tabs_motion_helper_unittest.cc",
+        "//vivaldi/extensions/api/tabs_private/tests/unit_test_snapshots.cc",
+        "//vivaldi/extensions/api/tabs_private/tests/unit_test_snapshots.h",
       ]
-      sources -= [ "../browser/ui/webui/settings/settings_default_browser_handler_unittest.cc" ]
     }
     update_target("//chrome/browser/ui/toolbar:unit_tests") {
       sources -= [
         "app_menu_icon_controller_unittest.cc",
         "app_menu_model_unittest.cc",
       ]
+    }
+    update_target("//chrome/browser/ui/webui/settings:unit_tests") {
+      sources -= [ "settings_default_browser_handler_unittest.cc" ]
     }
   }
 
@@ -178,10 +195,6 @@ if (!is_android) {
       sources -= [
         "../browser/ui/views/upgrade_notification_controller_browsertest.cc",
       ]
-      if (!is_win) {
-        sources -=  # Already removed for windows
-            [ "../browser/ui/views/tabs/tab_search_button_browsertest.cc" ]
-      }
     }
   }
 

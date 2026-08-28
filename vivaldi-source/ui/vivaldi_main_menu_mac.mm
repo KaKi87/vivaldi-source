@@ -526,9 +526,9 @@ void PopulateMenu(const menubar::MenuItem& item,
       // We may change the string on each update.
       [subMenu setTitle:base::SysUTF8ToNSString(item.name)];
       switch (item.id) {
-        case IDC_EDIT_MENU:
+        case kEditMenuId:
           for (NSMenuItem* item2 in [subMenu itemArray]) {
-            if (item2.tag == IDC_SPELLCHECK_MENU ||
+            if (item2.tag == kSpellcheckMenuId ||
                 item2.tag == IDC_VIV_SUBSTITUTIONS_MENU_MAC ||
                 item2.tag == IDC_VIV_SPEECH_MENU_MAC ||
                 item2.tag == IDC_VIV_EDIT_SEPARATOR_MAC) {
@@ -548,7 +548,7 @@ void PopulateMenu(const menubar::MenuItem& item,
           }
           index2 = 0;  // Our items always start from the top of the menu.
           break;
-        case IDC_BOOKMARKS_MENU:
+        case kBookmarksMenuId:
           // Special care for the bookmarks menu as we manage it two places.
           // Here and in bookmark_menu_bridge.mm. Remove all items that have
           // been created earlier by this function.
@@ -579,7 +579,7 @@ void PopulateMenu(const menubar::MenuItem& item,
             // New items are added a bit further down in the function.
           }
           break;
-        case IDC_WINDOW_MENU:
+        case kMacWindowMenuId:
           // Special hardcoding for COMMAND_WINDOW_MINIMIZE which is mapped to
           // IDC_VIV_MAC_MINIMIZE in menubar_api.cc due to random multiple
           // minimize calls on some systems. Hardcoding here avoids a dummy
@@ -633,7 +633,7 @@ void PopulateMenu(const menubar::MenuItem& item,
       [menuItem setSubmenu:subMenu];
     }
 
-    if (item.id == IDC_BOOKMARKS_MENU) {
+    if (item.id == kBookmarksMenuId) {
       // Special care for the bookmarks menu as we manage it two places. Here
       // and in bookmark_menu_bridge.mm. We only add UI menu items below.
 
@@ -697,7 +697,7 @@ void CreateVivaldiMainMenu(Profile* profile,
                            int min_id,
                            int max_id) {
   NSMenu* mainMenu = [NSApp mainMenu];
-  NSMenuItem* windowMenuItem = GetMenuItemByTag(mainMenu, IDC_WINDOW_MENU);
+  NSMenuItem* windowMenuItem = GetMenuItemByTag(mainMenu, kMacWindowMenuId);
 
   if (!g_window_menu_delegate) {
     if ([windowMenuItem hasSubmenu]) {

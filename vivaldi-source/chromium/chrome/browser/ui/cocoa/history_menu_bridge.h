@@ -82,8 +82,6 @@ class HistoryMenuBridge : public sessions::TabRestoreServiceObserver,
     // Favicon for the URL.
     NSImage* __strong icon;
 
-    std::optional<tab_groups::TabGroupColorId> tab_group_color_id;
-
     // If the icon is being requested from the FaviconService, |icon_requested|
     // will be true and |icon_task_id| will be valid. If this is false, then
     // |icon_task_id| will be
@@ -219,7 +217,8 @@ class HistoryMenuBridge : public sessions::TabRestoreServiceObserver,
   int AddTabsToSubmenu(
       NSMenu* submenu,
       HistoryItem* item,
-      const std::vector<std::unique_ptr<sessions::tab_restore::Tab>>& tabs);
+      const std::vector<std::unique_ptr<sessions::tab_restore::Tab>>& tabs,
+      int restore_string_id);
 
   // Called by the ctor if |service_| is ready at the time, or by a
   // notification receiver. Finishes initialization tasks by subscribing for

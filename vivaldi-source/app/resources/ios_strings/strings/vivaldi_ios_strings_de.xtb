@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Nachfragen zum Öffnen von Links aus anderen Apps im privaten Modus</translation>
 <translation id="1624481300475123200">Passwörter automatisch ausfüllen</translation>
 <translation id="1743244221910283364">Änderungen verwerfen</translation>
+<translation id="1972589975368876259">Gruppe bearbeiten</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Tab zur Gruppe hinzufügen}
         other {Tabs zur Gruppe hinzufügen}}</translation>
@@ -48,7 +49,6 @@
 <translation id="4772190485302020393">Alle Tabs und Gruppen schließen</translation>
 <translation id="4802185666270672526">„Desktopwebsite anfordern“ ausblenden</translation>
 <translation id="4828571836982833289">Tabgruppe aufheben?</translation>
-<translation id="4838250035189612538">Gruppe umbenennen</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 Tabgruppe geschlossen und gespeichert}
             other {{count} Tabgruppen geschlossen und gespeichert}}</translation>

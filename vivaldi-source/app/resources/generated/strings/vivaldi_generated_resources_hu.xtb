@@ -39,7 +39,6 @@
 <translation id="1601560923496285236">Alkalmaz</translation>
 <translation id="1603914832182249871">(Inkognitó)</translation>
 <translation id="1627276047960621195">Fájlleírók</translation>
-<translation id="1654713139320245449">Nem található átküldési cél. Segítségre van szükséged?</translation>
 <translation id="166278006618318542">Nyilvános kulcs algoritmusa</translation>
 <translation id="1682548588986054654">Új inkognitó ablak</translation>
 <translation id="1708338024780164500">(Inaktív)</translation>
@@ -60,7 +59,6 @@
 <translation id="1906488504371069394">Bővítményeket és témákat a <ph name="BEGIN_LINK" />Chrome Webáruházban<ph name="END_LINK" /> fedezhetsz fel</translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">Írd be az egyéni internetcímet</translation>
-<translation id="1932098463447129402">Ez előtt nem:</translation>
 <translation id="1936157145127842922">Megjelenítés mappában</translation>
 <translation id="1936931585862840749">Számmal jelezd, hogy hány példányt szeretnél nyomtatni (1–<ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">&amp;Hang megnyitása új lapon</translation>
@@ -102,7 +100,6 @@
 <translation id="253557089021624350">Életben tartási számláló</translation>
 <translation id="2550212893339833758">Lapozómemória</translation>
 <translation id="2553440850688409052">A beépülő elrejtése</translation>
-<translation id="2607101320794533334">Nyilvános kulcs adatai</translation>
 <translation id="261305050785128654">Tájékoztatja a webhelyeket az általad beszélt nyelvről. Ha lehetséges, a tartalom ezeken a nyelveken jelenik meg.</translation>
 <translation id="26224892172169984">A webhelyek nem kezelhetnek protokollokat</translation>
 <translation id="2653275834716714682">Szöveg cseréje</translation>
@@ -112,7 +109,6 @@
 <translation id="2719936478972253983">A következő cookie-k le vannak tiltva</translation>
 <translation id="2721037002783622288">Képkere&amp;sés ezzel: <ph name="SEARCH_ENGINE" /></translation>
 <translation id="2722547199758472013">Azonosító: <ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">Ezután nem:</translation>
 <translation id="2749881179542288782">Nyelvhelyesség és helyesírás ellenőrzése</translation>
 <translation id="2785873697295365461">Fájlleírók</translation>
 <translation id="2825758591930162672">Nyilvános kulcs</translation>
@@ -163,7 +159,6 @@
 <translation id="3387614642886316601">Továbbfejlesztett helyesírás-ellenőrzés használata</translation>
 <translation id="3390013585654699824">Az alkalmazás adatai</translation>
 <translation id="345693547134384690">Kép &amp;megnyitása új lapon</translation>
-<translation id="3493881266323043047">Érvényesség</translation>
 <translation id="3511307672085573050">Hivatkozás címén&amp;ek másolása</translation>
 <translation id="354068948465830244">Olvashatod és módosíthatod a webhelyadatokat</translation>
 <translation id="3555812735919707620">Bővítmény eltávolítása</translation>
@@ -179,7 +174,6 @@
 <translation id="3760460896538743390">&amp;Háttéroldal vizsgálata</translation>
 <translation id="3786224729726357296">A(z) <ph name="SITE" /> webhelyre vonatkozó adatok és engedélyek törlése</translation>
 <translation id="3797900183766075808">Keresé&amp;s a(z) <ph name="SEARCH_ENGINE" /> keresőmotorral a következőre: <ph name="SEARCH_TERMS" /></translation>
-<translation id="3798449238516105146">Verzió</translation>
 <translation id="3810973564298564668">Kezelés</translation>
 <translation id="3838085852053358637">Nem sikerült betölteni a bővítményt</translation>
 <translation id="383891835335927981">Nincs nagyított vagy kicsinyített webhely</translation>
@@ -266,12 +260,10 @@
 <translation id="5063480226653192405">Használat</translation>
 <translation id="5116628073786783676">H&amp;ang mentése másként...</translation>
 <translation id="5154108062446123722">A(z) <ph name="PRINTING_DESTINATION" /> speciális beállításai</translation>
-<translation id="5154702632169343078">Tárgy</translation>
 <translation id="5170568018924773124">Megjelenítés mappában</translation>
 <translation id="5171343362375269016">Lapozómemória</translation>
 <translation id="5233231016133573565">Folyamat azonosítója</translation>
 <translation id="5233736638227740678">&amp;Beillesztés</translation>
-<translation id="5244466461749935369">Egyelőre megtart</translation>
 <translation id="5256861893479663409">Az összes webhelyen</translation>
 <translation id="5260334392110301220">Intelligens idézőjelek</translation>
 <translation id="5269977353971873915">A nyomtatás nem sikerült</translation>
@@ -310,7 +302,6 @@
 <translation id="5780973441651030252">Folyamatprioritás</translation>
 <translation id="5804241973901381774">Engedélyek</translation>
 <translation id="5828633471261496623">Nyomtatás...</translation>
-<translation id="5851868085455377790">Kiállító</translation>
 <translation id="5860491529813859533">Bekapcsolás</translation>
 <translation id="5910363049092958439">Ké&amp;p mentése másként...</translation>
 <translation id="5914724413750400082">Együttható (<ph name="MODULUS_NUM_BITS" /> bit):
@@ -441,8 +432,8 @@ A kulcsfájlt tartsd biztonságos helyen. Szükséged lesz rá ahhoz, hogy új v
         =1 {Letöltés folyamatban} other {Letöltések folyamatban}}</translation>
 <translation id="8230134520748321204">Szeretnéd elmenteni a(z) <ph name="ORIGIN" /> jelszavát?</translation>
 <translation id="8248050856337841185">&amp;Beillesztés</translation>
-<translation id="8261378640211443080">A bővítmény nem a(z) <ph name="IDS_EXTENSION_WEB_STORE_TITLE" /> szolgáltatásból származik, és előfordulhat, hogy az Ön tudta nélkül lett telepítve.</translation>
-<translation id="8351419472474436977">A bővítmény átvette az irányítást proxybeállításai felett, ami azt jelenti, hogy a bővítmény minden internetes tevékenységét módosíthatja, feltörheti vagy lehallgathatja. Ha nem biztos benne, hogy miért történt a változás, akkor valószínűleg nem is akarja azt.</translation>
+<translation id="8261378640211443080">A bővítmény nem a(z) <ph name="IDS_EXTENSION_WEB_STORE_TITLE" /> szolgáltatásból származik, és előfordulhat, hogy a tudtod nélkül lett telepítve.</translation>
+<translation id="8351419472474436977">A bővítmény átvette az irányítást proxybeállításaid felett, ami azt jelenti, hogy a bővítmény minden internetes tevékenységet módosíthat, feltörhet vagy lehallgathat. Ha nem vagy biztos benne, hogy miért történt a változás, akkor valószínűleg nem is akarod azt.</translation>
 <translation id="8382913212082956454">&amp;E-mail cím másolása</translation>
 <translation id="8449008133205184768">Beillesztés és stílus egyeztetése</translation>
 <translation id="8477178913400731244">Adatok törlése</translation>
@@ -459,7 +450,6 @@ A kulcsfájlt tartsd biztonságos helyen. Szükséged lesz rá ahhoz, hogy új v
 <translation id="862750493060684461">CSS gyorsítótár</translation>
 <translation id="8661290697478713397">Hivatkozás megnyitása inko&amp;gnitóablakban</translation>
 <translation id="8664389313780386848">&amp;Oldal forrásának megtekintése</translation>
-<translation id="8705331520020532516">Sorozatszám</translation>
 <translation id="8708000541097332489">Törlés kilépéskor</translation>
 <translation id="8714838604780058252">Háttérgrafika</translation>
 <translation id="8725066075913043281">Újrapróbálás</translation>

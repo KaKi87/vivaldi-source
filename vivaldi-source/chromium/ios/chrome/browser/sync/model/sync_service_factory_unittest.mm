@@ -31,6 +31,8 @@ class SyncServiceFactoryTest : public PlatformTest {
  public:
   SyncServiceFactoryTest() {
     TestProfileIOS::Builder profile_builder;
+    profile_builder.AddTestingFactory(SyncServiceFactory::GetInstance(),
+                                      SyncServiceFactory::GetDefaultFactory());
     // BOOKMARKS requires the FaviconService, which requires the HistoryService.
     profile_builder.AddTestingFactory(
         ios::FaviconServiceFactory::GetInstance(),
@@ -55,7 +57,7 @@ class SyncServiceFactoryTest : public PlatformTest {
  protected:
   // Returns the collection of default datatypes.
   syncer::DataTypeSet DefaultDatatypes() {
-    static_assert(63 == syncer::GetNumDataTypes(),
+    static_assert(66 == syncer::GetNumDataTypes(),
                   "When adding a new type, you probably want to add it here as "
                   "well (assuming it is already enabled).");
 
@@ -113,8 +115,12 @@ class SyncServiceFactoryTest : public PlatformTest {
     if (base::FeatureList::IsEnabled(syncer::kSyncGeminiThread)) {
       datatypes.Put(syncer::GEMINI_THREAD);
     }
-    if (base::FeatureList::IsEnabled(syncer::kSyncThemesIos) &&
-        IsNTPBackgroundCustomizationEnabled()) {
+    if (base::FeatureList::IsEnabled(
+            syncer::kSyncEncryptedTabContextContainer)) {
+      datatypes.Put(syncer::ENCRYPTED_TAB_CONTEXT_CONTAINER);
+      datatypes.Put(syncer::ENCRYPTED_TAB_CONTEXT_ITEM);
+    }
+    if (base::FeatureList::IsEnabled(syncer::kSyncThemesIos)) {
       datatypes.Put(syncer::THEMES_IOS);
     }
     if (base::FeatureList::IsEnabled(syncer::kSyncAccountSettings)) {
@@ -125,6 +131,9 @@ class SyncServiceFactoryTest : public PlatformTest {
     }
     if (base::FeatureList::IsEnabled(syncer::kSyncAutofillValuableMetadata)) {
       datatypes.Put(syncer::AUTOFILL_VALUABLE_METADATA);
+    }
+    if (base::FeatureList::IsEnabled(syncer::kSyncNotebook)) {
+      datatypes.Put(syncer::NOTEBOOK);
     }
     return datatypes;
   }

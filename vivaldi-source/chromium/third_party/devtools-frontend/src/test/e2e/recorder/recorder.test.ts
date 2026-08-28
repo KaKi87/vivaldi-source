@@ -5,13 +5,11 @@
 import {assert} from 'chai';
 import type {Page} from 'puppeteer-core';
 
-import type {StepChanged} from '../../../front_end/panels/recorder/components/StepView.js';
-import type {RecorderActions} from '../../../front_end/panels/recorder/recorder-actions/recorder-actions.js';
 import {
   changeNetworkConditions,
   fillCreateRecordingForm,
   getCurrentRecording,
-  getRecordingController,
+  getRecordingPanel,
   onRecorderAttachedToTarget,
   openRecorderPanel,
   processAndVerifyBaseRecording,
@@ -59,9 +57,9 @@ describe('Recorder', function() {
                 ['xpath///*[@id="test"]'],
                 ['pierce/#test'],
                 ['text/Test Button'],
-              ]
-            }
-          ]
+              ],
+            },
+          ],
         },
     );
   });
@@ -126,7 +124,7 @@ describe('Recorder', function() {
             ['pierce/#mouse-button'],
             ['text/Mouse click button'],
           ],
-          button: 'auxiliary'
+          button: 'auxiliary',
         },
         {
           type: 'click',
@@ -138,7 +136,7 @@ describe('Recorder', function() {
             ['pierce/#mouse-button'],
             ['text/Mouse click button'],
           ],
-          button: 'secondary'
+          button: 'secondary',
         },
         {
           type: 'click',
@@ -150,7 +148,7 @@ describe('Recorder', function() {
             ['pierce/#mouse-button'],
             ['text/Mouse click button'],
           ],
-          button: 'forward'
+          button: 'forward',
         },
         {
           type: 'click',
@@ -162,7 +160,7 @@ describe('Recorder', function() {
             ['pierce/#mouse-button'],
             ['text/Mouse click button'],
           ],
-          button: 'back'
+          button: 'back',
         },
         {
           type: 'doubleClick',
@@ -173,9 +171,9 @@ describe('Recorder', function() {
             ['xpath///*[@id="mouse-button"]'],
             ['pierce/#mouse-button'],
             ['text/Mouse click button'],
-          ]
-        }
-      ]
+          ],
+        },
+      ],
     });
   });
 
@@ -202,7 +200,7 @@ describe('Recorder', function() {
                 ['#reset'],
                 ['xpath///*[@id="reset"]'],
                 ['pierce/#reset'],
-              ]
+              ],
             },
             {
               type: 'click',
@@ -221,8 +219,8 @@ describe('Recorder', function() {
                 ['xpath///*[@id="button"]'],
                 ['pierce/#button'],
               ],
-            }
-          ]
+            },
+          ],
         },
     );
   });
@@ -254,8 +252,8 @@ describe('Recorder', function() {
               ['pierce/[data-devtools-test=\'selector-attribute\']'],
               ['aria/Custom selector attribute'],
               ['text/Custom selector'],
-            ]
-          }]
+            ],
+          }],
         },
 
     );
@@ -287,8 +285,8 @@ describe('Recorder', function() {
               type: 'keyUp',
               key: 'Enter',
               target: 'main',
-            }
-          ]
+            },
+          ],
         },
     );
   });
@@ -312,8 +310,8 @@ describe('Recorder', function() {
               ['xpath///*[@id="synthetic"]'],
               ['pierce/#synthetic'],
               ['text/Trigger Synthetic'],
-            ]
-          }]
+            ],
+          }],
         },
     );
   });
@@ -345,7 +343,7 @@ describe('Recorder', function() {
                 ['#name'],
                 ['xpath///*[@id="name"]'],
                 ['pierce/#name'],
-              ]
+              ],
             },
             {
               type: 'change',
@@ -356,7 +354,7 @@ describe('Recorder', function() {
                 ['xpath///*[@id="name"]'],
                 ['pierce/#name'],
               ],
-              target: 'main'
+              target: 'main',
             },
             {
               type: 'keyDown',
@@ -365,15 +363,15 @@ describe('Recorder', function() {
               assertedEvents: [{
                 type: 'navigation',
                 url: 'https://localhost:<test-port>/test/e2e/resources/recorder/form.html?name=test',
-                title: ''
-              }]
+                title: '',
+              }],
             },
             {
               type: 'keyUp',
               key: 'Enter',
               target: 'main',
-            }
-          ]
+            },
+          ],
         },
     );
   });
@@ -403,8 +401,8 @@ describe('Recorder', function() {
                  ['xpath///*[@id="form-button"]'],
                  ['pierce/#form-button'],
                  ['text/Form Button'],
-               ]
-             }]
+               ],
+             }],
            },
        );
      });
@@ -431,8 +429,8 @@ describe('Recorder', function() {
              ['#span'],
              ['xpath///*[@id="span"]'],
              ['pierce/#span'],
-           ]
-         }]
+           ],
+         }],
        });
      });
 
@@ -460,7 +458,7 @@ describe('Recorder', function() {
                  ['xpath///*[@id="span2"]'],
                  ['pierce/#span2'],
                ],
-             }]
+             }],
            },
        );
      });
@@ -483,7 +481,7 @@ describe('Recorder', function() {
                  ['#shadow-root > span', '#inner-span'],
                  ['pierce/#inner-span'],
                ],
-             }]
+             }],
            },
        );
      });
@@ -508,8 +506,8 @@ describe('Recorder', function() {
                  ['custom-button'],
                  ['xpath//html/body/custom-button'],
                  ['pierce/custom-button'],
-               ]
-             }]
+               ],
+             }],
            },
        );
      });
@@ -536,7 +534,7 @@ describe('Recorder', function() {
                 ['pierce/#in-iframe'],
                 ['text/iframe button'],
               ],
-              frame: [0]
+              frame: [0],
             },
             {
               type: 'click',
@@ -548,9 +546,9 @@ describe('Recorder', function() {
                 ['pierce/#inner-iframe'],
                 ['text/Inner iframe'],
               ],
-              frame: [0, 0]
-            }
-          ]
+              frame: [0, 0],
+            },
+          ],
         },
     );
   });
@@ -590,8 +588,8 @@ describe('Recorder', function() {
           assertedEvents: [{
             type: 'navigation',
             url: 'https://localhost:<test-port>/test/e2e/resources/recorder/recorder2.html',
-            title: ''
-          }]
+            title: '',
+          }],
         },
         {
           type: 'click',
@@ -606,10 +604,10 @@ describe('Recorder', function() {
           assertedEvents: [{
             type: 'navigation',
             url: 'https://localhost:<test-port>/test/e2e/resources/recorder/recorder.html',
-            title: ''
-          }]
-        }
-      ]
+            title: '',
+          }],
+        },
+      ],
     });
   });
 
@@ -653,7 +651,7 @@ describe('Recorder', function() {
               deviceScaleFactor: 1,
               isMobile: false,
               hasTouch: false,
-              isLandscape: false
+              isLandscape: false,
             },
             {
               type: 'navigate',
@@ -661,8 +659,8 @@ describe('Recorder', function() {
               assertedEvents: [{
                 type: 'navigation',
                 url: 'https://localhost:<test-port>/test/e2e/resources/recorder/recorder.html',
-                title: ''
-              }]
+                title: '',
+              }],
             },
             {
               type: 'click',
@@ -690,9 +688,9 @@ describe('Recorder', function() {
                 ['xpath///*[@id="test"]'],
                 ['pierce/#test'],
                 ['text/Test Button'],
-              ]
-            }
-          ]
+              ],
+            },
+          ],
         },
     );
   });
@@ -734,7 +732,7 @@ describe('Recorder', function() {
                 ['xpath///*[@id="one"]'],
                 ['pierce/#one'],
               ],
-              target: 'main'
+              target: 'main',
             },
             {
               type: 'keyDown',
@@ -754,9 +752,9 @@ describe('Recorder', function() {
                 ['xpath///*[@id="two"]'],
                 ['pierce/#two'],
               ],
-              target: 'main'
-            }
-          ]
+              target: 'main',
+            },
+          ],
         },
     );
   });
@@ -790,7 +788,7 @@ describe('Recorder', function() {
                 ['xpath///*[@id="color"]'],
                 ['pierce/#color'],
                 ['text/#000000'],
-              ]
+              ],
             },
             {
               type: 'change',
@@ -801,9 +799,9 @@ describe('Recorder', function() {
                 ['pierce/#color'],
                 ['text/#000000'],
               ],
-              target: 'main'
-            }
-          ]
+              target: 'main',
+            },
+          ],
         },
     );
   });
@@ -851,8 +849,8 @@ describe('Recorder', function() {
               type: 'keyUp',
               key: 'Shift',
               target: 'main',
-            }
-          ]
+            },
+          ],
         },
     );
   });
@@ -866,9 +864,16 @@ describe('Recorder', function() {
     await inspectedPage.page.keyboard.down('Enter');
 
     await devToolsPage.waitForFunction(async logger => {
-      const controller = await getRecordingController(devToolsPage);
-      const steps = await controller.evaluate(
-          c => c.getCurrentRecordingForTesting()?.flow.steps.length,
+      const panel = await getRecordingPanel(devToolsPage);
+      const steps = await panel.evaluate(
+          async c => {
+            const path = './ui/legacy/legacy.js';
+            const UI = await import(path);
+            const widget = UI.Widget.Widget.get(c);
+            return (widget as {getCurrentRecordingForTesting(): {flow: {steps: unknown[]}} | undefined})
+                .getCurrentRecordingForTesting()
+                ?.flow.steps.length;
+          },
       );
       logger.log(`Recorded ${steps} steps`);
       return steps === 4;
@@ -891,7 +896,7 @@ describe('Recorder', function() {
                 ['xpath//html/body/input'],
                 ['pierce/input'],
               ],
-              target: 'main'
+              target: 'main',
             },
             {
               type: 'keyDown',
@@ -900,15 +905,15 @@ describe('Recorder', function() {
               assertedEvents: [{
                 type: 'navigation',
                 url: 'https://localhost:<test-port>/test/e2e/resources/recorder/input.html',
-                title: ''
-              }]
+                title: '',
+              }],
             },
             {
               type: 'keyUp',
               key: 'Enter',
               target: 'main',
-            }
-          ]
+            },
+          ],
         },
     );
   });
@@ -941,9 +946,9 @@ describe('Recorder', function() {
             assertedEvents: [{
               type: 'navigation',
               url: 'https://localhost:<test-port>/test/e2e/resources/recorder/input.html',
-              title: ''
-            }]
-          }]
+              title: '',
+            }],
+          }],
         },
     );
   });
@@ -970,7 +975,7 @@ describe('Recorder', function() {
                 ['#select'],
                 ['xpath///*[@id="select"]'],
                 ['pierce/#select'],
-              ]
+              ],
             },
             {
               type: 'change',
@@ -981,9 +986,9 @@ describe('Recorder', function() {
                 ['xpath///*[@id="select"]'],
                 ['pierce/#select'],
               ],
-              target: 'main'
-            }
-          ]
+              target: 'main',
+            },
+          ],
         },
     );
   });
@@ -1008,8 +1013,8 @@ describe('Recorder', function() {
               ['#checkbox'],
               ['xpath///*[@id="checkbox"]'],
               ['pierce/#checkbox'],
-            ]
-          }]
+            ],
+          }],
         },
     );
   });
@@ -1033,8 +1038,8 @@ describe('Recorder', function() {
               ['#to-be-modified'],
               ['xpath///*[@id="to-be-modified"]'],
               ['pierce/#to-be-modified'],
-            ]
-          }]
+            ],
+          }],
         },
     );
   });
@@ -1067,9 +1072,9 @@ describe('Recorder', function() {
         assertedEvents: [{
           type: 'navigation',
           url: 'https://devtools.oopif.test:<test-port>/test/e2e/resources/recorder/iframe2.html',
-          title: ''
-        }]
-      }]
+          title: '',
+        }],
+      }],
     });
   });
 
@@ -1092,9 +1097,16 @@ describe('Recorder', function() {
     const recorderHandledPopup = onRecorderAttachedToTarget(devToolsPage);
     await openPopupButton?.click();
     await devToolsPage.waitForFunction(async () => {
-      const controller = await getRecordingController(devToolsPage);
-      return await controller.evaluate(c => {
-        const steps = c.getCurrentRecordingForTesting()?.flow.steps;
+      const panel = await getRecordingPanel(devToolsPage);
+      return await panel.evaluate(async c => {
+        const path = './ui/legacy/legacy.js';
+        const UI = await import(path);
+        const widget = UI.Widget.Widget.get(c);
+        const steps =
+            (widget as
+             {getCurrentRecordingForTesting(): {flow: {steps: Array<{assertedEvents?: unknown[]}>}} | undefined})
+                .getCurrentRecordingForTesting()
+                ?.flow.steps;
         return steps?.length === 3 && steps[1].assertedEvents?.length === 1;
       });
     });
@@ -1112,9 +1124,16 @@ describe('Recorder', function() {
     await buttonInPopup!.click();
     await devToolsPage.bringToFront();
     await devToolsPage.waitForFunction(async () => {
-      const controller = await getRecordingController(devToolsPage);
-      return await controller.evaluate(
-          c => c.getCurrentRecordingForTesting()?.flow.steps.length === 4,
+      const panel = await getRecordingPanel(devToolsPage);
+      return await panel.evaluate(
+          async c => {
+            const path = './ui/legacy/legacy.js';
+            const UI = await import(path);
+            const widget = UI.Widget.Widget.get(c);
+            return (widget as {getCurrentRecordingForTesting(): {flow: {steps: unknown[]}} | undefined})
+                       .getCurrentRecordingForTesting()
+                       ?.flow.steps.length === 4;
+          },
       );
     });
 
@@ -1132,7 +1151,7 @@ describe('Recorder', function() {
                 ['xpath///*[@id="popup"]'],
                 ['pierce/#popup'],
                 ['text/Open Popup'],
-              ]
+              ],
             },
             {
               type: 'click',
@@ -1143,9 +1162,9 @@ describe('Recorder', function() {
                 ['xpath//html/body/button'],
                 ['pierce/button'],
                 ['text/Button in Popup'],
-              ]
-            }
-          ]
+              ],
+            },
+          ],
         },
     );
   });
@@ -1160,54 +1179,53 @@ describe('Recorder', function() {
     await inspectedPage.page.keyboard.type('d');
 
     const recording = await stopRecording(devToolsPage);
-    assert.deepEqual(
-        processAndVerifyBaseRecording(recording, {
-          resource: 'recorder/input.html',
-        }),
-        {
-          steps: [
-            {
-              type: 'keyDown',
-              target: 'main',
-              key: 'Tab',
-            },
-            {
-              type: 'keyUp',
-              key: 'Tab',
-              target: 'main',
-            },
-            {
-              type: 'change',
-              value: '1',
-              selectors: [
-                ['#one'],
-                ['xpath///*[@id="one"]'],
-                ['pierce/#one'],
-              ],
-              target: 'main'
-            },
-            {
-              type: 'keyDown',
-              target: 'main',
-              key: 'Shift',
-            },
-            {
-              type: 'keyUp',
-              key: 'Shift',
-              target: 'main',
-            },
-            {
-              type: 'change',
-              value: '1d',
-              selectors: [
-                ['#one'],
-                ['xpath///*[@id="one"]'],
-                ['pierce/#one'],
-              ],
-              target: 'main'
-            }
-          ]
-        });
+    assert.deepEqual(processAndVerifyBaseRecording(recording, {
+                       resource: 'recorder/input.html',
+                     }),
+                     {
+                       steps: [
+                         {
+                           type: 'keyDown',
+                           target: 'main',
+                           key: 'Tab',
+                         },
+                         {
+                           type: 'keyUp',
+                           key: 'Tab',
+                           target: 'main',
+                         },
+                         {
+                           type: 'change',
+                           value: '1',
+                           selectors: [
+                             ['#one'],
+                             ['xpath///*[@id="one"]'],
+                             ['pierce/#one'],
+                           ],
+                           target: 'main',
+                         },
+                         {
+                           type: 'keyDown',
+                           target: 'main',
+                           key: 'Shift',
+                         },
+                         {
+                           type: 'keyUp',
+                           key: 'Shift',
+                           target: 'main',
+                         },
+                         {
+                           type: 'change',
+                           value: '1d',
+                           selectors: [
+                             ['#one'],
+                             ['xpath///*[@id="one"]'],
+                             ['pierce/#one'],
+                           ],
+                           target: 'main',
+                         },
+                       ],
+                     });
   });
 
   it('should work with contiguous inputs', async ({inspectedPage, devToolsPage}) => {
@@ -1238,7 +1256,7 @@ describe('Recorder', function() {
                 ['xpath///*[@id="contiguous-field-1"]'],
                 ['pierce/#contiguous-field-1'],
               ],
-              target: 'main'
+              target: 'main',
             },
             {
               type: 'change',
@@ -1248,9 +1266,9 @@ describe('Recorder', function() {
                 ['xpath///*[@id="contiguous-field-2"]'],
                 ['pierce/#contiguous-field-2'],
               ],
-              target: 'main'
-            }
-          ]
+              target: 'main',
+            },
+          ],
         },
     );
   });
@@ -1263,31 +1281,30 @@ describe('Recorder', function() {
     await inspectedPage.page.keyboard.type('works');
 
     const recording = await stopRecording(devToolsPage);
-    assert.deepEqual(
-        processAndVerifyBaseRecording(recording, {
-          resource: 'recorder/shadow-input.html',
-        }),
-        {
-          steps: [
-            {
-              type: 'click',
-              target: 'main',
-              selectors: [
-                ['custom-input', 'input'],
-                ['pierce/input'],
-              ],
-            },
-            {
-              type: 'change',
-              value: 'works',
-              selectors: [
-                ['custom-input', 'input'],
-                ['pierce/input'],
-              ],
-              target: 'main'
-            }
-          ]
-        });
+    assert.deepEqual(processAndVerifyBaseRecording(recording, {
+                       resource: 'recorder/shadow-input.html',
+                     }),
+                     {
+                       steps: [
+                         {
+                           type: 'click',
+                           target: 'main',
+                           selectors: [
+                             ['custom-input', 'input'],
+                             ['pierce/input'],
+                           ],
+                         },
+                         {
+                           type: 'change',
+                           value: 'works',
+                           selectors: [
+                             ['custom-input', 'input'],
+                             ['pierce/input'],
+                           ],
+                           target: 'main',
+                         },
+                       ],
+                     });
   });
 
   it('should edit while recording', async ({inspectedPage, devToolsPage}) => {
@@ -1326,7 +1343,7 @@ describe('Recorder', function() {
               deviceScaleFactor: 1,
               isMobile: false,
               hasTouch: false,
-              isLandscape: false
+              isLandscape: false,
             },
             {
               type: 'click',
@@ -1337,9 +1354,9 @@ describe('Recorder', function() {
                 ['xpath///*[@id="test"]'],
                 ['pierce/#test'],
                 ['text/Test Button'],
-              ]
-            }
-          ]
+              ],
+            },
+          ],
         },
     );
   });
@@ -1351,36 +1368,45 @@ describe('Recorder', function() {
     await inspectedPage.page.click('#test');
 
     await devToolsPage.bringToFront();
-    const steps = await devToolsPage.waitForFunction(async () => {
+    const step = await devToolsPage.waitForFunction(async () => {
       const steps = await devToolsPage.$$('.step-view-widget');
-      return steps.length === 5 ? steps : undefined;
+      for (const s of steps) {
+        const title = await devToolsPage.$('.main-title', s);
+        const text = await title?.evaluate(el => el.textContent);
+        if (text?.includes('Click')) {
+          return s;
+        }
+      }
+      return undefined;
     });
-    const step = steps.pop();
     assert.isOk(step);
     const title = await step.waitForSelector(':scope >>>> .main-title');
     await title!.click();
 
     const input = await step.waitForSelector(
-        ':scope >>>> devtools-recorder-step-editor >>>> div:nth-of-type(1) > devtools-suggestion-input');
+        ':scope >>>> .details devtools-widget >>>> div:nth-of-type(1) > devtools-suggestion-input');
     await input!.click();
-
-    const eventPromise = step.evaluate(element => {
-      return new Promise(resolve => {
-        element.addEventListener('stepchanged', event => {
-          resolve((event as StepChanged).newStep);
-        }, {once: true});
-      });
-    });
 
     await devToolsPage.page.keyboard.type('emulateNetworkConditions');
     await devToolsPage.page.keyboard.press('Enter');
 
-    assert.deepEqual(await eventPromise, {
-      download: 1000,
-      latency: 25,
-      type: 'emulateNetworkConditions',
-      upload: 1000,
-    });
+    const downloadRow =
+        await step.waitForSelector(':scope >>>> .details devtools-widget >>>> div[data-attribute="download"]');
+    const downloadInput = await downloadRow!.waitForSelector(':scope >>>> devtools-suggestion-input');
+    const downloadValue = await downloadInput!.evaluate(el => (el as HTMLElement & {value: string}).value);
+    assert.strictEqual(downloadValue, '1000');
+
+    const latencyRow =
+        await step.waitForSelector(':scope >>>> .details devtools-widget >>>> div[data-attribute="latency"]');
+    const latencyInput = await latencyRow!.waitForSelector(':scope >>>> devtools-suggestion-input');
+    const latencyValue = await latencyInput!.evaluate(el => (el as HTMLElement & {value: string}).value);
+    assert.strictEqual(latencyValue, '25');
+
+    const uploadRow =
+        await step.waitForSelector(':scope >>>> .details devtools-widget >>>> div[data-attribute="upload"]');
+    const uploadInput = await uploadRow!.waitForSelector(':scope >>>> devtools-suggestion-input');
+    const uploadValue = await uploadInput!.evaluate(el => (el as HTMLElement & {value: string}).value);
+    assert.strictEqual(uploadValue, '1000');
 
     const recording = await stopRecording(devToolsPage);
     assert.deepEqual(processAndVerifyBaseRecording(recording), {
@@ -1389,7 +1415,7 @@ describe('Recorder', function() {
         download: 1000,
         latency: 25,
         upload: 1000,
-      }]
+      }],
     });
   });
 
@@ -1424,21 +1450,28 @@ describe('Recorder', function() {
         selectors: [
           ['.cls'],
         ],
-      }]
+      }],
     });
   });
 
   describe('Shortcuts', () => {
     it('should not open create a new recording while recording', async ({inspectedPage, devToolsPage}) => {
       await startRecordingViaShortcut('recorder/recorder.html', devToolsPage, inspectedPage);
-      const controller = await getRecordingController(devToolsPage);
-      await controller.evaluate(element => {
-        return element.handleActions(
-            'chrome-recorder.create-recording' as RecorderActions.CREATE_RECORDING,
-        );
+      const panel = await getRecordingPanel(devToolsPage);
+      await panel.evaluate(async element => {
+        const path = './ui/legacy/legacy.js';
+        const UI = await import(path);
+        const widget = UI.Widget.Widget.get(element);
+        return (widget as {handleActions(action: string): unknown})
+            .handleActions(
+                'chrome-recorder.create-recording',
+            );
       });
-      const page = await controller.evaluate(element => {
-        return element.getCurrentPageForTesting();
+      const page = await panel.evaluate(async element => {
+        const path = './ui/legacy/legacy.js';
+        const UI = await import(path);
+        const widget = UI.Widget.Widget.get(element);
+        return (widget as {getCurrentPageForTesting(): unknown}).getCurrentPageForTesting();
       });
 
       assert.notStrictEqual(page, 'CreateRecordingPage');
@@ -1493,8 +1526,8 @@ describe('Recorder', function() {
             type: 'keyUp',
             key: 'e',
             target: 'main',
-          }
-        ]
+          },
+        ],
       });
     });
   });

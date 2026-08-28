@@ -106,7 +106,7 @@ base::WeakPtr<views::Widget> WaitForLastExtensionPopupVisible() {
 base::WeakPtr<views::Widget> OpenExtensionPopup(
     Browser* browser,
     const extensions::Extension* extension) {
-  extensions::ExtensionHostTestHelper popup_waiter(browser->profile(),
+  extensions::ExtensionHostTestHelper popup_waiter(browser->GetProfile(),
                                                    extension->id());
   popup_waiter.RestrictToType(extensions::mojom::ViewType::kExtensionPopup);
   ExtensionActionTestHelper::Create(browser)->Press(extension->id());
@@ -300,7 +300,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionPopupInteractiveUiTest,
   // However, on Linux activating the browser window does not cause the
   // extension popup to deactivate, thus we also explicitly call Deactivate().
   extension_popup_widget->Deactivate();
-  browser()->window()->Activate();
+  browser()->GetWindow()->Activate();
   views::test::WaitForWidgetActive(extension_popup_widget.get(), false);
   ASSERT_TRUE(extension_popup_widget);
   EXPECT_TRUE(extension_popup_widget->IsVisible());
@@ -316,7 +316,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionPopupInteractiveUiTest,
 
   // Activating the browser window should cause the extension popup to be
   // deactivated and closed.
-  browser()->window()->Activate();
+  browser()->GetWindow()->Activate();
   ExpectWidgetDestroy(extension_popup_widget);
 }
 
@@ -363,7 +363,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionPopupInteractiveUiTest,
   dialog->CloseModalDialog();
   // Activating the browser window should cause the extension popup to be
   // deactivated and closed.
-  browser()->window()->Activate();
+  browser()->GetWindow()->Activate();
 
   // The extension popup should close.
   ExpectWidgetDestroy(extension_popup_widget);
@@ -430,7 +430,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionPopupInteractiveUiTest,
       .CloseAllDialogs();
   // Activating the browser window should cause the extension popup to be
   // deactivated and closed.
-  browser()->window()->Activate();
+  browser()->GetWindow()->Activate();
 
   // The extension popup should close.
   ExpectWidgetDestroy(extension_popup_widget);
@@ -505,7 +505,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionPopupInteractiveUiTest,
       OpenExtensionPopup(browser(), extension);
 
   // Activate the browser window should close the extension popup.
-  browser()->window()->Activate();
+  browser()->GetWindow()->Activate();
   ExpectWidgetDestroy(extension_popup_widget);
 }
 
@@ -539,7 +539,7 @@ IN_PROC_BROWSER_TEST_F(
       OpenExtensionPopup(browser(), extension);
 
   // Activate the browser window should close the extension popup.
-  browser()->window()->Activate();
+  browser()->GetWindow()->Activate();
   ExpectWidgetDestroy(extension_popup_widget);
 }
 #endif
@@ -609,7 +609,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionPopupInteractiveUiTest,
   ASSERT_TRUE(extension);
 
   // Try to open an extension by API.
-  extensions::ExtensionHostTestHelper popup_waiter(browser()->profile(),
+  extensions::ExtensionHostTestHelper popup_waiter(browser()->GetProfile(),
                                                    extension->id());
   popup_waiter.RestrictToType(extensions::mojom::ViewType::kExtensionPopup);
   BrowserView& browser_view = browser()->GetBrowserView();
@@ -667,7 +667,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionPopupInteractiveUiTest,
   ASSERT_TRUE(extension);
 
   // Try to open an extension.
-  extensions::ExtensionHostTestHelper popup_waiter(browser()->profile(),
+  extensions::ExtensionHostTestHelper popup_waiter(browser()->GetProfile(),
                                                    extension->id());
   popup_waiter.RestrictToType(extensions::mojom::ViewType::kExtensionPopup);
   ExtensionActionTestHelper::Create(browser())->Press(extension->id());

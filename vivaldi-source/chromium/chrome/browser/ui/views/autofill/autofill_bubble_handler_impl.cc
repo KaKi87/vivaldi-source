@@ -7,8 +7,6 @@
 #include <concepts>
 #include <memory>
 
-#include "chrome/app/chrome_command_ids.h"
-#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/autofill/autofill_ai/autofill_ai_import_data_controller.h"
 #include "chrome/browser/ui/autofill/autofill_bubble_base.h"
@@ -16,34 +14,30 @@
 #include "chrome/browser/ui/autofill/payments/save_iban_ui.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/ui_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/views/autofill/address_sign_in_promo_view.h"
 #include "chrome/browser/ui/views/autofill/autofill_ai/autofill_ai_import_data_bubble_view.h"
 #include "chrome/browser/ui/views/autofill/autofill_ai/autofill_ai_local_save_notification_view.h"
 #include "chrome/browser/ui/views/autofill/payments/filled_card_information_bubble_views.h"
-#include "chrome/browser/ui/views/autofill/payments/filled_card_information_icon_view.h"
 #include "chrome/browser/ui/views/autofill/payments/manage_saved_iban_bubble_view.h"
 #include "chrome/browser/ui/views/autofill/payments/mandatory_reauth_confirmation_bubble_view.h"
 #include "chrome/browser/ui/views/autofill/payments/mandatory_reauth_opt_in_bubble_view.h"
 #include "chrome/browser/ui/views/autofill/payments/offer_notification_bubble_views.h"
+#include "chrome/browser/ui/views/autofill/payments/omnibox_autofill_bubble_view.h"
+#include "chrome/browser/ui/views/autofill/payments/payments_churned_users_bubble_view.h"
 #include "chrome/browser/ui/views/autofill/payments/save_card_bubble_views.h"
 #include "chrome/browser/ui/views/autofill/payments/save_card_manage_cards_bubble_views.h"
 #include "chrome/browser/ui/views/autofill/payments/save_card_offer_bubble_views.h"
 #include "chrome/browser/ui/views/autofill/payments/save_iban_bubble_view.h"
 #include "chrome/browser/ui/views/autofill/payments/save_payment_method_and_virtual_card_enroll_confirmation_bubble_views.h"
 #include "chrome/browser/ui/views/autofill/payments/virtual_card_enroll_bubble_views.h"
-#include "chrome/browser/ui/views/autofill/payments/virtual_card_enroll_icon_view.h"
 #include "chrome/browser/ui/views/autofill/save_address_profile_view.h"
 #include "chrome/browser/ui/views/autofill/update_address_profile_view.h"
 #include "chrome/browser/ui/views/bubble_anchor_util_views.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
-#include "chrome/browser/ui/views/profiles/avatar_toolbar_button.h"
-#include "components/autofill/content/browser/content_autofill_driver.h"
-#include "components/autofill/content/browser/content_autofill_driver_factory.h"
 #include "components/autofill/core/browser/foundations/autofill_client.h"
 #include "components/autofill/core/browser/payments/virtual_card_enrollment_manager.h"
 #include "components/autofill/core/browser/ui/payments/virtual_card_enroll_bubble_controller.h"
-#include "components/autofill/core/common/autofill_payments_features.h"
 #include "components/constrained_window/constrained_window_views.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
@@ -97,8 +91,10 @@ View* ShowAddressProfileBubble(ToolbarButtonProvider* toolbar_button_provider,
 }  // namespace
 
 AutofillBubbleHandlerImpl::AutofillBubbleHandlerImpl(
+    BrowserWindowInterface* browser,
     ToolbarButtonProvider* toolbar_button_provider)
-    : toolbar_button_provider_(toolbar_button_provider) {}
+    : toolbar_button_provider_(toolbar_button_provider),
+      scoped_user_data_(browser->GetUnownedUserDataHost(), *this) {}
 
 AutofillBubbleHandlerImpl::~AutofillBubbleHandlerImpl() = default;
 
@@ -336,6 +332,24 @@ AutofillBubbleBase* AutofillBubbleHandlerImpl::ShowSaveIbanConfirmationBubble(
       anchor, web_contents, std::move(callback),
       kAutofillSavePaymentsPageActionElementId,
       controller->GetConfirmationUiParams());
+}
+
+AutofillBubbleBase* AutofillBubbleHandlerImpl::ShowOmniboxAutofillBubble(
+    content::WebContents* web_contents,
+    OmniboxAutofillBubbleController* controller) {
+  return ShowBubble<OmniboxAutofillBubbleView>(
+      toolbar_button_provider_, kActionAutofillPayment,
+      kAutofillPaymentIconElementId, /*is_user_gesture=*/true, web_contents,
+      controller);
+}
+
+AutofillBubbleBase* AutofillBubbleHandlerImpl::ShowPaymentsChurnedUsersBubble(
+    content::WebContents* web_contents,
+    PaymentsChurnedUsersBubbleController* controller,
+    bool is_user_gesture) {
+  return ShowBubble<PaymentsChurnedUsersBubbleView>(
+      toolbar_button_provider_, kActionShowPaymentsChurnedUsersBubble,
+      kPaymentsChurnedUsersBubbleId, is_user_gesture, web_contents, controller);
 }
 
 AutofillBubbleBase*

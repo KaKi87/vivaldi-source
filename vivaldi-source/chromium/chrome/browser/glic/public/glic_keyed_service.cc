@@ -29,10 +29,6 @@
 #include "chrome/browser/glic/common/application_hotkey_delegate.h"
 #include "chrome/browser/glic/common/future_browser_features.h"
 #include "chrome/browser/glic/common/glic_navigation.h"
-#if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/glic/experimental_opt_in/glic_experimental_opt_in_controller.h"
-#endif
-#include "chrome/browser/glic/fre/glic_fre_controller.h"
 #include "chrome/browser/glic/glic_enums.h"
 #include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/glic/glic_profile_manager.h"
@@ -87,14 +83,17 @@
 #include "ui/base/page_transition_types.h"
 #include "ui/views/widget/widget.h"
 #include "url/gurl.h"
-#if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/glic/glic_metrics.h"
-#include "chrome/browser/glic/media/glic_media_integration.h"
-#include "chrome/browser/glic/widget/glic_widget.h"
-#endif
 
 #if BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/glic/android/glic_keyed_service_android.h"
+#include "chrome/browser/glic/browser_ui/glic_nudge_controller.h"
+#include "chrome/browser/glic/browser_ui/glic_split_button_controller.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#else
+#include "chrome/browser/glic/experimental_opt_in/glic_experimental_opt_in_controller.h"
+#include "chrome/browser/glic/glic_metrics.h"
+#include "chrome/browser/glic/media/glic_media_integration.h"
+#include "chrome/browser/glic/widget/glic_widget.h"
 #endif
 
 namespace glic {
@@ -148,11 +147,10 @@ GlicKeyedService::GlicKeyedService(
               ? std::make_unique<GlicActorPolicyChecker>(*profile_)
               : nullptr),
       enabling_(std::make_unique<GlicEnabling>(
+          base::PassKey<GlicKeyedService>(),
           profile,
           &profile_manager->GetProfileAttributesStorage())),
       metrics_(std::make_unique<GlicMetrics>(profile, enabling_.get())),
-      fre_controller_(
-          std::make_unique<GlicFreController>(profile, identity_manager)),
 #if !BUILDFLAG(IS_ANDROID)
       opt_in_controller_(
           std::make_unique<GlicExperimentalOptInController>(profile)),
@@ -231,6 +229,7 @@ GlicKeyedService* GlicKeyedService::Get(content::BrowserContext* context) {
 }
 
 void GlicKeyedService::Shutdown() {
+  experimental_triggering_state_subscription_ = {};
   instance_coordinator().Shutdown();
 }
 
@@ -246,6 +245,7 @@ void GlicKeyedService::ToggleUI(BrowserWindowInterface* bwi,
     return;
   }
 
+  enabling().MaybeRecordRecoveryOnInteraction();
   instance_coordinator().Toggle(
       bwi ? bwi : GetActiveGlicEligibleBrowser(profile_), prevent_close,
       source);
@@ -266,8 +266,10 @@ bool GlicKeyedService::MaybeInvoke(BrowserWindowInterface* bwi,
   if (fre_override_compatible && panel_closed &&
       base::FeatureList::IsEnabled(features::kGlicMessageFirstFre)) {
     GlicInvokeOptions options(source);
+    if (auto* active_tab = TabListInterface::From(target_bwi)->GetActiveTab()) {
+      options.target = Target(*active_tab);
+    }
     options.fre_override = mojom::FreOverride::kTrustFirstInline;
-    options.target.surface = TabListInterface::From(target_bwi)->GetActiveTab();
     Invoke(std::move(options));
     return true;
   }
@@ -286,8 +288,7 @@ base::WeakPtr<GlicInstance> GlicKeyedService::InvokeWithAutoSubmit(
     InvokeWithAutoSubmitPasskey auto_submit_passkey,
     GlicInvokeOptions options,
     GlicInvokeWithAutoSubmitOptions auto_submit_options) {
-  CHECK(GlicEnabling::IsEnabledForProfile(profile_));
-
+  enabling().MaybeRecordRecoveryOnInteraction();
   return static_cast<GlicInstanceCoordinatorImpl&>(instance_coordinator())
       .InvokeWithAutoSubmit(auto_submit_passkey, std::move(options),
                             std::move(auto_submit_options));
@@ -295,8 +296,7 @@ base::WeakPtr<GlicInstance> GlicKeyedService::InvokeWithAutoSubmit(
 
 base::WeakPtr<GlicInstance> GlicKeyedService::Invoke(
     GlicInvokeOptions options) {
-  CHECK(GlicEnabling::IsEnabledForProfile(profile_));
-
+  enabling().MaybeRecordRecoveryOnInteraction();
   return static_cast<GlicInstanceCoordinatorImpl&>(instance_coordinator())
       .Invoke(std::move(options));
 }
@@ -315,11 +315,6 @@ GlicInstanceCoordinator& GlicKeyedService::instance_coordinator() const {
   return *instance_coordinator_.get();
 }
 
-GlicFreController& GlicKeyedService::fre_controller() {
-  CHECK(fre_controller_);
-  return *fre_controller_.get();
-}
-
 #if !BUILDFLAG(IS_ANDROID)
 GlicExperimentalOptInController& GlicKeyedService::opt_in_controller() {
   CHECK(opt_in_controller_);
@@ -327,7 +322,8 @@ GlicExperimentalOptInController& GlicKeyedService::opt_in_controller() {
 }
 #endif
 
-GlicSharingManager& GlicKeyedService::active_instance_sharing_manager() {
+GlicSharingManagerInternal&
+GlicKeyedService::active_instance_sharing_manager() {
   return instance_coordinator().active_instance_sharing_manager();
 }
 
@@ -498,17 +494,17 @@ base::WeakPtr<GlicKeyedService> GlicKeyedService::GetWeakPtr() {
 }
 
 void GlicKeyedService::FinishPreload(GlicPrewarmingChecksResult result) {
+  if (result == GlicPrewarmingChecksResult::kSuccess) {
+    if (!instance_coordinator().MaybeStartInitialWarming()) {
+      result = GlicPrewarmingChecksResult::kUnderMemoryPressure;
+    }
+  }
+
   base::UmaHistogramEnumeration("Glic.Prewarming.ChecksResult", result);
   if (preload_callback_) {
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(std::move(preload_callback_)));
   }
-
-  if (result != GlicPrewarmingChecksResult::kSuccess) {
-    return;
-  }
-
-  instance_coordinator().EnsurePreload();
 }
 
 GlicInstance* GlicKeyedService::GetInstanceForTab(tabs::TabInterface* tab) {
@@ -554,5 +550,37 @@ void GlicKeyedService::OnExperimentalTriggeringStateChanged() {
     device_info_sync_service->RefreshLocalDeviceInfo();
   }
 }
+
+#if BUILDFLAG(IS_ANDROID)
+// TODO(crbug.com/484037810): Once a window features object (similar to tab
+// features) is supported on Android, move ownership of the nudge controller to
+// it (accessed via unowned user data and ::From methods), matching Desktop,
+// rather than storing it in GlicKeyedService.
+GlicNudgeController* GlicKeyedService::GetOrCreateNudgeController(
+    BrowserWindowInterface* browser) {
+  if (!browser) {
+    return nullptr;
+  }
+  auto it = button_controllers_.find(browser);
+  if (it != button_controllers_.end()) {
+    return it->second->nudge_controller();
+  }
+
+  auto controller = std::make_unique<GlicSplitButtonController>(browser, this);
+  GlicNudgeController* nudge_controller = controller->nudge_controller();
+  button_controllers_[browser] = std::move(controller);
+
+  window_close_subscriptions_[browser] =
+      browser->RegisterBrowserDidClose(base::BindRepeating(
+          &GlicKeyedService::OnBrowserWindowClosed, base::Unretained(this)));
+
+  return nudge_controller;
+}
+
+void GlicKeyedService::OnBrowserWindowClosed(BrowserWindowInterface* browser) {
+  button_controllers_.erase(browser);
+  window_close_subscriptions_.erase(browser);
+}
+#endif
 
 }  // namespace glic

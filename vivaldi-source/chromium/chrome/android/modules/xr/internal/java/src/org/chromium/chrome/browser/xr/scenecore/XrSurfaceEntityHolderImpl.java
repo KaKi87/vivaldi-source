@@ -4,6 +4,7 @@
 
 package org.chromium.chrome.browser.xr.scenecore;
 
+import android.annotation.SuppressLint;
 import android.util.SizeF;
 import android.view.Surface;
 
@@ -18,6 +19,8 @@ import androidx.xr.scenecore.SurfaceEntity.StereoMode;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.ui.xr.scenecore.XrCurvedSurfaceEntityHolder;
+import org.chromium.ui.xr.scenecore.XrFloatSize3d;
+import org.chromium.ui.xr.scenecore.XrMeshData;
 import org.chromium.ui.xr.scenecore.XrSurfaceEntityHolder;
 import org.chromium.ui.xr.scenecore.XrSurfaceEntityHolder.Callback;
 import org.chromium.ui.xr.scenecore.XrSurfaceEntityShape;
@@ -28,10 +31,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /** Implementation of {@link XrSurfaceEntityHolder} and {@link XrCurvedSurfaceEntityHolder}. */
 @NullMarked
+@SuppressLint("RestrictedApiAndroidX")
 public class XrSurfaceEntityHolderImpl extends XrTransformableEntityHolderImpl<SurfaceEntity>
         implements XrSurfaceEntityHolder<SurfaceEntity>,
                 XrCurvedSurfaceEntityHolder<SurfaceEntity> {
-    protected static final String TAG = "XrSurfaceEntityHolderImpl";
     protected static final Map<Integer, StereoMode> STEREO_MODE_MAP =
             Map.of(
                     XrSurfaceEntityStereoMode.MONO, StereoMode.MONO,
@@ -124,6 +127,7 @@ public class XrSurfaceEntityHolderImpl extends XrTransformableEntityHolderImpl<S
     @Override
     public void setSurfaceStereoMode(@XrSurfaceEntityStereoMode int stereoMode) {
         assertDisposed();
+        if (getSurfaceStereoMode() == stereoMode) return;
         StereoMode surfaceStereoMode = STEREO_MODE_MAP.get(stereoMode);
         if (surfaceStereoMode != null) {
             mEntity.setStereoMode(surfaceStereoMode);
@@ -141,14 +145,38 @@ public class XrSurfaceEntityHolderImpl extends XrTransformableEntityHolderImpl<S
             return XrSurfaceEntityShape.SPHERE;
         } else if (mEntity.getShape() instanceof Shape.Hemisphere) {
             return XrSurfaceEntityShape.HEMISPHERE;
+        } else if (mEntity.getShape() instanceof Shape.CustomMesh) {
+            return XrSurfaceEntityShape.CUSTOM;
         } else {
             throw new IllegalStateException("Unknown surface shape: " + mEntity.getShape());
+        }
+    }
+
+    private void notifySurfaceCreated(Surface surface) {
+        for (Callback callback : mCallbacks) {
+            callback.surfaceCreated(surface);
+        }
+    }
+
+    private void updateSurfaceCallbacks(@Nullable Surface oldSurface, @Nullable Surface newSurface) {
+        if (oldSurface != newSurface) {
+            if (oldSurface != null) {
+                notifySurfaceDestroyed();
+            }
+            if (newSurface != null && newSurface.isValid()) {
+                notifySurfaceCreated(newSurface);
+                notifySurfaceChanged();
+            }
+        } else {
+            notifySurfaceChanged();
         }
     }
 
     @Override
     public void setSurfaceShape(@XrSurfaceEntityShape int shape) {
         assertDisposed();
+        if (getSurfaceShape() == shape) return;
+        Surface oldSurface = getSurface();
         switch (shape) {
             case XrSurfaceEntityShape.QUAD:
                 mEntity.setShape(new Shape.Quad(new FloatSize2d(1f, 1f)));
@@ -161,6 +189,19 @@ public class XrSurfaceEntityHolderImpl extends XrTransformableEntityHolderImpl<S
                 break;
             default:
                 throw new IllegalArgumentException("Invalid surface shape: " + shape);
+        }
+        Surface newSurface = getSurface();
+        updateSurfaceCallbacks(oldSurface, newSurface);
+    }
+
+    @Override
+    public void setSurfaceShape(XrMeshData[] meshDatas) {
+        Shape.CustomMesh customMesh = XrSurfaceEntityUtils.createCustomMesh(meshDatas);
+        if (customMesh != null) {
+            Surface oldSurface = getSurface();
+            mEntity.setShape(customMesh);
+            Surface newSurface = getSurface();
+            updateSurfaceCallbacks(oldSurface, newSurface);
         }
     }
 
@@ -182,10 +223,18 @@ public class XrSurfaceEntityHolderImpl extends XrTransformableEntityHolderImpl<S
 
         if (mResizableComponent.shouldMaintainAspectRatio()) {
             float aspectRatio = width / height;
-            float[] minSize = mResizableComponent.getMinSize();
-            float[] maxSize = mResizableComponent.getMaxSize();
-            mResizableComponent.setMinSize(minSize[0], minSize[0] / aspectRatio, minSize[2]);
-            mResizableComponent.setMaxSize(maxSize[0], maxSize[0] / aspectRatio, maxSize[2]);
+            XrFloatSize3d minSize = mResizableComponent.getMinSize();
+            XrFloatSize3d maxSize = mResizableComponent.getMaxSize();
+            mResizableComponent.setMinSize(
+                    XrFloatSize3d.create(
+                            minSize.getWidth(),
+                            minSize.getWidth() / aspectRatio,
+                            minSize.getDepth()));
+            mResizableComponent.setMaxSize(
+                    XrFloatSize3d.create(
+                            maxSize.getWidth(),
+                            maxSize.getWidth() / aspectRatio,
+                            maxSize.getDepth()));
         }
     }
 

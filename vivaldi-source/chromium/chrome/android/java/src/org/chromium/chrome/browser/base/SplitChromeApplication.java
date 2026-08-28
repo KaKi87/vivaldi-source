@@ -194,7 +194,7 @@ public class SplitChromeApplication extends SplitCompatApplication {
                                                 // the chrome ClassLoader, and perform loading of
                                                 // classes used early in startup in the
                                                 // background.
-                                                var unused =
+                                                var _ =
                                                         chromeContext
                                                                 .getClassLoader()
                                                                 .loadClass(sChromePreloadName)
@@ -249,7 +249,11 @@ public class SplitChromeApplication extends SplitCompatApplication {
                     // apply the fieldtrial_testing_config.json. Otherwise, we should initialize the
                     // feature list early in non-first run when we are not fetching the first run
                     // variations seed.
+                    long startTimeMs = SystemClock.uptimeMillis();
                     InitializeFeatureList.initializeFeatureList();
+                    long endTimeMs = SystemClock.uptimeMillis();
+                    RecordHistogram.recordTimesHistogram(
+                            "Startup.Android.InitializeFeatureListTime", endTimeMs - startTimeMs);
                 }
             }
         }

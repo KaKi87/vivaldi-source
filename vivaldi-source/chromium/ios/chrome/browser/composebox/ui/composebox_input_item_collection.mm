@@ -41,6 +41,10 @@
   return self.imagesCount > 0;
 }
 
+- (BOOL)hasFile {
+  return self.filesCount > 0;
+}
+
 - (BOOL)hasTabOrFile {
   return self.tabsCount > 0 || self.filesCount > 0;
 }
@@ -72,7 +76,8 @@
   NSUInteger result = 0;
   for (ComposeboxInputItem* item in _containedItems) {
     if (item.type == ComposeboxInputItemType::kComposeboxInputItemTypeRawFile ||
-        item.type == ComposeboxInputItemType::kComposeboxInputItemTypePDF) {
+        item.type == ComposeboxInputItemType::kComposeboxInputItemTypePDF ||
+        item.type == ComposeboxInputItemType::kComposeboxInputItemTypeDrive) {
       result++;
     }
   }

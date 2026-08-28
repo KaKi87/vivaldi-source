@@ -50,6 +50,8 @@
 #import "ios/chrome/browser/download/model/safari_download_tab_helper.h"
 #import "ios/chrome/browser/download/model/vcard_tab_helper.h"
 #import "ios/chrome/browser/drive/model/drive_tab_helper.h"
+#import "ios/chrome/browser/enterprise/connectors/device_trust/device_trust_challenge_tab_helper.h"
+#import "ios/chrome/browser/enterprise/connectors/device_trust/features.h"
 #import "ios/chrome/browser/enterprise/data_controls/model/data_controls_tab_helper.h"
 #import "ios/chrome/browser/enterprise/data_protection/model/data_protection_tab_helper.h"
 #import "ios/chrome/browser/enterprise/data_protection/public/features.h"
@@ -67,12 +69,14 @@
 #import "ios/chrome/browser/infobars/model/overlays/infobar_overlay_request_inserter.h"
 #import "ios/chrome/browser/infobars/model/overlays/infobar_overlay_tab_helper.h"
 #import "ios/chrome/browser/infobars/model/overlays/translate_overlay_tab_helper.h"
+#import "ios/chrome/browser/intelligence/actor/model/actor_tab_helper.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_tab_helper.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
+#import "ios/chrome/browser/intelligence/on_device_category_classifier/on_device_category_classifier_tab_helper.h"
 #import "ios/chrome/browser/itunes_urls/model/itunes_urls_handler_tab_helper.h"
 #import "ios/chrome/browser/lens/model/lens_tab_helper.h"
-#import "ios/chrome/browser/lens_overlay/coordinator/lens_overlay_availability.h"
 #import "ios/chrome/browser/lens_overlay/model/lens_overlay_tab_helper.h"
+#import "ios/chrome/browser/lens_overlay/public/lens_overlay_availability.h"
 #import "ios/chrome/browser/link_to_text/model/link_to_text_tab_helper.h"
 #import "ios/chrome/browser/metrics/model/pageload_foreground_duration_tab_helper.h"
 #import "ios/chrome/browser/mini_map/model/mini_map_tab_helper.h"
@@ -85,6 +89,7 @@
 #import "ios/chrome/browser/overscroll_actions/model/overscroll_actions_tab_helper.h"
 #import "ios/chrome/browser/page_info/features/features.h"
 #import "ios/chrome/browser/page_info/model/about_this_site_tab_helper.h"
+#import "ios/chrome/browser/passwords/model/actor_login/ios_chrome_actor_login_delegate_client.h"
 #import "ios/chrome/browser/passwords/model/ios_chrome_account_password_store_factory.h"
 #import "ios/chrome/browser/passwords/model/password_controller.h"
 #import "ios/chrome/browser/passwords/model/password_tab_helper.h"
@@ -93,7 +98,6 @@
 #import "ios/chrome/browser/policy_url_blocking/model/policy_url_blocking_tab_helper.h"
 #import "ios/chrome/browser/reader_mode/model/features.h"
 #import "ios/chrome/browser/reader_mode/model/reader_mode_tab_helper.h"
-#import "ios/chrome/browser/reading_list/model/offline_page_tab_helper.h"
 #import "ios/chrome/browser/reading_list/model/reading_list_model_factory.h"
 #import "ios/chrome/browser/reading_list/model/reading_list_web_state_observer.h"
 #import "ios/chrome/browser/safe_browsing/model/safe_browsing_client_factory.h"
@@ -337,7 +341,7 @@ void AttachTabHelpers(web::WebState* web_state, TabHelperFilter filter_flags) {
 
   attacher.Create<WebSelectionTabHelper>();
   attacher.Create<WebPerformanceMetricsTabHelper>();
-  attacher.Create<OfflinePageTabHelper>(
+  attacher.Create<ReadingListWebStateObserver>(
       ReadingListModelFactory::GetForProfile(profile));
   attacher.Create<PermissionsTabHelper>();
   attacher.Create<RepostFormTabHelper>();
@@ -397,6 +401,12 @@ void AttachTabHelpers(web::WebState* web_state, TabHelperFilter filter_flags) {
                                        !attacher.IsForPrerender() &&
                                        IsPageActionMenuEnabled());
 
+  const bool is_actor_tab_helper_enabled =
+      IsActorEnabled() && !attacher.IsForPrerender();
+  attacher.CreateWhen<ActorTabHelper>(is_actor_tab_helper_enabled);
+  attacher.CreateWhen<IOSChromeActorLoginDelegateClient>(
+      is_actor_tab_helper_enabled);
+
   attacher.Create<WebViewProxyTabHelper>();
 
   attacher.CreateWhen<ChooseFileTabHelper>(
@@ -407,13 +417,19 @@ void AttachTabHelpers(web::WebState* web_state, TabHelperFilter filter_flags) {
       attacher.IsNotInTabHelperFilter() &&
       base::FeatureList::IsEnabled(kIOSCustomFileUploadMenu));
 
-  if (!attacher.IsOffTheRecord() && !attacher.IsForPrerender() &&
-      IsModelBasedPageClassificationEnabled()) {
-    ios::provider::AttachClassificationMetricsTabHelper(web_state);
+  if (!attacher.IsOffTheRecord() && !attacher.IsForPrerender()) {
+    if (IsModelBasedPageClassificationEnabled()) {
+      ios::provider::AttachClassificationMetricsTabHelper(web_state);
+    }
+    // TODO(crbug.com/526992227): Add feature param to
+    // IsGeminiContextualSuggestionsCuesEnabled for on-device classifier.
+    attacher.CreateWhen<OnDeviceCategoryClassifierTabHelper>(
+        /*enabled=*/false);
   }
 
   attacher.Create<data_controls::DataControlsTabHelper>();
-  if (IsEnableScreenshotProtectionIOSEnabled()) {
+  if (IsEnableScreenshotProtectionIOSEnabled() ||
+      IsEnableEnterpriseWatermarkingIOS()) {
     attacher.Create<DataProtectionTabHelper>();
   }
   attacher.Create<CaptivePortalTabHelper>();
@@ -421,6 +437,10 @@ void AttachTabHelpers(web::WebState* web_state, TabHelperFilter filter_flags) {
   attacher.Create<BlockedPopupTabHelper>();
   attacher.Create<NetExportTabHelper>();
   attacher.Create<TranslatePDFMetricLogger>();
+
+  attacher.CreateWhen<DeviceTrustChallengeTabHelper>(
+      base::FeatureList::IsEnabled(
+          enterprise_connectors::features::kEnableIOSDeviceTrustConnector));
 
   if (web::features::IsCobaltEnabled()) {
     ios::provider::AttachCobaltTabHelpers(attacher);

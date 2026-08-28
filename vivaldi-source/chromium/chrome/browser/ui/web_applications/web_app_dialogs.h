@@ -91,6 +91,20 @@ void ShowWebAppReviewUpdateDialog(const webapps::AppId& app_id,
                                   base::TimeTicks start_time,
                                   UpdateReviewDialogCallback callback);
 
+struct SubAppUninstallMetadata {
+  explicit SubAppUninstallMetadata(std::u16string app_name,
+                                   IconMetadataFromDisk icon_metadata)
+      : app_name(std::move(app_name)),
+        icon_metadata(std::move(icon_metadata)) {}
+  SubAppUninstallMetadata(SubAppUninstallMetadata&&) = default;
+  SubAppUninstallMetadata& operator=(SubAppUninstallMetadata&&) = default;
+  SubAppUninstallMetadata(const SubAppUninstallMetadata&) = delete;
+  SubAppUninstallMetadata& operator=(const SubAppUninstallMetadata&) = delete;
+
+  std::u16string app_name;
+  IconMetadataFromDisk icon_metadata;
+};
+
 // Shows the web app uninstallation dialog on a page whenever user has decided
 // to uninstall an installed dPWA from a variety of OS surfaces and chrome.
 void ShowWebAppUninstallDialog(
@@ -99,6 +113,7 @@ void ShowWebAppUninstallDialog(
     webapps::WebappUninstallSource uninstall_source,
     gfx::NativeWindow parent,
     IconMetadataFromDisk icon_metadata,
+    std::vector<SubAppUninstallMetadata> sub_app_info,
     UninstallDialogCallback uninstall_dialog_result_callback);
 
 // Callback used to indicate whether a user has accepted the launch of a
@@ -124,6 +139,42 @@ void ShowWebAppFileLaunchDialog(const std::vector<base::FilePath>& file_paths,
 // Sets an override title for the Create Shortcut confirmation view.
 void SetOverrideTitleForTesting(const char* title_to_use);
 
+enum class InstallDialogTestResponse {
+  kNone,
+  kDeny,
+  kAcceptAndLaunch,
+  kAcceptNoLaunch,
+};
+
+base::AutoReset<InstallDialogTestResponse>
+SetPwaInstallationAutoRespondForTesting(InstallDialogTestResponse response);
+
+InstallDialogTestResponse GetPwaInstallationDialogAutoResponseForTesting();
+
+enum class InstallDialogDeactivateAction {
+  kClose,
+  kKeepOpen,
+};
+
+base::AutoReset<InstallDialogDeactivateAction>
+SetPwaInstallationDialogDeactivateActionForTesting(
+    InstallDialogDeactivateAction action);
+
+InstallDialogDeactivateAction
+GetPwaInstallationDialogDeactivateActionForTesting();
+
+enum class CreateShortcutDialogCheckState {
+  kDefault,
+  kChecked,
+  kUnchecked,
+};
+
+base::AutoReset<CreateShortcutDialogCheckState>
+SetCreateShortcutDialogCheckStateForTesting(
+    CreateShortcutDialogCheckState state);
+
+CreateShortcutDialogCheckState GetCreateShortcutDialogCheckStateForTesting();
+
 // Describes the state of in-product-help being shown to the user.
 enum class PwaInProductHelpState {
   // The in-product-help bubble was shown.
@@ -134,7 +185,7 @@ enum class PwaInProductHelpState {
 
 DECLARE_ELEMENT_IDENTIFIER_VALUE(kSimpleInstallDialogAppTitle);
 DECLARE_ELEMENT_IDENTIFIER_VALUE(kSimpleInstallDialogIconView);
-DECLARE_ELEMENT_IDENTIFIER_VALUE(kSimpleInstallDialogOriginLabel);
+DECLARE_ELEMENT_IDENTIFIER_VALUE(kSimpleInstallDialogAppInfoLabel);
 
 // Shows the PWA installation confirmation bubble anchored off the PWA install
 // icon in the omnibox.
@@ -184,10 +235,6 @@ void ShowSubAppsInstallDialog(
     const webapps::AppId& parent_app_id,
     base::OnceCallback<void(bool)> callback);
 
-// Sets whether |ShowDiyInstallDialogForWebApps| should accept immediately
-// without any user interaction.
-void SetAutoAcceptDiyAppsInstallDialogForTesting(bool auto_accept);
-
 // Shows the Isolated Web App manual install wizard.
 IsolatedWebAppInstallerCoordinator* LaunchIsolatedWebAppInstaller(
     Profile* profile,
@@ -221,9 +268,6 @@ void ShowWebInstallAppLaunchDialog(
     std::string app_name,
     const SkBitmap& icon,
     WebInstallAppLaunchAcceptanceCallback callback);
-
-// Sets whether |ShowWebInstallAppLaunchDialog| should accept immediately.
-base::AutoReset<bool> SetAutoAcceptWebInstallLaunchDialogForTesting();
 
 // Shows the install not supported dialog for web apps. This dialog is
 // displayed when the user tries to install a web app in an unsupported

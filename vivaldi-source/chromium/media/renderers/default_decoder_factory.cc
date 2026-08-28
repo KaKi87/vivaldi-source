@@ -50,9 +50,13 @@
 #include "media/filters/symphonia_audio_decoder.h"
 #endif
 
+#if BUILDFLAG(ENABLE_IAMF_TOOLS)
+#include "media/filters/iamf_audio_decoder.h"
+#endif
+
 #if defined(USE_SYSTEM_PROPRIETARY_CODECS)
 #include "platform_media/decoders/vivaldi_decoder_config.h"
-#endif
+#endif  // Vivaldi
 
 namespace media {
 
@@ -91,6 +95,13 @@ void DefaultDecoderFactory::CreateAudioDecoders(
       base::FeatureList::IsEnabled(kSymphoniaVorbisDecoding)) {
     audio_decoders->push_back(
         std::make_unique<SymphoniaAudioDecoder>(task_runner, media_log));
+  }
+#endif
+
+#if BUILDFLAG(ENABLE_IAMF_TOOLS)
+  if (base::FeatureList::IsEnabled(kIamfAudioDecoding)) {
+    audio_decoders->push_back(
+        std::make_unique<IamfAudioDecoder>(task_runner, media_log));
   }
 #endif
 

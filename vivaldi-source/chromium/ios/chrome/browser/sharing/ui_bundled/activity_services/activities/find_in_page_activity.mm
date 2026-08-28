@@ -58,8 +58,7 @@ NSString* const kFindInPageActivityType =
   if (vivaldi::IsVivaldiRunning())
     return [UIImage imageNamed:vOverflowFindInPage]; // End Vivaldi
 
-  return DefaultSymbolWithPointSize(kFindInPageActionSymbol,
-                                    kSymbolActionPointSize);
+  return SymbolWithPointSize(SymbolFindInPageAction, kSymbolActionPointSize);
 }
 
 - (BOOL)canPerformWithActivityItems:(NSArray*)activityItems {

@@ -139,10 +139,9 @@ void VerifySaveNewEntityFlow() {
 
 - (AppLaunchConfiguration)appConfigurationForTestCase {
   AppLaunchConfiguration config;
+  config.features_disabled.push_back(kYourSavedInfoSettingsPageIos);
   config.features_enabled.push_back(
       autofill::features::kAutofillAiWithDataSchema);
-  config.features_enabled.push_back(
-      autofill::features::kAutofillAiCreateEntityDataManager);
   config.features_enabled.push_back(
       autofill::features::kAutofillAiReauthRequired);
 

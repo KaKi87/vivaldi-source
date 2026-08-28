@@ -38,7 +38,7 @@ const createTemplate = (source, buildXPath3) => {
   const template = `// ! Version: ${version}
 (e, ...t) => {
 ${withLicense().trim()}
-  (${isolated})(e, ...t);
+  (${isolated})({...e, world: "ISOLATED"}, ...t);
   ${main}
   if (t.every(([name]) => !callback.has(name))) return;
   const isTrustedTypesSupported = typeof trustedTypes !== 'undefined';
@@ -54,63 +54,36 @@ ${withLicense().trim()}
     } catch (_) {}
   }
   
-  const appendWithTrustedTypes = () => {
-    const scriptContent = policy.createScript("(" + callback + ")(..." + JSON.stringify([e, ...t]) + ")");
-    const blob = new Blob([scriptContent], { type: 'application/javascript' });
-    const url = URL.createObjectURL(blob);
-    
-    const script = document.createElement('script');
-    script.async = false;
-    script.src = policy.createScriptURL(url);
-    
-    document.documentElement.appendChild(script);
-    
-    URL.revokeObjectURL(url);
-  };
-  
-  const appendOriginal = () => {
-    URL.revokeObjectURL(
-      Object.assign(
-        document.documentElement.appendChild(document.createElement("script")),
-        {async: false, src: URL.createObjectURL(new Blob([
-          "(" + callback + ")(..." + JSON.stringify([e, ...t]) + ")"
-        ]))}
-      ).src
-    );
-  };
-
-  const evalScript = () => {
-    const scriptContent =  "(" + callback + ")(..." + JSON.stringify([e, ...t]) + ")";
-    
-    if (policy) {
-      const trustedScript = policy.createScript(scriptContent);
-      eval(trustedScript);
-    } else {
-      eval(scriptContent);
-    }
-  };
-
   const appendScript = () => {
-    if (policy) {
-      appendWithTrustedTypes();
-    } else {
-      appendOriginal();
+    const code = "(" + callback + ")(..." + JSON.stringify([e, ...t]) + ")";
+    const script = document.createElement("script");
+    
+    script.textContent = policy ? policy.createScript(code) : code;
+    script.type = "application/javascript";
+    script.async = false;
+    
+    try {
+      document.documentElement.appendChild(script);
+      document.documentElement.removeChild(script);
+    }
+    catch (err) {
+      const useDebug = !(t.every(([name]) => name !== "use-debug"));
+      if (useDebug)
+        console.error ("Error while injecting snippets: ", err);
+      throw err;
     }
   };
 
-  const useEval = !(t.every(([name]) => name !== "use-eval"));
-  const executeScript = useEval ? evalScript : appendScript;
-
-  try { 
-    executeScript(); }
+  try { appendScript(); }
   catch (_) {
-    document.addEventListener("readystatechange", executeScript, {once:true});
+    document.addEventListener("readystatechange", appendScript, {once:true});
   }
 }`;
-
+  const cleanedTemplate = template
+    .replaceAll("let currentEnvironment = {initial: true};", "");
   writeFile(
     join(module, "dist", `isolated-first${xPath3}${debug}.jst`),
-    template,
+    cleanedTemplate,
     error => {
       if (error)
         process.exit(1);

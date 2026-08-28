@@ -366,13 +366,16 @@ void VivaldiRenderViewContextMenu::InitMenu() {
       }
     } else {
       request.textfield = context_menu::TextfieldType::kDocument;
+
       password_manager::ContentPasswordManagerDriver* driver =
           password_manager::ContentPasswordManagerDriver::GetForRenderFrameHost(
               GetRenderFrameHost());
+
       request.support.password =
           driver && driver->IsPasswordFieldForPasswordManager(
-                        autofill::FieldRendererId(params_.field_renderer_id),
+              autofill::FieldRendererId(params_.field_renderer_id.value()),
                         params_.form_control_type);
+
       if (request.support.password) {
         request.support.passwordgeneration =
             password_manager_util::ManualPasswordGenerationEnabled(driver);
@@ -564,7 +567,7 @@ bool VivaldiRenderViewContextMenu::IsCommandIdChecked(int command_id) const {
 
   // Items with static ids and extensions.
   switch (command_id) {
-    case IDC_WRITING_DIRECTION_DEFAULT:
+    case kWritingDirectionDefaultId:
       return (params_.writing_direction_default &
               blink::ContextMenuData::kCheckableMenuItemChecked) != 0;
     case IDC_WRITING_DIRECTION_RTL:
@@ -665,7 +668,6 @@ bool VivaldiRenderViewContextMenu::IsCommandIdEnabled(int command_id) const {
       // Other static commands that are vivaldi specific and/or where we need to
       // test for extra states.
       case IDC_VIV_OPEN_LINK_CURRENT_TAB:
-      case IDC_VIV_OPEN_LINK_BACKGROUND_TAB:
         return params_.link_url.is_valid();
       case IDC_VIV_OPEN_IMAGE_CURRENT_TAB:
       case IDC_VIV_OPEN_IMAGE_NEW_FOREGROUND_TAB:
@@ -695,7 +697,7 @@ bool VivaldiRenderViewContextMenu::IsCommandIdEnabled(int command_id) const {
                blink::mojom::ContextMenuDataMediaType::kImage;
       // These are views specific ations. We should probably have a views class
       // on top instead of mixing it in here.
-      case IDC_WRITING_DIRECTION_DEFAULT:  // Provided to match OS defaults.
+      case kWritingDirectionDefaultId:  // Provided to match OS defaults.
         return params_.writing_direction_default &
                blink::ContextMenuData::kCheckableMenuItemEnabled;
       case IDC_WRITING_DIRECTION_RTL:
@@ -841,12 +843,6 @@ VivaldiRenderViewContextMenu::HandleCommand(int command_id, int event_flags) {
                               GetNewTabDispostion(source_web_contents_),
                               ui::PAGE_TRANSITION_LINK, "", true);
       break;
-    case IDC_VIV_OPEN_LINK_BACKGROUND_TAB:
-      OpenURLWithExtraHeaders(params_.link_url, GetDocumentURL(params_),
-                              url::Origin(),
-                              WindowOpenDisposition::NEW_BACKGROUND_TAB,
-                              ui::PAGE_TRANSITION_LINK, "", true);
-      break;
     case IDC_VIV_OPEN_LINK_CURRENT_TAB:
       OpenURLWithExtraHeaders(params_.link_url, GetDocumentURL(params_),
                               url::Origin(), WindowOpenDisposition::CURRENT_TAB,
@@ -919,7 +915,7 @@ VivaldiRenderViewContextMenu::HandleCommand(int command_id, int event_flags) {
       }
       break;
     }
-    case IDC_WRITING_DIRECTION_DEFAULT:
+    case kWritingDirectionDefaultId:
       // WebKit's current behavior is for this menu item to always be disabled.
       NOTREACHED();
       // break;
@@ -1125,7 +1121,6 @@ int VivaldiRenderViewContextMenu::GetStaticIdForAction(std::string command) {
       {"DOCUMENT_RELOAD_FRAME", IDC_CONTENT_CONTEXT_RELOADFRAME},
       {"DOCUMENT_INSPECT", IDC_CONTENT_CONTEXT_INSPECTELEMENT},
       {"DOCUMENT_OPEN_IN_NEW_TAB", IDC_CONTENT_CONTEXT_OPENLINKNEWTAB},
-      {"DOCUMENT_OPEN_IN_NEW_BACKGROUND_TAB", IDC_VIV_OPEN_LINK_BACKGROUND_TAB},
       {"DOCUMENT_OPEN_IN_TAB", IDC_VIV_OPEN_LINK_CURRENT_TAB},
       {"DOCUMENT_OPEN_IN_PARENT_FOLLWER_TAB", IDC_VIV_OPEN_LINK_CURRENT_TAB},
       {"DOCUMENT_OPEN_IN_NEW_WINDOW", IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW},
@@ -1160,7 +1155,7 @@ int VivaldiRenderViewContextMenu::GetStaticIdForAction(std::string command) {
       {"DOCUMENT_COPY_LINK_TEXT", IDC_CONTENT_CONTEXT_COPYLINKTEXT},
       {"DOCUMENT_EMOJI", IDC_CONTENT_CONTEXT_EMOJI},
       {"DOCUMENT_LANGUAGE_SETTINGS", IDC_CONTENT_CONTEXT_LANGUAGE_SETTINGS},
-      {"DOCUMENT_DIRECTION_DEFAULT", IDC_WRITING_DIRECTION_DEFAULT},
+      {"DOCUMENT_DIRECTION_DEFAULT", kWritingDirectionDefaultId},
       {"DOCUMENT_DIRECTION_LTR", IDC_WRITING_DIRECTION_LTR},
       {"DOCUMENT_DIRECTION_RTL", IDC_WRITING_DIRECTION_RTL},
       {"DOCUMENT_LOOP", IDC_CONTENT_CONTEXT_LOOP},

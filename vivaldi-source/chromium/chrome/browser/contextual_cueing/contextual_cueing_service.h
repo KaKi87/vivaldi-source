@@ -8,8 +8,12 @@
 #include <optional>
 #include <string>
 
+#include "base/containers/circular_deque.h"
 #include "base/containers/lru_cache.h"
+#include "base/memory/raw_ptr.h"
+#include "base/sequence_checker.h"
 #include "base/time/time.h"
+#include "build/build_config.h"
 #include "chrome/browser/contextual_cueing/cue_target.h"
 #include "chrome/browser/contextual_cueing/nudge_cap_tracker.h"
 #include "components/keyed_service/core/keyed_service.h"
@@ -17,13 +21,21 @@
 #include "url/gurl.h"
 #include "url/origin.h"
 
+#if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/contextual_cueing/internals/contextual_cueing_internals.mojom.h"
+#endif
+
+class PrefService;
+
 namespace contextual_cueing {
 
 enum class ContextualCueingDecision;
 
 class ContextualCueingService : public KeyedService {
  public:
-  ContextualCueingService();
+  static constexpr size_t kMaxShownCues = 20;
+
+  explicit ContextualCueingService(PrefService* pref_service);
   ~ContextualCueingService() override;
 
   // Reports a page load occurred. This is used to keep track of quiet
@@ -37,10 +49,32 @@ class ContextualCueingService : public KeyedService {
   void OnCueDismissed(CueTargetType type);
 
   // Called when the cue is shown to the user.
-  void OnCueShown(const GURL& url);
+  void OnCueShown(const GURL& url, CueTargetType type);
 
   // Returns true if a nudge can be shown.
   ContextualCueingDecision CanShowCue(const GURL& url) const;
+
+  // Returns the UCB score for the given target, incorporating per-target
+  // interaction stats and UCB hyperparameters from Finch.
+  double GetUcbScore(CueTargetType type) const;
+
+  // Returns the per-target interaction stats for the given target.
+  const TargetStats& GetStatsForTarget(CueTargetType type) const;
+
+  // Returns the total number of impressions across all targets.
+  int GetTotalImpressions() const;
+
+#if !BUILDFLAG(IS_ANDROID)
+  using CueLogPtr = contextual_cueing_internals::mojom::CueLogPtr;
+
+  // Logs metadata for a cue shown to the user for WebUI debugging.
+  void LogCueShownMetadata(CueLogPtr cue_log);
+
+  // Returns the list of shown cues for WebUI debugging.
+  const base::circular_deque<CueLogPtr>& shown_cues() const {
+    return shown_cues_;
+  }
+#endif
 
  private:
   // A counter for how many subsequent page load events will be prevented from
@@ -66,6 +100,21 @@ class ContextualCueingService : public KeyedService {
 
   // Maintains the recently visited origins along with their nudge cap tracking.
   base::LRUCache<url::Origin, NudgeCapTracker> recent_visited_origins_;
+
+  // Per-target interaction stats used by the UCB scorer.
+  absl::flat_hash_map<CueTargetType, TargetStats> target_stats_;
+
+  // Writes the stats for `type` to the profile prefs.
+  void WriteStatsToPref(CueTargetType type);
+
+  // Not owned. Guaranteed to outlive this service (profile lifetime).
+  const raw_ptr<PrefService> profile_prefs_;
+
+  SEQUENCE_CHECKER(sequence_checker_);
+
+#if !BUILDFLAG(IS_ANDROID)
+  base::circular_deque<CueLogPtr> shown_cues_;
+#endif
 };
 
 }  // namespace contextual_cueing

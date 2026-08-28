@@ -49,7 +49,6 @@
 #import "components/metrics/metrics_features.h"
 #import "components/metrics/metrics_log_uploader.h"
 #import "components/metrics/metrics_pref_names.h"
-#import "components/metrics/metrics_reporting_choice_service.h"
 #import "components/metrics/metrics_reporting_default_state.h"
 #import "components/metrics/metrics_service.h"
 #import "components/metrics/metrics_state_manager.h"
@@ -62,8 +61,8 @@
 #import "components/metrics/ui/form_factor_metrics_provider.h"
 #import "components/metrics/ui/screen_info_metrics_provider.h"
 #import "components/metrics/version_utils.h"
-#import "components/metrics_services_manager/metrics_services_manager.h"
 #import "components/omnibox/browser/omnibox_metrics_provider.h"
+#import "components/policy/core/common/enterprise_management_metrics_provider.h"
 #import "components/prefs/pref_registry_simple.h"
 #import "components/prefs/pref_service.h"
 #import "components/regional_capabilities/regional_capabilities_country_id.h"
@@ -91,6 +90,9 @@
 #import "ios/chrome/browser/metrics/model/ios_push_notifications_metrics_provider.h"
 #import "ios/chrome/browser/metrics/model/mobile_session_crash_helper_metrics_provider.h"
 #import "ios/chrome/browser/metrics/model/mobile_session_shutdown_metrics_provider.h"
+#import "ios/chrome/browser/policy/model/browser_management_service.h"
+#import "ios/chrome/browser/policy/model/browser_management_service_factory.h"
+#import "ios/chrome/browser/policy/model/profile_policy_connector.h"
 #import "ios/chrome/browser/regional_capabilities/model/ios_regional_capabilities_metrics_provider.h"
 #import "ios/chrome/browser/regional_capabilities/model/regional_capabilities_service_factory.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
@@ -104,6 +106,7 @@
 #import "ios/chrome/browser/shared/model/utils/first_run_util.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/signin/model/identity_manager_factory.h"
+#import "ios/chrome/browser/subscription_eligibility/model/ios_subscription_eligibility_metrics_provider.h"
 #import "ios/chrome/browser/sync/model/device_info_sync_service_factory.h"
 #import "ios/chrome/browser/sync/model/sync_service_factory.h"
 #import "ios/chrome/browser/tracing/ios_chrome_background_tracing_metrics_provider.h"
@@ -145,6 +148,27 @@ std::unique_ptr<metrics::FileMetricsProvider> CreateFileMetricsProvider(
                                           metrics_reporting_enabled);
   }
   return file_metrics_provider;
+}
+
+std::vector<policy::EnterpriseManagementMetricsProvider::ProfileState>
+GetEnterpriseManagementProfileStates() {
+  std::vector<policy::EnterpriseManagementMetricsProvider::ProfileState> states;
+  ApplicationContext* context = GetApplicationContext();
+  if (context && context->GetProfileManager()) {
+    for (ProfileIOS* profile :
+         context->GetProfileManager()->GetLoadedProfiles()) {
+      if (profile->IsOffTheRecord()) {
+        continue;
+      }
+      ProfilePolicyConnector* connector =
+          profile->GetPolicyConnector();
+      states.push_back({
+          policy::BrowserManagementServiceFactory::GetForProfile(profile),
+          connector ? connector->GetPolicyService() : nullptr
+      });
+    }
+  }
+  return states;
 }
 
 }  // namespace
@@ -430,18 +454,22 @@ void IOSChromeMetricsServiceClient::RegisterMetricsServiceProviders() {
   metrics_service_->RegisterMetricsProvider(
       std::make_unique<IOSPushNotificationsMetricsProvider>());
 
-  // Only register the RegionalCapabilitiesMetricsProvider if the dynamic
-  // profile country feature is enabled. This is because that feature
-  // significantly changes the cases under which the "Mixed" bucket is emitted.
-  if (base::FeatureList::IsEnabled(switches::kDynamicProfileCountry)) {
-    metrics_service_->RegisterMetricsProvider(
-        std::make_unique<
-            regional_capabilities::IOSRegionalCapabilitiesMetricsProvider>());
-  }
+  metrics_service_->RegisterMetricsProvider(
+      std::make_unique<
+          regional_capabilities::IOSRegionalCapabilitiesMetricsProvider>());
 
   metrics_service_->RegisterMetricsProvider(
       std::make_unique<tracing::IOSChromeBackgroundTracingMetricsProvider>(
           synthetic_trial_registry_));
+
+  metrics_service_->RegisterMetricsProvider(
+      std::make_unique<policy::EnterpriseManagementMetricsProvider>(
+          policy::BrowserManagementServiceFactory::GetForPlatform(),
+          base::BindRepeating(&GetEnterpriseManagementProfileStates)));
+
+  metrics_service_->RegisterMetricsProvider(
+      std::make_unique<subscription_eligibility::
+                           IOSSubscriptionEligibilityMetricsProvider>());
 }
 
 void IOSChromeMetricsServiceClient::RegisterUKMProviders() {
@@ -601,14 +629,6 @@ void IOSChromeMetricsServiceClient::OnHistoryDeleted() {
 void IOSChromeMetricsServiceClient::OnUkmAllowedStateChanged(
     bool must_purge,
     ukm::UkmConsentState previous_consent_state) {
-  // If the metrics consent restructure is enabled, UKM and DWA consent states
-  // are now managed by the metrics reporting level. Changes to these states
-  // are handled in OnMetricsReportingLevelChanged().
-  if (metrics::MetricsReportingChoiceService::
-          ShouldUseMetricsConsentRestructure(
-              GetApplicationContext()->GetLocalState())) {
-    return;
-  }
   const ukm::UkmConsentState consent_state = GetUkmConsentState();
   if (ukm_service_) {
     if (must_purge) {
@@ -788,26 +808,10 @@ void IOSChromeMetricsServiceClient::WebStateDestroyed(
 }
 
 bool IOSChromeMetricsServiceClient::IsUkmAllowedForAllProfiles() {
-  // Note: Incognito is handled separately, see
-  // MetricsServicesManager::UpdateUkmService().
-  PrefService* local_state = GetApplicationContext()->GetLocalState();
-  if (metrics::MetricsReportingChoiceService::
-          ShouldUseMetricsConsentRestructure(local_state)) {
-    return metrics::MetricsReportingChoiceService::
-        IsAdvancedMetricsReportingEnabled(local_state);
-  }
   return UkmConsentStateObserver::IsUkmAllowedForAllProfiles();
 }
 
 bool IOSChromeMetricsServiceClient::IsDwaAllowedForAllProfiles() {
-  // Note: Incognito is handled separately, see
-  // MetricsServicesManager::UpdateUkmService().
-  PrefService* local_state = GetApplicationContext()->GetLocalState();
-  if (metrics::MetricsReportingChoiceService::
-          ShouldUseMetricsConsentRestructure(local_state)) {
-    return metrics::MetricsReportingChoiceService::
-        IsAdvancedMetricsReportingEnabled(local_state);
-  }
   return UkmConsentStateObserver::IsDwaAllowedForAllProfiles();
 }
 

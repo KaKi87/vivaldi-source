@@ -262,6 +262,9 @@ class TabGroup;
 - (UIAction*)actionToEditPinnedSiteOnMostVisitedTileWithBlock:
     (ProceduralBlock)block;
 
+// Creates a UIAction instance for sending tab to another device.
+- (UIAction*)actionToSendTabToSelfWithBlock:(ProceduralBlock)block;
+
 // Vivaldi
 // Creates a UIAction instance whose title and icon are configured for opening a
 // URL in a new background tab. When triggered, the action will invoke the

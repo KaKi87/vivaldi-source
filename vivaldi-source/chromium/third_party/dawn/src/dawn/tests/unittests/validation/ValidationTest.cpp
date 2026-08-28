@@ -42,13 +42,14 @@
 #include "dawn/dawn_proc.h"
 #include "dawn/native/NullBackend.h"
 #include "dawn/webgpu_cpp_print.h"
-#include "src/dawn/common/Assert.h"
 #include "src/dawn/common/SystemUtils.h"
 #include "src/dawn/native/Adapter.h"
 #include "src/dawn/tests/PartitionAllocSupport.h"
 #include "src/dawn/tests/StringViewMatchers.h"
 #include "src/dawn/tests/ToggleParser.h"
 #include "src/dawn/utils/WireHelper.h"
+#include "src/utils/assert.h"
+#include "src/utils/crash_handler.h"
 
 namespace {
 
@@ -61,6 +62,7 @@ static ValidationTest* gCurrentTest = nullptr;
 }  // namespace
 
 void InitDawnValidationTestEnvironment(int argc, char** argv) {
+    dawn::InstallCrashHandler(argv[0]);
     dawn::InitializePartitionAllocForTesting();
     dawn::InitializeDanglingPointerDetectorForTesting();
 
@@ -197,10 +199,9 @@ void ValidationTest::SetUp() {
         instanceToggles.enabledToggles = &allowUnsafeApisToggle;
     }
 
+    std::vector<const char*> blocklistedFeatures = GetWGSLBlocklistedFeatures();
     dawn::native::DawnWGSLBlocklist blockList;
-    auto blocklistedFeatures = GetWGSLBlocklistedFeatures();
-    blockList.blocklistedFeatureCount = blocklistedFeatures.size();
-    blockList.blocklistedFeatures = blocklistedFeatures.data();
+    blockList.blocklistedFeatures = blocklistedFeatures;
     blockList.nextInChain = &instanceToggles;
 
     wgpu::InstanceDescriptor instanceDesc = {};

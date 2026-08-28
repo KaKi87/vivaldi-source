@@ -6,6 +6,8 @@ package org.chromium.content.browser.accessibility;
 
 import android.os.Build;
 import android.os.Parcel;
+import android.os.SystemClock;
+import android.view.accessibility.AccessibilityEvent;
 
 import androidx.annotation.Nullable;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
@@ -33,6 +35,7 @@ public class FakeAndroidCache {
     @Nullable private final AccessibilityHistogramRecorder mHistogramRecorder;
     // Only for testing
     private int mStaleNodeCount;
+    private int mRemovedNodeCount;
 
     public FakeAndroidCache(WebContentsAccessibilityImpl webContentsAccessibilityImpl) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
@@ -61,26 +64,23 @@ public class FakeAndroidCache {
         // The virtual view IDs of the children at the time of caching.
         final List<Integer> mChildIds;
 
+        // The timestamp representing when the node was added to the cache.
+        final long mAddedToCacheTimestamp;
+
         private CachedNodeState(AccessibilityNodeInfoCompat mNodeInfo, List<Integer> childIds) {
             Parcel nodeParcel = Parcel.obtain();
             mNodeInfo.unwrap().writeToParcel(nodeParcel, 0);
             mNodeInfoParcelData = nodeParcel.marshall();
             mChildIds = new ArrayList<>(childIds);
+            mAddedToCacheTimestamp = SystemClock.elapsedRealtime();
         }
     }
 
     // Validate accessibility node info throughout the fake android cache.
     @CalledByNative
     public void validateAccessibilityForExperiment() {
-        if (mHistogramRecorder != null) {
-            // We must first calculate the total number of nodes.
-            long treeSize = mWebContentsAccessibilityImpl.getAccessibilityTreeSizeForExperiment();
-            if (treeSize == 0) {
-                return;
-            }
-            mHistogramRecorder.setTotalNodesCount(treeSize);
-            // Then the total number of nodes in the fake cache.
-            mHistogramRecorder.setTotalFakeCacheNodesCount(mCache.size());
+        if (mHistogramRecorder == null) {
+            return;
         }
 
         for (Map.Entry<Integer, CachedNodeState> entry : mCache.entrySet()) {
@@ -108,15 +108,15 @@ public class FakeAndroidCache {
             Parcel freshInfoParcel = Parcel.obtain();
             freshInfo.unwrap().writeToParcel(freshInfoParcel, 0);
             if (!Arrays.equals(freshInfoParcel.marshall(), cachedState.mNodeInfoParcelData)) {
-                if (mHistogramRecorder != null) {
-                    mHistogramRecorder.incrementStaleNodeOnFakeCache();
-                }
                 mStaleNodeCount++;
             }
         }
-        if (mHistogramRecorder != null) {
-            mHistogramRecorder.recordFakeCacheHistograms();
-        }
+
+        mHistogramRecorder.recordFakeCacheHistograms(
+                getPeakCacheNodesInBatch(), mRemovedNodeCount, mStaleNodeCount, mCache.size());
+
+        mRemovedNodeCount = 0;
+        mStaleNodeCount = 0;
     }
 
     /**
@@ -135,45 +135,95 @@ public class FakeAndroidCache {
                 childIdList.add(id);
             }
         }
-        if (mCache.put(virtualViewId, new CachedNodeState(nodeInfo, childIdList)) == null
-                && mHistogramRecorder != null) {
-            mHistogramRecorder.reportNodeAddedToFakeCache(virtualViewId);
-        }
+        mCache.put(virtualViewId, new CachedNodeState(nodeInfo, childIdList));
     }
 
     // Clear the entire fake cache.
-    private void clear() {
+    private void clear(long now) {
         if (mHistogramRecorder != null) {
-            mCache.keySet().forEach(mHistogramRecorder::reportNodeRemovedFromFakeCache);
+            for (Map.Entry<Integer, CachedNodeState> entry : mCache.entrySet()) {
+                mHistogramRecorder.reportNodeRemovedFromFakeCache(
+                        entry.getKey(), now - entry.getValue().mAddedToCacheTimestamp);
+                mRemovedNodeCount++;
+            }
         }
         mCache.clear();
     }
 
     /**
-     * Recursively clear this node and all its descendants from the fake cache.
+     * Clears this node from the fake cache.
      *
      * @param virtualViewId The virtual view id of the node.
-     * @param recursive Indicate if all of the node's children should be cleared.
+     * @param recursive Whether to clear all of the node's children.
      */
-    public void clearNode(int virtualViewId, boolean recursive) {
+    private void clearNode(int virtualViewId, boolean recursive) {
+        if (recursive) {
+            clearNodeTimeStamp(virtualViewId, /* timeStamp= */ SystemClock.elapsedRealtime());
+        } else {
+            clearNodeTimeStamp(virtualViewId, /* timeStamp= */ null);
+        }
+    }
+
+    /**
+     * Clears the fake cache according to the event that is fired. This mimics the logic from the
+     * Android Framework's package android.view.accessibility.AccessibilityCache.java.
+     *
+     * @param event The accessibility event.
+     * @param virtualViewId The virtualViewId of the node associated to the event.
+     */
+    public void clearNodeOnEvent(AccessibilityEvent event, int virtualViewId) {
+        if (virtualViewId == mWebContentsAccessibilityImpl.getCurrentRootIdForExperiment()) {
+            // We clear the whole cache when the event is on the root
+            clearNode(virtualViewId, /* recursive= */ true);
+            return;
+        }
+
+        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            clear(SystemClock.elapsedRealtime());
+            return;
+        }
+
+        boolean recursive = false;
+        switch (event.getEventType()) {
+            case AccessibilityEvent.TYPE_VIEW_SCROLLED:
+                recursive = true;
+                break;
+            case AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED:
+                recursive =
+                        event.getContentChangeTypes()
+                                == AccessibilityEvent.CONTENT_CHANGE_TYPE_SUBTREE;
+                break;
+            default:
+                break;
+        }
+        clearNode(virtualViewId, recursive);
+    }
+
+    /**
+     * Clears this node from the fake cache.
+     *
+     * @param virtualViewId The virtual view id of the node.
+     * @param timeStamp Timestamp which presence determines if clearing is recursive or not.
+     */
+    private void clearNodeTimeStamp(int virtualViewId, @Nullable Long timeStamp) {
         CachedNodeState cachedNodeState = mCache.get(virtualViewId);
         if (cachedNodeState != null) {
             mCache.remove(virtualViewId);
+            mRemovedNodeCount++;
             if (mHistogramRecorder != null) {
-                mHistogramRecorder.reportNodeRemovedFromFakeCache(virtualViewId);
+                long now = timeStamp != null ? timeStamp : SystemClock.elapsedRealtime();
+                mHistogramRecorder.reportNodeRemovedFromFakeCache(
+                        virtualViewId, now - cachedNodeState.mAddedToCacheTimestamp);
             }
-            if (recursive) {
+            if (timeStamp != null) {
                 for (int childId : cachedNodeState.mChildIds) {
-                    clearNode(childId, true);
+                    clearNodeTimeStamp(childId, timeStamp);
                 }
             }
-        } else {
-            if (recursive) {
-                // According to Android's AccessibilityCache, if a node is not found, children might
-                // be
-                // present so we clear all of the cache.
-                clear();
-            }
+        } else if (timeStamp != null) {
+            // According to Android's AccessibilityCache, if a node is not found, children might
+            // be present so we clear all of the cache.
+            clear(timeStamp);
         }
     }
 
@@ -189,11 +239,28 @@ public class FakeAndroidCache {
     }
 
     /**
-     * Returns the number of stale nodes in the fake Android cache.
+     * Returns the timestamp of when the node was added to the cache.
      *
-     * @return The number of stale nodes.
+     * @param virtualViewId The virtual view id of the node.
+     * @return The timestamp in milliseconds, or -1 if the node is not in the cache.
      */
-    public int getStaleNodeCountForTesting() {
-        return mStaleNodeCount;
+    public long getAddedToCacheTimestampForTesting(int virtualViewId) {
+        CachedNodeState cachedState = mCache.get(virtualViewId);
+        return cachedState != null ? cachedState.mAddedToCacheTimestamp : -1;
+    }
+
+    /**
+     * Returns the denominator used to calculate the cache churn percentage for the current batch.
+     * The denominator represents the peak number of unique nodes that existed in the cache at any
+     * point during this validation period (current cache size + removed nodes). Using this sum
+     * instead of the starting cache size prevents additions in the same batch from inflating the
+     * churn metric beyond 100%.
+     */
+    private int getPeakCacheNodesInBatch() {
+        return mCache.size() + mRemovedNodeCount;
+    }
+
+    public int getPeakCacheNodesInBatchForTesting() {
+        return getPeakCacheNodesInBatch();
     }
 }

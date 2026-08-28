@@ -7,18 +7,13 @@
 //   Tests for eglBindTexImage
 //
 
-#ifdef UNSAFE_BUFFERS_BUILD
-#    pragma allow_unsafe_buffers
-#endif
-
 #include <gtest/gtest.h>
+#include "common/unsafe_buffers.h"
 
 #include <iostream>
 #include "test_utils/ANGLETest.h"
 #include "test_utils/angle_test_configs.h"
 #include "test_utils/gl_raii.h"
-#include "util/EGLWindow.h"
-#include "util/OSWindow.h"
 #include "util/test_utils.h"
 
 using namespace angle;
@@ -104,7 +99,10 @@ class EGLBindTexImageTest : public ANGLETest<EGLBindTexImageTestParams>
         {
             GTEST_SKIP() << "Test skipped because EGL_ANGLE_feature_control is not available.";
         }
-        EGLAttrib dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, platformParams.getRenderer(),
+        EGLAttrib dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE,
+                                 platformParams.getRenderer(),
+                                 EGL_PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE,
+                                 static_cast<EGLAttrib>(GetPbufferOnlyDefaultPlatformType()),
                                  EGL_FEATURE_OVERRIDES_ENABLED_ANGLE,
                                  reinterpret_cast<EGLAttrib>(enabledFeatureOverrides.data()),
                                  EGL_NONE};
@@ -136,13 +134,13 @@ class EGLBindTexImageTest : public ANGLETest<EGLBindTexImageTestParams>
             eglMakeCurrent(mDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
             for (size_t i = 0; i < 2; i++)
             {
-                if (mSurfaces[i] != EGL_NO_SURFACE)
+                if (ANGLE_UNSAFE_TODO(mSurfaces[i]) != EGL_NO_SURFACE)
                 {
-                    eglDestroySurface(mDisplay, mSurfaces[i]);
+                    eglDestroySurface(mDisplay, ANGLE_UNSAFE_TODO(mSurfaces[i]));
                 }
-                if (mContexts[i] != EGL_NO_CONTEXT)
+                if (ANGLE_UNSAFE_TODO(mContexts[i]) != EGL_NO_CONTEXT)
                 {
-                    eglDestroyContext(mDisplay, mContexts[i]);
+                    eglDestroyContext(mDisplay, ANGLE_UNSAFE_TODO(mContexts[i]));
                 }
             }
             eglTerminate(mDisplay);

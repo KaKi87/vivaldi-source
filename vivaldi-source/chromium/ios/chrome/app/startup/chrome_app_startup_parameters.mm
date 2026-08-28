@@ -14,6 +14,7 @@
 #import "base/strings/sys_string_conversions.h"
 #import "components/password_manager/core/browser/manage_passwords_referrer.h"
 #import "ios/chrome/browser/default_browser/model/utils.h"
+#import "ios/chrome/browser/google_one/shared/google_one_deep_link_util.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
@@ -48,6 +49,9 @@ NSString* const kExternalActionOpenNTP = @"OpenNTP";
 
 // Action path string for Gemini Promo using external actions.
 NSString* const kExternalActionAppStoreGeminiPromo = @"appstoregeminipromo";
+
+// Action path string for App Switcher testing using external actions.
+NSString* const kExternalActionAppSwitcherTesting = @"appswitchertesting";
 
 // URL Query String parameter to indicate that this openURL: request arrived
 // here due to a Smart App Banner presentation on a Google.com page.
@@ -379,8 +383,16 @@ TabOpeningPostOpeningAction XCallbackPoaToPostOpeningAction(
     if (!externalURL.is_valid()) {
       return nil;
     }
+    GURL urlToOpen = externalURL;
+    GURL googleOneURL;
+    BOOL isGoogleOneDeepLink = IsGoogleOneDeepLinkEnabled() &&
+                               IsGoogleOneDeepLinkURL(parsedURL, &googleOneURL);
+    if (isGoogleOneDeepLink) {
+      urlToOpen = GURL();
+      completeURL = net::NSURLWithGURL(googleOneURL);
+    }
     ChromeAppStartupParameters* params = [[ChromeAppStartupParameters alloc]
-         initWithExternalURL:externalURL
+         initWithExternalURL:urlToOpen
            declaredSourceApp:appID
              secureSourceApp:nil
                  completeURL:completeURL
@@ -389,6 +401,9 @@ TabOpeningPostOpeningAction XCallbackPoaToPostOpeningAction(
     params.openedWithURL = YES;
     params.openedViaFirstPartyScheme =
         openedViaSpecificScheme && CallerAppIsFirstParty(params.callerApp);
+    if (isGoogleOneDeepLink) {
+      params.postOpeningAction = SHOW_GOOGLE_ONE_SCREEN;
+    }
     return params;
   }
 }
@@ -476,6 +491,28 @@ TabOpeningPostOpeningAction XCallbackPoaToPostOpeningAction(
                                                         kGeminiAppStorePromoURL)
                                forceApplicationMode:forceApplicationMode];
     params.postOpeningAction = TRIGGER_GEMINI_PROMO;
+  } else if (IsAppSwitcherAISummarizationEnabled() &&
+             [path isEqualToString:kExternalActionAppSwitcherTesting]) {
+    // TODO(crbug.com/527016607): Remove this entire testing path when the
+    // feature is enabled by default.
+    action = IOSExternalAction::ACTION_START_GEMINI_AI_SUMMARIZATION;
+
+    GURL externalURL = GURL(kGeminiAppStorePromoURL);
+    std::string queryURLString;
+    if (net::GetValueForKeyInQuery(net::GURLWithNSURL(completeURL), "url",
+                                   &queryURLString)) {
+      GURL parsedQueryURL(queryURLString);
+      if (parsedQueryURL.is_valid() && parsedQueryURL.SchemeIsHTTPOrHTTPS()) {
+        externalURL = parsedQueryURL;
+      }
+    }
+
+    params =
+        [self startupParametersForExternalActionWithAppID:appID
+                                              completeURL:completeURL
+                                              externalURL:externalURL
+                                     forceApplicationMode:forceApplicationMode];
+    params.postOpeningAction = START_GEMINI_AI_SUMMARIZATION;
   } else {
     action = IOSExternalAction::ACTION_INVALID;
     params = nil;

@@ -41,7 +41,7 @@ class HistoryCounterTest : public InProcessBrowserTest {
   void SetUpOnMainThread() override {
     time_ = base::Time::Now();
     history_service_ = HistoryServiceFactory::GetForProfileWithoutCreating(
-        browser()->profile());
+        browser()->GetProfile());
     fake_web_history_service_ =
         std::make_unique<history::FakeWebHistoryService>();
 
@@ -65,12 +65,12 @@ class HistoryCounterTest : public InProcessBrowserTest {
   void RevertTimeInDays(int days) { time_ -= base::Days(days); }
 
   void SetHistoryDeletionPref(bool value) {
-    browser()->profile()->GetPrefs()->SetBoolean(
+    browser()->GetProfile()->GetPrefs()->SetBoolean(
         browsing_data::prefs::kDeleteBrowsingHistory, value);
   }
 
   void SetDeletionPeriodPref(browsing_data::TimePeriod period) {
-    browser()->profile()->GetPrefs()->SetInteger(
+    browser()->GetProfile()->GetPrefs()->SetInteger(
         browsing_data::prefs::kDeleteTimePeriod, static_cast<int>(period));
   }
 
@@ -169,7 +169,7 @@ IN_PROC_BROWSER_TEST_F(HistoryCounterTest, DuplicateVisits) {
   AddVisit("https://www.google.com");
   AddVisit("https://www.chrome.com");
 
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
 
   HistoryCounter counter(
       GetHistoryService(),
@@ -178,7 +178,6 @@ IN_PROC_BROWSER_TEST_F(HistoryCounterTest, DuplicateVisits) {
       SyncServiceFactory::GetForProfile(profile));
 
   counter.Init(profile->GetPrefs(),
-               browsing_data::ClearBrowsingDataTab::ADVANCED,
                base::BindRepeating(&HistoryCounterTest::Callback,
                                    base::Unretained(this)));
   counter.Restart();
@@ -194,7 +193,7 @@ IN_PROC_BROWSER_TEST_F(HistoryCounterTest, WithoutSyncService) {
   AddVisit("https://www.google.com");
   AddVisit("https://www.chrome.com");
 
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
 
   browsing_data::HistoryCounter counter(
       GetHistoryService(),
@@ -202,7 +201,6 @@ IN_PROC_BROWSER_TEST_F(HistoryCounterTest, WithoutSyncService) {
       nullptr /* sync_service */);
 
   counter.Init(profile->GetPrefs(),
-               browsing_data::ClearBrowsingDataTab::ADVANCED,
                base::BindRepeating(&HistoryCounterTest::Callback,
                                    base::Unretained(this)));
   counter.Restart();
@@ -219,7 +217,7 @@ IN_PROC_BROWSER_TEST_F(HistoryCounterTest, PrefChanged) {
   AddVisit("https://www.google.com");
   AddVisit("https://www.chrome.com");
 
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
 
   HistoryCounter counter(
       GetHistoryService(),
@@ -228,7 +226,6 @@ IN_PROC_BROWSER_TEST_F(HistoryCounterTest, PrefChanged) {
       SyncServiceFactory::GetForProfile(profile));
 
   counter.Init(profile->GetPrefs(),
-               browsing_data::ClearBrowsingDataTab::ADVANCED,
                base::BindRepeating(&HistoryCounterTest::Callback,
                                    base::Unretained(this)));
   SetHistoryDeletionPref(true);
@@ -267,7 +264,7 @@ IN_PROC_BROWSER_TEST_F(HistoryCounterTest, PeriodChanged) {
   AddVisit("https://www.example.com");
   AddVisit("https://www.example.com");
 
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
 
   HistoryCounter counter(
       GetHistoryService(),
@@ -276,7 +273,6 @@ IN_PROC_BROWSER_TEST_F(HistoryCounterTest, PeriodChanged) {
       SyncServiceFactory::GetForProfile(profile));
 
   counter.Init(profile->GetPrefs(),
-               browsing_data::ClearBrowsingDataTab::ADVANCED,
                base::BindRepeating(&HistoryCounterTest::Callback,
                                    base::Unretained(this)));
 
@@ -315,7 +311,7 @@ IN_PROC_BROWSER_TEST_F(HistoryCounterTest, PeriodChanged) {
 IN_PROC_BROWSER_TEST_F(HistoryCounterTest, Synced) {
   // WebHistoryService makes network requests, so we need to use a fake one
   // for testing.
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
 
   HistoryCounter counter(
       GetHistoryService(),
@@ -325,7 +321,6 @@ IN_PROC_BROWSER_TEST_F(HistoryCounterTest, Synced) {
       SyncServiceFactory::GetForProfile(profile));
 
   counter.Init(profile->GetPrefs(),
-               browsing_data::ClearBrowsingDataTab::ADVANCED,
                base::BindRepeating(&HistoryCounterTest::Callback,
                                    base::Unretained(this)));
 

@@ -71,7 +71,6 @@
 #include "chrome/browser/ui/webui/ash/login/remote_activity_notification_screen_handler.h"
 #include "chrome/browser/ui/webui/ash/login/reset_screen_handler.h"
 #include "chrome/browser/ui/webui/ash/login/user_creation_screen_handler.h"
-#include "chrome/common/pref_names.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
 #include "chromeos/ash/components/login/auth/public/auth_failure.h"
 #include "chromeos/ash/components/login/auth/public/auth_types.h"
@@ -208,7 +207,8 @@ LoginDisplayHostMojo::LoginDisplayHostMojo(
           displayed_screen)),
       auth_performer_(UserDataAuthClient::Get()),
       system_info_updater_(std::make_unique<MojoSystemInfoDispatcher>(
-          browser_policy_connector_ash)) {
+          browser_policy_connector_ash)),
+      challenge_response_auth_keys_loader_(local_state) {
   CHECK(!g_login_display_host_mojo);
   g_login_display_host_mojo = this;
 
@@ -787,7 +787,8 @@ void LoginDisplayHostMojo::HandleAuthenticateUserWithEasyUnlock(
 void LoginDisplayHostMojo::HandleAuthenticateUserWithChallengeResponse(
     const AccountId& account_id,
     base::OnceCallback<void(bool)> callback) {
-  if (!ChallengeResponseAuthKeysLoader::CanAuthenticateUser(account_id)) {
+  if (!ChallengeResponseAuthKeysLoader::CanAuthenticateUser(local_state_.get(),
+                                                            account_id)) {
     LOG(ERROR)
         << "Challenge-response authentication isn't supported for the user";
     std::move(callback).Run(false);

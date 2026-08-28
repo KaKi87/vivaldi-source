@@ -1178,7 +1178,7 @@ IN_PROC_BROWSER_TEST_F(FindInPageControllerTest,
   EXPECT_TRUE(fully_visible);
 
   // Open another tab (tab B).
-  chrome::NewTab(browser());
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
 
   // Make sure Find box is closed.
@@ -1268,7 +1268,7 @@ IN_PROC_BROWSER_TEST_F(FindInPageControllerTest,
   EXPECT_EQ(0, ordinal);
 
   // Open another tab (tab B).
-  chrome::NewTab(browser());
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
 
   // Simulate what happens when you press F3 for FindNext. We should get a
@@ -1277,7 +1277,7 @@ IN_PROC_BROWSER_TEST_F(FindInPageControllerTest,
   EXPECT_EQ(0, ordinal);
 
   // Open another tab (tab C).
-  chrome::NewTab(browser());
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
 
   // Simulate what happens when you press F3 for FindNext. We should get a
@@ -1553,14 +1553,14 @@ IN_PROC_BROWSER_TEST_F(FindInPageControllerTest, NoIncognitoPrepopulate) {
 
   // Open a new incognito window and navigate to the same page.
   Profile* incognito_profile =
-      browser()->profile()->GetPrimaryOTRProfile(/*create_if_needed=*/true);
+      browser()->GetProfile()->GetPrimaryOTRProfile(/*create_if_needed=*/true);
   Browser* incognito_browser =
       Browser::Create(Browser::CreateParams(incognito_profile, true));
   chrome::AddSelectedTabWithURL(incognito_browser, url,
                                 ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
   EXPECT_TRUE(content::WaitForLoadStop(
       incognito_browser->tab_strip_model()->GetActiveWebContents()));
-  incognito_browser->window()->Show();
+  incognito_browser->GetWindow()->Show();
 
   // Open the find box and make sure that it is prepopulated with "page".
   EnsureFindBoxOpenForBrowser(incognito_browser);
@@ -1611,7 +1611,8 @@ IN_PROC_BROWSER_TEST_F(FindInPageControllerTest, ActivateLinkNavigatesPage) {
 }
 
 IN_PROC_BROWSER_TEST_F(FindInPageControllerTest, FitWindow) {
-  Browser::CreateParams params(Browser::TYPE_POPUP, browser()->profile(), true);
+  Browser::CreateParams params(Browser::TYPE_POPUP, browser()->GetProfile(),
+                               true);
   params.initial_bounds = gfx::Rect(0, 0, 100, 500);
   Browser* popup = Browser::Create(params);
   chrome::AddSelectedTabWithURL(popup, GURL(url::kAboutBlankURL),
@@ -1619,12 +1620,12 @@ IN_PROC_BROWSER_TEST_F(FindInPageControllerTest, FitWindow) {
   // Wait for the page to finish loading.
   EXPECT_TRUE(content::WaitForLoadStop(
       popup->tab_strip_model()->GetActiveWebContents()));
-  popup->window()->Show();
+  popup->GetWindow()->Show();
 
   EnsureFindBoxOpenForBrowser(popup);
 
   ASSERT_LE(GetFindBarWidthForBrowser(popup),
-            popup->window()->GetBounds().width());
+            popup->GetWindow()->GetBounds().width());
 }
 
 IN_PROC_BROWSER_TEST_F(FindInPageControllerTest,

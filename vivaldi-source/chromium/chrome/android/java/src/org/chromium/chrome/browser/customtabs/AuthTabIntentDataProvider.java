@@ -23,11 +23,15 @@ import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntent
 import org.chromium.chrome.browser.browserservices.intents.ColorProvider;
 import org.chromium.chrome.browser.browserservices.intents.SessionHolder;
 import org.chromium.chrome.browser.flags.ActivityType;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.CustomTabProfileType;
 import org.chromium.components.browser_ui.widget.TintedDrawable;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.url.GURL;
+
+// Vivaldi
+import android.text.TextUtils;
+import androidx.browser.customtabs.CustomTabsSessionToken;
+import org.chromium.build.BuildConfig;
 
 /**
  * A model class that parses the incoming intent for Auth Tab specific data.
@@ -51,7 +55,6 @@ public class AuthTabIntentDataProvider extends BrowserServicesIntentDataProvider
     private @Nullable String mUrlToLoad;
 
     public static boolean isAuthTabIntent(Intent intent) {
-        if (!ChromeFeatureList.sCctAuthTab.isEnabled()) return false;
         return IntentUtils.safeGetBooleanExtra(intent, AuthTabIntent.EXTRA_LAUNCH_AUTH_TAB, false);
     }
 
@@ -78,17 +81,10 @@ public class AuthTabIntentDataProvider extends BrowserServicesIntentDataProvider
         // might want to disallow more.
         mRedirectScheme =
                 IntentUtils.safeGetStringExtra(intent, AuthTabIntent.EXTRA_REDIRECT_SCHEME);
-        boolean httpsEnabled = ChromeFeatureList.sCctAuthTabEnableHttpsRedirects.isEnabled();
         String host =
-                httpsEnabled
-                        ? IntentUtils.safeGetStringExtra(
-                                intent, AuthTabIntent.EXTRA_HTTPS_REDIRECT_HOST)
-                        : null;
+                IntentUtils.safeGetStringExtra(intent, AuthTabIntent.EXTRA_HTTPS_REDIRECT_HOST);
         String path =
-                httpsEnabled
-                        ? IntentUtils.safeGetStringExtra(
-                                intent, AuthTabIntent.EXTRA_HTTPS_REDIRECT_PATH)
-                        : null;
+                IntentUtils.safeGetStringExtra(intent, AuthTabIntent.EXTRA_HTTPS_REDIRECT_PATH);
         GURL redirectUrl = new GURL(UrlConstants.HTTPS_URL_PREFIX + host + path);
         mRedirectHost = redirectUrl.getHost();
         mRedirectPath = redirectUrl.getPath();
@@ -127,6 +123,19 @@ public class AuthTabIntentDataProvider extends BrowserServicesIntentDataProvider
 
     @Override
     public @Nullable String getClientPackageName() {
+        // Vivaldi VAB-13011: Fall back to the session's registered client package.
+        if (BuildConfig.IS_VIVALDI && TextUtils.isEmpty(mClientPackageName)) {
+            CustomTabsConnection connection = CustomTabsConnection.getInstance();
+            String pkg = connection.getClientPackageNameForSession(mSession);
+            if (TextUtils.isEmpty(pkg)) {
+                CustomTabsSessionToken ctToken =
+                        CustomTabsSessionToken.getSessionTokenFromIntent(mIntent);
+                if (ctToken != null) {
+                    pkg = connection.getClientPackageNameForSession(new SessionHolder<>(ctToken));
+                }
+            }
+            if (!TextUtils.isEmpty(pkg)) return pkg;
+        }
         return mClientPackageName;
     }
 

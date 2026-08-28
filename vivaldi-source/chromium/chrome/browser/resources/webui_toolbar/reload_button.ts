@@ -10,16 +10,18 @@ import '/strings.m.js';
 import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
 import type {PropertyValues} from '//resources/lit/v3_0/lit.rollup.js';
 import type {MenuSourceType} from '//resources/mojo/ui/base/mojom/menu_source_type.mojom-webui.js';
+import {ReloadInputType} from '/shared/browser_controls_api.mojom-webui.js';
+import type {ReloadInteractionMetadata} from '/shared/browser_controls_api.mojom-webui.js';
 import {ColorChangeUpdater} from 'chrome://resources/cr_components/color_change_listener/colors_css_updater.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 
 import {BrowserProxyImpl, ContextMenuType} from './browser_proxy.js';
 import type {BrowserProxy, ReloadControlState} from './browser_proxy.js';
-import {MetricsRecorder} from './metrics_recorder.js';
+import {ReloadButtonInputType} from './metrics_recorder.js';
 import {getCss} from './reload_button.css.js';
 import {getHtml} from './reload_button.html.js';
 import {TimerHelper} from './timer_helper.js';
-import {BUTTON_LEFT, BUTTON_RIGHT, getContextMenuPosition, getEventDispositionFlags, PressHandler} from './toolbar_button.js';
+import {BUTTON_LEFT, getContextMenuPosition, getEventDispositionFlags, HelpBubbleAnchorMixin, PressHandler, roundedIconsEnabled} from './toolbar_button.js';
 
 // go/keep-sorted start
 const RELOAD_BUTTON_ACC_NAME_RELOAD = 'reloadButtonAccNameReload';
@@ -28,8 +30,11 @@ const RELOAD_BUTTON_TOOLTIP_RELOAD_WITH_MENU =
     'reloadButtonTooltipReloadWithMenu';
 const RELOAD_BUTTON_TOOLTIP_STOP = 'reloadButtonTooltipStop';
 // go/keep-sorted end
+const INPUT_COUNT_HISTOGRAM = 'InitialWebUI.ReloadButton.InputCount';
 
-export class ReloadButtonElement extends CrLitElement {
+const ReloadButtonElementBase = HelpBubbleAnchorMixin(CrLitElement);
+
+export class ReloadButtonElement extends ReloadButtonElementBase {
   static get is() {
     return 'reload-button';
   }
@@ -44,11 +49,13 @@ export class ReloadButtonElement extends CrLitElement {
 
   static override get properties() {
     return {
+      ...super.properties,
       accName_: {type: String},
       state: {type: Object},
       tooltip: {type: String, reflect: true},
       showStopIcon: {type: Boolean, reflect: true},
       isDisabled: {type: Boolean, reflect: true},
+      touchUi: {type: Boolean},
     };
   }
 
@@ -77,6 +84,8 @@ export class ReloadButtonElement extends CrLitElement {
   // `disableStopIconTimer_` is running.
   protected accessor isDisabled: boolean = false;
 
+  accessor touchUi: boolean = false;
+
   // Timer started when the reload button is pressed while showing the reload
   // icon. While running, the reload icon will continue to be displayed instead
   // of the stop icon, and left clicks on the icon will be ignored. Once the
@@ -96,12 +105,10 @@ export class ReloadButtonElement extends CrLitElement {
   private disableStopIconTimer_: TimerHelper = new TimerHelper();
 
   private browserProxy_: BrowserProxy;
-  private metricsRecorder_: MetricsRecorder;
 
   constructor() {
     super();
     this.browserProxy_ = BrowserProxyImpl.getInstance();
-    this.metricsRecorder_ = new MetricsRecorder(this.browserProxy_);
     this.pressHandler_ = new PressHandler(
         this.onLongPress_.bind(this), this.onShortPress_.bind(this));
     ColorChangeUpdater.forDocument().start();
@@ -122,21 +129,26 @@ export class ReloadButtonElement extends CrLitElement {
       if (this.doubleClickReloadIconTimer_.isRunning()) {
         return;
       }
-
-      this.metricsRecorder_.onChangeVisibleMode(
-          MetricsRecorder.getVisibleMode(this.state.isNavigationLoading),
-          MetricsRecorder.getVisibleMode(!this.state.isNavigationLoading));
     }
+
+    const isKeyboard = e.type === 'click';
+    const recordedInputType = isKeyboard ? ReloadButtonInputType.KEY_PRESS :
+                                           ReloadButtonInputType.MOUSE_RELEASE;
+    this.browserProxy_.recordInHistogram(
+        INPUT_COUNT_HISTOGRAM, recordedInputType,
+        ReloadButtonInputType.KEY_PRESS);
 
     if (this.state.isNavigationLoading) {
       this.browserProxy_.browserControlsHandler.stopLoad();
     } else {
       // If the shift or ctrl key is pressed, we should reload with cache
       // bypassed.
+      const metadata = this.getReloadMetadata_(e);
       this.browserProxy_.browserControlsHandler.reloadFromClick(
           /*bypass_cache=*/ e.shiftKey || e.ctrlKey,
           getEventDispositionFlags(
-              e, {ignoreCtrlKey: true, ignoreShiftKey: true}));
+              e, {ignoreCtrlKey: true, ignoreShiftKey: true}),
+          metadata);
     }
 
     if (isLeftClick && !e.metaKey) {
@@ -155,6 +167,31 @@ export class ReloadButtonElement extends CrLitElement {
         }, Number(this.state.doubleClickInterval.microseconds) / 1000);
       }
     }
+  }
+
+  /**
+   * Constructs the interaction metadata from the mouse/pointer event.
+   * Reconstructs the relative timestamp offset and determines the input
+   * modality.
+   */
+  private getReloadMetadata_(e: MouseEvent): ReloadInteractionMetadata|null {
+    const sourceCapabilities =
+        (e as unknown as {
+          sourceCapabilities?: {firesTouchEvents?: boolean},
+        }).sourceCapabilities;
+    const isTouch = (e instanceof PointerEvent && e.pointerType === 'touch') ||
+        (!!sourceCapabilities && sourceCapabilities.firesTouchEvents);
+    if (isTouch) {
+      return null;
+    }
+    const interactionTimeOffset = BigInt(Math.round(e.timeStamp * 1000));
+    const isKeyboard = e.type === 'click';
+    const inputType =
+        isKeyboard ? ReloadInputType.kKeyPress : ReloadInputType.kMouseRelease;
+    return {
+      interactionTimeOffset: {microseconds: interactionTimeOffset},
+      inputType: inputType,
+    };
   }
 
   protected onClick_(e: MouseEvent) {
@@ -211,25 +248,6 @@ export class ReloadButtonElement extends CrLitElement {
     this.showStopIcon = this.state.isNavigationLoading;
   }
 
-  /**
-   * Sets up event listeners and the PerformanceObserver when the element is
-   * added to the DOM.
-   */
-  override connectedCallback() {
-    super.connectedCallback();
-
-    this.metricsRecorder_.startObserving();
-  }
-
-  /**
-   * Cleans up event listeners and the PerformanceObserver when the element is
-   * removed from the DOM.
-   */
-  override disconnectedCallback() {
-    super.disconnectedCallback();
-
-    this.metricsRecorder_.stopObserving();
-  }
 
   override willUpdate(changedProperties: PropertyValues<this>): void {
     super.willUpdate(changedProperties);
@@ -241,18 +259,39 @@ export class ReloadButtonElement extends CrLitElement {
       const previousState =
           changedPrivateProperties.get('state') as ReloadControlState |
           undefined;
-      if (previousState) {
-        this.metricsRecorder_.onChangeVisibleMode(
-            MetricsRecorder.getVisibleMode(previousState.isNavigationLoading),
-            MetricsRecorder.getVisibleMode(this.state.isNavigationLoading));
-      }
-      this.tooltip = loadTimeData.getString(
-          this.state.isNavigationLoading ?
-              RELOAD_BUTTON_TOOLTIP_STOP :
-              (this.state.canShowMenu ? RELOAD_BUTTON_TOOLTIP_RELOAD_WITH_MENU :
-                                        RELOAD_BUTTON_TOOLTIP_RELOAD));
+      this.updateTooltip_();
       this.updateState_(/*force=*/ !previousState ||
                         this.state.stateToken !== previousState.stateToken);
+    }
+
+    if (changedPrivateProperties.has('hasHelpBubble')) {
+      this.updateTooltip_();
+    }
+  }
+
+  private updateTooltip_() {
+    this.tooltip = this.adjustTooltipForHelpBubble(loadTimeData.getString(
+        this.state.isNavigationLoading ?
+            RELOAD_BUTTON_TOOLTIP_STOP :
+            (this.state.canShowMenu ? RELOAD_BUTTON_TOOLTIP_RELOAD_WITH_MENU :
+                                      RELOAD_BUTTON_TOOLTIP_RELOAD)));
+  }
+
+  protected getIronIcon_(): string {
+    if (this.showStopIcon) {
+      if (roundedIconsEnabled()) {
+        return 'webui-toolbar:close';
+      } else {
+        return this.touchUi ? 'webui-toolbar:navigate_stop_touch_old' :
+                              'webui-toolbar:navigate_stop_chrome_refresh_old';
+      }
+    } else {
+      if (roundedIconsEnabled()) {
+        return 'webui-toolbar:refresh';
+      } else {
+        return this.touchUi ? 'webui-toolbar:reload_touch_old' :
+                              'webui-toolbar:reload_chrome_refresh_old';
+      }
     }
   }
 
@@ -273,9 +312,6 @@ export class ReloadButtonElement extends CrLitElement {
    * @returns
    */
   protected onPointerup_(e: PointerEvent) {
-    if (e.button !== BUTTON_RIGHT) {
-      this.metricsRecorder_.onButtonPressedStart(e);
-    }
     this.pressHandler_.onPointerup(e);
   }
 }

@@ -206,6 +206,11 @@ bool VivaldiIOSTranslateClient::IsTranslatableURL(const GURL& url) {
   return VivaldiIOSTranslateService::IsTranslatableURL(url);
 }
 
+void VivaldiIOSTranslateClient::CheckIfPdfIsTranslatable(
+    base::OnceCallback<void(bool)> callback) {
+  std::move(callback).Run(false);
+}
+
 void VivaldiIOSTranslateClient::DidStartNavigation(
     web::WebState* web_state,
     web::NavigationContext* navigation_context) {

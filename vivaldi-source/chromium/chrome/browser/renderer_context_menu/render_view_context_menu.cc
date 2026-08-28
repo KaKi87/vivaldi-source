@@ -19,6 +19,7 @@
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
+#include "base/i18n/break_iterator.h"
 #include "base/i18n/rtl.h"
 #include "base/logging.h"
 #include "base/metrics/field_trial.h"
@@ -30,6 +31,7 @@
 #include "base/strings/escape.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
+#include "base/strings/string_tokenizer.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/system/sys_info.h"
 #include "build/branding_buildflags.h"
@@ -44,10 +46,13 @@
 #include "chrome/browser/autocomplete/autocomplete_classifier_factory.h"
 #include "chrome/browser/browser_features.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/context_hub/context_hub_service.h"
+#include "chrome/browser/context_hub/context_hub_service_factory.h"
+#include "chrome/browser/context_hub/features.h"
+#include "chrome/browser/context_hub/memory_bank/memory_bank.h"
 #include "chrome/browser/custom_handlers/protocol_handler_registry_factory.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/devtools/features.h"
-#include "chrome/browser/devtools/views/devtools_floaty.h"
 #include "chrome/browser/dictation/features.h"
 #include "chrome/browser/download/download_prefs.h"
 #include "chrome/browser/download/download_stats.h"
@@ -89,9 +94,6 @@
 #include "chrome/browser/search/search.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/send_tab_to_self/send_tab_to_self_util.h"
-#include "chrome/browser/sharing/click_to_call/click_to_call_context_menu_observer.h"
-#include "chrome/browser/sharing/click_to_call/click_to_call_metrics.h"
-#include "chrome/browser/sharing/click_to_call/click_to_call_utils.h"
 #include "chrome/browser/sharing_hub/sharing_hub_features.h"
 #include "chrome/browser/spellchecker/spellcheck_service.h"
 #include "chrome/browser/supervised_user/supervised_user_url_filtering_service_factory.h"
@@ -126,6 +128,7 @@
 #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_context_menu_delegate.h"
 #include "chrome/browser/ui/tab_contents/core_tab_helper.h"
 #include "chrome/browser/ui/tabs/features.h"
+#include "chrome/browser/ui/tabs/page_context_eligibility_helper.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/split_view_layout_menu_model.h"
@@ -162,6 +165,7 @@
 #include "components/autofill/core/common/unique_ids.h"
 #include "components/compose/buildflags.h"
 #include "components/compose/core/browser/compose_features.h"
+#include "components/content_extraction/content/browser/inner_text.h"
 #include "components/contextual_tasks/public/features.h"
 #include "components/custom_handlers/protocol_handler.h"
 #include "components/download/public/common/download_url_parameters.h"
@@ -234,11 +238,13 @@
 #include "media/base/media_switches.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "net/base/network_anonymization_key.h"
+#include "net/base/url_util.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "pdf/buildflags.h"
 #include "printing/buildflags/buildflags.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "services/metrics/public/cpp/ukm_recorder.h"
+#include "services/network/public/cpp/constants.h"
 #include "services/service_manager/public/cpp/interface_provider.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "third_party/blink/public/common/context_menu_data/context_menu_data.h"
@@ -397,6 +403,26 @@ using extensions::MenuManager;
 
 namespace {
 
+constexpr int kMaxContentCustomCommands = 1000;
+constexpr int IDC_CONTENT_CONTEXT_CUSTOM_LAST =
+    IDC_CONTENT_CONTEXT_CUSTOM_FIRST + kMaxContentCustomCommands;
+
+constexpr int kMaxProtocolHandlers = 200;
+constexpr int IDC_CONTENT_CONTEXT_PROTOCOL_HANDLER_LAST =
+    IDC_CONTENT_CONTEXT_PROTOCOL_HANDLER_FIRST + kMaxProtocolHandlers - 1;
+
+constexpr int kMaxOpenLinkInProfileItems = 100;
+constexpr int IDC_OPEN_LINK_IN_PROFILE_LAST =
+    IDC_OPEN_LINK_IN_PROFILE_FIRST + kMaxOpenLinkInProfileItems - 1;
+
+constexpr int kMaxSpellingSuggestionsLimit = 5;
+constexpr int IDC_SPELLCHECK_SUGGESTION_LAST =
+    IDC_SPELLCHECK_SUGGESTION_0 + kMaxSpellingSuggestionsLimit - 1;
+
+constexpr int kMaxLanguages = 100;
+constexpr int IDC_SPELLCHECK_LANGUAGES_LAST =
+    IDC_SPELLCHECK_LANGUAGES_FIRST + kMaxLanguages - 1;
+
 constexpr int kTabMenuIconSize = 16;
 
 base::OnceCallback<void(RenderViewContextMenu*)>* GetMenuShownCallback() {
@@ -493,11 +519,11 @@ const std::map<int, int>& GetIdcToUmaMap(UmaEnumIdLookupType type) {
        {IDC_VIEW_SOURCE, 28},
        {IDC_CONTENT_CONTEXT_INSPECTELEMENT, 29},
        {IDC_CONTENT_CONTEXT_INSPECTBACKGROUNDPAGE, 30},
-       {IDC_CONTENT_CONTEXT_VIEWPAGEINFO, 31},
+       // Removed: {IDC_CONTENT_CONTEXT_VIEWPAGEINFO, 31},
        {IDC_CONTENT_CONTEXT_TRANSLATE, 32},
        {IDC_CONTENT_CONTEXT_RELOADFRAME, 33},
        {IDC_CONTENT_CONTEXT_VIEWFRAMESOURCE, 34},
-       {IDC_CONTENT_CONTEXT_VIEWFRAMEINFO, 35},
+       // Removed: {IDC_CONTENT_CONTEXT_VIEWFRAMEINFO, 35},
        {IDC_CONTENT_CONTEXT_UNDO, 36},
        {IDC_CONTENT_CONTEXT_REDO, 37},
        {IDC_CONTENT_CONTEXT_CUT, 38},
@@ -510,18 +536,18 @@ const std::map<int, int>& GetIdcToUmaMap(UmaEnumIdLookupType type) {
        {IDC_CONTENT_CONTEXT_GOTOURL, 45},
        {IDC_CONTENT_CONTEXT_LANGUAGE_SETTINGS, 46},
        {IDC_CONTENT_CONTEXT_PROTOCOL_HANDLER_SETTINGS, 47},
-       {IDC_CONTENT_CONTEXT_OPENLINKWITH, 52},
+       {kOpenLinkWithMenuId, 52},
        {IDC_CHECK_SPELLING_WHILE_TYPING, 53},
-       {IDC_SPELLCHECK_MENU, 54},
+       {kSpellcheckMenuId, 54},
        {IDC_CONTENT_CONTEXT_SPELLING_TOGGLE, 55},
        {IDC_SPELLCHECK_LANGUAGES_FIRST, 56},
        {IDC_CONTENT_CONTEXT_SEARCHWEBFORIMAGE, 57},
        {IDC_SPELLCHECK_SUGGESTION_0, 58},
        {IDC_SPELLCHECK_ADD_TO_DICTIONARY, 59},
-       {IDC_SPELLPANEL_TOGGLE, 60},
+       // Removed: {IDC_SPELLPANEL_TOGGLE, 60},
        {IDC_CONTENT_CONTEXT_OPEN_ORIGINAL_IMAGE_NEW_TAB, 61},
-       {IDC_WRITING_DIRECTION_MENU, 62},
-       {IDC_WRITING_DIRECTION_DEFAULT, 63},
+       {kWritingDirectionMenuId, 62},
+       {kWritingDirectionDefaultId, 63},
        {IDC_WRITING_DIRECTION_LTR, 64},
        {IDC_WRITING_DIRECTION_RTL, 65},
        {IDC_CONTENT_CONTEXT_LOAD_IMAGE, 66},
@@ -532,38 +558,36 @@ const std::map<int, int>& GetIdcToUmaMap(UmaEnumIdLookupType type) {
        {IDC_CONTENT_CONTEXT_GENERATEPASSWORD, 72},
        {IDC_SPELLCHECK_MULTI_LINGUAL, 73},
        {IDC_CONTENT_CONTEXT_OPEN_WITH1, 74},
-       {IDC_CONTENT_CONTEXT_OPEN_WITH2, 75},
-       {IDC_CONTENT_CONTEXT_OPEN_WITH3, 76},
-       {IDC_CONTENT_CONTEXT_OPEN_WITH4, 77},
-       {IDC_CONTENT_CONTEXT_OPEN_WITH5, 78},
-       {IDC_CONTENT_CONTEXT_OPEN_WITH6, 79},
-       {IDC_CONTENT_CONTEXT_OPEN_WITH7, 80},
-       {IDC_CONTENT_CONTEXT_OPEN_WITH8, 81},
-       {IDC_CONTENT_CONTEXT_OPEN_WITH9, 82},
-       {IDC_CONTENT_CONTEXT_OPEN_WITH10, 83},
-       {IDC_CONTENT_CONTEXT_OPEN_WITH11, 84},
-       {IDC_CONTENT_CONTEXT_OPEN_WITH12, 85},
-       {IDC_CONTENT_CONTEXT_OPEN_WITH13, 86},
-       {IDC_CONTENT_CONTEXT_OPEN_WITH14, 87},
+       {IDC_CONTENT_CONTEXT_OPEN_WITH1 + 1, 75},
+       {IDC_CONTENT_CONTEXT_OPEN_WITH1 + 2, 76},
+       {IDC_CONTENT_CONTEXT_OPEN_WITH1 + 3, 77},
+       {IDC_CONTENT_CONTEXT_OPEN_WITH1 + 4, 78},
+       {IDC_CONTENT_CONTEXT_OPEN_WITH1 + 5, 79},
+       {IDC_CONTENT_CONTEXT_OPEN_WITH1 + 6, 80},
+       {IDC_CONTENT_CONTEXT_OPEN_WITH1 + 7, 81},
+       {IDC_CONTENT_CONTEXT_OPEN_WITH1 + 8, 82},
+       {IDC_CONTENT_CONTEXT_OPEN_WITH1 + 9, 83},
+       {IDC_CONTENT_CONTEXT_OPEN_WITH1 + 10, 84},
+       {IDC_CONTENT_CONTEXT_OPEN_WITH1 + 11, 85},
+       {IDC_CONTENT_CONTEXT_OPEN_WITH1 + 12, 86},
+       {IDC_CONTENT_CONTEXT_OPEN_WITH1 + 13, 87},
        {IDC_CONTENT_CONTEXT_EXIT_FULLSCREEN, 88},
        {IDC_CONTENT_CONTEXT_OPENLINKBOOKMARKAPP, 89},
        {IDC_CONTENT_CONTEXT_SHOWALLSAVEDPASSWORDS, 90},
        {IDC_CONTENT_CONTEXT_PICTUREINPICTURE, 91},
        {IDC_CONTENT_CONTEXT_EMOJI, 92},
        {IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION1, 93},
-       {IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION2, 94},
-       {IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION3, 95},
-       {IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION4, 96},
-       {IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION5, 97},
+       {IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION1 + 1, 94},
+       {IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION1 + 2, 95},
+       {IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION1 + 3, 96},
+       {IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION1 + 4, 97},
        {IDC_CONTENT_CONTEXT_LOOK_UP, 98},
        {IDC_CONTENT_CONTEXT_ACCESSIBILITY_LABELS_TOGGLE, 99},
        {IDC_CONTENT_CONTEXT_ACCESSIBILITY_LABELS_TOGGLE_ONCE, 100},
-       {IDC_CONTENT_CONTEXT_ACCESSIBILITY_LABELS, 101},
+       {kAccessibilityLabelsMenuId, 101},
        {IDC_SEND_TAB_TO_SELF, 102},
-       {IDC_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_SINGLE_DEVICE, 106},
-       {IDC_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_MULTIPLE_DEVICES, 107},
-       {IDC_CONTENT_CONTEXT_SHARING_SHARED_CLIPBOARD_SINGLE_DEVICE, 108},
-       {IDC_CONTENT_CONTEXT_SHARING_SHARED_CLIPBOARD_MULTIPLE_DEVICES, 109},
+       // Removed: {IDC_CONTENT_CONTEXT_SHARING_SHARED_CLIPBOARD_SINGLE_DEVICE, 108},
+       // Removed: {IDC_CONTENT_CONTEXT_SHARING_SHARED_CLIPBOARD_MULTIPLE_DEVICES, 109},
        {IDC_CONTENT_CONTEXT_GENERATE_QR_CODE, 110},
        // Removed: {IDC_CONTENT_CLIPBOARD_HISTORY_MENU, 111},
        {IDC_CONTENT_CONTEXT_COPYLINKTOTEXT, 112},
@@ -614,7 +638,7 @@ const std::map<int, int>& GetIdcToUmaMap(UmaEnumIdLookupType type) {
        {IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW, 156},
        {IDC_CONTENT_CONTEXT_GLICSHAREIMAGE, 157},
        {IDC_CONTENT_CONTEXT_ARCHIVE_GLIC, 158},
-       {IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_GEMINI, 159},
+       // Removed: {IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_GEMINI, 159},
        {IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_DEVTOOLS, 160},
        {IDC_CONTENT_CONTEXT_AUTOFILL_FALLBACK_AT_MEMORY, 161},
        {IDC_CONTENT_CONTEXT_GLIC, 162},
@@ -622,13 +646,15 @@ const std::map<int, int>& GetIdcToUmaMap(UmaEnumIdLookupType type) {
        {IDC_CONTENT_CONTEXT_LISTEN_TO_THIS_PAGE, 164},
        {IDC_CONTENT_CONTEXT_DICTATION, 165},
        {IDC_CONTENT_CONTEXT_ADD_LINK_TO_READING_LIST, 166},
+       {IDC_SPELLCHECK_REMOVE_FROM_DICTIONARY, 167},
+       {IDC_CONTENT_CONTEXT_SAVE_TO_MEMORY_BANKS, 168},
        // To add new items:
        //   - Add one more line above this comment block, using the UMA value
        //     from the line below this comment block.
        //   - Increment the UMA value in that latter line.
        //   - Add the new item to the RenderViewContextMenuItem enum in
        //     tools/metrics/histograms/metadata/ui/enums.xml.
-       {0, 167}});
+       {0, 169}});
   // LINT.ThenChange(//tools/metrics/histograms/metadata/ui/enums.xml:RenderViewContextMenuItem)
 
   // LINT.IfChange(ContextMenuOptionDesktop)
@@ -667,13 +693,14 @@ const std::map<int, int>& GetIdcToUmaMap(UmaEnumIdLookupType type) {
        {IDC_CONTENT_CONTEXT_SEARCHWEBFORNEWTAB, 29},
        {IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW, 31},
        {IDC_CONTENT_CONTEXT_GLICSHAREIMAGE, 32},
+       {IDC_SPELLCHECK_REMOVE_FROM_DICTIONARY, 33},
        // To add new items:
        //   - Add one more line above this comment block, using the UMA value
        //     from the line below this comment block.
        //   - Increment the UMA value in that latter line.
        //   - Add the new item to the ContextMenuOptionDesktop enum in
-       //     tools/metrics/histograms/metadata/enums.xml.
-       {0, 32}});
+       //     tools/metrics/histograms/metadata/ui/enums.xml.
+       {0, 33}});
   // LINT.ThenChange(//tools/metrics/histograms/metadata/ui/enums.xml:ContextMenuOptionDesktop)
 
   return *(type == UmaEnumIdLookupType::GeneralEnumId ? kGeneralMap
@@ -1006,6 +1033,8 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(RenderViewContextMenu,
                                       kSearchForImageItem);
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(RenderViewContextMenu,
                                       kSearchForVideoFrameItem);
+DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(RenderViewContextMenu,
+                                      kVideoFrameSubmenuItem);
 
 RenderViewContextMenu::RenderViewContextMenu(
     content::RenderFrameHost& render_frame_host,
@@ -1176,9 +1205,9 @@ void RenderViewContextMenu::IssuePreconnectionToUrl(
   auto network_anonymization_key =
       net::NetworkAnonymizationKey::CreateCrossSite(
           std::move(anonymization_key_schemeful_site));
-  loading_predictor->PreconnectURLIfAllowed(GURL(preconnect_url),
-                                            /*allow_credentials=*/true,
-                                            network_anonymization_key);
+  loading_predictor->PreconnectURLIfAllowed(
+      GURL(preconnect_url), /*allow_credentials=*/true,
+      network_anonymization_key, network::GetNoOpNetworkRestrictionsId());
 }
 
 ui::IsNewFeatureAtValue RenderViewContextMenu::GetIsNewFeatureAtValue(
@@ -1326,6 +1355,23 @@ void RenderViewContextMenu::InitMenu() {
     AppendSharingItems();
   }
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  bool show_glic = false;
+  if (features::IsMenuSimplificationEnabled()) {
+    show_glic = !params_.selection_text.empty();
+  } else {
+    show_glic = !params_.selection_text.empty() || !params_.link_url.is_empty();
+  }
+  show_glic = show_glic && !use_simplified_menu_for_text_selection;
+
+  const bool glic_below_search =
+      base::FeatureList::IsEnabled(features::kGlicContextMenuBelowSearch);
+
+  if (show_glic && !glic_below_search) {
+    MaybeAppendOpenGlicItem(/*add_separator=*/false);
+  }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+
   if (!use_simplified_menu_for_text_selection &&
       !(features::IsMenuSimplificationEnabled() && editable) &&
       content_type_->SupportsGroup(
@@ -1337,15 +1383,15 @@ void RenderViewContextMenu::InitMenu() {
     AppendSearchProvider();
   }
 
-  bool show_glic = false;
-  if (features::IsMenuSimplificationEnabled()) {
-    show_glic = !params_.selection_text.empty();
-  } else {
-    show_glic = !params_.selection_text.empty() || !params_.link_url.is_empty();
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  if (show_glic && glic_below_search) {
+    MaybeAppendOpenGlicItem(/*add_separator=*/false);
   }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
-  if (show_glic) {
-    MaybeAppendOpenGlicItem();
+  if (!use_simplified_menu_for_text_selection &&
+      !params_.selection_text.empty()) {
+    AppendSaveToMemoryBanksItem();
   }
 
   if (!use_simplified_menu_for_text_selection && !media_image &&
@@ -1588,6 +1634,18 @@ void RenderViewContextMenu::RecordUsedItem(int id) {
   if (id == IDC_CONTENT_CONTEXT_SEARCHWEBFOR) {
     base::RecordAction(base::UserMetricsAction(
         "RenderViewContextMenu.Used.IDC_CONTENT_CONTEXT_SEARCHWEBFOR"));
+    base::i18n::BreakIterator break_iter(params_.selection_text,
+                                         base::i18n::BreakIterator::BREAK_WORD);
+    if (break_iter.Init()) {
+      int word_count = 0;
+      while (break_iter.Advance()) {
+        if (break_iter.IsWord()) {
+          word_count++;
+        }
+      }
+      base::UmaHistogramCounts1000(
+          "RenderViewContextMenu.SelectedTextWordCount.SearchWeb", word_count);
+    }
   }
 
   // Log other situations.
@@ -1793,20 +1851,8 @@ void RenderViewContextMenu::AppendDeveloperItems() {
     }
   }
 
-  if (base::FeatureList::IsEnabled(features::kDevToolsGreenDevUi)) {
-    inspect_submenu_model_.AddItemWithStringId(
-        IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_GEMINI,
-        IDS_CONTENT_CONTEXT_INSPECTELEMENT_WITH_GEMINI);
-    inspect_submenu_model_.AddItemWithStringId(
-        IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_DEVTOOLS,
-        IDS_CONTENT_CONTEXT_INSPECTELEMENT_WITH_DEVTOOLS);
-    menu_model_.AddSubMenuWithStringId(IDC_CONTENT_CONTEXT_INSPECTELEMENT,
-                                       IDS_CONTENT_CONTEXT_INSPECTELEMENT,
-                                       &inspect_submenu_model_);
-  } else {
-    menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_INSPECTELEMENT,
-                                    IDS_CONTENT_CONTEXT_INSPECTELEMENT);
-  }
+  menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_INSPECTELEMENT,
+                                  IDS_CONTENT_CONTEXT_INSPECTELEMENT);
 }
 
 void RenderViewContextMenu::AppendDevtoolsForUnpackedExtensions() {
@@ -1913,7 +1959,9 @@ void RenderViewContextMenu::AppendLinkItems() {
     if (show_open_in_new_window) {
       AddItemWithOptionalIcon(IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW,
                               IDS_CONTENT_CONTEXT_OPENLINKNEWWINDOW,
-                              kOpenInNewOldIcon);
+                              features::IsRoundedIconsEnabled()
+                                  ? kOpenInNewIcon
+                                  : kOpenInNewOldIcon);
     }
 
 #if !BUILDFLAG(IS_ANDROID)
@@ -1964,13 +2012,15 @@ void RenderViewContextMenu::AppendLinkItems() {
             IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD,
             in_app ? IDS_CONTENT_CONTEXT_OPENLINKOFFTHERECORD_INAPP_V2
                    : IDS_CONTENT_CONTEXT_OPENLINKOFFTHERECORD_V2,
-            kIncognitoRefreshMenuOldIcon);
+            features::IsRoundedIconsEnabled() ? kIncognitoIcon
+                                              : kIncognitoRefreshMenuOldIcon);
       } else {
         AddItemWithOptionalIcon(
             IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD,
             in_app ? IDS_CONTENT_CONTEXT_OPENLINKOFFTHERECORD_INAPP
                    : IDS_CONTENT_CONTEXT_OPENLINKOFFTHERECORD,
-            kIncognitoRefreshMenuOldIcon);
+            features::IsRoundedIconsEnabled() ? kIncognitoIcon
+                                              : kIncognitoRefreshMenuOldIcon);
       }
     }
 
@@ -2059,15 +2109,18 @@ void RenderViewContextMenu::AppendLinkItems() {
 
     menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
 
+    // Send-Tab-To-Self (user's other devices), link level.
+    if (GetBrowser() && send_tab_to_self::ShouldDisplayEntryPoint(
+                            embedder_web_contents_, params_.link_url)) {
+      AppendSendTabToSelfItem(/*add_separator=*/false);
+    }
+
     // Place QR Generator close to send-tab-to-self feature for link images.
     if (params_.has_image_contents) {
       AppendQRCodeGeneratorItem(/*for_image=*/true, /*draw_icon=*/true,
-                                /*add_separator*/ false);
+                                /*add_separator=*/false);
     }
 
-    AppendClickToCallItem();
-
-    menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
     menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_SAVELINKAS,
                                     IDS_CONTENT_CONTEXT_SAVELINKAS);
   }
@@ -2090,7 +2143,9 @@ void RenderViewContextMenu::AppendCopyLinkLocationItem() {
     menu_model_.AddItemWithStringIdAndIcon(
         IDC_CONTENT_CONTEXT_ADD_LINK_TO_READING_LIST,
         IDS_CONTENT_CONTEXT_ADD_LINK_TO_READING_LIST,
-        ui::ImageModel::FromVectorIcon(kReadingListOldIcon));
+        ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                           ? kListAltIcon
+                                           : kReadingListOldIcon));
   }
 }
 
@@ -2248,9 +2303,7 @@ void RenderViewContextMenu::AppendSearchWebForImageItems() {
       return;
     }
     menu_model_.AddItemWithStringIdAndIcon(
-        search_for_image_idc,
-        lens::GetLensOverlayImageEntrypointLabelAltIds(
-            IDS_CONTENT_CONTEXT_LENS_OVERLAY),
+        search_for_image_idc, IDS_LENS_OVERLAY_IMAGE_ENTRYPOINT_LABEL_ALT3,
         icon);
   } else {
     menu_model_.AddItemWithIcon(
@@ -2311,7 +2364,7 @@ void RenderViewContextMenu::AppendCanvasItems() {
 
 void RenderViewContextMenu::AppendVideoItems() {
   const bool use_submenu =
-      base::FeatureList::IsEnabled(media::kContextMenu2026);
+      base::FeatureList::IsEnabled(features::kMenuSimplification);
 
   if (use_submenu) {
     menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_PICTUREINPICTURE,
@@ -2320,7 +2373,9 @@ void RenderViewContextMenu::AppendVideoItems() {
     if (media_router::MediaRouterEnabled(browser_context_)) {
       menu_model_.AddItemWithStringIdAndIcon(
           IDC_ROUTE_MEDIA, IDS_MEDIA_ROUTER_MENU_ITEM_TITLE,
-          ui::ImageModel::FromVectorIcon(kCastChromeRefreshOldIcon,
+          ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                             ? kCastIcon
+                                             : kCastChromeRefreshOldIcon,
                                          ui::kColorMenuIcon, kTabMenuIconSize));
     }
 
@@ -2382,9 +2437,7 @@ void RenderViewContextMenu::AppendVideoItems() {
       if (entry_point_controller->AreVisible()) {
         target_model->AddItemWithStringIdAndIcon(
             search_for_video_frame_idc,
-            lens::GetLensOverlayVideoEntrypointLabelAltIds(
-                IDS_CONTENT_CONTEXT_LENS_OVERLAY),
-            icon);
+            IDS_LENS_OVERLAY_VIDEO_ENTRYPOINT_LABEL_ALT3, icon);
         item_added = true;
       }
     } else {
@@ -2413,6 +2466,8 @@ void RenderViewContextMenu::AppendVideoItems() {
         IDC_CONTENT_CONTEXT_VIDEO_FRAME,
         l10n_util::GetStringUTF16(IDS_CONTENT_CONTEXT_VIDEO_FRAME),
         &video_frame_submenu_model_);
+    menu_model_.SetElementIdentifierAt(menu_model_.GetItemCount() - 1,
+                                       kVideoFrameSubmenuItem);
   }
 }
 
@@ -2460,6 +2515,11 @@ void RenderViewContextMenu::AppendPluginItems() {
 void RenderViewContextMenu::AppendPageItems() {
   AppendExitFullscreenItem();
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  const bool glic_below_search =
+      base::FeatureList::IsEnabled(features::kGlicContextMenuBelowSearch);
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+
   if (features::IsMenuSimplificationEnabled() &&
       params_.selection_text.empty() && !params_.is_editable) {
     // Navigation
@@ -2476,19 +2536,31 @@ void RenderViewContextMenu::AppendPageItems() {
     AppendLiveCaptionItem();
     menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
 
-    // Ask gemini
-    size_t count_before = menu_model_.GetItemCount();
-    MaybeAppendOpenGlicItem();
-    // Remove separator to group with Lens
-    if (menu_model_.GetItemCount() > count_before &&
-        menu_model_.GetTypeAt(menu_model_.GetItemCount() - 1) ==
-            ui::MenuModel::TYPE_SEPARATOR) {
-      menu_model_.RemoveItemAt(menu_model_.GetItemCount() - 1);
-    }
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    if (!glic_below_search) {
+      // Ask gemini
+      MaybeAppendOpenGlicItem(/*add_separator=*/false);
 
-    // Search with google lens
-    if (IsRegionSearchEnabled()) {
-      AppendRegionSearchItem();
+      // Save to Memory Banks
+      AppendSaveToMemoryBanksItem();
+
+      // Search with google lens
+      if (IsRegionSearchEnabled()) {
+        AppendRegionSearchItem();
+      }
+    } else
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    {
+      // Search with google lens
+      if (IsRegionSearchEnabled()) {
+        AppendRegionSearchItem();
+      }
+
+      // Ask gemini
+      MaybeAppendOpenGlicItem(/*add_separator=*/false);
+
+      // Save to Memory Banks
+      AppendSaveToMemoryBanksItem();
     }
 
     // Open in reading mode & Listen to this page
@@ -2523,7 +2595,11 @@ void RenderViewContextMenu::AppendPageItems() {
   menu_model_.AddItemWithStringId(IDC_FORWARD, IDS_CONTENT_CONTEXT_FORWARD);
   menu_model_.AddItemWithStringId(IDC_RELOAD, IDS_CONTENT_CONTEXT_RELOAD);
   menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
-  MaybeAppendOpenGlicItem();
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  if (!glic_below_search) {
+    MaybeAppendOpenGlicItem();
+  }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   menu_model_.AddItemWithStringId(IDC_SAVE_PAGE,
                                   IDS_CONTENT_CONTEXT_SAVEPAGEAS);
   menu_model_.AddItemWithStringId(IDC_PRINT, IDS_CONTENT_CONTEXT_PRINT);
@@ -2538,6 +2614,11 @@ void RenderViewContextMenu::AppendPageItems() {
     if (IsRegionSearchEnabled()) {
       AppendRegionSearchItem();
     }
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    if (glic_below_search) {
+      MaybeAppendOpenGlicItem(/*add_separator=*/false);
+    }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
     if (experiment_group ==
         features::ReadAnythingMenuShuffleExperimentGroup::kDefault) {
@@ -2557,11 +2638,18 @@ void RenderViewContextMenu::AppendPageItems() {
       if (IsRegionSearchEnabled()) {
         AppendRegionSearchItem();
       }
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+      if (glic_below_search) {
+        MaybeAppendOpenGlicItem(/*add_separator=*/false);
+      }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     }
     if (!use_simplified_text_selection) {
       AppendReadAnythingItem();
     }
   }
+
+  AppendSaveToMemoryBanksItem();
 
   // Note: `has_sharing_menu_items = true` also implies a separator was added
   // for sharing section.
@@ -2729,7 +2817,9 @@ void RenderViewContextMenu::AppendTranslateItem() {
 void RenderViewContextMenu::AppendMediaRouterItem() {
   if (media_router::MediaRouterEnabled(browser_context_)) {
     AddItemWithOptionalIcon(IDC_ROUTE_MEDIA, IDS_MEDIA_ROUTER_MENU_ITEM_TITLE,
-                            kCastChromeRefreshOldIcon);
+                            features::IsRoundedIconsEnabled()
+                                ? kCastIcon
+                                : kCastChromeRefreshOldIcon);
   }
 }
 
@@ -2756,14 +2846,29 @@ void RenderViewContextMenu::AppendReadAnythingItem() {
     if (is_menu_simplification_enabled) {
       menu_model_.SetIconForCommandId(
           IDC_CONTENT_CONTEXT_OPEN_IN_READING_MODE,
-          ui::ImageModel::FromVectorIcon(kMenuBookChromeRefreshOldIcon,
+          ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                             ? kMenuBookIcon
+                                             : kMenuBookChromeRefreshOldIcon,
                                          ui::kColorMenuIcon, kTabMenuIconSize));
     }
 
     if (features::IsImprovedReadAloudEnabled()) {
       menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_LISTEN_TO_THIS_PAGE,
                                       IDS_CONTENT_CONTEXT_LISTEN_TO_THIS_PAGE);
+      if (is_menu_simplification_enabled) {
+        menu_model_.SetIconForCommandId(
+            IDC_CONTENT_CONTEXT_LISTEN_TO_THIS_PAGE,
+            ui::ImageModel::FromVectorIcon(kPlayCircleIcon, ui::kColorMenuIcon,
+                                           kTabMenuIconSize));
+      }
     }
+  }
+}
+
+void RenderViewContextMenu::AppendSaveToMemoryBanksItem() {
+  if (base::FeatureList::IsEnabled(context_hub::features::kMemoryBanks)) {
+    menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_SAVE_TO_MEMORY_BANKS,
+                                    IDS_CONTENT_CONTEXT_SAVE_TO_MEMORY_BANKS);
   }
 }
 
@@ -2862,8 +2967,10 @@ void RenderViewContextMenu::AppendSearchProvider() {
         menu_model_.SetIconForCommandId(
             IDC_CONTENT_CONTEXT_SEARCHWEBFOR,
             ui::ImageModel::FromVectorIcon(
-                vector_icons::kSearchChromeRefreshOldIcon, ui::kColorMenuIcon,
-                kTabMenuIconSize));
+                features::IsRoundedIconsEnabled()
+                    ? vector_icons::kSearchIcon
+                    : vector_icons::kSearchChromeRefreshOldIcon,
+                ui::kColorMenuIcon, kTabMenuIconSize));
       }
     }
   } else {
@@ -2884,11 +2991,23 @@ void RenderViewContextMenu::AppendSpellingAndSearchSuggestionItems() {
     AppendSpellingSuggestionItems();
   }
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (!params_.misspelled_word.empty() &&
       !features::IsMenuSimplificationEnabled()) {
+    bool show_glic =
+        !params_.selection_text.empty() || !params_.link_url.is_empty();
+    const bool glic_below_search =
+        base::FeatureList::IsEnabled(features::kGlicContextMenuBelowSearch);
+    if (show_glic && !glic_below_search) {
+      MaybeAppendOpenGlicItem(/*add_separator=*/false);
+    }
     AppendSearchProvider();
+    if (show_glic && glic_below_search) {
+      MaybeAppendOpenGlicItem(/*add_separator=*/false);
+    }
     menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
   }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   bool render_separator = false;
   if (params_.misspelled_word.empty()) {
     if ((!params_.form_control_type ||
@@ -2989,10 +3108,19 @@ void RenderViewContextMenu::AppendOtherEditableItems() {
                                     IDS_CONTENT_CONTEXT_SELECTALL);
   }
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (features::IsMenuSimplificationEnabled() &&
       !params_.selection_text.empty()) {
+    const bool glic_below_search =
+        base::FeatureList::IsEnabled(features::kGlicContextMenuBelowSearch);
     menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
+    if (!glic_below_search) {
+      MaybeAppendOpenGlicItem(/*add_separator=*/false);
+    }
     AppendSearchProvider();
+    if (glic_below_search) {
+      MaybeAppendOpenGlicItem(/*add_separator=*/false);
+    }
     AppendPrintItem();
     if (CanPartiallyTranslateTargetLanguage()) {
       AppendPartialTranslateItem();
@@ -3000,6 +3128,7 @@ void RenderViewContextMenu::AppendOtherEditableItems() {
       AppendTranslateItem();
     }
   }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   if (!menu_model_.GetIndexOfCommandId(IDC_CONTENT_CONTEXT_OPEN_IN_READING_MODE)
            .has_value()) {
@@ -3066,7 +3195,7 @@ void RenderViewContextMenu::AppendDictationItems() {
 
   if (!dictation_menu_observer_) {
     dictation_menu_observer_ =
-        std::make_unique<dictation::DictationMenuObserver>(this, GetBrowser());
+        std::make_unique<dictation::DictationMenuObserver>(this);
   }
   observers_.AddObserver(dictation_menu_observer_.get());
   dictation_menu_observer_->InitMenu(params_);
@@ -3096,7 +3225,7 @@ void RenderViewContextMenu::AppendProtocolHandlerSubMenu() {
       l10n_util::GetStringUTF16(IDS_CONTENT_CONTEXT_OPENLINKWITH_CONFIGURE));
 
   menu_model_.AddSubMenu(
-      IDC_CONTENT_CONTEXT_OPENLINKWITH,
+      kOpenLinkWithMenuId,
       l10n_util::GetStringUTF16(IDS_CONTENT_CONTEXT_OPENLINKWITH),
       &protocol_handler_submenu_model_);
 }
@@ -3108,8 +3237,6 @@ void RenderViewContextMenu::AppendSharingItems() {
   size_t items_before_sharing = menu_model_.GetItemCount();
   bool starting_separator_added = items_before_sharing > items_initial;
 
-  AppendClickToCallItem();
-
   // Add an ending separator if there are sharing items, otherwise remove the
   // starting separator iff we added one above.
   size_t sharing_items = menu_model_.GetItemCount() - items_before_sharing;
@@ -3120,33 +3247,7 @@ void RenderViewContextMenu::AppendSharingItems() {
   }
 }
 
-void RenderViewContextMenu::AppendClickToCallItem() {
-  SharingClickToCallEntryPoint entry_point;
-  std::optional<std::string> phone_number;
-  std::string selection_text;
-  if (ShouldOfferClickToCallForURL(browser_context_, params_.link_url)) {
-    entry_point = SharingClickToCallEntryPoint::kRightClickLink;
-    phone_number = params_.link_url.GetContent();
-  } else if (!params_.selection_text.empty()) {
-    entry_point = SharingClickToCallEntryPoint::kRightClickSelection;
-    selection_text = base::UTF16ToUTF8(params_.selection_text);
-    phone_number =
-        ExtractPhoneNumberForClickToCall(browser_context_, selection_text);
-  }
 
-  if (!phone_number || phone_number->empty()) {
-    return;
-  }
-
-  if (!click_to_call_context_menu_observer_) {
-    click_to_call_context_menu_observer_ =
-        std::make_unique<ClickToCallContextMenuObserver>(this);
-    observers_.AddObserver(click_to_call_context_menu_observer_.get());
-  }
-
-  click_to_call_context_menu_observer_->BuildMenu(*phone_number, selection_text,
-                                                  entry_point);
-}
 
 void RenderViewContextMenu::AppendRegionSearchItem() {
   auto* entry_point_controller =
@@ -3162,9 +3263,7 @@ void RenderViewContextMenu::AppendRegionSearchItem() {
     }
     menu_model_.AddItemWithStringIdAndIcon(
         IDC_CONTENT_CONTEXT_LENS_REGION_SEARCH,
-        lens::GetLensOverlayEntrypointLabelAltIds(
-            IDS_CONTENT_CONTEXT_LENS_OVERLAY),
-        icon);
+        lens::GetLensOverlayEntrypointLabelAltIds(), icon);
     const int command_index =
         menu_model_.GetIndexOfCommandId(IDC_CONTENT_CONTEXT_LENS_REGION_SEARCH)
             .value();
@@ -3213,6 +3312,7 @@ void RenderViewContextMenu::AppendLiveCaptionItem() {
 // Menu delegate functions -----------------------------------------------------
 
 bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
+#if BUILDFLAG(IS_CHROMEOS)
   // Disable context menu in locked fullscreen mode to prevent users from
   // exiting this mode (the menu is not really disabled as the user can still
   // open it, but all the individual context menu entries are disabled / greyed
@@ -3224,13 +3324,12 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
   // NOTE: If new commands are being added, please disable them by default and
   // notify the ChromeOS team by filing a bug under this component --
   // b/?q=componentid:1389107.
-  BrowserWindowInterface* const browser_window = GetBrowser();
   bool should_disable_command_for_locked_fullscreen_or_on_task = false;
+  BrowserWindowInterface* const browser_window = GetBrowser();
   if (browser_window &&
       platform_util::IsBrowserLockedFullscreen(browser_window)) {
     should_disable_command_for_locked_fullscreen_or_on_task = true;
   }
-#if BUILDFLAG(IS_CHROMEOS)
   if (browser_window && ash::boca::OnTaskLockedController::From(browser_window)
                             ->is_locked_for_on_task()) {
     bool is_page_nav_command =
@@ -3242,10 +3341,10 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
         !is_page_nav_command && !is_allowed_content_context_command &&
         !ContextMenuMatcher::IsExtensionsCustomCommandId(id);
   }
-#endif
   if (should_disable_command_for_locked_fullscreen_or_on_task) {
     return false;
   }
+#endif
 
   bool enabled = false;
   if (RenderViewContextMenuBase::IsCommandIdKnown(id, &enabled)) {
@@ -3271,7 +3370,7 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
 
   // Allow Spell Check language items on sub menu for text area context menu.
   if ((id >= IDC_SPELLCHECK_LANGUAGES_FIRST) &&
-      (id < IDC_SPELLCHECK_LANGUAGES_LAST)) {
+      (id <= IDC_SPELLCHECK_LANGUAGES_LAST)) {
     return prefs->GetBoolean(spellcheck::prefs::kSpellCheckEnable);
   }
 
@@ -3319,7 +3418,6 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
 
     case IDC_CONTENT_CONTEXT_INSPECTELEMENT:
     case IDC_CONTENT_CONTEXT_INSPECTBACKGROUNDPAGE:
-    case IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_GEMINI:
     case IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_DEVTOOLS:
     case IDC_CONTENT_CONTEXT_RELOAD_PACKAGED_APP:
     case IDC_CONTENT_CONTEXT_RESTART_PACKAGED_APP:
@@ -3462,7 +3560,6 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
       return navigation_allowed &&
              IsOpenLinkAllowedByDlp(selection_navigation_url_);
 
-    case IDC_SPELLPANEL_TOGGLE:
     case IDC_CONTENT_CONTEXT_LANGUAGE_SETTINGS:
     case IDC_SEND_TAB_TO_SELF:
       return true;
@@ -3484,13 +3581,13 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
 
 #if !BUILDFLAG(IS_MAC) && BUILDFLAG(IS_POSIX)
     // TODO(suzhe): this should not be enabled for password fields.
-    case IDC_INPUT_METHODS_MENU:
+    case kLinuxInputMethodsMenuId:
       return true;
 #endif
 
     case IDC_CONTENT_CONTEXT_VIDEO_FRAME:
-    case IDC_SPELLCHECK_MENU:
-    case IDC_CONTENT_CONTEXT_OPENLINKWITH:
+    case kSpellcheckMenuId:
+    case kOpenLinkWithMenuId:
     case IDC_CONTENT_CONTEXT_PROTOCOL_HANDLER_SETTINGS:
     case IDC_CONTENT_CONTEXT_GENERATEPASSWORD:
     case IDC_CONTENT_CONTEXT_SHOWALLSAVEDPASSWORDS:
@@ -3522,10 +3619,13 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
       return params_.is_editable;
 
     case IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION1:
-    case IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION2:
-    case IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION3:
-    case IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION4:
-    case IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION5:
+    case IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION1 + 1:
+    case IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION1 + 2:
+    case IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION1 + 3:
+    case IDC_CONTENT_CONTEXT_START_SMART_SELECTION_ACTION1 + 4:
+      return true;
+
+    case IDC_CONTENT_CONTEXT_SAVE_TO_MEMORY_BANKS:
       return true;
 
     case IDC_CONTENT_PASTE_FROM_CLIPBOARD:
@@ -3573,7 +3673,7 @@ bool RenderViewContextMenu::IsCommandIdChecked(int id) const {
 
 bool RenderViewContextMenu::IsItemForCommandIdDynamic(int command_id) const {
   if (command_id == IDC_CONTENT_CONTEXT_PICTUREINPICTURE &&
-      base::FeatureList::IsEnabled(media::kContextMenu2026)) {
+      base::FeatureList::IsEnabled(features::kMenuSimplification)) {
     return true;
   }
   return RenderViewContextMenuBase::IsItemForCommandIdDynamic(command_id);
@@ -3582,7 +3682,7 @@ bool RenderViewContextMenu::IsItemForCommandIdDynamic(int command_id) const {
 std::u16string RenderViewContextMenu::GetLabelForCommandId(
     int command_id) const {
   if (command_id == IDC_CONTENT_CONTEXT_PICTUREINPICTURE &&
-      base::FeatureList::IsEnabled(media::kContextMenu2026)) {
+      base::FeatureList::IsEnabled(features::kMenuSimplification)) {
     return l10n_util::GetStringUTF16(IDS_CONTENT_CONTEXT_PICTUREINPICTURE);
   }
   return RenderViewContextMenuBase::GetLabelForCommandId(command_id);
@@ -3591,7 +3691,7 @@ std::u16string RenderViewContextMenu::GetLabelForCommandId(
 ui::ImageModel RenderViewContextMenu::GetIconForCommandId(
     int command_id) const {
   if (command_id == IDC_CONTENT_CONTEXT_PICTUREINPICTURE &&
-      base::FeatureList::IsEnabled(media::kContextMenu2026)) {
+      base::FeatureList::IsEnabled(features::kMenuSimplification)) {
     return ui::ImageModel::FromVectorIcon(
         IsCommandIdChecked(IDC_CONTENT_CONTEXT_PICTUREINPICTURE)
             ? features::IsRoundedIconsEnabled() ? vector_icons::kPipExitIcon
@@ -3796,6 +3896,10 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
       ExecListenToThisPage();
       break;
 
+    case IDC_CONTENT_CONTEXT_SAVE_TO_MEMORY_BANKS:
+      ExecSaveToMemoryBanks();
+      break;
+
     case IDC_CONTENT_CONTEXT_RELOAD_GLIC:
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
       if (glic::GlicEnabling::IsEnabledByGlobalCriteria()) {
@@ -3883,7 +3987,11 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
       break;
 
     case IDC_SEND_TAB_TO_SELF:
-      send_tab_to_self::ShowBubble(embedder_web_contents_);
+      send_tab_to_self::ShowBubble(
+          embedder_web_contents_,
+          params_.link_url.is_valid()
+              ? send_tab_to_self::ShareEntryPoint::kLinkMenu
+              : send_tab_to_self::ShareEntryPoint::kContentMenu);
       break;
 
     case IDC_CONTENT_CONTEXT_GENERATE_QR_CODE: {
@@ -3934,14 +4042,22 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
       break;
 
     case IDC_VIEW_SOURCE:
+    case IDC_CONTENT_CONTEXT_VIEWFRAMESOURCE:
+      // The policy on the source_web_contents_ applies; when performing the
+      // action, do it on the appropriate target (the embedder_web_contents_ or
+      // the RenderFrameHost, respectively).
       if (base::FeatureList::IsEnabled(features::kDevToolsShowPolicyDialog) &&
           !DevToolsWindow::AllowDevToolsFor(GetProfile(),
-                                            embedder_web_contents_)) {
+                                            source_web_contents_)) {
 #if !BUILDFLAG(IS_ANDROID)
-        DevToolsPolicyDialog::Show(embedder_web_contents_);
+        DevToolsPolicyDialog::Show(source_web_contents_);
 #endif
       } else {
-        embedder_web_contents_->GetPrimaryMainFrame()->ViewSource();
+        if (id == IDC_VIEW_SOURCE) {
+          embedder_web_contents_->GetPrimaryMainFrame()->ViewSource();
+        } else if (GetRenderFrameHost()) {
+          GetRenderFrameHost()->ViewSource();
+        }
       }
       break;
 
@@ -3951,10 +4067,6 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
 
     case IDC_CONTENT_CONTEXT_INSPECTBACKGROUNDPAGE:
       ExecInspectBackgroundPage();
-      break;
-
-    case IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_GEMINI:
-      ExecInspectElementWithGemini();
       break;
 
     case IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_DEVTOOLS:
@@ -3971,12 +4083,6 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
 
     case IDC_CONTENT_CONTEXT_RELOADFRAME:
       source_web_contents_->ReloadFocusedFrame();
-      break;
-
-    case IDC_CONTENT_CONTEXT_VIEWFRAMESOURCE:
-      if (GetRenderFrameHost()) {
-        GetRenderFrameHost()->ViewSource();
-      }
       break;
 
     case IDC_CONTENT_CONTEXT_UNDO:
@@ -4026,8 +4132,14 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
       auto disposition = ui::DispositionFromEventFlags(
           event_flags, WindowOpenDisposition::NEW_FOREGROUND_TAB);
 
+      GURL navigation_url = selection_navigation_url_;
+      if (google_util::IsGoogleSearchUrl(navigation_url)) {
+        navigation_url = net::AppendOrReplaceQueryParameter(
+            navigation_url, "source", "chrome.ctxt");
+      }
+
       content::OpenURLParams open_url_params = GetOpenURLParamsWithExtraHeaders(
-          selection_navigation_url_, /*referring_url=*/GURL(),
+          navigation_url, /*referring_url=*/GURL(),
           /*initiator=*/{}, disposition, ui::PAGE_TRANSITION_LINK,
           /*extra_headers=*/std::string(), /*started_from_context_menu=*/true);
 
@@ -4096,7 +4208,7 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
           GetBrowser() ? GetBrowser()->GetBrowserForMigrationOnly() : nullptr;
       if (browser) {
         // TODO(crbug.com/514547038): Move this to BrowserWindowFeatures.
-        browser->window()->ShowEmojiPanel();
+        BrowserWindow::FromBrowser(browser)->ShowEmojiPanel();
       } else {
         // TODO(crbug.com/40608277): Ensure this is called in the correct
         // process. This fails in print preview for PWA windows on Mac.
@@ -4136,7 +4248,7 @@ void RenderViewContextMenu::AddAccessibilityLabelsServiceItem(bool is_checked) {
         IDC_CONTENT_CONTEXT_ACCESSIBILITY_LABELS_TOGGLE_ONCE,
         IDS_CONTENT_CONTEXT_ACCESSIBILITY_LABELS_SEND_ONCE);
     menu_model_.AddSubMenu(
-        IDC_CONTENT_CONTEXT_ACCESSIBILITY_LABELS,
+        kAccessibilityLabelsMenuId,
         l10n_util::GetStringUTF16(
             IDS_CONTENT_CONTEXT_ACCESSIBILITY_LABELS_MENU_OPTION),
         &accessibility_labels_submenu_model_);
@@ -4559,15 +4671,56 @@ bool RenderViewContextMenu::AppendQRCodeGeneratorItem(
 }
 
 void RenderViewContextMenu::AppendSendTabToSelfItem(bool add_separator) {
+  if (!embedder_web_contents_) {
+    return;
+  }
+
+  // Determine the target URL to share based on what element was right-clicked:
+  // if the context menu was triggered on a valid link, offer to share the
+  // link destination URL; otherwise, offer to share the active page URL.
+  const bool is_link = params_.link_url.is_valid();
+  if (is_link && !base::FeatureList::IsEnabled(
+                     send_tab_to_self::kSendTabToSelfEnhancedDesktopUIv2)) {
+    return;
+  }
+  const GURL target_url = is_link
+                              ? params_.link_url
+                              : embedder_web_contents_->GetLastCommittedURL();
+
+  // Only returns nullopt when unshareable (e.g., incognito, invalid scheme,
+  // policy disabled). Signed-out or zero-device states still return a valid
+  // display reason (`kOfferSignIn` or `kInformNoTargetDevice`) to show promos.
+  std::optional<send_tab_to_self::EntryPointDisplayReason> display_reason =
+      send_tab_to_self::GetEntryPointDisplayReason(embedder_web_contents_,
+                                                   target_url);
+  if (!display_reason.has_value()) {
+    return;
+  }
+
   if (add_separator) {
     menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
   }
 
-  if (base::FeatureList::IsEnabled(
-          send_tab_to_self::kSendTabToSelfEnhancedDesktopUI)) {
+  const bool should_offer_submenu =
+      (base::FeatureList::IsEnabled(
+           send_tab_to_self::kSendTabToSelfEnhancedDesktopUI) ||
+       base::FeatureList::IsEnabled(
+           send_tab_to_self::kSendTabToSelfEnhancedDesktopUIv2)) &&
+      (*display_reason ==
+       send_tab_to_self::EntryPointDisplayReason::kOfferFeature);
+
+  if (should_offer_submenu) {
+    // TODO(crbug.com/530097533): Investigate improved title handling when the
+    // user interacts with the right-click flow on a hyperlink (e.g., fetching
+    // the destination page title or using a domain fallback if anchor text is
+    // empty).
     send_tab_to_self_submenu_delegate_ =
         std::make_unique<send_tab_to_self::SendTabToSelfContextMenuDelegate>(
-            embedder_web_contents_);
+            embedder_web_contents_,
+            is_link ? send_tab_to_self::ShareEntryPoint::kLinkMenu
+                    : send_tab_to_self::ShareEntryPoint::kContentMenu,
+            target_url,
+            is_link ? base::UTF16ToUTF8(params_.link_text) : std::string());
     send_tab_to_self_submenu_ = std::make_unique<ui::SimpleMenuModel>(
         send_tab_to_self_submenu_delegate_.get());
     send_tab_to_self_submenu_delegate_->PopulateSubmenu(
@@ -4591,17 +4744,22 @@ void RenderViewContextMenu::AppendSendTabToSelfItem(bool add_separator) {
     menu_model_.AddSubMenuWithStringIdAndIcon(
         IDC_SEND_TAB_TO_SELF, IDS_MENU_SEND_TAB_TO_SELF,
         send_tab_to_self_submenu_.get(),
-        ui::ImageModel::FromVectorIcon(
-            features::IsRoundedIconsEnabled()   ? kDevicesIcon
-                                                : kDevicesOldIcon));
+        ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                           ? kDevicesIcon
+                                           : kDevicesOldIcon));
 #endif
+
+    const base::Feature& stts_feature =
+        (is_link || base::FeatureList::IsEnabled(
+                        send_tab_to_self::kSendTabToSelfEnhancedDesktopUIv2))
+            ? send_tab_to_self::kSendTabToSelfEnhancedDesktopUIv2
+            : send_tab_to_self::kSendTabToSelfEnhancedDesktopUI;
 
     // TODO(crbug.com/516708776): Remove new feature tag when no longer new.
     menu_model_.SetIsNewFeatureAt(
         menu_model_.GetItemCount() - 1,
-        UserEducationService::MaybeShowNewBadge(
-            GetBrowserContext(),
-            send_tab_to_self::kSendTabToSelfEnhancedDesktopUI));
+        UserEducationService::MaybeShowNewBadge(GetBrowserContext(),
+                                                stts_feature));
     return;
   }
 
@@ -4622,8 +4780,7 @@ void RenderViewContextMenu::AppendSendTabToSelfItem(bool add_separator) {
       IDC_SEND_TAB_TO_SELF,
       l10n_util::GetStringUTF16(IDS_MENU_SEND_TAB_TO_SELF),
       ui::ImageModel::FromVectorIcon(
-          features::IsRoundedIconsEnabled()   ? kDevicesIcon
-                                              : kDevicesOldIcon));
+          features::IsRoundedIconsEnabled() ? kDevicesIcon : kDevicesOldIcon));
 #endif
 }
 
@@ -4739,7 +4896,8 @@ void RenderViewContextMenu::ExecOpenCompose() {
     client->GetManager().OpenCompose(
         *driver,
         autofill::FieldGlobalId(
-            frame_token, autofill::FieldRendererId(params_.field_renderer_id)),
+            frame_token,
+            autofill::FieldRendererId(params_.field_renderer_id.value())),
         compose::ComposeManagerImpl::UiEntryPoint::kContextMenu);
     BrowserUserEducationInterface::From(GetBrowser())
         ->NotifyNewBadgeFeatureUsed(compose::features::kEnableCompose);
@@ -4756,10 +4914,43 @@ void RenderViewContextMenu::ExecOpenInReadAnything() {
 }
 
 void RenderViewContextMenu::ExecListenToThisPage() {
-  // TODO(https://b/494307454): This is a placeholder. Full implementation will
-  // be done in a future request.
   read_anything::ReadAnythingEntryPointController::ShowUI(
-      GetBrowser(), ReadAnythingOpenTrigger::kReadAnythingContextMenu);
+      GetBrowser(), ReadAnythingOpenTrigger::kListenToThisPageContextMenu);
+}
+
+void RenderViewContextMenu::ExecSaveToMemoryBanks() {
+  context_hub::ContextHubService* context_hub_service =
+      ContextHubServiceFactory::GetForProfile(GetProfile());
+  if (!context_hub_service) {
+    return;
+  }
+
+  std::string tab_title = base::UTF16ToUTF8(source_web_contents_->GetTitle());
+  std::string selected_text = base::UTF16ToUTF8(params_.selection_text);
+
+  if (!selected_text.empty()) {
+    context_hub_service->SaveTextSelection(params_.page_url, tab_title,
+                                           selected_text, base::DoNothing());
+    return;
+  }
+
+  RenderFrameHost* render_frame_host = GetRenderFrameHost();
+  if (!render_frame_host) {
+    return;
+  }
+
+  content_extraction::GetInnerText(
+      *render_frame_host, std::nullopt,
+      base::BindOnce(
+          [](base::WeakPtr<context_hub::ContextHubService> service, GURL url,
+             std::string title,
+             std::unique_ptr<content_extraction::InnerTextResult> result) {
+            if (service && result && !result->inner_text.empty()) {
+              service->SaveTab(url, title, result->inner_text,
+                               base::DoNothing());
+            }
+          },
+          context_hub_service->GetWeakPtr(), params_.page_url, tab_title));
 }
 
 void RenderViewContextMenu::ExecInspectElement() {
@@ -4778,16 +4969,6 @@ void RenderViewContextMenu::ExecInspectBackgroundPage() {
 
   extensions::devtools_util::InspectBackgroundPage(
       platform_app, GetProfile(), DevToolsOpenedByAction::kContextMenuInspect);
-}
-
-void RenderViewContextMenu::ExecInspectElementWithGemini() {
-  LOG(ERROR) << "ExecInspectElementWithGemini called at " << params_.x << ", "
-             << params_.y;
-  // TOOD(crbug.com/466071312): Send the actual node id.
-  DevToolsFloaty::Show(Profile::FromBrowserContext(browser_context_),
-                       render_process_id_, render_frame_id_,
-                       gfx::Point(params_.x, params_.y),
-                       /* *backend_node_id*/ 1);
 }
 
 void RenderViewContextMenu::CheckSupervisedUserURLFilterAndSaveLinkAs() {
@@ -4917,10 +5098,12 @@ void RenderViewContextMenu::ExecSaveAs() {
 
 void RenderViewContextMenu::ExecGlic() {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-  if (glic::GlicEnabling::IsContextualMenuItemEnabled(GetProfile())) {
+  if (glic::GlicEnabling::IsContextualMenuItemEnabled(GetProfile(),
+                                                      params_.selection_text)) {
     glic_item_executed_ = true;
     glic::GlicContextMenuInvocationHelper::HandleContextualMenuClick(
-        tabs::TabInterface::MaybeGetFromContents(source_web_contents_));
+        tabs::TabInterface::MaybeGetFromContents(source_web_contents_),
+        params_.selection_text, GetRenderFrameHost()->GetGlobalId());
   }
 #endif  // BUILDLFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 }
@@ -4968,7 +5151,9 @@ void RenderViewContextMenu::ExecCopyImageAt() {
   frame_host->CopyImageAt(params_.x, params_.y);
 
 #if !BUILDFLAG(IS_ANDROID)
-  if (toast_features::IsEnabled(toast_features::kImageCopiedToast)) {
+  if (enterprise_data_protection::IsClipboardCopyAllowedByPolicyForUI(
+          GetWebContentsForDataControls()) &&
+      toast_features::IsEnabled(toast_features::kImageCopiedToast)) {
     auto* const toast_controller = GetToastController();
     if (toast_controller) {
       toast_controller->MaybeShowToast(ToastParams(ToastId::kImageCopied));
@@ -5163,7 +5348,9 @@ void RenderViewContextMenu::ExecCopyVideoFrame() {
       blink::mojom::MediaPlayerActionType::kCopyVideoFrame,
       /*enable=*/true));
 #if !BUILDFLAG(IS_ANDROID)
-  if (toast_features::IsEnabled(toast_features::kVideoFrameCopiedToast)) {
+  if (enterprise_data_protection::IsClipboardCopyAllowedByPolicyForUI(
+          GetWebContentsForDataControls()) &&
+      toast_features::IsEnabled(toast_features::kVideoFrameCopiedToast)) {
     auto* const toast_controller = GetToastController();
     if (toast_controller) {
       toast_controller->MaybeShowToast(ToastParams(ToastId::kVideoFrameCopied));
@@ -5322,8 +5509,15 @@ void RenderViewContextMenu::ExecProtocolHandlerSettings(int event_flags) {
   OpenURL(url, GURL(), {}, disposition, ui::PAGE_TRANSITION_LINK);
 }
 
-void RenderViewContextMenu::MaybeAppendOpenGlicItem() {
+void RenderViewContextMenu::MaybeAppendOpenGlicItem(bool add_separator) {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  if (glic_item_shown_) {
+    return;
+  }
+  if (!content_type_->SupportsGroup(ContextMenuContentType::ITEM_GROUP_GLIC)) {
+    return;
+  }
+
   // Append an item for opening Glic
   if (!IsNormalBrowser()) {
     return;
@@ -5334,28 +5528,59 @@ void RenderViewContextMenu::MaybeAppendOpenGlicItem() {
     return;
   }
 
-  if (features::IsMenuSimplificationEnabled() &&
-      !params_.selection_text.empty() && IsPasswordField()) {
+  if (IsPasswordField()) {
     return;
   }
 
-  if (glic::GlicEnabling::IsContextualMenuItemEnabled(GetProfile()) &&
+  if (glic::GlicEnabling::IsContextualMenuItemEnabled(GetProfile(),
+                                                      params_.selection_text) &&
       !IsGlicWindow(this, browser_context_)) {
-    std::string arm = features::kGlicContextMenuArm.Get();
-    bool show_summarize_page = (arm == "arm2");
-    menu_model_.AddItemWithStringIdAndIcon(
-        IDC_CONTENT_CONTEXT_GLIC,
-        show_summarize_page ? IDS_GLIC_CONTEXT_MENU_SUMMARIZE_PAGE_WITH_GEMINI
-                            : IDS_GLIC_BUTTON_ENTRYPOINT_ASK_GEMINI_LABEL,
-        ui::ImageModel::FromVectorIcon(
-            glic::GlicVectorIconManager::GetVectorIcon(
-                IDR_GLIC_BUTTON_VECTOR_ICON),
-            ui::kColorMenuIcon, kTabMenuIconSize));
+    base::ReplaceChars(params_.selection_text, AutocompleteInput::kInvalidChars,
+                       u" ", &params_.selection_text);
+    base::TrimWhitespace(params_.selection_text, base::TRIM_ALL,
+                         &params_.selection_text);
+    tabs::TabInterface* tab_interface =
+        tabs::TabInterface::MaybeGetFromContents(source_web_contents_);
+    tabs::PageContextEligibilityHelper* helper =
+        tab_interface ? tabs::PageContextEligibilityHelper::From(tab_interface)
+                      : nullptr;
+    const bool is_page_eligible =
+        helper &&
+        helper->IsPageContextEligible() ==
+            optimization_guide::PageContextEligibilityStatus::kEligible;
+    const bool show_text_selection_menu_item =
+        base::FeatureList::IsEnabled(features::kGlicTextSelectionContextMenu) &&
+        !params_.selection_text.empty() && is_page_eligible;
+
+    const std::string arm = features::kGlicContextMenuArm.Get();
+    const bool show_summarize_page = (arm == "arm2");
+
+    std::u16string label;
+    if (show_text_selection_menu_item) {
+      std::u16string printable_selection_text = PrintableSelectionText();
+      EscapeAmpersands(&printable_selection_text);
+      label = l10n_util::GetStringFUTF16(IDS_GLIC_CONTEXT_MENU_ASK_GEMINI_ABOUT,
+                                         printable_selection_text);
+    } else if (show_summarize_page) {
+      label = l10n_util::GetStringUTF16(
+          IDS_GLIC_CONTEXT_MENU_SUMMARIZE_PAGE_WITH_GEMINI);
+    } else {
+      label = l10n_util::GetStringUTF16(
+          IDS_GLIC_BUTTON_ENTRYPOINT_ASK_GEMINI_LABEL);
+    }
+
+    menu_model_.AddItemWithIcon(IDC_CONTENT_CONTEXT_GLIC, label,
+                                ui::ImageModel::FromVectorIcon(
+                                    glic::GlicVectorIconManager::GetVectorIcon(
+                                        IDR_GLIC_BUTTON_VECTOR_ICON),
+                                    ui::kColorMenuIcon, kTabMenuIconSize));
     menu_model_.SetIsNewFeatureAt(
         menu_model_.GetItemCount() - 1,
         UserEducationService::MaybeShowNewBadge(GetBrowserContext(),
                                                 features::kGlicContextMenu));
-    menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
+    if (add_separator) {
+      menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
+    }
     glic_item_shown_ = true;
   }
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
@@ -5711,8 +5936,16 @@ bool RenderViewContextMenu::CanAppendGlicShareImageItem() const {
   }
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
-  return tabs::TabInterface::MaybeGetFromContents(source_web_contents_) !=
-         nullptr;
+  tabs::TabInterface* tab =
+      tabs::TabInterface::MaybeGetFromContents(source_web_contents_);
+  if (!tab) {
+    return false;
+  }
+
+  auto* helper = tabs::PageContextEligibilityHelper::From(tab);
+  return helper &&
+         helper->IsPageContextEligible() ==
+             optimization_guide::PageContextEligibilityStatus::kEligible;
 }
 
 void RenderViewContextMenu::AppendLensGeminiSection() {
@@ -5752,11 +5985,26 @@ void RenderViewContextMenu::AppendLensGeminiSection() {
 }
 
 void RenderViewContextMenu::AppendRevisedTextSelectionSection() {
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  const bool glic_below_search =
+      base::FeatureList::IsEnabled(features::kGlicContextMenuBelowSearch);
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (!params_.link_url.is_empty()) {
     // Link + Selection case
     AppendCopyItem();
     AppendLinkToTextItems();
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    if (!glic_below_search) {
+      MaybeAppendOpenGlicItem(/*add_separator=*/false);
+    }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     AppendSearchProvider();
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    if (glic_below_search) {
+      MaybeAppendOpenGlicItem(/*add_separator=*/false);
+    }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    AppendSaveToMemoryBanksItem();
     AppendPrintItem();
 
     if (CanPartiallyTranslateTargetLanguage()) {
@@ -5772,8 +6020,19 @@ void RenderViewContextMenu::AppendRevisedTextSelectionSection() {
 
     menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    if (!glic_below_search) {
+      MaybeAppendOpenGlicItem(/*add_separator=*/false);
+    }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     AppendSearchProvider();
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    if (glic_below_search) {
+      MaybeAppendOpenGlicItem(/*add_separator=*/false);
+    }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     AppendReadAnythingItem();
+    AppendSaveToMemoryBanksItem();
 
     if (CanPartiallyTranslateTargetLanguage()) {
       AppendPartialTranslateItem();

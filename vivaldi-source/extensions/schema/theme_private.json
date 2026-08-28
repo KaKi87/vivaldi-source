@@ -4,7 +4,7 @@
     "namespace": "themePrivate",
     "description": "Use the <code>vivaldi.themePrivate</code> to access the API.",
     "compiler_options": {
-      "implemented_in": "extensions/api/theme/theme_private_api.h"
+      "implemented_in": "extensions/api/theme_private/theme_private_api.h"
     },
     "types": [
       {

@@ -35,6 +35,9 @@
 #include "chrome/browser/chrome_browser_main_extra_parts.h"
 #include "chrome/browser/chrome_content_browser_client.h"
 #include "chrome/browser/devtools/devtools_window.h"
+#if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/actor/ui/actor_task_unload_handler.h"
+#endif
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/lifetime/application_lifetime_desktop.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
@@ -75,7 +78,6 @@
 #include "chrome/test/base/chrome_test_suite.h"
 #include "chrome/test/base/chrome_test_utils.h"
 #include "chrome/test/base/test_launcher_utils.h"
-#include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/captive_portal/core/buildflags.h"
 #include "components/feature_engagement/public/feature_list.h"
@@ -83,6 +85,7 @@
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/os_crypt/async/browser/key_provider.h"
 #include "components/password_manager/core/browser/password_manager_switches.h"
+#include "components/performance_manager/public/features.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/browser_main_parts.h"
 #include "content/public/browser/devtools_agent_host.h"
@@ -267,7 +270,6 @@ class OSCryptAsyncExtraSetUp : public ChromeBrowserMainExtraParts {
     // that verify rollback from async to sync will fail as data might be
     // encrypted with the test key above.
     bool UseForEncryption() override { return false; }
-    bool IsCompatibleWithOsCryptSync() override { return false; }
     const base::TimeDelta sleep_time_;
   };
 };
@@ -373,6 +375,12 @@ void InProcessBrowserTest::Initialize() {
   // Allow unpacked extensions without developer mode for testing.
   disabled_features.push_back(
       extensions_features::kExtensionDisableUnsupportedDeveloper);
+
+  // Disable TransientKeepAlivePolicy in tests by default since it delays
+  // renderer process cleanup, breaking tests checking process counts or
+  // expecting immediate process exit.
+  disabled_features.push_back(
+      performance_manager::features::kTransientKeepAlivePolicy);
 
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
   // Disable session restore infobar the experiment as it causes test failures.
@@ -654,7 +662,7 @@ void InProcessBrowserTest::SetUpLocalStatePrefService(
 }
 
 Profile* InProcessBrowserTest::GetProfile() const {
-  return browser() ? browser()->profile() : nullptr;
+  return browser() ? browser()->GetProfile() : nullptr;
 }
 
 TabListInterface* InProcessBrowserTest::GetTabListInterface() const {
@@ -711,7 +719,8 @@ bool InProcessBrowserTest::AddTabAtIndexToBrowser(
   NavigateParams params(browser, url, transition);
   params.tabstrip_index = index;
   params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
-  params.pwa_navigation_capturing_force_off = true;
+  params.web_app_navigation_data.emplace();
+  params.web_app_navigation_data->SetNavigationCapturingForceOff(true);
   Navigate(&params);
   RunScheduledLayouts();
 
@@ -777,7 +786,7 @@ Browser* InProcessBrowserTest::CreateBrowser(Profile* profile) {
 Browser* InProcessBrowserTest::CreateIncognitoBrowser(Profile* profile) {
   // Use active profile if default nullptr was passed.
   if (!profile) {
-    profile = browser()->profile();
+    profile = browser()->GetProfile();
   }
   // Create a new browser with using the incognito profile.
   Browser* incognito = Browser::Create(Browser::CreateParams(
@@ -828,7 +837,7 @@ void InProcessBrowserTest::AddBlankTabAndShow(Browser* browser,
   content::TestNavigationObserver observer(blank_tab);
   observer.Wait();
   RunScheduledLayouts();
-  browser->window()->Show();
+  browser->GetWindow()->Show();
   if (wait_for_activation && !browser_shutdown::IsTryingToQuit()) {
     ui_test_utils::WaitForBrowserSetLastActive(browser);
   }
@@ -973,6 +982,10 @@ void InProcessBrowserTest::PreRunTestOnMainThread() {
 void InProcessBrowserTest::PostRunTestOnMainThread() {
 #if BUILDFLAG(IS_MAC)
   autorelease_pool_->Recycle();
+#endif
+
+#if !BUILDFLAG(IS_ANDROID)
+  actor::ActorTaskTabCloseConfirmDialog::SetSuppressForTesting(true);
 #endif
 
   QuitBrowsers();

@@ -12,10 +12,6 @@ update_target("//base:base") {
     "//vivaldi/app/vivaldi_apptools.cpp",
     "//vivaldi/app/vivaldi_apptools.h",
   ]
-  if (!defined(allow_circular_includes_from)) {
-    allow_circular_includes_from = []
-  }
-  allow_circular_includes_from += [ "//base:base_static" ]
 }
 
 update_target("//base:base_static") {
@@ -139,7 +135,8 @@ if (current_toolchain == default_toolchain) {
     }
 
     update_template_instance(_target) {
-      if (current_toolchain == default_toolchain) {
+      if (current_toolchain == default_toolchain ||
+          (is_ios && current_toolchain == "${default_toolchain}_app_ext")) {
         if (defined(outputs)) {
           outputs += _extra_outputs
         }
@@ -155,7 +152,8 @@ if (current_toolchain == default_toolchain) {
       _grit_suffix = "__strings_grit"
     }
     update_target(_target + _grit_suffix) {
-      if (current_toolchain == default_toolchain) {
+      if (current_toolchain == default_toolchain ||
+          (is_ios && current_toolchain == "${default_toolchain}_app_ext")) {
         inputs += [
                     vivaldi_source,
                     "//vivaldi/app/gritsettings/resource_ids",

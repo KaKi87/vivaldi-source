@@ -12,11 +12,17 @@
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/autocomplete/aim_eligibility_service_factory.h"
 #include "chrome/browser/autocomplete/chrome_aim_eligibility_service.h"
+#include "chrome/browser/search_engines/ai_mode_button_service_factory.h"
+#include "chrome/browser/search_engines/template_url_service_factory_test_util.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/testing_profile.h"
+#include "components/omnibox/browser/aim_eligibility_service_features.h"
 #include "components/omnibox/browser/omnibox_prefs.h"
 #include "components/omnibox/common/omnibox_features.h"
 #include "components/prefs/pref_service.h"
+#include "components/search_engines/template_url.h"
+#include "components/search_engines/template_url_service.h"
+#include "components/search_engines/test_ai_mode_button_service.h"
 #include "content/public/test/browser_task_environment.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -74,7 +80,6 @@ TEST_F(OmniboxNextFeaturesTest, ComposeboxConfigEnabled_DefaultConfiguration) {
   auto composebox = config.composebox();
 
   auto image_upload = config.composebox().image_upload();
-  EXPECT_EQ(image_upload.enable_webp_encoding(), false);
   EXPECT_EQ(image_upload.downscale_max_image_size(), 1500000);
   EXPECT_EQ(image_upload.downscale_max_image_width(), 1600);
   EXPECT_EQ(image_upload.downscale_max_image_height(), 1600);
@@ -272,6 +277,23 @@ class OmniboxNextAimEligibilityTest : public testing::Test {
  public:
   OmniboxNextAimEligibilityTest() = default;
 
+  void SetUp() override {
+    testing::Test::SetUp();
+    template_url_service_test_util_ =
+        std::make_unique<TemplateURLServiceFactoryTestUtil>(&profile_);
+    template_url_service_test_util_->VerifyLoad();
+
+    TemplateURLData template_url_data;
+    template_url_data.SetShortName(u"Google");
+    template_url_data.SetKeyword(u"google.com");
+    template_url_data.SetURL("https://www.google.com/search?q={searchTerms}");
+    auto template_url = std::make_unique<TemplateURL>(template_url_data);
+    auto* template_url_ptr =
+        template_url_service_test_util_->model()->Add(std::move(template_url));
+    template_url_service_test_util_->model()
+        ->SetUserSelectedDefaultSearchProvider(template_url_ptr);
+  }
+
  protected:
   void SetUpAimEligibilityService(bool is_aim_eligible) {
     AimEligibilityServiceFactory::GetInstance()->SetTestingFactory(
@@ -285,10 +307,27 @@ class OmniboxNextAimEligibilityTest : public testing::Test {
                        is_aim_eligible));
   }
 
+  void SetUpAiModeButtonService() {
+    AiModeButtonServiceFactory::GetInstance()->SetTestingFactory(
+        &profile_, base::BindOnce([](content::BrowserContext* context)
+                                      -> std::unique_ptr<KeyedService> {
+          auto service = std::make_unique<TestAiModeButtonService>(
+              /*template_url_service=*/nullptr);
+          AiModeButtonUiConfig test_config(
+              SearchEngineType::SEARCH_ENGINE_GOOGLE, u"AI Mode", u"Google",
+              /*favicon_url=*/"", /*navigation_url=*/"",
+              /*navigation_url_empty=*/"");
+          service->current_ui_config_ = test_config;
+          return service;
+        }));
+  }
+
   TestingProfile* profile() { return &profile_; }
 
   content::BrowserTaskEnvironment task_environment_;
   TestingProfile profile_;
+  std::unique_ptr<TemplateURLServiceFactoryTestUtil>
+      template_url_service_test_util_;
 };
 
 TEST_F(OmniboxNextAimEligibilityTest, IsAimPopupEnabled) {
@@ -317,23 +356,20 @@ TEST_F(OmniboxNextAimEligibilityTest, IsAimPopupEnabled) {
 
 TEST_F(OmniboxNextAimEligibilityTest, ShouldShowAimContextMenuOption) {
   profile_.GetPrefs()->SetInteger(omnibox::kAIModeSettings, 0);
+  SetUpAiModeButtonService();
   struct TestCase {
     bool is_aim_eligible;
     bool aim_enabled;
-    bool ai_mode_entry_point_enabled;
     bool webui_aim_popup_enabled;
     const char* context_button_variant;
     bool expected_should_show;
   };
   std::vector<TestCase> test_cases = {
-      // If either AIM feature is enabled, then menu option should be shown.
-      // Entry point is enabled:
-      {true, false, true, false, "below_results", true},
-      // Context button is enabled:
-      {true, false, false, true, "below_results", true},
-      // If the user is AIM ineligible, then the menu option should be hidden
-      // even if both features are enabled:
-      {false, true, true, true, "below_results", false},
+      // If either feature is enabled, the menu option should be shown.
+      {true, true, false, "below_results", true},
+      {true, false, true, "below_results", true},
+      // If the user is AIM ineligible, then the menu option should be hidden:
+      {false, true, true, "below_results", false},
   };
 
   for (size_t i = 0; i < test_cases.size(); ++i) {
@@ -348,12 +384,6 @@ TEST_F(OmniboxNextAimEligibilityTest, ShouldShowAimContextMenuOption) {
       features_with_params.push_back({omnibox::kAimEnabled, {}});
     } else {
       disabled_features.push_back(omnibox::kAimEnabled);
-    }
-
-    if (test_case.ai_mode_entry_point_enabled) {
-      features_with_params.push_back({omnibox::kAiModeOmniboxEntryPoint, {}});
-    } else {
-      disabled_features.push_back(omnibox::kAiModeOmniboxEntryPoint);
     }
 
     if (test_case.webui_aim_popup_enabled) {
@@ -372,6 +402,50 @@ TEST_F(OmniboxNextAimEligibilityTest, ShouldShowAimContextMenuOption) {
     EXPECT_EQ(ShouldShowAimContextMenuOption(profile()),
               test_case.expected_should_show)
         << " case " << i;
+  }
+}
+
+TEST_F(OmniboxNextAimEligibilityTest, IsOmniboxEverywhereEnabled) {
+  // Test with null profile.
+  EXPECT_FALSE(omnibox::IsOmniboxEverywhereEnabled(nullptr));
+
+  // Test with Google DSE and feature enabled.
+  {
+    base::test::ScopedFeatureList feature_list;
+    feature_list.InitAndEnableFeature(omnibox::kOmniboxEverywhere);
+    EXPECT_TRUE(omnibox::IsOmniboxEverywhereEnabled(profile()));
+  }
+
+  // Test with Google DSE and feature disabled.
+  {
+    base::test::ScopedFeatureList feature_list;
+    feature_list.InitAndDisableFeature(omnibox::kOmniboxEverywhere);
+    EXPECT_FALSE(omnibox::IsOmniboxEverywhereEnabled(profile()));
+  }
+
+  // Set non-Google default search provider.
+  TemplateURLData non_google_data;
+  non_google_data.SetShortName(u"Other");
+  non_google_data.SetKeyword(u"other.com");
+  non_google_data.SetURL("https://www.other.com/search?q={searchTerms}");
+  auto non_google_url = std::make_unique<TemplateURL>(non_google_data);
+  auto* non_google_ptr =
+      template_url_service_test_util_->model()->Add(std::move(non_google_url));
+  template_url_service_test_util_->model()
+      ->SetUserSelectedDefaultSearchProvider(non_google_ptr);
+
+  // Test with non-Google DSE and feature enabled.
+  {
+    base::test::ScopedFeatureList feature_list;
+    feature_list.InitAndEnableFeature(omnibox::kOmniboxEverywhere);
+    EXPECT_FALSE(omnibox::IsOmniboxEverywhereEnabled(profile()));
+  }
+
+  // Test with non-Google DSE and feature disabled.
+  {
+    base::test::ScopedFeatureList feature_list;
+    feature_list.InitAndDisableFeature(omnibox::kOmniboxEverywhere);
+    EXPECT_FALSE(omnibox::IsOmniboxEverywhereEnabled(profile()));
   }
 }
 

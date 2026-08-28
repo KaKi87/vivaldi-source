@@ -84,6 +84,7 @@ enum class MenuActionType {
   EditPinnedSite = 71,
   DeleteBrowsingData = 72,
   CreateEmptyTabGroup = 73,
+  SendTabToSelf = 74,
 
   // Vivaldi
   OpenInNewBackgroundTab,

@@ -11,10 +11,11 @@ static_library("importer") {
       "chromium_session_importer.h",
       "firefox_import_tabs.cc",
       "firefox_import_tabs.h",
-      "imported_raw_password_form.cc",
-      "imported_raw_password_form.h",
       "import_error_utils.cc",
       "import_error_utils.h",
+      "import_limits.h",
+      "imported_raw_password_form.cc",
+      "imported_raw_password_form.h",
       "imported_tab_entry.cpp",
       "imported_tab_entry.h",
       "viv_importer.cpp",
@@ -120,6 +121,5 @@ static_library("browser") {
       "//vivaldi/app:vivaldi_native_strings",
       "//vivaldi/app:vivaldi_unscaled_native_resources",
     ]
-    allow_circular_includes_from = [ ":importer" ]
   }
 }

@@ -1,103 +1,182 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2026 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/cocoa/renderer_context_menu/render_view_context_menu_mac.h"
 
-#include "base/mac/foundation_util.h"
-#include "base/mac/mac_util.h"
+#include "base/strings/utf_string_conversions.h"
+#include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/spellchecker/spellcheck_factory.h"
+#include "chrome/browser/spellchecker/spellcheck_service.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/cocoa/browser_window_cocoa.h"
-#include "chrome/browser/ui/cocoa/browser_window_controller.h"
-#import "chrome/browser/ui/cocoa/location_bar/autocomplete_text_field.h"
-#import "chrome/browser/ui/cocoa/toolbar/toolbar_controller.h"
-#include "chrome/browser/ui/extensions/application_launch.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/in_process_browser_test.h"
-#include "content/public/test/test_utils.h"
-#import "testing/gtest_mac.h"
+#include "components/spellcheck/browser/spellcheck_platform.h"
+#include "components/spellcheck/common/spellcheck_features.h"
+#include "components/spellcheck/spellcheck_buildflags.h"
+#include "content/public/browser/context_menu_params.h"
+#include "content/public/browser/web_contents.h"
+#include "content/public/test/browser_test.h"
+#include "testing/gtest/include/gtest/gtest.h"
+
+namespace {
+
+bool MenuHasItemWithCommand(const ui::MenuModel& menu, int command) {
+  for (size_t i = 0; i < menu.GetItemCount(); ++i) {
+    if (menu.GetTypeAt(i) == ui::MenuModel::TYPE_SUBMENU) {
+      ui::MenuModel* submenu = menu.GetSubmenuModelAt(i);
+      if (MenuHasItemWithCommand(*submenu, command)) {
+        return true;
+      }
+    }
+    if (menu.GetCommandIdAt(i) == command) {
+      return true;
+    }
+  }
+  return false;
+}
 
 class RenderViewContextMenuMacBrowserTest : public InProcessBrowserTest {
  public:
-  RenderViewContextMenuMacBrowserTest() {}
+  RenderViewContextMenuMacBrowserTest() = default;
 
- protected:
-  void SetUpOnMainThread() override {
-    filteredItems_.reset([[NSMutableArray alloc] init]);
-    [ChromeSwizzleServicesMenuUpdater
-        storeFilteredEntriesForTestingInArray:filteredItems_];
-
-    // Add a textfield, which we'll use to present a contextual menu for
-    // testing.
-    textField_.reset(
-        [[NSTextField alloc] initWithFrame:NSMakeRect(20, 20, 100, 20)]);
-    [textField_ setStringValue:@"some text"];
-    NSWindow* window = browser()->window()->GetNativeWindow();
-    [[window contentView] addSubview:textField_];
+  SpellcheckService* GetSpellcheckService() {
+    return SpellcheckServiceFactory::GetForContext(browser()->GetProfile());
   }
 
-  void TearDownOnMainThread() override {
-    [textField_ removeFromSuperview];
-    [ChromeSwizzleServicesMenuUpdater
-        storeFilteredEntriesForTestingInArray:nil];
+  std::unique_ptr<RenderViewContextMenuMac> CreateMenu(
+      std::u16string selection_text,
+      std::u16string misspelled_word = std::u16string()) {
+    content::ContextMenuParams params;
+    params.is_editable = true;
+    params.selection_text = selection_text;
+    params.misspelled_word = misspelled_word;
+
+    auto menu = std::make_unique<RenderViewContextMenuMac>(
+        *browser()
+             ->tab_strip_model()
+             ->GetActiveWebContents()
+             ->GetPrimaryMainFrame(),
+        params, /*is_paste_enabled=*/false,
+        /*is_paste_and_match_style_enabled=*/false);
+    menu->InitToolkitMenu();
+    return menu;
   }
-
-  base::scoped_nsobject<NSMutableArray> filteredItems_;
-  base::scoped_nsobject<NSTextField> textField_;
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(RenderViewContextMenuMacBrowserTest);
 };
 
-// Confirm that the private classes used to filter Safari's redundant Services
-// items exist and implement the expected methods, and that the filtering code
-// successfully removes those Services items.
-IN_PROC_BROWSER_TEST_F(RenderViewContextMenuMacBrowserTest, ServicesFiltering) {
-  // Confirm that the _NSServicesMenuUpdater class exists and implements the
-  // method we expect it to.
-  Class menuUpdaterClass = NSClassFromString(@"_NSServicesMenuUpdater");
-  EXPECT_TRUE(menuUpdaterClass);
-  EXPECT_TRUE([menuUpdaterClass instancesRespondToSelector:
-      @selector(populateMenu:withServiceEntries:forDisplay:)]);
+// Tests that the "Remove from Dictionary" command appears when a word that has
+// been added to the dictionary by the user is detected, and that selecting it
+// removes the word from the user's dictionary.
+IN_PROC_BROWSER_TEST_F(RenderViewContextMenuMacBrowserTest,
+                       ExecuteRemoveFromDictionary) {
+  SpellcheckService* spellcheck_service = GetSpellcheckService();
+  ASSERT_TRUE(spellcheck_service);
 
-  // Confirm that the _NSServiceEntry class exists and implements the
-  // method we expect it to.
-  Class serviceEntryClass = NSClassFromString(@"_NSServiceEntry");
-  EXPECT_TRUE(serviceEntryClass);
-  EXPECT_TRUE([serviceEntryClass instancesRespondToSelector:
-      @selector(bundleIdentifier)]);
+  std::u16string word = u"customword";
+  spellcheck_service->GetCustomDictionary()->AddWord(base::UTF16ToUTF8(word));
+  ASSERT_TRUE(spellcheck_service->GetCustomDictionary()->HasWord(
+      base::UTF16ToUTF8(word)));
 
-  // Make the testing textfield the browser window's first responder, in
-  // preparation for the contextual menu we're about to display. Even though the
-  // code to filter Services items lives in render_view_context_menu_mac, it
-  // filters all context menus no matter which control invokes them (as well as
-  // the application Services menu). So to test, we just need a control with a
-  // bit of selected text.
-  NSWindow* window = browser()->window()->GetNativeWindow();
-  [window makeFirstResponder:textField_];
-  [textField_ selectText:nil];
+  auto menu = CreateMenu(word);
+  EXPECT_TRUE(MenuHasItemWithCommand(menu->menu_model(),
+                                     IDC_SPELLCHECK_REMOVE_FROM_DICTIONARY));
 
-  // Create a contextual menu.
-  base::scoped_nsobject<NSMenu> popupMenu(
-      [[NSMenu alloc] initWithTitle:@"menu"]);
-  [popupMenu addItemWithTitle:@"Menu Item" action:0 keyEquivalent:@""];
-
-  // Arrange to dismiss the contextual menu in the future (to break out of the
-  // upcoming modal loop).
-  dispatch_async(dispatch_get_main_queue(), ^{
-    [popupMenu cancelTrackingWithoutAnimation];
-  });
-
-  // Bring up the contextual menu from the textfield (actually its field
-  // editor).
-  NSView* firstResponder = base::mac::ObjCCast<NSView>([window firstResponder]);
-  [NSMenu popUpContextMenu:popupMenu
-                 withEvent:[NSApp currentEvent]
-                   forView:firstResponder];
-
-  // Confirm that Services items were removed from the contextual menu. This
-  // check was failing on the 10.10 bot, for some reason. Most-important is
-  // making sure it continues to work as OS X evolves.
-  if (base::mac::IsAtLeastOS10_11())
-    EXPECT_LT(0LU, [filteredItems_ count]);
+  menu->ExecuteCommand(IDC_SPELLCHECK_REMOVE_FROM_DICTIONARY, 0);
+  EXPECT_FALSE(spellcheck_service->GetCustomDictionary()->HasWord(
+      base::UTF16ToUTF8(word)));
 }
+
+// Verifies that the "Remove from dictionary" option is not shown when a word
+// is identified as a misspelling.
+IN_PROC_BROWSER_TEST_F(RenderViewContextMenuMacBrowserTest,
+                       RemoveFromDictionaryNotShownForMisspelledWord) {
+  SpellcheckService* spellcheck_service = GetSpellcheckService();
+  ASSERT_TRUE(spellcheck_service);
+
+  std::u16string word = u"customword";
+  spellcheck_service->GetCustomDictionary()->AddWord(base::UTF16ToUTF8(word));
+  ASSERT_TRUE(spellcheck_service->GetCustomDictionary()->HasWord(
+      base::UTF16ToUTF8(word)));
+
+  auto menu = CreateMenu(word, word);
+  EXPECT_FALSE(MenuHasItemWithCommand(menu->menu_model(),
+                                      IDC_SPELLCHECK_REMOVE_FROM_DICTIONARY));
+}
+
+// Verifies that a selection of a single word with leading/trailing
+// whitespace is correctly identified as a user-added word.
+IN_PROC_BROWSER_TEST_F(RenderViewContextMenuMacBrowserTest,
+                       RemoveFromDictionaryHandlesWhitespaceSelection) {
+  SpellcheckService* spellcheck_service = GetSpellcheckService();
+  ASSERT_TRUE(spellcheck_service);
+
+  std::u16string word = u"customword";
+  spellcheck_service->GetCustomDictionary()->AddWord(base::UTF16ToUTF8(word));
+  ASSERT_TRUE(spellcheck_service->GetCustomDictionary()->HasWord(
+      base::UTF16ToUTF8(word)));
+
+  auto menu = CreateMenu(u"   customword  \t ");
+  EXPECT_TRUE(MenuHasItemWithCommand(menu->menu_model(),
+                                     IDC_SPELLCHECK_REMOVE_FROM_DICTIONARY));
+}
+
+// Verifies that a word in the custom dictionary but not in the system
+// dictionary is correctly identified and can be removed.
+IN_PROC_BROWSER_TEST_F(RenderViewContextMenuMacBrowserTest,
+                       RemoveFromDictionary_CustomDictOnly) {
+  SpellcheckService* spellcheck_service = GetSpellcheckService();
+  ASSERT_TRUE(spellcheck_service);
+
+  std::u16string word = u"customwordonly";
+
+  spellcheck_service->GetCustomDictionary()->AddWord(base::UTF16ToUTF8(word));
+  ASSERT_TRUE(spellcheck_service->GetCustomDictionary()->HasWord(
+      base::UTF16ToUTF8(word)));
+
+  spellcheck_platform::RemoveWord(spellcheck_service->platform_spell_checker(),
+                                  word);
+  ASSERT_FALSE(spellcheck_platform::IsUserAddedWord(
+      spellcheck_service->platform_spell_checker(), word));
+
+  auto menu = CreateMenu(word);
+  EXPECT_TRUE(MenuHasItemWithCommand(menu->menu_model(),
+                                     IDC_SPELLCHECK_REMOVE_FROM_DICTIONARY));
+
+  menu->ExecuteCommand(IDC_SPELLCHECK_REMOVE_FROM_DICTIONARY, 0);
+  EXPECT_FALSE(spellcheck_service->GetCustomDictionary()->HasWord(
+      base::UTF16ToUTF8(word)));
+  EXPECT_FALSE(spellcheck_platform::IsUserAddedWord(
+      spellcheck_service->platform_spell_checker(), word));
+}
+
+// Verifies that a word in the system dictionary but not in the custom
+// dictionary is correctly identified and can be removed.
+IN_PROC_BROWSER_TEST_F(RenderViewContextMenuMacBrowserTest,
+                       RemoveFromDictionary_SystemDictOnly) {
+  SpellcheckService* spellcheck_service = GetSpellcheckService();
+  ASSERT_TRUE(spellcheck_service);
+
+  std::u16string word = u"systemwordonly";
+  spellcheck_service->GetCustomDictionary()->RemoveWord(
+      base::UTF16ToUTF8(word));
+  ASSERT_FALSE(spellcheck_service->GetCustomDictionary()->HasWord(
+      base::UTF16ToUTF8(word)));
+
+  spellcheck_platform::AddWord(spellcheck_service->platform_spell_checker(),
+                               word);
+  ASSERT_TRUE(spellcheck_platform::IsUserAddedWord(
+      spellcheck_service->platform_spell_checker(), word));
+
+  auto menu = CreateMenu(word);
+  EXPECT_TRUE(MenuHasItemWithCommand(menu->menu_model(),
+                                     IDC_SPELLCHECK_REMOVE_FROM_DICTIONARY));
+
+  menu->ExecuteCommand(IDC_SPELLCHECK_REMOVE_FROM_DICTIONARY, 0);
+  EXPECT_FALSE(spellcheck_platform::IsUserAddedWord(
+      spellcheck_service->platform_spell_checker(), word));
+  EXPECT_FALSE(spellcheck_service->GetCustomDictionary()->HasWord(
+      base::UTF16ToUTF8(word)));
+}
+
+}  // namespace

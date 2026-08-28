@@ -6,10 +6,6 @@
       "id": 1,
       "merge_method": "none"
     },
-    "vivaldi.address_bar.autocomplete.tld": {
-      "id": 2,
-      "merge_method": "none"
-    },
     "vivaldi.address_bar.autocomplete.suffix_expansion.value": {
       "id": 3,
       "merge_method": "none"
@@ -18,20 +14,12 @@
       "id": 4,
       "merge_method": "none"
     },
-    "vivaldi.address_bar.extensions.show_toggle": {
-      "id": 7,
-      "merge_method": "none"
-    },
     "vivaldi.address_bar.extensions.show_all_toggle": {
       "id": 9,
       "merge_method": "none"
     },
     "vivaldi.address_bar.extensions.render_in_dropdown": {
       "id": 10,
-      "merge_method": "none"
-    },
-    "vivaldi.address_bar.extensions.visible": {
-      "id": 11,
       "merge_method": "none"
     },
     "vivaldi.address_bar.extensions.hidden_extensions": {
@@ -746,10 +734,6 @@
       "id": 205,
       "merge_method": "none"
     },
-    "vivaldi.sessions.open_in_new_window": {
-      "id": 208,
-      "merge_method": "none"
-    },
     "vivaldi.sessions.save_all_workspaces": {
       "id": 209,
       "merge_method": "none"
@@ -808,10 +792,6 @@
     },
     "vivaldi.startpage.speed_dial.game_button_show": {
       "id": 224,
-      "merge_method": "none"
-    },
-    "vivaldi.startpage.speed_dial.tracker_suggestion_show": {
-      "id": 225,
       "merge_method": "none"
     },
     "vivaldi.startup.has_seen_feature": {
@@ -1104,10 +1084,6 @@
     },
     "vivaldi.workspaces.button.show_name": {
       "id": 309,
-      "merge_method": "none"
-    },
-    "vivaldi.address_bar.omnibox.show_sync_tabs": {
-      "id": 310,
       "merge_method": "none"
     },
     "vivaldi.address_bar.search.keep_typed_text": {
@@ -3830,6 +3806,7 @@
           "default": true
         },
         "tld": {
+          "description": "[DEPRECATED 2026/06]",
           "type": "string",
           "default": "com"
         },
@@ -3866,7 +3843,7 @@
           "default": false
         },
         "visible": {
-          "description": "Whether the extension toolbars is visible or not.",
+          "description": "[DEPRECATED 2026/06] Whether the extension toolbars is visible or not.",
           "type": "boolean",
           "default": true
         },
@@ -3903,6 +3880,10 @@
           "type": "boolean",
           "default": true
         },
+        "show_vivaldi_calculator": {
+          "type": "boolean",
+          "default": true
+        },
         "show_typed_history": {
           "type": "boolean",
           "default": true
@@ -3916,6 +3897,7 @@
           "default": true
         },
         "show_sync_tabs": {
+          "description": "[DEPRECATED 2026/06]",
           "type": "boolean",
           "default": true
         },
@@ -4046,6 +4028,11 @@
         "type": "boolean",
         "default": true
       },
+      "show_pwa_install": {
+        "description": "Controls the visibility of PWA install button.",
+        "type": "boolean",
+        "default": true
+      },
       "show_qr_generator": {
         "description": "Controls the visibility of QR button.",
         "type": "boolean",
@@ -4103,6 +4090,7 @@
           "default": "default"
         },
         "folder_ids": {
+          "description": "[DEPRECATED 2026/06]",
           "type": "list",
           "default": [
             "1"
@@ -4305,6 +4293,11 @@
         "description": "Tune the animation speed when auto-hide wrapper close",
         "type": "integer",
         "default": 300
+      },
+      "stand_up_notification": {
+        "description": "Send a notification to remember to do some exercise",
+        "type": "integer",
+        "default": 0
       }
     },
     "calendar": {
@@ -4663,6 +4656,7 @@
     },
     "dot_net": {
       "username": {
+        "description": "[DEPRECATED 2022/05]",
         "type": "string",
         "default": ""
       }
@@ -5785,7 +5779,7 @@
         }
       },
       "version": {
-        "description": "Last upgrade of default panels. Format is browser version",
+        "description": "[DEPRECATED 2026/06] Last upgrade of default panels. Format is browser version",
         "type": "string",
         "default": ""
       },
@@ -5956,7 +5950,7 @@
           "default": []
         },
         "version": {
-          "description": "Last upgrade of default web panels. Format is browser version",
+          "description": "[DEPRECATED 2026/06] Last upgrade of default web panels. Format is browser version",
           "type": "string",
           "default": ""
         },
@@ -6047,12 +6041,12 @@
       },
       "google_component_extensions": {
         "web_store": {
-          "description": "Load the Google webstore app.",
+          "description": "[DEPRECATED 2026/06] Load the Google webstore app.",
           "type": "boolean",
           "default": true
         },
         "hangout_services": {
-          "description": "Load Google hangout services.",
+          "description": "[DEPRECATED 2026/06] Load Google hangout services.",
           "type": "boolean",
           "default": true
         }
@@ -6207,7 +6201,7 @@
     },
     "sessions": {
       "open_in_new_window": {
-        "description": "Open sessions in a new window (when using the dialog)",
+        "description": "[DEPRECATED 2026/06] Open sessions in a new window (when using the dialog)",
         "type": "boolean",
         "default": true
       },
@@ -6489,7 +6483,7 @@
         "default_mac": true
       },
       "show_ffmpeg_information": {
-        "description": "Show dialog on startup regarding media support. Linux only.",
+        "description": "[DEPRECATED 2026/06] Show dialog on startup regarding media support. Linux only.",
         "type": "boolean",
         "default": true
       },
@@ -6581,6 +6575,7 @@
     },
     "sync": {
       "active": {
+        "description": "[DEPRECATED 2022/05]",
         "type": "boolean",
         "default": false
       },
@@ -6589,6 +6584,7 @@
         "default": ""
       },
       "username": {
+        "description": "[DEPRECATED 2022/05]",
         "type": "string",
         "default": ""
       }
@@ -8175,6 +8171,7 @@
           "default": null
         },
         "interface_style": {
+          "description": "[DEPRECATED 2026/06]",
           "type": "integer",
           "default": null
         },
@@ -8285,6 +8282,13 @@
         "description": "A list of user-specified locations",
         "type": "list",
         "default": []
+      }
+    },
+    "policy": {
+      "vpn_enabled": {
+        "description": "A single bool that controlls the Proton VPN for Vivaldi feature state, when false the whole feature must be blocked.",
+        "type": "boolean",
+        "default": true
       }
     }
   },

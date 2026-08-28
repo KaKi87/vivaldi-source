@@ -42,7 +42,7 @@ class SupportsUserData;
 
 // Feature flag for enabling foundational models in the AI API, requires the
 // field param kModelVersionParam to specify the model version. Example:
-// --enable-features=AIApiFoundationalModel:model_version=v4
+// --enable-features=AIApiFoundationalModel:model_version/v4
 BASE_DECLARE_FEATURE(kAIApiFoundationalModel);
 extern const char kModelVersionParam[];
 
@@ -122,11 +122,11 @@ class AIManager : public base::SupportsUserData::Data,
       blink::mojom::AIProofreaderCreateOptionsPtr options,
       mojo::PendingRemote<on_device_model::mojom::DownloadObserver> monitor)
       override;
-  void CanCreateClassifier(blink::mojom::AIClassifierCreateOptionsPtr options,
-                           CanCreateClassifierCallback callback) override;
-  void CreateClassifier(
-      mojo::PendingRemote<blink::mojom::AIManagerCreateClassifierClient> client,
-      blink::mojom::AIClassifierCreateOptionsPtr options,
+  void CanCreateSemanticEmbedder(
+      CanCreateSemanticEmbedderCallback callback) override;
+  void CreateSemanticEmbedder(
+      mojo::PendingRemote<blink::mojom::AIManagerCreateSemanticEmbedderClient>
+          client,
       mojo::PendingRemote<on_device_model::mojom::DownloadObserver> monitor)
       override;
 
@@ -165,6 +165,8 @@ class AIManager : public base::SupportsUserData::Data,
       const base::flat_set<std::string>& default_supported);
 
  private:
+  bool IsPromptApiEnabled() const;
+
   base::OnceCallback<void(std::unique_ptr<optimization_guide::OnDeviceSession>)>
   CreateSummarizerSessionCallback(
       blink::mojom::AISummarizerCreateOptionsPtr options,
@@ -191,6 +193,10 @@ class AIManager : public base::SupportsUserData::Data,
   // Validates the overridden on-device model path if one is configured via
   // switch.
   void StartModelPathValidationIfOverrideSet();
+
+  void OnSemanticEmbedderModelReady(
+      mojo::PendingRemote<blink::mojom::AIManagerCreateSemanticEmbedderClient>
+          client);
 
   // Creates an `AILanguageModel`, as a new session. Clones are created
   // internally within the `AILanguageModel` object.

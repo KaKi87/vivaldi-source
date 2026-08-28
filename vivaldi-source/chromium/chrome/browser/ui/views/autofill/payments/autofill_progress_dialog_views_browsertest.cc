@@ -2,9 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/ui/views/autofill/payments/autofill_progress_dialog_views.h"
-
-#include "base/functional/bind.h"
 #include "base/run_loop.h"
 #include "base/strings/strcat.h"
 #include "base/test/metrics/histogram_tester.h"
@@ -126,7 +123,7 @@ IN_PROC_BROWSER_TEST_P(AutofillProgressDialogViewsBrowserTest,
   base::HistogramTester histogram_tester;
   ShowUi(GetDialogTypeStringForLogging());
   VerifyUi();
-  browser()->window()->Close();
+  browser()->GetWindow()->Close();
   base::RunLoop().RunUntilIdle();
   histogram_tester.ExpectUniqueSample(
       base::StrCat({"Autofill.ProgressDialog.", GetDialogTypeStringForLogging(),

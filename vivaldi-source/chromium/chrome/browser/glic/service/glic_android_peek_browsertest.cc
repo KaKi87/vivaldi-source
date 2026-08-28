@@ -2,10 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "base/test/bind.h"
+#include "base/test/test_future.h"
 #include "chrome/browser/actor/actor_task.h"
 #include "chrome/browser/glic/public/glic_side_panel_coordinator.h"
 #include "chrome/browser/glic/public/widget/glic_side_panel_coordinator_android.h"
 #include "chrome/browser/glic/test_support/glic_browser_test.h"
+#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "content/public/test/browser_test.h"
 
 namespace glic {
@@ -131,8 +134,9 @@ IN_PROC_BROWSER_TEST_F(GlicAndroidPeekBrowserTest,
       WaitForSidePanelState(new_tab, GlicSidePanelCoordinator::State::kPeek));
 }
 
+// TODO(crbug.com/533364604): Fix flakiness.
 IN_PROC_BROWSER_TEST_F(GlicAndroidPeekBrowserTest,
-                       ShowDoesNotDeactivateActiveEmbedder) {
+                       DISABLED_ShowDoesNotDeactivateActiveEmbedder) {
   ASSERT_OK_AND_ASSIGN(GlicInstanceImpl * instance, OpenGlicForActiveTab());
   tabs::TabInterface* tab = GetTabListInterface()->GetActiveTab();
 
@@ -180,6 +184,72 @@ IN_PROC_BROWSER_TEST_F(GlicAndroidPeekBrowserTest,
                    mojom::InvocationSource::kTopChromeButton);
 
   coordinator_android->SuppressBottomSheetForTesting(false);
+}
+
+IN_PROC_BROWSER_TEST_F(GlicAndroidPeekBrowserTest,
+                       TransitionToPeekOnActiveEmbedderSwapAcrossWindows) {
+  // Setup the first window and show Glic in expanded state on its active
+  // tab.
+  ASSERT_OK_AND_ASSIGN(GlicInstanceImpl * instance, OpenGlicForActiveTab());
+  tabs::TabInterface* tab1 = GetTabListInterface()->GetActiveTab();
+  ASSERT_OK(
+      WaitForSidePanelState(tab1, GlicSidePanelCoordinator::State::kShown));
+  EXPECT_EQ(instance->GetActiveEmbedderTabForTesting(), tab1);
+
+  // Create a second window/browser.
+  BrowserWindowInterface* browser2 = CreateBrowserWindow(GetProfile());
+  ASSERT_TRUE(browser2);
+  ASSERT_NE(GetBrowser(), browser2);
+
+  // Get the active tab in the second window.
+  tabs::TabInterface* tab2 = TabListInterface::From(browser2)->GetActiveTab();
+
+  // Swap active embedders by showing Glic on the second window's active
+  // tab. This will trigger the deactivation of tab1's active embedder,
+  // replacing it with GlicInactiveSidePanelUi, which will then call
+  // InitializeAfterRegistration(). Since tab1 is still the active/activated tab
+  // in the first window, its bottom sheet transitions to the peek state.
+  SidePanelShowOptions show_options{*tab2};
+  show_options.prefer_peek = false;
+  instance->Show(ShowOptions{show_options});
+
+  ASSERT_OK(
+      WaitForSidePanelState(tab1, GlicSidePanelCoordinator::State::kPeek));
+  ASSERT_OK(
+      WaitForSidePanelState(tab2, GlicSidePanelCoordinator::State::kShown));
+  EXPECT_EQ(instance->GetActiveEmbedderTabForTesting(), tab2);
+
+  // Cleanup created window
+  browser2->GetWindow()->Close();
+}
+
+IN_PROC_BROWSER_TEST_F(GlicAndroidPeekBrowserTest,
+                       CloseFromPeekStateNotifiesVisibility) {
+  ASSERT_OK_AND_ASSIGN(GlicInstanceImpl * instance, OpenGlicForActiveTab());
+  tabs::TabInterface* active_tab = GetTabListInterface()->GetActiveTab();
+  auto* coordinator_android = GetSidePanelCoordinatorAndroid(active_tab);
+
+  // Set to PEEK
+  coordinator_android->OnOpened(false);
+  EXPECT_EQ(coordinator_android->state(),
+            GlicSidePanelCoordinator::State::kPeek);
+  EXPECT_TRUE(instance->IsShowing());
+  EXPECT_NE(instance->GetEmbedderForTab(active_tab), nullptr);
+
+  int visibility_change_count = 0;
+  auto subscription =
+      instance->service()->instance_coordinator().AddGlobalShowHideCallback(
+          base::BindLambdaForTesting([&]() { visibility_change_count++; }));
+
+  // Close the side panel from peek mode.
+  coordinator_android->OnClosed();
+  ASSERT_OK(WaitForSidePanelState(active_tab,
+                                  GlicSidePanelCoordinator::State::kClosed));
+  EXPECT_FALSE(instance->IsShowing());
+
+  // Verify that closing from peek mode notified global visibility observers
+  // (such as Java's GlicButtonStateController).
+  EXPECT_GT(visibility_change_count, 0);
 }
 
 }  // namespace glic

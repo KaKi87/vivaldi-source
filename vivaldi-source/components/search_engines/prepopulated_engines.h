@@ -17,7 +17,7 @@
 
 namespace TemplateURLPrepopulateData {
 
-extern base::span<const PrepopulatedEngine* const> kAllEngines;
+extern std::vector<raw_ptr<const PrepopulatedEngine>> kAllEngines;
 }  // namespace TemplateURLPrepopulateData
 
 #endif  // COMPONENTS_SEARCH_ENGINES_PREPOPULATED_ENGINES_H_

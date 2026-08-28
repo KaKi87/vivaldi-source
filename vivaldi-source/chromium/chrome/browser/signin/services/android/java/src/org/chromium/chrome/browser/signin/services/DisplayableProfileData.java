@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.signin.services;
 
 import android.content.Context;
 import android.graphics.drawable.Drawable;
+import android.text.TextUtils;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -20,6 +21,7 @@ public class DisplayableProfileData {
     private final @Nullable String mFullName;
     private final @Nullable String mGivenName;
     private final boolean mHasDisplayableEmailAddress;
+    private final boolean mHasAiTierRing;
 
     public DisplayableProfileData(
             CoreAccountId accountId,
@@ -27,7 +29,8 @@ public class DisplayableProfileData {
             @Nullable Drawable image,
             @Nullable String fullName,
             @Nullable String givenName,
-            boolean hasDisplayableEmailAddress) {
+            boolean hasDisplayableEmailAddress,
+            boolean hasAiTierRing) {
         assert accountId != null;
         assert accountEmail != null;
         assert image != null;
@@ -37,6 +40,7 @@ public class DisplayableProfileData {
         mFullName = fullName;
         mGivenName = givenName;
         mHasDisplayableEmailAddress = hasDisplayableEmailAddress;
+        mHasAiTierRing = hasAiTierRing;
     }
 
     /**
@@ -79,7 +83,7 @@ public class DisplayableProfileData {
      *     name wasn't fetched.
      */
     public String getFullNameOrFallbackName(Context context) {
-        return (mFullName == null || mFullName.isEmpty())
+        return TextUtils.isEmpty(mFullName)
                 ? context.getString(R.string.default_google_account_username)
                 : mFullName;
     }
@@ -88,7 +92,7 @@ public class DisplayableProfileData {
      * @return The full name of the user if it is available or the email otherwise.
      */
     public String getFullNameOrEmail() {
-        if (mFullName == null) {
+        if (TextUtils.isEmpty(mFullName)) {
             return mAccountEmail;
         }
         return mFullName;
@@ -108,7 +112,7 @@ public class DisplayableProfileData {
      * Returns the given name of the user if it is available or the full name or email otherwise.
      */
     public String getGivenNameOrFullNameOrEmail() {
-        if (mGivenName != null) {
+        if (!TextUtils.isEmpty(mGivenName)) {
             return mGivenName;
         }
         return getFullNameOrEmail();
@@ -119,5 +123,12 @@ public class DisplayableProfileData {
      */
     public boolean hasDisplayableEmailAddress() {
         return mHasDisplayableEmailAddress;
+    }
+
+    /**
+     * @return Whether this profile image was wrapped with an AI tier ring.
+     */
+    public boolean hasAiTierRing() {
+        return mHasAiTierRing;
     }
 }

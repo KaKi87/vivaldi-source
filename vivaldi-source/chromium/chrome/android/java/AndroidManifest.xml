@@ -179,8 +179,8 @@ by a child template that "extends" this file.
     <!-- Vivaldi/Automotive -->
     {% if is_oem_automotive_build == 'false' %}
     <uses-permission android:name="android.permission.NFC"/>
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     {% endif %}
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Needed to determine whether an app installed on the device should handle a web navigation.  -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
@@ -268,14 +268,6 @@ by a child template that "extends" this file.
     <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT"/>
     {% endif %}
 
-    <!-- Vivaldi/Automotive -->
-    <!-- Needed to override an injected POST_NOTIFICATIONS permission from the Android SDK -->
-    <!-- Do not remove this for Mercedes as an experiment. Ref. AUTO-319 -->
-    {% if is_oem_automotive_build == 'true' %}
-    {% if is_oem_mercedes_build == 'false' %}
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" tools:node="remove" />
-    {% endif %}
-    {% endif %}
     <!-- Not used by Vivaldi
     <uses-permission android:name="com.google.android.apps.now.CURRENT_ACCOUNT_ACCESS" />
     -->
@@ -398,6 +390,282 @@ by a child template that "extends" this file.
             android:excludeFromRecents="true"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize|uiMode|density">
         </activity>
+
+        <!-- Custom launcher icon aliases -->
+        {% if is_oem_automotive_build == 'false' %}
+            <activity-alias
+                android:name=".IconAlt0"
+                android:icon="@drawable/ic_launcher"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="true"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt1"
+                android:icon="@drawable/ic_launcher_alt_01"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt2"
+                android:icon="@drawable/ic_launcher_alt_02"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt3"
+                android:icon="@drawable/ic_launcher_alt_03"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt4"
+                android:icon="@drawable/ic_launcher_alt_04"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt5"
+                android:icon="@drawable/ic_launcher_alt_05"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt6"
+                android:icon="@drawable/ic_launcher_alt_06"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt7"
+                android:icon="@drawable/ic_launcher_alt_07"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt8"
+                android:icon="@drawable/ic_launcher_alt_08"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt9"
+                android:icon="@drawable/ic_launcher_alt_09"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt10"
+                android:icon="@drawable/ic_launcher_alt_10"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt11"
+                android:icon="@drawable/ic_launcher_alt_11"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt12"
+                android:icon="@drawable/ic_launcher_alt_12"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt13"
+                android:icon="@drawable/ic_launcher_alt_13"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt14"
+                android:icon="@drawable/ic_launcher_alt_14"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt15"
+                android:icon="@drawable/ic_launcher_alt_15"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt16"
+                android:icon="@drawable/ic_launcher_alt_16"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt17"
+                android:icon="@drawable/ic_launcher_alt_17"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt18"
+                android:icon="@drawable/ic_launcher_alt_18"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt19"
+                android:icon="@drawable/ic_launcher_alt_19"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+
+            <activity-alias
+                android:name=".IconAlt20"
+                android:icon="@drawable/ic_launcher_alt_20"
+                android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
+                android:enabled="false"
+                android:exported="true">
+                <intent-filter>
+                    <action android:name="android.intent.action.MAIN" />
+                    <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+		<meta-data android:name="android.app.shortcuts" android:resource="@xml/launchershortcuts" />
+            </activity-alias>
+        {% endif %}
+
         <activity-alias android:name="com.google.android.apps.chrome.IntentDispatcher"
             android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
             android:exported="true">
@@ -407,6 +675,16 @@ by a child template that "extends" this file.
             </intent-filter>
             <!-- Matches the common case of intents with no MIME type.
                  Make sure to keep in sync with the next filter.  -->
+            <!-- Vivaldi allow opening PDFs in Vivaldi for all PDFs -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+            <!-- Vivaldi End-->
             <intent-filter>
                 {% block common_view_intent_shared_filter_body %}
                 <action android:name="android.intent.action.VIEW" />
@@ -775,7 +1053,7 @@ by a child template that "extends" this file.
             {% if is_oem_gas_build == 'true' %} {# Vivaldi/Automotive GAS #}
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|uiMode|navigation|density"
             {% else %} {# Vivaldi/Automotive GAS #}
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize|uiMode|navigation|density|touchscreen|colorMode"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize|uiMode|navigation|density|touchscreen|colorMode|fontScale"
             {% endif %} {# Vivaldi/Automotive GAS #}
             android:hardwareAccelerated="false"
             {% endblock %}
@@ -810,7 +1088,10 @@ by a child template that "extends" this file.
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.DEFAULT" />
+                <!-- In Vivaldi we use the alias launchers for phones and tablets -->
+                {% if is_oem_automotive_build == 'true' %}
                 <category android:name="android.intent.category.LAUNCHER" />
+                {% endif %}
                 <category android:name="android.intent.category.BROWSABLE" />
                 <category android:name="android.intent.category.APP_BROWSER" />
                 {% if channel in ['dev', 'canary', 'default'] %}
@@ -1106,6 +1387,10 @@ by a child template that "extends" this file.
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize"
             android:exported="false">
         </activity>
+        <activity android:name="org.vivaldi.browser.preferences.AppIconPreference"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize"
+            android:exported="false">
+        </activity>
         {% if is_oem_lynkco_build == 'true' %}
         <activity
             android:name="com.lynkco.connected.incar.commonframework.ui.activity.onboarding.OnboardingActivity"
@@ -1311,6 +1596,14 @@ by a child template that "extends" this file.
             android:excludeFromRecents="true">
         </activity>
 
+        <activity android:name="org.chromium.chrome.browser.share.send_tab_to_self.SendTabToSelfShareTargetActivity"
+            android:theme="@style/Theme.BrowserUI.Translucent.NoTitleBar"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize">
+        </activity>
+
         <!-- This activity is used to restart the main Chrome process.  Should never be exported. -->
         <activity android:name="org.chromium.chrome.browser.BrowserRestartActivity"
             android:launchMode="singleInstance"
@@ -1384,9 +1677,24 @@ by a child template that "extends" this file.
             android:process=":decoder_service" />
 
         <!-- Actor foreground service -->
+        <!-- TODO: This service needs to verify the calling app and its certificates before
+             starting the actor service. Export this service in production channels once the
+             verification is handled correctly in the service. -->
+        {% if channel in ['default'] %}
         <service android:name="org.chromium.chrome.browser.actor.ActorForegroundService"
-           android:foregroundServiceType="dataSync" android:exported="false">
+            android:foregroundServiceType="dataSync"
+            android:exported="true"
+            tools:ignore="ExportedService">
+            <intent-filter>
+                <action android:name="org.chromium.chrome.browser.actor.START_ACTOR_FOREGROUND_SERVICE" />
+            </intent-filter>
         </service>
+        {% else %}
+        <service android:name="org.chromium.chrome.browser.actor.ActorForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false">
+        </service>
+        {% endif %}
 
         <!-- Download foreground service -->
         <service android:name="org.chromium.chrome.browser.download.DownloadForegroundService"
@@ -1658,8 +1966,6 @@ by a child template that "extends" this file.
         <receiver android:name="org.chromium.chrome.browser.customtabs.CustomTabsShareBroadcastReceiver"
             android:exported="false"/>
 
-        <receiver android:name="org.chromium.chrome.browser.sharing.click_to_call.ClickToCallMessageHandler$TapReceiver"
-            android:exported="false"/>
         <receiver android:name="org.chromium.chrome.browser.sharing.sms_fetcher.SmsFetcherMessageHandler$NotificationReceiver"
             android:exported="false"/>
 
@@ -1678,6 +1984,9 @@ by a child template that "extends" this file.
             {% else %}
             android:foregroundServiceType="camera|microphone"
             {% endif %}
+            android:exported="false"/>
+        <service android:name="org.chromium.chrome.browser.GracefulShutdownService"
+            android:foregroundServiceType="shortService|dataSync"
             android:exported="false"/>
         <service android:name="org.chromium.chrome.browser.media.ui.ChromeMediaNotificationControllerServices$PlaybackListenerService"
             android:foregroundServiceType="mediaPlayback" android:exported="false">
@@ -1781,17 +2090,11 @@ by a child template that "extends" this file.
           android:process=":sandboxed_process{{ i }}"
           android:permission="{{ manifest_package }}.permission.CHILD_SERVICE"
           android:isolatedProcess="true"
-          android:exported="{{sandboxed_service_exported|default(false)}}"
+          android:exported="false"
           {% if (i == 0) %}
           android:useAppZygote="true"
-          {% endif %}
-          {% if (sandboxed_service_exported|default(false)) == 'true' %}
-          android:externalService="true"
-          tools:ignore="ExportedService"
-          android:visibleToInstantApps="true"
           {% endif %} />
       {% endfor %}
-      {% if javaless_renderers is defined %}
       <!-- Restricting to just 2 native-only services, one for zygote and one for non-zygote. -->
       {% for i in range(2) %}
       <service android:name="org.chromium.content.app.NativeOnlySandboxedProcessService{{ i }}"
@@ -1802,19 +2105,13 @@ by a child template that "extends" this file.
           {% if (i == 0) %}
           android:useAppZygote="true"
           {% endif %}
-          android:exported="{{sandboxed_service_exported|default(false)}}"
-          {% if (sandboxed_service_exported|default(false)) == 'true' %}
-          android:externalService="true"
-          tools:ignore="ExportedService"
-          android:visibleToInstantApps="true"
-          {% endif %} >
+          android:exported="false" >
           <property android:name="android.app.PROPERTY_NATIVE_SERVICE_LIBRARY_NAME"
               android:value="lib{{ library_name }}.so" />
           <property android:name="android.app.PROPERTY_NATIVE_SERVICE_FUNCTION_NAME"
               android:value="NativeChildProcessService_onCreate" />
       </service>
       {% endfor %}
-      {% endif %}
 
       {% set num_privileged_services = 10 %}
       <meta-data android:name="org.chromium.content.browser.NUM_PRIVILEGED_SERVICES"

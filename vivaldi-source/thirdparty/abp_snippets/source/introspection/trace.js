@@ -14,20 +14,22 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import {log} from "../introspection/log.js";
 import {apply} from "proxy-pants/function";
 
 /**
- * Similar to `log`, but does the logging in the context of the document rather
- * than the content script.
+ * @description Similar to `log`, but does the logging in
+ * the context of the document rather than the
+ * content script.
  *
  * This may be used for testing and debugging, especially to verify that the
  * injection of snippets into the document is working without any errors.
- * @alias module:content/snippets.trace
+ * @memberOf module:snippets/introspection
  *
  * @param {...*} [args] The arguments to log.
  *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69966892/trace} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/debugging-snippets/trace} for external documentation.
  * @since Adblock Plus 3.3
  */
 export function trace(...args) {

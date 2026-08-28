@@ -4,7 +4,6 @@
 #import "ios/ui/table_view/cells/vivaldi_table_view_text_spinner_button_item.h"
 
 #import "base/apple/foundation_util.h"
-#import "ios/chrome/browser/shared/ui/table_view/legacy_chrome_table_view_styler.h"
 #import "ios/ui/helpers/vivaldi_colors_helper.h"
 #import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
 
@@ -19,9 +18,8 @@
   return nil;
 }
 
-- (void)configureCell:(LegacyTableViewCell*)tableCell
-           withStyler:(ChromeTableViewStyler*)styler {
-  [super configureCell:tableCell withStyler:styler];
+- (void)configureCell:(LegacyTableViewCell*)tableCell {
+  [super configureCell:tableCell];
   VivaldiTableViewTextSpinnerButtonCell* cell =
       base::apple::ObjCCastStrict<VivaldiTableViewTextSpinnerButtonCell>(
           tableCell);

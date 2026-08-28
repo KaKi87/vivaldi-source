@@ -17,6 +17,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import static org.chromium.base.ThreadUtils.runOnUiThreadBlocking;
+import static org.chromium.base.test.util.CriteriaHelper.pollUiThread;
+import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.AccountLinkingSuccessScreenProperties.PRIMARY_BUTTON_CALLBACK;
 import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.FopSelectorProperties.SCREEN_ITEMS;
 import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.ItemType.BANK_ACCOUNT;
 import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.ItemType.CONTINUE_BUTTON;
@@ -28,7 +30,9 @@ import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymen
 import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.SCREEN;
 import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.SCREEN_VIEW_MODEL;
 import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.SURVIVES_NAVIGATION;
+import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.SequenceScreen.ACCOUNT_LINKING_SUCCESS_SCREEN;
 import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.SequenceScreen.ERROR_SCREEN;
+import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.SequenceScreen.EWALLET_ACCOUNT_LINKING_PROMPT;
 import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.SequenceScreen.FOP_SELECTOR;
 import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.SequenceScreen.PIX_ACCOUNT_LINKING_PROMPT;
 import static org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.SequenceScreen.PROGRESS_SCREEN;
@@ -62,8 +66,12 @@ import org.mockito.quality.Strictness;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.Criteria;
+import org.chromium.base.test.util.DisabledTest;
+import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
+import org.chromium.chrome.browser.facilitated_payments.FacilitatedPaymentsPaymentMethodsProperties.EwalletAccountLinkingPromptProperties;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
@@ -81,6 +89,9 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetTestSupport;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
+import org.chromium.ui.test.util.RenderTestRule;
+import org.chromium.ui.test.util.RenderTestRule.Component;
+import org.chromium.ui.test.util.ViewUtils;
 import org.chromium.ui.widget.ButtonCompat;
 
 import java.util.List;
@@ -173,6 +184,13 @@ public final class FacilitatedPaymentsPaymentMethodsViewTest {
     public FreshCtaTransitTestRule mActivityTestRule =
             ChromeTransitTestRules.freshChromeTabbedActivityRule();
 
+    @Rule
+    public final RenderTestRule mRenderTestRule =
+            RenderTestRule.Builder.withPublicCorpus()
+                    .setRevision(1)
+                    .setBugComponent(Component.UI_BROWSER_AUTOFILL)
+                    .build();
+
     @Mock private FacilitatedPaymentsPaymentMethodsComponent.Delegate mDelegateMock;
 
     private BottomSheetController mBottomSheetController;
@@ -198,7 +216,7 @@ public final class FacilitatedPaymentsPaymentMethodsViewTest {
                             new PropertyModel.Builder(
                                             FacilitatedPaymentsPaymentMethodsProperties.ALL_KEYS)
                                     .with(VISIBLE_STATE, HIDDEN)
-                                    .with(UI_EVENT_LISTENER, (Integer unused) -> {})
+                                    .with(UI_EVENT_LISTENER, _ -> {})
                                     .build();
                     mView =
                             new FacilitatedPaymentsPaymentMethodsView(
@@ -241,6 +259,7 @@ public final class FacilitatedPaymentsPaymentMethodsViewTest {
 
     @Test
     @MediumTest
+    @DisabledTest(message = "crbug.com/523228313")
     public void testViewCanBeHiddenUsingTheModel() {
         runOnUiThreadBlocking(
                 () -> {
@@ -350,7 +369,8 @@ public final class FacilitatedPaymentsPaymentMethodsViewTest {
 
         BottomSheetTestSupport.waitForOpen(mBottomSheetController);
 
-        assertThat(getSheetItems().getChildCount(), is(2));
+        pollUiThread(() -> Criteria.checkThat(getSheetItems().getChildCount(), is(2)));
+
         assertThat(getPaymentAppNameAt(0).getText(), is(PAYMENT_APP_1_NAME));
         assertThat(getPaymentAppNameAt(1).getText(), is(PAYMENT_APP_2_NAME));
     }
@@ -576,7 +596,7 @@ public final class FacilitatedPaymentsPaymentMethodsViewTest {
                     mModel.set(VISIBLE_STATE, SHOWN);
                 });
 
-        assertThat(getSheetItems().getChildCount(), is(1));
+        pollUiThread(() -> Criteria.checkThat(getSheetItems().getChildCount(), is(1)));
         ImageView headerSecurityCheckImage = getHeaderSecurityCheckImageAt(0);
         TextView headerDescription = getHeaderDescriptionAt(0);
 
@@ -884,6 +904,47 @@ public final class FacilitatedPaymentsPaymentMethodsViewTest {
 
     @Test
     @MediumTest
+    public void testAccountLinkingSuccessScreenShown() {
+        runOnUiThreadBlocking(
+                () -> {
+                    mModel.set(SCREEN, ACCOUNT_LINKING_SUCCESS_SCREEN);
+                    mModel.set(VISIBLE_STATE, SHOWN);
+                });
+        BottomSheetTestSupport.waitForOpen(mBottomSheetController);
+
+        assertThat(
+                containsViewWithId(
+                        (ViewGroup) mView.getContentView(),
+                        R.id.pix_account_linking_success_screen),
+                is(true));
+    }
+
+    @Test
+    @MediumTest
+    public void testAccountLinkingSuccessScreenContents() {
+        runOnUiThreadBlocking(
+                () -> {
+                    mModel.set(SCREEN, ACCOUNT_LINKING_SUCCESS_SCREEN);
+                    mModel.get(SCREEN_VIEW_MODEL).set(PRIMARY_BUTTON_CALLBACK, v -> {});
+                    mModel.set(VISIBLE_STATE, SHOWN);
+                });
+        BottomSheetTestSupport.waitForOpen(mBottomSheetController);
+
+        TextView title = mView.getContentView().findViewById(R.id.title);
+        assertThat(title.getText(), is("Your Pix account is successfully linked to Google Pay"));
+        ButtonCompat primaryButton = mView.getContentView().findViewById(R.id.primary_button);
+        assertThat(primaryButton.getText(), is("Got it"));
+
+        TextView valueProp1 = mView.getContentView().findViewById(R.id.value_prop_message_1);
+        assertNotNull(valueProp1.getCompoundDrawablesRelative()[0]);
+        TextView valueProp2 = mView.getContentView().findViewById(R.id.value_prop_message_2);
+        assertNotNull(valueProp2.getCompoundDrawablesRelative()[0]);
+        TextView valueProp3 = mView.getContentView().findViewById(R.id.value_prop_message_3);
+        assertNotNull(valueProp3.getCompoundDrawablesRelative()[0]);
+    }
+
+    @Test
+    @MediumTest
     public void testPixAccountLinkingPromptShown() {
         runOnUiThreadBlocking(
                 () -> {
@@ -1059,6 +1120,70 @@ public final class FacilitatedPaymentsPaymentMethodsViewTest {
                 });
 
         assertThat(mView.hasCustomLifecycle(), is(false));
+    }
+
+    @Test
+    @MediumTest
+    @Feature({"RenderTest"})
+    public void testEwalletAccountLinkingPromptRender() throws Exception {
+        runOnUiThreadBlocking(
+                () -> {
+                    mModel.set(SCREEN, EWALLET_ACCOUNT_LINKING_PROMPT);
+                    mModel.get(SCREEN_VIEW_MODEL)
+                            .set(EwalletAccountLinkingPromptProperties.EWALLET_NAME, "ChilliPay");
+                    mModel.get(SCREEN_VIEW_MODEL)
+                            .set(
+                                    EwalletAccountLinkingPromptProperties.ACCEPT_BUTTON_CALLBACK,
+                                    (View v) -> {});
+                    mModel.get(SCREEN_VIEW_MODEL)
+                            .set(
+                                    EwalletAccountLinkingPromptProperties.DECLINE_BUTTON_TEXT_ID,
+                                    R.string.ewallet_account_linking_prompt_action_no_thanks);
+                    mModel.get(SCREEN_VIEW_MODEL)
+                            .set(
+                                    EwalletAccountLinkingPromptProperties.DECLINE_BUTTON_CALLBACK,
+                                    (View v) -> {});
+                    mModel.set(VISIBLE_STATE, SHOWN);
+                });
+        BottomSheetTestSupport.waitForOpen(mBottomSheetController);
+        runOnUiThreadBlocking(
+                () -> {
+                    new BottomSheetTestSupport(mBottomSheetController).endAllAnimations();
+                });
+
+        View bottomSheetView = mView.getContentView();
+
+        TextView title = bottomSheetView.findViewById(R.id.title);
+        assertThat(
+                title.getText().toString(),
+                is(
+                        bottomSheetView
+                                .getContext()
+                                .getString(
+                                        R.string.ewallet_account_linking_prompt_title,
+                                        "ChilliPay")));
+
+        TextView acceptButton = bottomSheetView.findViewById(R.id.accept_button);
+        assertThat(
+                acceptButton.getText().toString(),
+                is(
+                        bottomSheetView
+                                .getContext()
+                                .getString(
+                                        R.string
+                                                .ewallet_account_linking_prompt_action_get_started)));
+
+        TextView declineButton = bottomSheetView.findViewById(R.id.decline_button);
+        assertThat(
+                declineButton.getText().toString(),
+                is(
+                        bottomSheetView
+                                .getContext()
+                                .getString(
+                                        R.string.ewallet_account_linking_prompt_action_no_thanks)));
+
+        ViewUtils.waitForStableView(bottomSheetView);
+        mRenderTestRule.render(bottomSheetView, "ewallet_account_linking_prompt");
     }
 
     private RecyclerView getSheetItems() {

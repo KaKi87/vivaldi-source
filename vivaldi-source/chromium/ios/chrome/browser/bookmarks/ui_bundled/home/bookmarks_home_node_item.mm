@@ -96,9 +96,8 @@ const NSInteger kNumberOfTitleLines = 2;
   return self;
 }
 
-- (void)configureCell:(LegacyTableViewCell*)cell
-           withStyler:(ChromeTableViewStyler*)styler {
-  [super configureCell:cell withStyler:styler];
+- (void)configureCell:(LegacyTableViewCell*)cell {
+  [super configureCell:cell];
 
   if (_isFolder) {
     if (IsVivaldiRunning()) {
@@ -158,10 +157,9 @@ const NSInteger kNumberOfTitleLines = 2;
     if (_shouldDisplayCloudSlashIcon) {
       ImageContentConfiguration* imageConfiguration =
           [[ImageContentConfiguration alloc] init];
-      imageConfiguration.image =
-          SymbolWithPalette(CustomSymbolWithPointSize(
-                                kCloudSlashSymbol, kCloudSlashSymbolPointSize),
-                            @[ CloudSlashTintColor() ]);
+      imageConfiguration.image = SymbolWithPalette(
+          SymbolWithPointSize(SymbolCloudSlash, kCloudSlashSymbolPointSize),
+          @[ CloudSlashTintColor() ]);
 
       configuration.trailingConfiguration = imageConfiguration;
     }

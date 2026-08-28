@@ -14,17 +14,25 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
+import {toRegExp} from "../utils/general.js";
 
 /**
- * Whether debug mode is enabled.
+ * @description Whether debug mode is enabled.
  * @type {boolean}
  * @private
  */
 let debugging = false;
 
 /**
- * Tells if the debug mode is inactive.
- * @memberOf module:content/snippets.debug
+ * @description The active debug filter, or null if unfiltered.
+ * @type {?RegExp}
+ * @private
+ */
+let filter = null;
+
+/**
+ * @description Tells if the debug mode is inactive.
+ * @memberOf module:snippets/introspection
  * @returns {boolean}
  */
 export function debug() {
@@ -32,14 +40,36 @@ export function debug() {
 }
 
 /**
- * Enables debug mode.
- * @alias module:content/snippets.debug
+ * @description Returns the active debug filter regexp,
+ * or null if no filter is set.
+ * @returns {?RegExp}
+ */
+export function debugFilter() {
+  return filter;
+}
+
+/**
+ * @description Enables debug mode. If a pattern is provided,
+ * only log messages matching the pattern will be shown.
+ * @memberOf module:snippets/introspection
+ *
+ * @param {string} [pattern] Optional filter pattern.
+ *   Plain strings match literally; `/regex/` patterns
+ *   are treated as regular expressions.
  *
  * @example
  * example.com#$#debug; log 'Hello, world!'
+ * example.com#$#debug; abort-on-property-read atob => activates
+ * debug mode for the abort-on-property-read snippet
+ * example.com#$#debug json-prune; json-prune ads => activates
+ * debug mode only for json-prune logs
  *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69959924/debug} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/debugging-snippets/debug} for external documentation.
  * @since Adblock Plus 3.8
  */
-export function setDebug() {
+export function setDebug(pattern) {
   debugging = true;
+  if (pattern)
+    filter = toRegExp(pattern);
 }

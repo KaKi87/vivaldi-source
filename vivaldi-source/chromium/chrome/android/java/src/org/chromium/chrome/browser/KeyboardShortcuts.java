@@ -26,6 +26,7 @@ import org.chromium.base.ui.KeyboardUtils;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.bookmarks.bar.BookmarkBarUtils;
+import org.chromium.chrome.browser.feedback.FeedbackPolicyManager;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
 import org.chromium.chrome.browser.homepage.HomepageManager;
@@ -38,6 +39,7 @@ import org.chromium.chrome.browser.tabmodel.TabClosureParams;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelUtils;
+import org.chromium.chrome.browser.task_manager.TaskManager;
 import org.chromium.chrome.browser.toolbar.ToolbarManager;
 import org.chromium.components.browser_ui.widget.MenuOrKeyboardActionController;
 import org.chromium.content_public.browser.BrowserContextHandle;
@@ -89,6 +91,7 @@ public class KeyboardShortcuts {
         KeyboardShortcutsSemanticMeaning.MOVE_TO_SPECIFIC_TAB,
         KeyboardShortcutsSemanticMeaning.MOVE_TO_LAST_TAB,
         KeyboardShortcutsSemanticMeaning.TAB_SEARCH,
+        KeyboardShortcutsSemanticMeaning.TAB_SEARCH_SIDE_UI,
         KeyboardShortcutsSemanticMeaning.NOT_IMPLEMENTED_TOGGLE_MULTITASK_MENU,
         KeyboardShortcutsSemanticMeaning.CLOSE_TAB,
         KeyboardShortcutsSemanticMeaning.CLOSE_WINDOW,
@@ -139,8 +142,8 @@ public class KeyboardShortcuts {
         KeyboardShortcutsSemanticMeaning.OPEN_MENU,
         KeyboardShortcutsSemanticMeaning.CUSTOM_EXTENSION_SHORTCUT,
         KeyboardShortcutsSemanticMeaning.TOGGLE_MULTISELECT,
-        KeyboardShortcutsSemanticMeaning.ZOOM_IN_LEGACY,
-        KeyboardShortcutsSemanticMeaning.ZOOM_OUT_LEGACY,
+        // KeyboardShortcutsSemanticMeaning.ZOOM_IN_LEGACY,
+        // KeyboardShortcutsSemanticMeaning.ZOOM_OUT_LEGACY,
         KeyboardShortcutsSemanticMeaning.FOCUS_APP_MENU_BUTTON,
 
         // Vivaldi Shortcuts
@@ -256,21 +259,24 @@ public class KeyboardShortcuts {
         int TOGGLE_MULTISELECT = 62;
 
         // Visual (Legacy) zoom controls.
-        int ZOOM_IN_LEGACY = 63;
-        int ZOOM_OUT_LEGACY = 64;
+        // int ZOOM_IN_LEGACY = 63;
+        // int ZOOM_OUT_LEGACY = 64;
 
         // App menu button keyboard shortcut.
         int FOCUS_APP_MENU_BUTTON = 65;
 
+        // Tab search start anchored side UI.
+        int TAB_SEARCH_SIDE_UI = 66;
+
         // Vivaldi
-        int OPEN_SIDE_PANEL = 66;
-        int OPEN_SETTINGS = 67;
-        int EXIT = 68;
-        int PASTE_AND_GO = 69;
-        int OPEN_NOTES_PANEL = 70;
-        int COPY_TO_NOTES = 71;
+        int OPEN_SIDE_PANEL = 67;
+        int OPEN_SETTINGS = 68;
+        int EXIT = 69;
+        int PASTE_AND_GO = 70;
+        int OPEN_NOTES_PANEL = 71;
+        int COPY_TO_NOTES = 72;
         // Max value.
-        int MAX_VALUE = 72;
+        int MAX_VALUE = 73;
     }
 
     // LINT.ThenChange(//tools/metrics/histograms/metadata/accessibility/enums.xml:KeyboardShortcutsSemanticMeaning, //tools/metrics/histograms/metadata/accessibility/histograms.xml:KeyboardShortcutsSemanticMeaning)
@@ -290,7 +296,7 @@ public class KeyboardShortcuts {
      * modifier) for a keyboard shortcut.
      */
     @NullMarked
-    private static class KeyCombo {
+    public static class KeyCombo { // Vivaldi
         final int mKeyCode;
         final int mModifier;
         final int mMetaStateAndKeyCode;
@@ -494,10 +500,17 @@ public class KeyboardShortcuts {
                     new KeyCombo(KeyEvent.KEYCODE_BUTTON_B, NO_MODIFIER),
                 });
 
-        // Tab search.
+        // Tab search in Hub UI is opened with Ctrl+Shift+A.
         new KeyboardShortcutDefinition(
                 KeyboardShortcutsSemanticMeaning.TAB_SEARCH,
                 new KeyCombo(KeyEvent.KEYCODE_A, (KeyEvent.META_CTRL_ON | KeyEvent.META_SHIFT_ON)),
+                R.string.keyboard_shortcut_tab_search,
+                R.string.keyboard_shortcut_tab_group_header);
+
+        // Tab search start anchored side UI is opened with Alt+Shift+A.
+        new KeyboardShortcutDefinition(
+                KeyboardShortcutsSemanticMeaning.TAB_SEARCH_SIDE_UI,
+                new KeyCombo(KeyEvent.KEYCODE_A, (KeyEvent.META_ALT_ON | KeyEvent.META_SHIFT_ON)),
                 R.string.keyboard_shortcut_tab_search,
                 R.string.keyboard_shortcut_tab_group_header);
 
@@ -613,9 +626,7 @@ public class KeyboardShortcuts {
                 });
         new KeyboardShortcutDefinition(
                 KeyboardShortcutsSemanticMeaning.FEEDBACK_FORM,
-                new KeyCombo(KeyEvent.KEYCODE_I, KeyEvent.META_ALT_ON | KeyEvent.META_SHIFT_ON),
-                R.string.keyboard_shortcut_send_feedback,
-                R.string.keyboard_shortcut_chrome_feature_group_header);
+                new KeyCombo(KeyEvent.KEYCODE_I, KeyEvent.META_ALT_ON | KeyEvent.META_SHIFT_ON));
         new KeyboardShortcutDefinition(
                 KeyboardShortcutsSemanticMeaning.SHOW_DOWNLOADS,
                 new KeyCombo(KeyEvent.KEYCODE_J, KeyEvent.META_CTRL_ON),
@@ -728,31 +739,27 @@ public class KeyboardShortcuts {
                 R.string.keyboard_shortcut_webpage_group_header,
                 new KeyCombo[] {
                     new KeyCombo(KeyEvent.KEYCODE_ZOOM_IN, NO_MODIFIER),
-                    new KeyCombo(KeyEvent.KEYCODE_EQUALS, KeyEvent.META_CTRL_ON)
+                    new KeyCombo(KeyEvent.KEYCODE_EQUALS, KeyEvent.META_CTRL_ON),
+                    new KeyCombo(
+                            KeyEvent.KEYCODE_PLUS,
+                            (KeyEvent.META_CTRL_ON | KeyEvent.META_SHIFT_ON)),
+                    new KeyCombo(
+                            KeyEvent.KEYCODE_EQUALS,
+                            (KeyEvent.META_CTRL_ON | KeyEvent.META_SHIFT_ON)),
+                    new KeyCombo(KeyEvent.KEYCODE_NUMPAD_ADD, KeyEvent.META_CTRL_ON)
                 });
         new KeyboardShortcutDefinition(
                 KeyboardShortcutsSemanticMeaning.ZOOM_OUT,
                 new KeyCombo(KeyEvent.KEYCODE_MINUS, KeyEvent.META_CTRL_ON),
                 R.string.keyboard_shortcut_zoom_out,
                 R.string.keyboard_shortcut_webpage_group_header,
-                new KeyCombo[] {new KeyCombo(KeyEvent.KEYCODE_ZOOM_OUT, NO_MODIFIER)});
-        new KeyboardShortcutDefinition(
-                KeyboardShortcutsSemanticMeaning.ZOOM_IN_LEGACY,
-                new KeyCombo(
-                        KeyEvent.KEYCODE_PLUS, (KeyEvent.META_CTRL_ON | KeyEvent.META_SHIFT_ON)),
-                R.string.keyboard_shortcut_zoom_in,
-                R.string.keyboard_shortcut_webpage_group_header,
                 new KeyCombo[] {
+                    new KeyCombo(KeyEvent.KEYCODE_ZOOM_OUT, NO_MODIFIER),
                     new KeyCombo(
-                            KeyEvent.KEYCODE_EQUALS,
-                            (KeyEvent.META_CTRL_ON | KeyEvent.META_SHIFT_ON))
+                            KeyEvent.KEYCODE_MINUS,
+                            (KeyEvent.META_CTRL_ON | KeyEvent.META_SHIFT_ON)),
+                    new KeyCombo(KeyEvent.KEYCODE_NUMPAD_SUBTRACT, KeyEvent.META_CTRL_ON)
                 });
-        new KeyboardShortcutDefinition(
-                KeyboardShortcutsSemanticMeaning.ZOOM_OUT_LEGACY,
-                new KeyCombo(
-                        KeyEvent.KEYCODE_MINUS, (KeyEvent.META_CTRL_ON | KeyEvent.META_SHIFT_ON)),
-                R.string.keyboard_shortcut_zoom_out,
-                R.string.keyboard_shortcut_webpage_group_header);
         new KeyboardShortcutDefinition(
                 KeyboardShortcutsSemanticMeaning.ZOOM_RESET,
                 new KeyCombo(KeyEvent.KEYCODE_0, KeyEvent.META_CTRL_ON),
@@ -797,9 +804,6 @@ public class KeyboardShortcuts {
                 new KeyCombo(
                         KeyEvent.KEYCODE_PAGE_DOWN,
                         KeyEvent.META_CTRL_ON | KeyEvent.META_SHIFT_ON));
-        new KeyboardShortcutDefinition(
-                KeyboardShortcutsSemanticMeaning.NOT_IMPLEMENTED_FOCUS_ON_INACTIVE_DIALOGS,
-                new KeyCombo(KeyEvent.KEYCODE_A, KeyEvent.META_ALT_ON | KeyEvent.META_SHIFT_ON));
         new KeyboardShortcutDefinition(
                 KeyboardShortcutsSemanticMeaning.BOOKMARK_ALL_TABS,
                 new KeyCombo(KeyEvent.KEYCODE_D, KeyEvent.META_CTRL_ON | KeyEvent.META_SHIFT_ON));
@@ -905,6 +909,14 @@ public class KeyboardShortcuts {
                     }
                 }
                 return true;
+            case KeyEvent.KEYCODE_F7:
+                if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                    if (menuOrKeyboardActionController.onMenuOrKeyboardAction(
+                            R.id.toggle_caret_browsing, false)) {
+                        return true;
+                    }
+                }
+                return true;
             case KeyEvent.KEYCODE_TV:
             case KeyEvent.KEYCODE_GUIDE:
             case KeyEvent.KEYCODE_DVR:
@@ -979,6 +991,15 @@ public class KeyboardShortcuts {
                     KeyEvent.KEYCODE_B,
                     (KeyEvent.META_CTRL_ON | KeyEvent.META_SHIFT_ON));
         }
+        if (FeedbackPolicyManager.getInstance().isUserFeedbackAllowed()) {
+            addShortcut(
+                    context,
+                    shortcutGroupsById,
+                    R.string.keyboard_shortcut_chrome_feature_group_header,
+                    R.string.keyboard_shortcut_send_feedback,
+                    KeyEvent.KEYCODE_I,
+                    KeyEvent.META_ALT_ON | KeyEvent.META_SHIFT_ON);
+        }
         if (ContentFeatureMap.isEnabled(ContentFeatureList.ANDROID_DEV_TOOLS_FRONTEND)) {
             addShortcut(
                     context,
@@ -995,7 +1016,7 @@ public class KeyboardShortcuts {
                     KeyEvent.KEYCODE_I,
                     (KeyEvent.META_CTRL_ON | KeyEvent.META_SHIFT_ON));
         }
-        if (ChromeFeatureList.isEnabled(ChromeFeatureList.TASK_MANAGER_CLANK)) {
+        if (TaskManager.isEnabled()) {
             addShortcut(
                     context,
                     shortcutGroupsById,
@@ -1102,16 +1123,25 @@ public class KeyboardShortcuts {
                         R.id.open_recently_closed_tab, false);
                 return true;
             case KeyboardShortcutsSemanticMeaning.OPEN_NEW_TAB:
-                menuOrKeyboardActionController.onMenuOrKeyboardAction(
-                        currentTabModel.isIncognito()
-                                ? R.id.new_incognito_tab_menu_id
-                                : R.id.new_tab_menu_id,
-                        false);
-                return true;
+                {
+                    boolean forced =
+                            IncognitoUtils.isIncognitoModeForced(
+                                    tabModelSelector.getCurrentModel().getProfile());
+                    menuOrKeyboardActionController.onMenuOrKeyboardAction(
+                            (forced || currentTabModel.isIncognito())
+                                    ? R.id.new_incognito_tab_menu_id
+                                    : R.id.new_tab_menu_id,
+                            false);
+                    return true;
+                }
             case KeyboardShortcutsSemanticMeaning.OPEN_NEW_WINDOW:
                 if (MultiWindowUtils.isMultiInstanceApi31Enabled()) {
+                    boolean forced =
+                            IncognitoUtils.isIncognitoModeForced(
+                                    tabModelSelector.getCurrentModel().getProfile());
                     menuOrKeyboardActionController.onMenuOrKeyboardAction(
-                            R.id.new_window_menu_id, false);
+                            forced ? R.id.new_incognito_window_menu_id : R.id.new_window_menu_id,
+                            false);
                     return true;
                 } else {
                     break;
@@ -1143,7 +1173,10 @@ public class KeyboardShortcuts {
                 menuOrKeyboardActionController.onMenuOrKeyboardAction(R.id.show_menu, false);
                 return true;
             case KeyboardShortcutsSemanticMeaning.FEEDBACK_FORM:
-                menuOrKeyboardActionController.onMenuOrKeyboardAction(R.id.feedback_form, false);
+                if (FeedbackPolicyManager.getInstance().isUserFeedbackAllowed()) {
+                    menuOrKeyboardActionController.onMenuOrKeyboardAction(
+                            R.id.feedback_form, false);
+                }
                 return true;
             case KeyboardShortcutsSemanticMeaning.TOGGLE_BOOKMARK_BAR:
                 return menuOrKeyboardActionController.onMenuOrKeyboardAction(
@@ -1173,6 +1206,13 @@ public class KeyboardShortcuts {
                     return true;
                 case KeyboardShortcutsSemanticMeaning.TAB_SEARCH:
                     menuOrKeyboardActionController.onMenuOrKeyboardAction(R.id.tab_search, false);
+                    return true;
+                case KeyboardShortcutsSemanticMeaning.TAB_SEARCH_SIDE_UI:
+                    int actionId =
+                            ChromeFeatureList.sTabSearchForDesktop.isEnabled()
+                                    ? R.id.tab_search_side_ui
+                                    : R.id.tab_search;
+                    menuOrKeyboardActionController.onMenuOrKeyboardAction(actionId, false);
                     return true;
                 case KeyboardShortcutsSemanticMeaning.MOVE_TO_SPECIFIC_TAB:
                     if (tabSwitchingEnabled) {
@@ -1277,12 +1317,6 @@ public class KeyboardShortcuts {
                 case KeyboardShortcutsSemanticMeaning.ZOOM_OUT:
                     ZoomController.zoomOutPage(currentWebContents);
                     return true;
-                case KeyboardShortcutsSemanticMeaning.ZOOM_IN_LEGACY:
-                    ZoomController.zoomInVisual(currentWebContents);
-                    return true;
-                case KeyboardShortcutsSemanticMeaning.ZOOM_OUT_LEGACY:
-                    ZoomController.zoomOutVisual(currentWebContents);
-                    return true;
                 case KeyboardShortcutsSemanticMeaning.ZOOM_RESET:
                     ZoomController.zoomResetPage(currentWebContents, browserContextHandle);
                     return true;
@@ -1308,13 +1342,7 @@ public class KeyboardShortcuts {
                         currentTab.goForward();
                     }
                     return true;
-                case KeyboardShortcutsSemanticMeaning.TOGGLE_CARET_BROWSING:
-                    if (ContentFeatureList.sAndroidCaretBrowsing.isEnabled()) {
-                        menuOrKeyboardActionController.onMenuOrKeyboardAction(
-                                R.id.toggle_caret_browsing, false);
-                        return true;
-                    }
-                    return false;
+
                 case KeyboardShortcutsSemanticMeaning.OPEN_HELP:
                     menuOrKeyboardActionController.onMenuOrKeyboardAction(R.id.help_id, false);
                     return true;

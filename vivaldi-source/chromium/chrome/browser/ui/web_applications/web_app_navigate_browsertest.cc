@@ -27,7 +27,7 @@ class WebAppServiceWorkerOpenWindowBrowserTest : public WebAppBrowserTestBase {
   static GURL GetGoogleURL() { return GURL("http://www.google.com/"); }
 
   NavigateParams MakeNavigateParamsForServiceWorker() const {
-    NavigateParams params(browser()->profile(), GetGoogleURL(),
+    NavigateParams params(browser()->GetProfile(), GetGoogleURL(),
                           ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
     params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
     params.is_renderer_initiated = true;
@@ -50,8 +50,7 @@ IN_PROC_BROWSER_TEST_F(WebAppServiceWorkerOpenWindowBrowserTest,
   EXPECT_NE(browser(), params.browser);
   EXPECT_FALSE(params.browser->GetBrowserForMigrationOnly()->is_type_normal());
   EXPECT_TRUE(params.browser->GetBrowserForMigrationOnly()->is_type_app());
-  EXPECT_TRUE(
-      params.browser->GetBrowserForMigrationOnly()->is_trusted_source());
+  EXPECT_TRUE(WindowFeatureController::From(params.browser)->IsTrustedSource());
 }
 
 IN_PROC_BROWSER_TEST_F(WebAppServiceWorkerOpenWindowBrowserTest,

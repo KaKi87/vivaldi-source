@@ -44,7 +44,7 @@ class OmniboxMetricsTest : public InProcessBrowserTest {
     // loaded. Make sure it is loaded so that the autocomplete results are
     // consistent.
     search_test_utils::WaitForTemplateURLServiceToLoad(
-        TemplateURLServiceFactory::GetForProfile(browser()->profile()));
+        TemplateURLServiceFactory::GetForProfile(browser()->GetProfile()));
 
     // Prevent the stop timer from killing the hints fetch early, which might
     // cause test flakiness due to timeout.
@@ -53,16 +53,14 @@ class OmniboxMetricsTest : public InProcessBrowserTest {
 
  protected:
   AutocompleteController* controller() {
-    return browser()
-        ->window()
+    return BrowserWindow::FromBrowser(browser())
         ->GetLocationBar()
         ->GetOmniboxController()
         ->autocomplete_controller();
   }
 
   OmniboxEditModel* model() {
-    return browser()
-        ->window()
+    return BrowserWindow::FromBrowser(browser())
         ->GetLocationBar()
         ->GetOmniboxController()
         ->edit_model();
@@ -72,7 +70,7 @@ class OmniboxMetricsTest : public InProcessBrowserTest {
 IN_PROC_BROWSER_TEST_F(OmniboxMetricsTest, LogSearchEngineUsed) {
   AutocompleteInput input(
       u"z", metrics::OmniboxEventProto::NTP,
-      ChromeAutocompleteSchemeClassifier(browser()->profile()));
+      ChromeAutocompleteSchemeClassifier(browser()->GetProfile()));
   controller()->Start(input);
   WaitForAutocompleteDone(browser());
   EXPECT_TRUE(controller()->done());
@@ -103,7 +101,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxMetricsTest, LogSearchEngineUsed_PostNavigation) {
   ASSERT_TRUE(embedded_test_server()->Start());
 
   TemplateURLService* template_url_service =
-      TemplateURLServiceFactory::GetForProfile(browser()->profile());
+      TemplateURLServiceFactory::GetForProfile(browser()->GetProfile());
   TemplateURLData data;
   data.SetShortName(u"custom");
   data.SetKeyword(u"custom");
@@ -118,7 +116,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxMetricsTest, LogSearchEngineUsed_PostNavigation) {
 
   AutocompleteInput input(
       u"z", metrics::OmniboxEventProto::NTP,
-      ChromeAutocompleteSchemeClassifier(browser()->profile()));
+      ChromeAutocompleteSchemeClassifier(browser()->GetProfile()));
   controller()->Start(input);
   WaitForAutocompleteDone(browser());
   EXPECT_TRUE(controller()->done());

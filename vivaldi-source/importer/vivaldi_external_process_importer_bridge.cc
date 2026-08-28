@@ -113,8 +113,7 @@ void ExternalProcessImporterBridge::AddRawPasswords(
   int passwords_left = passwords.end() - passwords.begin();
   for (std::vector<ImportedRawPasswordForm>::const_iterator it =
            passwords.begin();
-       it < passwords.end();)
-  {
+       it < passwords.end();) {
     std::vector<ImportedRawPasswordForm> pw_group;
     std::vector<ImportedRawPasswordForm>::const_iterator end_group =
         it + std::min(passwords_left, kNumPasswordsToSend);

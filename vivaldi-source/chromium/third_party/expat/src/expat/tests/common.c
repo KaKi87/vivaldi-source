@@ -19,6 +19,7 @@
    Copyright (c) 2020      Tim Gates <tim.gates@iress.com>
    Copyright (c) 2021      Donghee Na <donghee.na@python.org>
    Copyright (c) 2023-2024 Sony Corporation / Snild Dolkow <snild@sony.com>
+   Copyright (c) 2026      Matthew Fernandez <matthew.fernandez@gmail.com>
    Licensed under the MIT license:
 
    Permission is  hereby granted,  free of charge,  to any  person obtaining
@@ -41,13 +42,14 @@
    USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#include "expat_config.h"
+
 #include <assert.h>
 #include <errno.h>
 #include <stdint.h> // for SIZE_MAX
 #include <stdio.h>
 #include <string.h>
 
-#include "expat_config.h"
 #include "expat.h"
 #include "internal.h"
 #include "chardata.h"

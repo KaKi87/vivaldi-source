@@ -54,7 +54,7 @@ void OperaNotesReader::HandleEntry(const std::string& category,
     current_folder_.push_back(foldername);
   } else if (base::EqualsCaseInsensitiveASCII(category, "note")) {
     AddNote(current_folder_, entries, false);
-  } else if (category == "-") {
+  } else if (!current_folder_.empty() && category == "-") {
     current_folder_.pop_back();
   }
 }

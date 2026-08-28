@@ -7,17 +7,15 @@
 #include "base/notreached.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
-#include "chrome/browser/desktop_to_mobile_promos/promos_pref_names.h"
 #include "chrome/browser/desktop_to_mobile_promos/promos_utils.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/page_action/page_action_icon_type.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
-#include "chrome/browser/ui/views/location_bar/icon_label_bubble_view.h"
 #include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
+#include "chrome/browser/ui/views/page_action/page_action_view_interface.h"
 #include "chrome/browser/ui/views/promos/ios_promo_bubble.h"
 #include "chrome/browser/ui/views/toolbar/app_menu_control.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
@@ -31,7 +29,6 @@
 #include "components/prefs/pref_service.h"
 #include "components/sync_preferences/features.h"
 #include "content/public/test/browser_test.h"
-#include "ui/base/interaction/interaction_sequence.h"
 
 using desktop_to_mobile_promos::BubbleType;
 using desktop_to_mobile_promos::PromoType;
@@ -87,35 +84,35 @@ class IOSPromoBubbleBrowserTest
 
       PromoType promo_type = GetPromoType();
       views::BubbleAnchor anchor;
-      views::Button* highlighted_button = nullptr;
+      page_actions::PageActionViewInterface* highlighted_button = nullptr;
       std::optional<ui::ElementIdentifier> highlighted_element;
 
       // Explicitly set impression count to 0 before showing the promo.
       // This ensures that the first impression is recorded as 1.
       promos_utils::IOSPromoPrefsConfig promo_prefs(promo_type);
-      browser()->profile()->GetPrefs()->SetInteger(
+      browser()->GetProfile()->GetPrefs()->SetInteger(
           promo_prefs.promo_impressions_counter_pref_name, 0);
 
       switch (promo_type) {
         case PromoType::kPassword:
           anchor = button_provider->GetBubbleAnchor(
               kActionShowPasswordsBubbleOrPage);
-          highlighted_button = button_provider->GetPageActionView(
+          highlighted_button = button_provider->GetPageActionViewInterface(
               kActionShowPasswordsBubbleOrPage);
           highlighted_element = kPasswordsOmniboxKeyIconElementId;
           break;
         case PromoType::kAddress:
           anchor = button_provider->GetBubbleAnchor(
               kActionShowAddressesBubbleOrPage);
-          highlighted_button = button_provider->GetPageActionView(
+          highlighted_button = button_provider->GetPageActionViewInterface(
               kActionShowAddressesBubbleOrPage);
           highlighted_element = kAutofillAddressPageActionElementId;
           break;
         case PromoType::kPayment:
           anchor =
               button_provider->GetBubbleAnchor(kActionShowPaymentsBubbleOrPage);
-          highlighted_button =
-              button_provider->GetPageActionView(kActionShowPaymentsBubbleOrPage);
+          highlighted_button = button_provider->GetPageActionViewInterface(
+              kActionShowPaymentsBubbleOrPage);
           highlighted_element = kAutofillSavePaymentsPageActionElementId;
           break;
         case PromoType::kEnhancedBrowsing:
@@ -126,10 +123,11 @@ class IOSPromoBubbleBrowserTest
           NOTREACHED();
       }
 
-      promos_utils::IOSDesktopPromoShown(browser()->profile(), promo_type);
-      IOSPromoBubble::ShowPromoBubble(
-          IOSPromoBubble::Anchor{anchor}, highlighted_button,
-          highlighted_element, browser()->profile(), promo_type, bubble_type);
+      promos_utils::IOSDesktopPromoShown(browser()->GetProfile(), promo_type);
+      IOSPromoBubble::ShowPromoBubble(IOSPromoBubble::Anchor{anchor},
+                                      highlighted_button, highlighted_element,
+                                      browser()->GetProfile(), promo_type,
+                                      bubble_type);
     });
   }
 

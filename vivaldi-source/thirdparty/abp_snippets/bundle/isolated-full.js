@@ -23,10 +23,10 @@ import {hideIfMatchesXPath3} from
 
 snippets["hide-if-matches-xpath3"] = hideIfMatchesXPath3;
 
-// {"snippet-name": {...}} dependencies to optionally injext before snippets
-// get executed, particularly useful for snippets with
-// huge external dependencies that should not be evaluated each time.
-// The value should be an object with fields wable as serializable functions.
+// {"snippet-name": {...}} dependencies to optionally inject before snippets
+// get executed, particularly useful for snippets with huge external
+// dependencies that should not be evaluated each time.
+// The value should be an object with fields as serializable functions.
 // https://developer.chrome.com/docs/extensions/reference/scripting/#injected-code
 
 export {snippets};

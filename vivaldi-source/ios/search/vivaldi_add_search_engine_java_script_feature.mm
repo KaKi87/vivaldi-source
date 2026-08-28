@@ -84,7 +84,7 @@ void VivaldiAddSearchEngineJavaScriptFeature::ScriptMessageReceived(
   if (observers_.empty()) {
     return;
   }
-  const base::Value* body = script_message.body();
+  const base::Value* body = script_message.legacy_body();
   if (!body) {
     return;
   }

@@ -2,7 +2,6 @@
 
 update_target("//chrome/browser:browser") {
   public_deps += [ "//vivaldi/menus" ]
-  allow_circular_includes_from += [ "//vivaldi/menus" ]
 }
 
 update_target("//chrome:dependencies") {

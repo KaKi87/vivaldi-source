@@ -18,8 +18,10 @@ bool SpoofStableChromiumVersion(GURL url);
 // Should we spoof the useragent on the URL?
 bool IsUrlAllowed(const GURL& url);
 
-// Update the user agent string based on the current scoped thread URL
-void UpdateAgentString(bool reduced, std::string& user_agent);
+// Update the user agent string based on the current scoped thread URL, or supplied.
+void UpdateAgentString(bool reduced,
+                       std::string& user_agent,
+                       const GURL* maybe_active_url = nullptr);
 
 std::vector<std::string> GetVivaldiAllowlist();
 std::vector<std::string> GetVivaldiEdgeList();
@@ -36,7 +38,10 @@ class ScopedVivaldiThreadURL {
   ScopedVivaldiThreadURL(GURL url);
   ~ScopedVivaldiThreadURL();
 
-  static std::optional<GURL> GetURLForThread();
+  static std::optional<GURL> GetURLForCurrentThread();
+
+  // Calculate the UA directly from a specified URL.
+  static std::string ComputeUserAgentValue(GURL url);
 
  private:
   ScopedVivaldiThreadURL(ScopedVivaldiThreadURL&) = delete;

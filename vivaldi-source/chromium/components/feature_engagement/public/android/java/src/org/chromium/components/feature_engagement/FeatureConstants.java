@@ -27,10 +27,14 @@ import java.lang.annotation.RetentionPolicy;
     FeatureConstants.ADAPTIVE_BUTTON_IN_TOP_TOOLBAR_CUSTOMIZATION_TRANSLATE_FEATURE,
     FeatureConstants.ADAPTIVE_BUTTON_IN_TOP_TOOLBAR_CUSTOMIZATION_VOICE_SEARCH_FEATURE,
     FeatureConstants.ADAPTIVE_BUTTON_PIN_GLIC_TOOLBAR_BUTTON_FEATURE,
+    FeatureConstants.AIM_ACTIVATION_HINT,
+    FeatureConstants.ANDROID_BOTTOM_BAR_AIM,
+    FeatureConstants.ANDROID_BOTTOM_BAR_AIM_PROMO_DIALOG,
     FeatureConstants.ANDROID_BOTTOM_BAR_GLIC,
     FeatureConstants.ANDROID_BOTTOM_BAR_NEW_TAB,
     FeatureConstants.ANDROID_BOTTOM_BAR_PROMO_DIALOG,
     FeatureConstants.ANDROID_TAB_DECLUTTER_FEATURE,
+    FeatureConstants.ANDROID_VERTICAL_TABS_PROMO_FEATURE,
     FeatureConstants.APP_RATING_PROMPT_FEATURE,
     FeatureConstants.APP_SPECIFIC_HISTORY_FEATURE,
     FeatureConstants.AUTO_DARK_OPT_OUT_FEATURE,
@@ -46,7 +50,6 @@ import java.lang.annotation.RetentionPolicy;
     FeatureConstants.CHROME_REENGAGEMENT_NOTIFICATION_3_FEATURE,
     FeatureConstants.CONTEXTUAL_PAGE_ACTIONS_ACTION_CHIP,
     FeatureConstants.CONTEXTUAL_PAGE_ACTIONS_QUIET_VARIANT,
-    FeatureConstants.COOKIE_CONTROLS_FEATURE,
     FeatureConstants.DATA_SAVER_DETAIL_FEATURE,
     FeatureConstants.DATA_SAVER_MILESTONE_PROMO_FEATURE,
     FeatureConstants.DATA_SAVER_PREVIEW_FEATURE,
@@ -72,6 +75,7 @@ import java.lang.annotation.RetentionPolicy;
     FeatureConstants.INSTANCE_SWITCHER,
     FeatureConstants.IPH_EXTENSIONS_MANAGE_APP_MENU_FEATURE,
     FeatureConstants.IPH_EXTENSIONS_MANAGE_TOOLBAR_FEATURE,
+    FeatureConstants.IPH_EXTENSIONS_PINNED_BY_DEFAULT_FEATURE,
     FeatureConstants.IPH_INCOGNITO_INDICATOR_CLOSE_ALL_WINDOWS,
     FeatureConstants.IPH_MIC_TOOLBAR_FEATURE,
     FeatureConstants.IPH_PDF_PAGE_DOWNLOAD,
@@ -176,6 +180,15 @@ public @interface FeatureConstants {
     String ADAPTIVE_BUTTON_PIN_GLIC_TOOLBAR_BUTTON_FEATURE =
             "IPH_AdaptiveButtonPinGlicToolbarButton";
 
+    /** A hint to activate AI Mode on Android Desktop via keystrokes. */
+    String AIM_ACTIVATION_HINT = "IPH_AimActivationHint";
+
+    /** Describes the AI Mode button added in the bottom bar. */
+    String ANDROID_BOTTOM_BAR_AIM = "IPH_AndroidBottomBarAim";
+
+    /** For the promo dialog shown to introduce AI Mode with the bottom bar. */
+    String ANDROID_BOTTOM_BAR_AIM_PROMO_DIALOG = "IPH_AndroidBottomBarAimPromoDialog";
+
     /** Describes the GLIC button on the new bottom bar. */
     String ANDROID_BOTTOM_BAR_GLIC = "IPH_AndroidBottomBarGlic";
 
@@ -186,6 +199,7 @@ public @interface FeatureConstants {
     String ANDROID_BOTTOM_BAR_PROMO_DIALOG = "IPH_AndroidBottomBarPromoDialog";
 
     String ANDROID_TAB_DECLUTTER_FEATURE = "IPH_AndroidTabDeclutter";
+    String ANDROID_VERTICAL_TABS_PROMO_FEATURE = "IPH_AndroidVerticalTabsPromo";
 
     String APP_RATING_PROMPT_FEATURE = "IPH_AppRatingPrompt";
     String APP_SPECIFIC_HISTORY_FEATURE = "IPH_AppSpecificHistory";
@@ -219,8 +233,6 @@ public @interface FeatureConstants {
     String CONTEXTUAL_PAGE_ACTIONS_ACTION_CHIP = "IPH_ContextualPageActions_ActionChip";
 
     String CONTEXTUAL_PAGE_ACTIONS_QUIET_VARIANT = "IPH_ContextualPageActions_QuietVariant";
-
-    String COOKIE_CONTROLS_FEATURE = "IPH_CookieControls";
 
     String DATA_SAVER_DETAIL_FEATURE = "IPH_DataSaverDetail";
 
@@ -289,6 +301,10 @@ public @interface FeatureConstants {
      */
     String IDENTITY_DISC_FEATURE = "IPH_IdentityDisc";
 
+    /**
+     * An IPH feature prompting user that app menu has a menu for managing multiple Chrome windows
+     * with instance switcher.
+     */
     String INSTANCE_SWITCHER = "IPH_InstanceSwitcher";
 
     /**
@@ -302,6 +318,9 @@ public @interface FeatureConstants {
      * their extensions in the toolbar.
      */
     String IPH_EXTENSIONS_MANAGE_TOOLBAR_FEATURE = "IPH_ExtensionsManageToolbar";
+
+    /** An IPH feature that shows when an extension is pinned by default. */
+    String IPH_EXTENSIONS_PINNED_BY_DEFAULT_FEATURE = "IPH_ExtensionsPinnedByDefault";
 
     /**
      * An IPH feature to inform users that they can close all Incognito windows by tapping the
@@ -404,6 +423,12 @@ public @interface FeatureConstants {
     String READ_LATER_BOTTOM_SHEET_FEATURE = "IPH_ReadLaterBottomSheet";
 
     String READ_LATER_CONTEXT_MENU_FEATURE = "IPH_ReadLaterContextMenu";
+
+    /**
+     * An IPH feature prompting user that they can find their recently closed tabs and windows in
+     * the 'Recent tabs' surface.
+     */
+    String RECENT_TABS = "IPH_RecentTabs";
 
     String REQUEST_DESKTOP_SITE_DEFAULT_ON_FEATURE = "IPH_RequestDesktopSiteDefaultOn";
 

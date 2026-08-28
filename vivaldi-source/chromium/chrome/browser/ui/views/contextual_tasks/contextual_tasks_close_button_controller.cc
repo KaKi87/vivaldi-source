@@ -10,12 +10,12 @@
 #include "chrome/browser/contextual_tasks/contextual_tasks_utils.h"
 #include "chrome/browser/contextual_tasks/entry_point_eligibility_manager.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/immersive/immersive_mode_controller.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry.h"
 #include "chrome/browser/ui/side_panel/side_panel_registry.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
-#include "chrome/browser/ui/views/frame/immersive_mode_controller.h"
 #include "components/contextual_tasks/public/features.h"
 #include "components/tabs/public/tab_interface.h"
 
@@ -150,7 +150,7 @@ void ContextualTasksCloseButtonController::OnEligibilityChange(
   MaybeNotifyVisibilityShouldChange();
 }
 
-void ContextualTasksCloseButtonController::MaybeNotifyVisibilityShouldChange() {
+bool ContextualTasksCloseButtonController::ShouldShowCloseButton() {
   auto* eligibility_manager =
       contextual_tasks::EntryPointEligibilityManager::From(
           browser_window_interface_);
@@ -169,9 +169,15 @@ void ContextualTasksCloseButtonController::MaybeNotifyVisibilityShouldChange() {
    *  - Side panel can expand to full tab.
    **/
   bool is_panel_state_eligible = is_panel_visible_ && !is_panel_hiding_;
-  should_update_visibility_callbacks_.Notify(
-      !IsVerticalTabOrIsImmersiveMode() && is_eligible &&
-      is_panel_state_eligible && can_expand_to_full_tab);
+  return !IsVerticalTabOrIsImmersiveMode() && is_eligible &&
+         is_panel_state_eligible && can_expand_to_full_tab;
+}
+
+void ContextualTasksCloseButtonController::MaybeNotifyVisibilityShouldChange() {
+  should_update_visibility_callbacks_.Notify(ShouldShowCloseButton());
+
+  auto* controller = contextual_tasks::ContextualTasksPanelController::From(
+      browser_window_interface_);
 
   if (controller) {
     content::WebContents* contents = controller->GetActiveWebContents();

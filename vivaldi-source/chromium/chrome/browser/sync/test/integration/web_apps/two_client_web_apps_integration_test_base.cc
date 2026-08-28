@@ -45,7 +45,7 @@ TwoClientWebAppsIntegrationTestBase::TwoClientWebAppsIntegrationTestBase()
   if (GetSetupSyncMode() == SetupSyncMode::kSyncTransportOnly) {
     enabled_features.push_back(syncer::kReplaceSyncPromosWithSignInPromos);
   }
-  disabled_features.push_back(features::kWebAppInstallDialog);
+  enabled_features.push_back(features::kWebAppInstallDialog);
   feature_overrides_.InitWithFeatures(enabled_features, disabled_features);
 }
 
@@ -153,6 +153,15 @@ Profile* TwoClientWebAppsIntegrationTestBase::GetProfileClient(
       return GetProfile(1);
   }
   NOTREACHED();
+}
+
+// static
+void TwoClientWebAppsIntegrationTestBase::SetUpTestSuite() {
+  // TODO(crbug.com/511805630): Fix tests timing out on TSAN
+#if defined(THREAD_SANITIZER)
+  GTEST_SKIP()
+      << "Skipping all WebAppIntegration tests on TSAN due to timeouts.";
+#endif
 }
 
 void TwoClientWebAppsIntegrationTestBase::SetUp() {

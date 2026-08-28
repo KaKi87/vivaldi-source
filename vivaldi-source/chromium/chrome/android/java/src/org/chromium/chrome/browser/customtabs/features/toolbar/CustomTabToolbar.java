@@ -112,6 +112,7 @@ import org.chromium.components.browser_ui.widget.TintedDrawable;
 import org.chromium.components.content_settings.CookieControlsBridge;
 import org.chromium.components.content_settings.CookieControlsObserver;
 import org.chromium.components.embedder_support.util.UrlUtilities;
+import org.chromium.components.omnibox.TextSelection;
 import org.chromium.components.page_info.PageInfoController.OpenedFromSource;
 import org.chromium.components.security_state.ConnectionSecurityLevel;
 import org.chromium.content_public.browser.BrowserContextHandle;
@@ -168,7 +169,6 @@ public class CustomTabToolbar extends ToolbarLayout implements View.OnLongClickL
     private boolean mMaximizeButtonEnabled;
 
     private @Nullable CookieControlsBridge mCookieControlsBridge;
-    private boolean mShouldHighlightCookieControlsIcon;
     private Supplier<@Nullable AppMenuHandler> mAppMenuHandler = () -> null;
 
     private @Nullable AppMenuObserver mAppMenuObserver;
@@ -993,7 +993,6 @@ public class CustomTabToolbar extends ToolbarLayout implements View.OnLongClickL
         private static final int STATE_TITLE_ONLY = 1;
         private static final int STATE_DOMAIN_AND_TITLE = 2;
         private static final int STATE_EMPTY = 3; // Not used as a regular state.
-        private static final int COOKIE_CONTROLS_ICON_DISPLAY_TIMEOUT = 8500;
         private int mState = STATE_DOMAIN_ONLY;
 
         // Used for After branding runnables
@@ -1150,13 +1149,6 @@ public class CustomTabToolbar extends ToolbarLayout implements View.OnLongClickL
                     MIN_URL_BAR_VISIBLE_TIME_POST_BRANDING_MS);
         }
 
-        // CookieControlsObserver interface
-        @Override
-        public void onHighlightCookieControl(boolean shouldHighlight) {
-            if (mShouldHighlightCookieControlsIcon) return;
-            mShouldHighlightCookieControlsIcon = shouldHighlight;
-        }
-
         private void cacheRegularState() {
             String assertMsg =
                     "mPreBandingState already exists! mPreBandingState = " + mPreBandingState;
@@ -1244,7 +1236,7 @@ public class CustomTabToolbar extends ToolbarLayout implements View.OnLongClickL
                             getContext(),
                             (UrlBar) mUrlBar,
                             actionModeCallback,
-                            /* focusChangeCallback= */ (unused) -> {},
+                            /* focusChangeCallback= */ _ -> {},
                             this,
                             new NoOpkeyboardVisibilityDelegate(),
                             isIncognitoBranded(),
@@ -1424,12 +1416,6 @@ public class CustomTabToolbar extends ToolbarLayout implements View.OnLongClickL
                                         new Handler(Looper.getMainLooper())),
                                 getSecurityIconView());
             }
-            if (mShouldHighlightCookieControlsIcon) {
-                mPageInfoIphController.showCookieControlsIph(
-                        COOKIE_CONTROLS_ICON_DISPLAY_TIMEOUT, R.string.cookie_controls_iph_message);
-                animateCookieControlsIcon();
-                mShouldHighlightCookieControlsIcon = false;
-            }
         }
 
         @Override
@@ -1486,7 +1472,7 @@ public class CustomTabToolbar extends ToolbarLayout implements View.OnLongClickL
                     UrlBarData.forNonUrlText(
                             getContext().getString(R.string.twa_running_in_chrome)),
                     UrlBar.ScrollType.NO_SCROLL,
-                    UrlBarData.SELECT_ALL);
+                    TextSelection.SELECT_ALL);
         }
 
         private void runAfterBrandingRunnables() {
@@ -1566,19 +1552,6 @@ public class CustomTabToolbar extends ToolbarLayout implements View.OnLongClickL
             return mSecurityIconResourceForTesting;
         }
 
-        private void animateCookieControlsIcon() {
-            mTaskHandler.removeCallbacksAndMessages(null);
-            mAnimDelegate.setUseRotationSecurityButtonTransition(true);
-            mAnimDelegate.updateSecurityButton(R.drawable.ic_eye_crossed);
-
-            Runnable finishIconAnimation =
-                    () -> {
-                        updateSecurityIcon();
-                        mAnimDelegate.setUseRotationSecurityButtonTransition(false);
-                    };
-            mTaskHandler.postDelayed(finishIconAnimation, COOKIE_CONTROLS_ICON_DISPLAY_TIMEOUT);
-        }
-
         private void updateTitleBar() {
             if (mCurrentlyShowingBranding) return;
             String title = mLocationBarDataProvider.getTitle();
@@ -1636,7 +1609,7 @@ public class CustomTabToolbar extends ToolbarLayout implements View.OnLongClickL
             Tab tab = getCurrentTab();
             if (tab == null) {
                 mUrlCoordinator.setUrlBarData(
-                        UrlBarData.EMPTY, UrlBar.ScrollType.NO_SCROLL, UrlBarData.SELECT_ALL);
+                        UrlBarData.EMPTY, UrlBar.ScrollType.NO_SCROLL, TextSelection.SELECT_ALL);
                 return;
             }
 
@@ -1690,7 +1663,7 @@ public class CustomTabToolbar extends ToolbarLayout implements View.OnLongClickL
             mUrlCoordinator.setUrlBarData(
                     UrlBarData.create(url, displayText, originStart, originEnd, url.getSpec()),
                     UrlBar.ScrollType.SCROLL_TO_TLD,
-                    UrlBarData.SELECT_ALL);
+                    TextSelection.SELECT_ALL);
 
             WebContents webContents = tab.getWebContents();
             if (webContents != null) {

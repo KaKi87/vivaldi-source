@@ -13,6 +13,7 @@
 #include "components/tab_groups/tab_group_id.h"
 #include "thirdparty/lz4/lz4.h"
 
+#include "importer/import_limits.h"
 #include "importer/imported_tab_entry.h"
 
 #include "base/strings/utf_string_conversions.h"
@@ -25,7 +26,8 @@ bool DecompressMozLz4(const base::FilePath& input_path,
                       std::string& output_data) {
   std::string compressed_data;
 
-  if (!base::ReadFileToString(input_path, &compressed_data)) {
+  if (!base::ReadFileToStringWithMaxSize(
+          input_path, &compressed_data, vivaldi_importer::kMaxImportFileSize)) {
     LOG(ERROR) << "FirefoxImport: Failed to read input file: " << input_path;
     return false;
   }

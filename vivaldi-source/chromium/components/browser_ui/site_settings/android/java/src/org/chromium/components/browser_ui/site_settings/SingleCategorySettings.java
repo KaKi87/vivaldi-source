@@ -582,7 +582,7 @@ public class SingleCategorySettings extends BaseSiteSettingsFragment
                             Menu.NONE,
                             R.id.menu_id_site_settings_help,
                             Menu.NONE,
-                            R.string.menu_help);
+                            getSiteSettingsDelegate().getHelpMenuStringRes());
             help.setIcon(
                     TraceEventVectorDrawableCompat.create(
                             getResources(), R.drawable.ic_help_24dp, getContext().getTheme()));
@@ -1342,13 +1342,13 @@ public class SingleCategorySettings extends BaseSiteSettingsFragment
         }
 
         Preference infoText = screen.findPreference(INFO_TEXT_KEY);
-        @StringRes int res_id = getTextInfoResourceId();
+        @StringRes int resId = getTextInfoResourceId();
         if (mCategory.getType() == SiteSettingsCategory.Type.STORAGE_ACCESS) {
             infoText.setSummary(getStorageAccessSummary());
         } else if (mCategory.getType() == SiteSettingsCategory.Type.PROTECTED_MEDIA) {
             infoText.setSummary(getProtectedMediaSummary());
-        } else if (res_id != -1) {
-            infoText.setSummary(res_id);
+        } else if (resId != -1) {
+            infoText.setSummary(resId);
         } else {
             screen.removePreference(infoText);
         }
@@ -1778,9 +1778,9 @@ public class SingleCategorySettings extends BaseSiteSettingsFragment
         @Nullable
         @ContentSetting
         Integer value = null;
-        @Nullable GeolocationSetting geo_setting = null;
+        @Nullable GeolocationSetting geoSetting = null;
         if (isApproxGeoPermission) {
-            geo_setting =
+            geoSetting =
                     assumeNonNull(site.getPermissionInfo(contentSettingsType))
                             .getGeolocationSetting(browserContextHandle);
         } else {
@@ -1821,18 +1821,18 @@ public class SingleCategorySettings extends BaseSiteSettingsFragment
                         ContentSettingsResources.getSiteSummary(
                                 ContentSetting.BLOCK, contentSettingsType)));
 
-        if (geo_setting != null
-                ? geo_setting.mApproximate == ContentSetting.ALLOW
+        if (geoSetting != null
+                ? geoSetting.mApproximate == ContentSetting.ALLOW
                 : assumeNonNull(value) == ContentSetting.ALLOW) {
             allowButton.setChecked(true);
         } else {
             blockButton.setChecked(true);
         }
 
-        if (geo_setting != null) {
+        if (geoSetting != null) {
             int selectedPrecision = R.id.precise;
-            if (geo_setting.mApproximate == ContentSetting.ALLOW
-                    && geo_setting.mPrecise != ContentSetting.ALLOW) {
+            if (geoSetting.mApproximate == ContentSetting.ALLOW
+                    && geoSetting.mPrecise != ContentSetting.ALLOW) {
                 selectedPrecision = R.id.approximate;
             }
             RadioButtonWithDescription selectedButton = contentView.findViewById(selectedPrecision);

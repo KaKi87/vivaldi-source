@@ -15,6 +15,7 @@
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search/search.h"
+#include "chrome/browser/search_engines/ai_mode_button_service_factory.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser_actions.h"
@@ -26,7 +27,6 @@
 #include "chrome/browser/ui/lens/lens_overlay_controller.h"
 #include "chrome/browser/ui/lens/lens_overlay_side_panel_coordinator.h"
 #include "chrome/browser/ui/lens/lens_search_controller.h"
-#include "chrome/browser/ui/lens/lens_url_matcher.h"
 #include "chrome/browser/ui/page_action/page_action_controller.h"
 #include "chrome/browser/ui/page_action/page_action_icon_type.h"
 #include "chrome/browser/ui/page_action/page_action_triggers.h"
@@ -34,8 +34,6 @@
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
 #include "chrome/browser/ui/views/location_bar/lens_overlay_homework_page_action_controller.h"
-#include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.h"
-#include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.h"
 #include "chrome/browser/ui/webui/new_tab_page_third_party/new_tab_page_third_party_ui.h"
 #include "chrome/browser/ui/webui/ntp/new_tab_ui.h"
@@ -84,6 +82,43 @@ LensOverlayEntryPointController* LensOverlayEntryPointController::From(
       browser_window_interface->GetUnownedUserDataHost());
 }
 
+// static
+bool LensOverlayEntryPointController::IsEnabledOnInit(Profile* profile) {
+  // Feature is disabled via finch.
+  if (!lens::features::IsLensOverlayEnabled()) {
+    return false;
+  }
+
+  // If Lens in contextual is enabled, the enterprise policy check is done
+  // in the contextual search service for the `SearchContentSharing` policy.
+  const PrefService* pref_service = profile->GetPrefs();
+  if (contextual_tasks::GetEnableLensInContextualTasks()) {
+    if (!contextual_search::ContextualSearchService::IsContextSharingEnabled(
+            pref_service)) {
+      return false;
+    }
+  } else {
+    // Lens Overlay is disabled via the enterprise policy.
+    lens::prefs::LensOverlaySettingsPolicyValue policy_value =
+        static_cast<lens::prefs::LensOverlaySettingsPolicyValue>(
+            pref_service->GetInteger(lens::prefs::kLensOverlaySettings));
+    if (policy_value ==
+        lens::prefs::LensOverlaySettingsPolicyValue::kDisabled) {
+      return false;
+    }
+  }
+
+  // Lens Overlay is only enabled if the user's default search engine is Google.
+  if (lens::features::IsLensOverlayGoogleDseRequired() &&
+      !search::DefaultSearchProviderIsGoogle(profile)) {
+    return false;
+  }
+
+  // Finally, only enable the overlay if user meets our minimum RAM requirement.
+  static int phys_mem_mb = base::SysInfo::AmountOfTotalPhysicalMemory().InMiB();
+  return phys_mem_mb > lens::features::GetLensOverlayMinRamMb();
+}
+
 LensOverlayEntryPointController::LensOverlayEntryPointController(
     BrowserWindowInterface* browser_window_interface)
     : scoped_unowned_user_data_(
@@ -128,25 +163,15 @@ void LensOverlayEntryPointController::Initialize(
   // Update all entry points.
   UpdateEntryPointsState(/*hide_if_needed=*/true);
 
-  edu_url_matcher_ = std::make_unique<lens::LensUrlMatcher>(
-      lens::features::GetLensOverlayEduUrlAllowFilters(),
-      lens::features::GetLensOverlayEduUrlBlockFilters(),
-      lens::features::GetLensOverlayEduUrlPathMatchAllowFilters(),
-      lens::features::GetLensOverlayEduUrlPathMatchBlockFilters(),
-      lens::features::GetLensOverlayEduUrlForceAllowedMatchPatterns(),
-      lens::features::GetLensOverlayEduHashedDomainBlockFilters());
-
-  if (lens::features::IsLensOverlayOptimizationFilterEnabled()) {
-    optimization_guide_decider_ =
-        OptimizationGuideKeyedServiceFactory::GetForProfile(
-            browser_window_interface_->GetProfile());
-    if (optimization_guide_decider_) {
-      optimization_guide_decider_->RegisterOptimizationTypes(
-          {optimization_guide::proto::OptimizationType::
-               LENS_OVERLAY_EDU_ACTION_CHIP_BLOCKLIST,
-           optimization_guide::proto::OptimizationType::
-               LENS_OVERLAY_EDU_ACTION_CHIP_ALLOWLIST});
-    }
+  optimization_guide_decider_ =
+      OptimizationGuideKeyedServiceFactory::GetForProfile(
+          browser_window_interface_->GetProfile());
+  if (optimization_guide_decider_) {
+    optimization_guide_decider_->RegisterOptimizationTypes(
+        {optimization_guide::proto::OptimizationType::
+             LENS_OVERLAY_EDU_ACTION_CHIP_BLOCKLIST,
+         optimization_guide::proto::OptimizationType::
+             LENS_OVERLAY_EDU_ACTION_CHIP_ALLOWLIST});
   }
 }
 
@@ -163,8 +188,7 @@ bool LensOverlayEntryPointController::IsEnabled() const {
     return false;
   }
 
-  // Feature is disabled via finch.
-  if (!lens::features::IsLensOverlayEnabled()) {
+  if (!IsEnabledOnInit(browser_window_interface_->GetProfile())) {
     return false;
   }
 
@@ -177,36 +201,7 @@ bool LensOverlayEntryPointController::IsEnabled() const {
     return false;
   }
 
-  // If Lens in contextual is enabled, the enterprise policy check is done
-  // in the contextual search service for the `SearchContentSharing` policy.
-  const PrefService* pref_service =
-      browser_window_interface_->GetProfile()->GetPrefs();
-  if (contextual_tasks::GetEnableLensInContextualTasks()) {
-    if (!contextual_search::ContextualSearchService::IsContextSharingEnabled(
-            pref_service)) {
-      return false;
-    }
-  } else {
-    // Lens Overlay is disabled via the enterprise policy.
-    lens::prefs::LensOverlaySettingsPolicyValue policy_value =
-        static_cast<lens::prefs::LensOverlaySettingsPolicyValue>(
-            pref_service->GetInteger(lens::prefs::kLensOverlaySettings));
-    if (policy_value ==
-        lens::prefs::LensOverlaySettingsPolicyValue::kDisabled) {
-      return false;
-    }
-  }
-
-  // Lens Overlay is only enabled if the user's default search engine is Google.
-  if (lens::features::IsLensOverlayGoogleDseRequired() &&
-      !search::DefaultSearchProviderIsGoogle(
-          browser_window_interface_->GetProfile())) {
-    return false;
-  }
-
-  // Finally, only enable the overlay if user meets our minimum RAM requirement.
-  static int phys_mem_mb = base::SysInfo::AmountOfTotalPhysicalMemory().InMiB();
-  return phys_mem_mb > lens::features::GetLensOverlayMinRamMb();
+  return true;
 }
 
 bool LensOverlayEntryPointController::AreVisible() const {
@@ -241,13 +236,6 @@ void LensOverlayEntryPointController::UpdateEntryPointsState(
       LensOverlayHomeworkPageActionController::From(*tab_interface)
           ->UpdatePageActionIcon();
     }
-  } else {
-    // Update the homework action chip.
-    // TODO(crbug.com/433813408): Remove GetBrowserForMigrationOnly after Page
-    // Actions migration.
-    browser_window_interface_->GetBrowserForMigrationOnly()
-        ->window()
-        ->UpdatePageActionIcon(PageActionIconType::kLensOverlayHomework);
   }
 }
 
@@ -256,23 +244,23 @@ bool LensOverlayEntryPointController::IsUrlEduEligible(const GURL& url) const {
     return false;
   }
 
-  if (optimization_guide_decider_) {
-    bool allowed_by_allowlist =
-        optimization_guide_decider_->CanApplyOptimization(
-            url,
-            optimization_guide::proto::LENS_OVERLAY_EDU_ACTION_CHIP_BLOCKLIST,
-            /*optimization_metadata=*/nullptr) ==
-        optimization_guide::OptimizationGuideDecision::kTrue;
-    bool allowed_by_blocklist =
-        optimization_guide_decider_->CanApplyOptimization(
-            url,
-            optimization_guide::proto::LENS_OVERLAY_EDU_ACTION_CHIP_ALLOWLIST,
-            /*optimization_metadata=*/nullptr) ==
-        optimization_guide::OptimizationGuideDecision::kTrue;
-    return allowed_by_allowlist && allowed_by_blocklist;
+  if (!optimization_guide_decider_) {
+    return false;
   }
 
-  return edu_url_matcher_->IsMatch(url);
+  bool allowed_by_allowlist =
+      optimization_guide_decider_->CanApplyOptimization(
+          url,
+          optimization_guide::proto::LENS_OVERLAY_EDU_ACTION_CHIP_BLOCKLIST,
+          /*optimization_metadata=*/nullptr) ==
+      optimization_guide::OptimizationGuideDecision::kTrue;
+  bool allowed_by_blocklist =
+      optimization_guide_decider_->CanApplyOptimization(
+          url,
+          optimization_guide::proto::LENS_OVERLAY_EDU_ACTION_CHIP_ALLOWLIST,
+          /*optimization_metadata=*/nullptr) ==
+      optimization_guide::OptimizationGuideDecision::kTrue;
+  return allowed_by_allowlist && allowed_by_blocklist;
 }
 
 // static
@@ -464,8 +452,14 @@ bool LensOverlayEntryPointController::ShouldShowPageAction(
   const auto* aim_eligibility_service =
       AimEligibilityServiceFactory::GetForProfile(
           browser_window_interface_->GetProfile());
-  if (OmniboxFieldTrial::IsAimOmniboxEntrypointEnabled(
-          aim_eligibility_service)) {
+  const auto* ai_mode_button_service =
+      AiModeButtonServiceFactory::GetForProfile(
+          browser_window_interface_->GetProfile());
+  const auto* template_url_service = TemplateURLServiceFactory::GetForProfile(
+      browser_window_interface_->GetProfile());
+  if (OmniboxFieldTrial::IsAimOmniboxEntrypointEnabled(aim_eligibility_service,
+                                                       ai_mode_button_service,
+                                                       template_url_service)) {
     return false;
   }
 

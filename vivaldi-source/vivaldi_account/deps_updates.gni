@@ -2,5 +2,4 @@
 
 update_target("//chrome/browser:browser") {
   public_deps += [ "//vivaldi/vivaldi_account" ]
-  allow_circular_includes_from += [ "//vivaldi/vivaldi_account" ]
 }

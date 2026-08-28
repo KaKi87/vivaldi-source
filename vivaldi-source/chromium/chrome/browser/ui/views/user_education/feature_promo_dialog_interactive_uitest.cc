@@ -25,9 +25,9 @@
 #include "chrome/browser/ui/views/bookmarks/bookmark_bar_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/global_media_controls/media_toolbar_button_view.h"
-#include "chrome/browser/ui/views/location_bar/intent_chip_button.h"
 #include "chrome/browser/ui/views/page_action/page_action_icon_controller.h"
 #include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
+#include "chrome/browser/ui/views/page_action/test_support/page_action_test_support.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/browser/user_education/user_education_service.h"
 #include "chrome/browser/user_education/user_education_service_factory.h"
@@ -98,12 +98,12 @@ class FeaturePromoDialogTest : public TestBase {
   }
   void SetUpOnMainThread() override {
     TestBase::SetUpOnMainThread();
-    browser()->window()->Activate();
+    browser()->GetWindow()->Activate();
     ui_test_utils::BrowserActivationWaiter(browser()).WaitForActivation();
   }
 
   void TearDownOnMainThread() override {
-    Profile* const profile = browser()->profile();
+    Profile* const profile = browser()->GetProfile();
     web_app::WebAppRegistrar& registrar =
         web_app::WebAppProvider::GetForTest(profile)->registrar_unsafe();
     for (const auto& app_id : registrar.GetAppIds()) {
@@ -121,7 +121,8 @@ class FeaturePromoDialogTest : public TestBase {
   // DialogBrowserTest:
   void ShowUi(const std::string& name) override {
     auto* const promo_controller =
-        UserEducationServiceFactory::GetForBrowserContext(browser()->profile())
+        UserEducationServiceFactory::GetForBrowserContext(
+            browser()->GetProfile())
             ->GetFeaturePromoControllerForTesting();
     auto const context = BrowserUserEducationInterface::From(browser())
                              ->GetUserEducationContextForTesting();
@@ -215,12 +216,14 @@ IN_PROC_BROWSER_TEST_F(FeaturePromoDialogTest, InvokeUi_IPH_DesktopPwaInstall) {
         ->page_action_controller()
         ->HideSuggestionChip(kActionInstallPwa);
   }
-  EXPECT_TRUE(BrowserView::GetBrowserViewForBrowser(browser())
-                  ->toolbar_button_provider()
-                  ->GetPageActionView(kActionInstallPwa)
+  auto* provider = BrowserView::GetBrowserViewForBrowser(browser())
+                       ->toolbar_button_provider();
+  EXPECT_TRUE(page_actions::GetIconLabelBubbleViewForTesting(
+                  provider->GetPageActionViewInterface(kActionInstallPwa),
+                  kActionInstallPwa)
                   ->GetVisible());
 
-  browser()->window()->Activate();
+  browser()->GetWindow()->Activate();
   ui_test_utils::BrowserActivationWaiter(browser()).WaitForActivation();
 
   ShowAndVerifyUi();

@@ -20,7 +20,6 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
-#include "chrome/browser/ui/recently_audible_helper.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/pref_names.h"
 #include "components/performance_manager/public/graph/graph.h"
@@ -33,6 +32,8 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_user_data.h"
+
+#include "chrome/browser/ui/browser_init_state.h"
 
 namespace resource_coordinator {
 
@@ -156,10 +157,21 @@ void TabLifecycleUnitSource::RemoveLifecycleObserver(
   lifecycle_unit_observers_.RemoveObserver(observer);
 }
 
-void TabLifecycleUnitSource::SetFocusedTabStripModelForTesting(
+base::ScopedClosureRunner
+TabLifecycleUnitSource::SetFocusedTabStripModelForTesting(
     TabStripModel* tab_strip) {
+  base::ScopedClosureRunner reset(base::BindOnce(
+      [](base::WeakPtr<TabLifecycleUnitSource> source) {
+        if (source) {
+          source->focused_tab_strip_model_for_testing_ = nullptr;
+          source->UpdateFocusedTab();
+        }
+      },
+      weak_factory_.GetWeakPtr()));
+
   focused_tab_strip_model_for_testing_ = tab_strip;
   UpdateFocusedTab();
+  return reset;
 }
 
 void TabLifecycleUnitSource::SetMemoryLimitEnterprisePolicyFlag(bool enabled) {
@@ -324,25 +336,6 @@ void TabLifecycleUnitSource::OnTabStripModelChanged(
   }
 }
 
-void TabLifecycleUnitSource::OnTabChangedAt(tabs::TabInterface* tab,
-                                            int index,
-                                            TabChangeType change_type) {
-  if (change_type != TabChangeType::kAll) {
-    return;
-  }
-  content::WebContents* contents = tab->GetContents();
-  TabLifecycleUnit* lifecycle_unit = GetTabLifecycleUnit(contents);
-  // This can be called before OnTabStripModelChanged() and |lifecycle_unit|
-  // will be null in that case. http://crbug.com/41410168
-  if (!lifecycle_unit) {
-    return;
-  }
-
-  if (auto* const audible_helper =
-          RecentlyAudibleHelper::FromWebContents(contents)) {
-    lifecycle_unit->SetRecentlyAudible(audible_helper->WasRecentlyAudible());
-  }
-}
 
 void TabLifecycleUnitSource::OnBrowserClosed(BrowserWindowInterface* browser) {
   // An active browser may be removed without OnBrowserActivated() being
@@ -358,7 +351,9 @@ void TabLifecycleUnitSource::OnBrowserActivated(
   // fails to return the proper browser.
   // NOTE(andre@vivaldi.com) : Added because we need to update active tab after
   // restore has been done.
-  if (!browser->GetBrowserForMigrationOnly()->is_session_restore()) {
+  bool is_session_restore =
+      BrowserInitState::From(browser)->is_session_restore();
+  if (!is_session_restore) {
   UpdateFocusedTab(browser);
   } // Vivaldi
 }
@@ -367,7 +362,9 @@ void TabLifecycleUnitSource::OnBrowserDeactivated(
     BrowserWindowInterface* browser) {
   // NOTE(andre@vivaldi.com) : Added because we need to update active tab after
   // restore has been done.
-  if (!browser->GetBrowserForMigrationOnly()->is_session_restore()) {
+  bool is_session_restore =
+      BrowserInitState::From(browser)->is_session_restore();
+  if (!is_session_restore) {
   UpdateFocusedTab();
   } // Vivaldi
 }

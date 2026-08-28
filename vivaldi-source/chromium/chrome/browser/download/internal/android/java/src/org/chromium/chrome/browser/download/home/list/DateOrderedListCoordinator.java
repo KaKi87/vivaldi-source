@@ -138,6 +138,7 @@ public class DateOrderedListCoordinator implements ToolbarCoordinator.ToolbarLis
             ModalDialogManager modalDialogManager,
             DownloadHelpPageLauncher helpPageLauncher,
             FaviconProvider faviconProvider,
+            Callback<OfflineItem> openWithHandler,
             DiscardableReferencePool discardableReferencePool) {
         mContext = context;
 
@@ -160,6 +161,7 @@ public class DateOrderedListCoordinator implements ToolbarCoordinator.ToolbarLis
                         this::startShareIntent,
                         deleteController,
                         this::startRename,
+                        openWithHandler,
                         this::startShowWarningBypassDialog,
                         selectionDelegate,
                         config,

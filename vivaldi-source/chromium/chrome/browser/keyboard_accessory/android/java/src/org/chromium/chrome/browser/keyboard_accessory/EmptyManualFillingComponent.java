@@ -94,9 +94,6 @@ public class EmptyManualFillingComponent implements ManualFillingComponent {
     public void showAccessorySheetTab(@org.chromium.chrome.browser.keyboard_accessory.AccessoryTabType int tabType) {}
 
     @Override
-    public void setAtMemoryCallback(Runnable callback) {}
-
-    @Override
     public void onResume() {}
 
     @Override

@@ -85,7 +85,7 @@ using Role = ::blink::mojom::AILanguageModelPromptRole;
 constexpr uint32_t kTestMaxContextToken = 10u;
 constexpr uint32_t kTestDefaultTopK = 1u;
 constexpr float kTestDefaultTemperature = 0.0f;
-constexpr uint32_t kTestMaxTopK = 50u;
+constexpr uint32_t kTestMaxTopK = 200u;
 constexpr float kTestMaxTemperature = 1.5;
 constexpr uint32_t kTestMaxTokens = 100u;
 constexpr uint32_t kTestConfiguredMaxOutputTokens = 10u;
@@ -217,7 +217,10 @@ AILanguageModel::Context::ContextItem SimpleContextItem(std::string text,
   auto item = AILanguageModel::Context::ContextItem();
   item.tokens = size;
   item.input = on_device_model::mojom::Input::New();
-  item.input->pieces = {ml::Token::kSystem, text};
+  item.input->pieces.push_back(
+      on_device_model::mojom::InputPiece::NewToken(ml::Token::kSystem));
+  item.input->pieces.push_back(
+      on_device_model::mojom::InputPiece::NewText(std::move(text)));
   return item;
 }
 
@@ -237,16 +240,27 @@ const char* FormatToken(ml::Token token) {
 
 // Convert an Input to a string for expectation matching.
 std::string FormatInput(const on_device_model::mojom::Input& input) {
+  using Tag = on_device_model::mojom::InputPiece::Tag;
   std::string str;
   for (const auto& piece : input.pieces) {
-    if (std::holds_alternative<ml::Token>(piece)) {
-      str += FormatToken(std::get<ml::Token>(piece));
-    } else if (std::holds_alternative<std::string>(piece)) {
-      str += std::get<std::string>(piece);
-    } else if (std::holds_alternative<SkBitmap>(piece)) {
-      str += "<image>";
-    } else if (std::holds_alternative<ml::AudioBuffer>(piece)) {
-      str += "<audio>";
+    switch (piece->which()) {
+      case Tag::kToken:
+        str += FormatToken(piece->get_token());
+        break;
+      case Tag::kText:
+        str += piece->get_text();
+        break;
+      case Tag::kBitmap:
+        str += "<image>";
+        break;
+      case Tag::kAudio:
+        str += "<audio>";
+        break;
+      case Tag::kToolDeclaration:
+      case Tag::kToolResponse:
+      case Tag::kUnknownType:
+        // Not exercised by tests that format input for expectation matching.
+        break;
     }
   }
   return str;
@@ -261,10 +275,10 @@ class AILanguageModelTest : public AITestUtils::AITestBase {
  public:
   AILanguageModelTest() {
     scoped_feature_list_.InitWithFeaturesAndParameters(
-        {{blink::features::kAIPromptAPIMultimodalInput, {}},
+        {{blink::features::kAIPromptAPI, {}},
+         {blink::features::kAIPromptAPIMultimodalInput, {}},
          {features::kAILanguageModelOverrideConfiguration,
           {{"ai_language_model_output_buffer", "100"}}},
-         {features::kAILanguageModelAppendOutputTokensToContext, {}},
          {optimization_guide::features::kOptimizationGuideOnDeviceModel, {}},
          {optimization_guide::features::kAIModelUnloadableProgress,
           {{"ai_model_unloadable_progress_bytes", "0"}}}},
@@ -587,7 +601,7 @@ TEST_F(AILanguageModelTest, SamplingModeMappings) {
         blink::mojom::AILanguageModelSamplingMode::kPredictable;
     auto session = CreateSession(std::move(options));
     EXPECT_THAT(Prompt(*session, MakeInput("foo")),
-                ElementsAre("UfooEM", IsPromptWithParams(2, 0.2)));
+                ElementsAre("UfooEM", IsPromptWithParams(30, 0.3)));
   }
   // Test balanced
   {
@@ -596,7 +610,7 @@ TEST_F(AILanguageModelTest, SamplingModeMappings) {
         blink::mojom::AILanguageModelSamplingMode::kBalanced;
     auto session = CreateSession(std::move(options));
     EXPECT_THAT(Prompt(*session, MakeInput("foo")),
-                ElementsAre("UfooEM", IsPromptWithParams(3, 1.0)));
+                ElementsAre("UfooEM", IsPromptWithParams(64, 0.7)));
   }
   // Test creative
   {
@@ -605,7 +619,7 @@ TEST_F(AILanguageModelTest, SamplingModeMappings) {
         blink::mojom::AILanguageModelSamplingMode::kCreative;
     auto session = CreateSession(std::move(options));
     EXPECT_THAT(Prompt(*session, MakeInput("foo")),
-                ElementsAre("UfooEM", IsPromptWithParams(10, 1.1)));
+                ElementsAre("UfooEM", IsPromptWithParams(80, 1.1)));
   }
   // Test most-creative
   {
@@ -614,7 +628,7 @@ TEST_F(AILanguageModelTest, SamplingModeMappings) {
         blink::mojom::AILanguageModelSamplingMode::kMostCreative;
     auto session = CreateSession(std::move(options));
     EXPECT_THAT(Prompt(*session, MakeInput("foo")),
-                ElementsAre("UfooEM", IsPromptWithParams(25, 1.2)));
+                ElementsAre("UfooEM", IsPromptWithParams(100, 1.2)));
   }
 }
 
@@ -662,7 +676,7 @@ TEST_F(AILanguageModelTest, MaxSamplingParams) {
   auto session = CreateSession(std::move(options));
 
   EXPECT_THAT(Prompt(*session, MakeInput("foo")),
-              ElementsAre("UfooEM", "TopK: 50, Temp: 1.5"));
+              ElementsAre("UfooEM", "TopK: 200, Temp: 1.5"));
 }
 
 TEST_F(AILanguageModelTest, InitialPrompts) {
@@ -2533,13 +2547,14 @@ TEST_F(AILanguageModelManifestTest, CanCreateAndCreateWithManifestGemma4) {
       kAIApiFoundationalModel, {{"model_version", "v4"}});
 
   fake_manifest_broker_->client().RequestAssetsFor("prompt_api_gemma4");
-
-  // Verify CanCreateLanguageModel check passes successfully.
-  base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
-  ai_manager_->CanCreateLanguageModel(
-      blink::mojom::AILanguageModelCreateOptions::New(), future.GetCallback());
-  EXPECT_EQ(future.Get(),
-            blink::mojom::ModelAvailabilityCheckResult::kAvailable);
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
+    ai_manager_->CanCreateLanguageModel(
+        blink::mojom::AILanguageModelCreateOptions::New(),
+        future.GetCallback());
+    return future.Get() ==
+           blink::mojom::ModelAvailabilityCheckResult::kAvailable;
+  }));
 
   // Verify CreateLanguageModel can retrieve the model successfully.
   TestCreateLanguageModelClient language_model_client;

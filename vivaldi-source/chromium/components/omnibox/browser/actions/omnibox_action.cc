@@ -60,7 +60,6 @@ size_t EstimateMemoryUsage(const OmniboxAction::LabelStrings& self) {
 bool OmniboxAction::Client::OpenJourneys(const std::string& query) {
   return false;
 }
-
 // =============================================================================
 
 OmniboxAction::ExecutionContext::ExecutionContext(
@@ -71,8 +70,7 @@ OmniboxAction::ExecutionContext::ExecutionContext(
     : client_(client),
       open_url_callback_(std::move(callback)),
       match_selection_timestamp_(match_selection_timestamp),
-      disposition_(disposition),
-      enter_starter_pack_id_(0) {}
+      disposition_(disposition) {}
 
 OmniboxAction::ExecutionContext::~ExecutionContext() = default;
 

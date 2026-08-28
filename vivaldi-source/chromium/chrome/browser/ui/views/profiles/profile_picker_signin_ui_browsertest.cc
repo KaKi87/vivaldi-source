@@ -5,7 +5,6 @@
 #include "base/command_line.h"
 #include "base/functional/callback_helpers.h"
 #include "base/strings/strcat.h"
-#include "base/test/bind.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/profiles/profile_picker.h"
 #include "chrome/browser/ui/profiles/profile_ui_test_utils.h"
@@ -34,7 +33,7 @@ using ::testing::ValuesIn;
 struct ProfilePickerSignInTestParam {
   PixelTestParam pixel_test_param;
   ProfilePicker::EntryPoint entry_point = ProfilePicker::EntryPoint::kOnStartup;
-  std::vector<base::test::FeatureRef> enabled_features;
+  std::vector<base::test::FeatureRefAndParams> enabled_features;
   std::vector<base::test::FeatureRef> disabled_features;
 };
 
@@ -50,45 +49,116 @@ std::vector<ProfilePickerSignInTestParam> GetTestParams() {
       {
           .pixel_test_param = {.test_suffix = "RegularFirstRunRevampEnabled"},
           .entry_point = ProfilePicker::EntryPoint::kFirstRun,
-          .enabled_features = {switches::kFirstRunDesktopRefresh,
-                               switches::kFirstRunDesktopRevamp},
+          .enabled_features =
+              {
+                  {switches::kFirstRunDesktopRefresh, {}},
+                  {switches::kFirstRunDesktopRevamp, {}},
+                  {switches::kFirstRunDesktopRevampSound, {}},
+              },
       },
       {
           .pixel_test_param = {.test_suffix = "DarkThemeFirstRunRevampEnabled",
                                .use_dark_theme = true},
           .entry_point = ProfilePicker::EntryPoint::kFirstRun,
-          .enabled_features = {switches::kFirstRunDesktopRefresh,
-                               switches::kFirstRunDesktopRevamp},
+          .enabled_features =
+              {
+                  {switches::kFirstRunDesktopRefresh, {}},
+                  {switches::kFirstRunDesktopRevamp, {}},
+                  {switches::kFirstRunDesktopRevampSound, {}},
+              },
       },
       {
           .pixel_test_param = {.test_suffix = "RTLFirstRunRevampEnabled",
                                .use_right_to_left_language = true},
           .entry_point = ProfilePicker::EntryPoint::kFirstRun,
-          .enabled_features = {switches::kFirstRunDesktopRefresh,
-                               switches::kFirstRunDesktopRevamp},
+          .enabled_features = {{switches::kFirstRunDesktopRefresh, {}},
+                               {switches::kFirstRunDesktopRevamp, {}},
+                               {switches::kFirstRunDesktopRevampSound, {}}},
+      },
+      {
+          .pixel_test_param =
+              {.test_suffix = "RegularFirstRunDontSignInOnGaiaPageEnabled"},
+          .entry_point = ProfilePicker::EntryPoint::kFirstRun,
+          .enabled_features =
+              {{switches::kFirstRunDesktopRevamp, {}},
+               {switches::kFirstRunDesktopRevampSound, {}},
+               {switches::kFirstRunDesktopRefresh,
+                {{switches::kFirstRunDesktopSignInPromoVariation.name,
+                  "dont-sign-in-on-gaia-page"}}}},
+      },
+      {
+          .pixel_test_param =
+              {.test_suffix = "DarkThemeFirstRunDontSignInOnGaiaPageEnabled",
+               .use_dark_theme = true},
+          .entry_point = ProfilePicker::EntryPoint::kFirstRun,
+          .enabled_features =
+              {{switches::kFirstRunDesktopRevamp, {}},
+               {switches::kFirstRunDesktopRevampSound, {}},
+               {switches::kFirstRunDesktopRefresh,
+                {{switches::kFirstRunDesktopSignInPromoVariation.name,
+                  "dont-sign-in-on-gaia-page"}}}},
+      },
+      {
+          .pixel_test_param = {.test_suffix =
+                                   "RTLFirstRunDontSignInOnGaiaPageEnabled",
+                               .use_right_to_left_language = true},
+          .entry_point = ProfilePicker::EntryPoint::kFirstRun,
+          .enabled_features =
+              {{switches::kFirstRunDesktopRevamp, {}},
+               {switches::kFirstRunDesktopRevampSound, {}},
+               {switches::kFirstRunDesktopRefresh,
+                {{switches::kFirstRunDesktopSignInPromoVariation.name,
+                  "dont-sign-in-on-gaia-page"}}}},
       },
       {
           .pixel_test_param = {.test_suffix =
                                    "RegularAddNewProfileRevampEnabled"},
           .entry_point = ProfilePicker::EntryPoint::kProfileMenuAddNewProfile,
-          .enabled_features = {switches::kFirstRunDesktopRefresh,
-                               switches::kFirstRunDesktopRevamp},
+          .enabled_features = {{switches::kFirstRunDesktopRefresh, {}},
+                               {switches::kFirstRunDesktopRevamp, {}},
+                               {switches::kFirstRunDesktopRevampSound, {}}},
       },
       {
           .pixel_test_param = {.test_suffix =
                                    "DarkThemeAddNewProfileRevampEnabled",
                                .use_dark_theme = true},
           .entry_point = ProfilePicker::EntryPoint::kProfileMenuAddNewProfile,
-          .enabled_features = {switches::kFirstRunDesktopRefresh,
-                               switches::kFirstRunDesktopRevamp},
+          .enabled_features = {{switches::kFirstRunDesktopRefresh, {}},
+                               {switches::kFirstRunDesktopRevamp, {}},
+                               {switches::kFirstRunDesktopRevampSound, {}}},
       },
       {
           .pixel_test_param = {.test_suffix = "RTLAddNewProfileRevampEnabled",
                                .use_right_to_left_language = true},
           .entry_point = ProfilePicker::EntryPoint::kProfileMenuAddNewProfile,
-          .enabled_features = {switches::kFirstRunDesktopRefresh,
-                               switches::kFirstRunDesktopRevamp},
-      }};
+          .enabled_features = {{switches::kFirstRunDesktopRefresh, {}},
+                               {switches::kFirstRunDesktopRevamp, {}},
+                               {switches::kFirstRunDesktopRevampSound, {}}},
+      },
+      {
+          .pixel_test_param = {.test_suffix =
+                                   "RegularFirstRunRevampEnabledSoundDisabled"},
+          .entry_point = ProfilePicker::EntryPoint::kFirstRun,
+          .enabled_features =
+              {
+                  {switches::kFirstRunDesktopRefresh, {}},
+                  {switches::kFirstRunDesktopRevamp, {}},
+              },
+          .disabled_features = {switches::kFirstRunDesktopRevampSound},
+      },
+      {
+          .pixel_test_param =
+              {.test_suffix =
+                   "RegularFirstRunDontSignInOnGaiaPageEnabledSoundDisabled"},
+          .entry_point = ProfilePicker::EntryPoint::kFirstRun,
+          .enabled_features =
+              {{switches::kFirstRunDesktopRevamp, {}},
+               {switches::kFirstRunDesktopRefresh,
+                {{switches::kFirstRunDesktopSignInPromoVariation.name,
+                  "dont-sign-in-on-gaia-page"}}}},
+          .disabled_features = {switches::kFirstRunDesktopRevampSound},
+      },
+  };
 }
 
 std::string_view GetClickSignInButtonJsString(bool is_first_run) {
@@ -155,8 +225,8 @@ class ProfilePickerSigninToolbarUIPixelTest
  public:
   ProfilePickerSigninToolbarUIPixelTest()
       : ProfilesPixelTestBaseT<UiBrowserTest>(GetParam().pixel_test_param) {
-    scoped_feature_list_.InitWithFeatures(GetParam().enabled_features,
-                                          GetParam().disabled_features);
+    scoped_feature_list_.InitWithFeaturesAndParameters(
+        GetParam().enabled_features, GetParam().disabled_features);
   }
 
   void SetUp() override {
@@ -190,7 +260,7 @@ class ProfilePickerSigninToolbarUIPixelTest
     ProfilePicker::Params params =
         is_first_run
             ? ProfilePicker::Params::ForFirstRun(
-                  browser()->profile()->GetPath(), base::DoNothing())
+                  browser()->GetProfile()->GetPath(), base::DoNothing())
             : ProfilePicker::Params::FromEntryPoint(GetParam().entry_point);
     ProfilePicker::Show(std::move(params));
     profiles::testing::WaitForPickerUrl(GetInitialUrl(is_first_run));

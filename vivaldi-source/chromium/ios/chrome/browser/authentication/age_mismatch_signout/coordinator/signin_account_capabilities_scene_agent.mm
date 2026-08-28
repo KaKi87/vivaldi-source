@@ -23,6 +23,7 @@
 #import "components/signin/public/identity_manager/account_capabilities.h"
 #import "components/signin/public/identity_manager/identity_manager.h"
 #import "components/signin/public/identity_manager/objc/identity_manager_observer_bridge.h"
+#import "components/signin/public/identity_manager/primary_account_change_event.h"
 #import "google_apis/gaia/gaia_id.h"
 #import "ios/chrome/app/profile/profile_state.h"
 #import "ios/chrome/app/profile/profile_state_observer.h"
@@ -52,7 +53,7 @@
 @interface SigninAccountCapabilitiesSceneAgent () <
     AgeMismatchSignoutCoordinatorDelegate,
     ExternalPrivacyContextUIProvider,
-    IdentityManagerObserverBridgeDelegate,
+    IdentityManagerObserving,
     ProfileStateObserver,
     SceneUIBlockerStateObserver,
     UIBlockerManagerObserver>
@@ -180,9 +181,9 @@ void SignOutDoneForSceneState(id<SystemIdentity> identity,
   [self notifyProviderReadyIfUIAvailable];
 }
 
-#pragma mark - IdentityManagerObserverBridgeDelegate
+#pragma mark - IdentityManagerObserving
 
-- (void)onExtendedAccountInfoUpdated:(const AccountInfo&)info {
+- (void)extendedAccountInfoDidUpdate:(const AccountInfo&)info {
   signin::IdentityManager* identityManager =
       IdentityManagerFactory::GetForProfile(
           self.sceneState.profileState.profile);
@@ -194,6 +195,22 @@ void SignOutDoneForSceneState(id<SystemIdentity> identity,
       identityManager->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin);
   if (info.gaia == primaryAccountInfo.gaia) {
     [self checkPrimaryAccountCanSignInToChromeCapability];
+  }
+}
+
+// Checks CanSignInToChrome for age mismatch when setting the primary account.
+// Needed for profile switches (e.g. from managed accounts) where capabilities
+// are unknown, ensuring immediate signout if the capability is already
+// available.
+- (void)primaryAccountDidChange:
+    (const signin::PrimaryAccountChangeEvent&)event {
+  switch (event.GetEventTypeFor(signin::ConsentLevel::kSignin)) {
+    case signin::PrimaryAccountChangeEvent::Type::kSet:
+      [self checkPrimaryAccountCanSignInToChromeCapability];
+      break;
+    case signin::PrimaryAccountChangeEvent::Type::kNone:
+    case signin::PrimaryAccountChangeEvent::Type::kCleared:
+      break;
   }
 }
 
@@ -240,8 +257,9 @@ void SignOutDoneForSceneState(id<SystemIdentity> identity,
 - (void)blockUIForExternalPrivacyContextBuild {
   CHECK([self isUIAvailableToShowIOSPrompt]);
   CHECK(!_applicationUIBlocker);
-  _applicationUIBlocker = std::make_unique<ScopedUIBlocker>(
-      self.sceneState, UIBlockerExtent::kApplication);
+  SceneState* sceneState = self.sceneState;
+  _applicationUIBlocker =
+      ScopedUIBlocker::AppScoped(sceneState, sceneState.profileState.appState);
 }
 
 - (void)unblockUIOnExternalPrivacyContextBuilt {
@@ -268,7 +286,7 @@ void SignOutDoneForSceneState(id<SystemIdentity> identity,
 
   AccountInfo accountInfo = identityManager->FindExtendedAccountInfoByAccountId(
       primaryAccountInfo.account_id);
-  switch (accountInfo.capabilities.can_sign_in_to_chrome()) {
+  switch (accountInfo.GetAccountCapabilities().can_sign_in_to_chrome()) {
     case signin::Tribool::kUnknown:
       break;
     case signin::Tribool::kFalse: {
@@ -347,14 +365,14 @@ void SignOutDoneForSceneState(id<SystemIdentity> identity,
   if (primaryIdentity && !_isAgeMismatchSignoutInProgress) {
     _isAgeMismatchSignoutInProgress = YES;
 
-    _applicationUIBlocker = std::make_unique<ScopedUIBlocker>(
-        self.sceneState, UIBlockerExtent::kApplication);
+    SceneState* sceneState = self.sceneState;
+    _applicationUIBlocker = ScopedUIBlocker::AppScoped(
+        sceneState, sceneState.profileState.appState);
 
     signin::SignoutCompletion signoutCompletion =
         base::BindOnce(&SignOutDoneForSceneState, primaryIdentity);
-    std::string sceneSessionID = self.sceneState.sceneSessionID;
     signin::MultiProfileSignOutForProfile(
-        profile, sceneSessionID,
+        profile, self.sceneState.sceneSessionID,
         signin_metrics::ProfileSignout::kSignoutFromCanSignInToChromeCapability,
         std::move(signoutCompletion));
   }
@@ -403,8 +421,9 @@ void SignOutDoneForSceneState(id<SystemIdentity> identity,
     // This method is called on the newly created scene agent. This scene agent
     // didn't trigger the sign-out. But it needs to finish the workflow.
     CHECK(!_applicationUIBlocker, base::NotFatalUntil::M155);
-    _applicationUIBlocker = std::make_unique<ScopedUIBlocker>(
-        self.sceneState, UIBlockerExtent::kApplication);
+    SceneState* sceneState = self.sceneState;
+    _applicationUIBlocker = ScopedUIBlocker::AppScoped(
+        sceneState, sceneState.profileState.appState);
   }
   CHECK(!_ageMismatchSignoutCoordinator, base::NotFatalUntil::M155);
   // Show the age mismatch signout screen.

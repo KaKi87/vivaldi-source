@@ -1,5 +1,6 @@
 import("//build/config/ui.gni")
 import("//extensions/buildflags/buildflags.gni")
+import("//ui/webui/webui_features.gni")
 import("//vivaldi/testing/testing.gni")
 
 if (!is_android && !is_mac) {
@@ -48,7 +49,6 @@ update_target("//chrome/browser:browser") {
     "//vivaldi/components:tabs",
     "//vivaldi/components/policy:vivaldi_policy_handlers",
   ]
-  allow_circular_includes_from += [ "//vivaldi/browser" ]
   configs += [ "//vivaldi/gn/config:release_kind" ]
 
   if (!is_android) {
@@ -59,20 +59,33 @@ update_target("//chrome/browser:browser") {
       "//chrome/browser/ui/webui/default_browser:default_browser_modal",
       "//chrome/browser/ui/webui/default_browser:modal_mojo_bindings",
     ]
-    allow_circular_includes_from -=
-        [ "//chrome/browser/ui/startup/default_browser_prompt:impl" ]
   }
   if (is_win || is_mac) {
     deps -= [
-      "//chrome/browser/ui/startup/default_browser_prompt/pin_infobar:impl",
-    ]
-    allow_circular_includes_from -= [
       "//chrome/browser/ui/startup/default_browser_prompt/pin_infobar:impl",
     ]
   }
   if (is_win) {
     deps -= [ "//chrome/browser/ui/webui/default_browser:visual_guided_setter" ]
   }
+}
+
+update_target("//chrome/browser/ui/autofill:impl") {
+  deps += [
+    "//components/browser_apis/browser_controls:mojom_data_model_shared_cpp_sources",
+    "//components/browser_apis/ui_controllers/toolbar:extensions_bar_data_model_mojom",
+    "//components/browser_apis/ui_controllers/toolbar:icon_handle_mojom",
+    "//components/browser_apis/ui_controllers/toolbar:mojom_data_model",
+  ]
+}
+
+update_target("//chrome/browser/ui/search_engines:search_engines") {
+  deps += [
+    "//components/browser_apis/browser_controls:mojom_data_model_shared_cpp_sources",
+    "//components/browser_apis/ui_controllers/toolbar:extensions_bar_data_model_mojom",
+    "//components/browser_apis/ui_controllers/toolbar:icon_handle_mojom",
+    "//components/browser_apis/ui_controllers/toolbar:mojom_data_model",
+  ]
 }
 
 if (!is_android) {
@@ -105,6 +118,16 @@ if (!is_android) {
 
   update_target("//chrome/browser/resources:resources") {
     public_deps -= [ "default_browser/default_browser_modal:resources" ]
+    if (is_win) {
+      public_deps -= [ "default_browser/visual_guided_setter:resources" ]
+    }
+  }
+
+  update_target("//chrome/browser/ui/webui/settings:impl") {
+    deps -= [
+      "//chrome/browser/default_browser",
+      "//chrome/browser/ui/startup/default_browser_prompt",
+    ]
   }
 }
 
@@ -117,11 +140,17 @@ update_target("//chrome/browser/ui:ui") {
   if (is_mac) {
     public_deps += [ "//vivaldi/browser:init_sparkle" ]
   }
-  allow_circular_includes_from += [ "//vivaldi/browser" ]
-  if (enable_extensions) {
-    allow_circular_includes_from += [ "//components/guest_view/browser" ]
-  }
   deps += [ "//chrome/services/sharing/public/proto" ]
+
+  if (!is_android) {
+    deps -= [
+      "//chrome/browser/ui/webui/default_browser:default_browser_modal",
+      "//chrome/browser/ui/webui/default_browser:modal_mojo_bindings",
+    ]
+  }
+  if (is_win) {
+    deps -= [ "//chrome/browser/ui/webui/default_browser:visual_guided_setter" ]
+  }
 }
 
 update_target("//content/browser:browser") {
@@ -148,10 +177,31 @@ if (!is_android) {
   }
 }
 
+if (enable_webui_ntp) {
+  update_target(
+      "//chrome/browser/ui/webui/new_tab_page/action_chips:action_chips") {
+    deps += [
+      "//components/page_image_service/mojom:mojo_bindings",
+      "//ui/webui/resources/cr_components/composebox:mojo_bindings",
+    ]
+  }
+}
+
 update_target("//chrome/browser/ui/webui/version:version") {
   configs += [ "//vivaldi/gn/config:release_kind" ]
 }
 
 update_target("//chrome/browser/page_load_metrics:impl") {
   deps += [ "//components/contextual_search/footprints/public/proto:footprints_oneplatform_proto" ]
+}
+
+if (vivaldi_build_tests) {
+  update_target("//chrome/test/data/webui:browser_tests") {
+    deps -=
+        [ "//chrome/browser/ui/webui/default_browser:default_browser_modal" ]
+  }
+
+  update_target("//chrome/test:browser_tests") {
+    deps -= [ "//chrome/browser/ui/webui/default_browser:browser_tests" ]
+  }
 }

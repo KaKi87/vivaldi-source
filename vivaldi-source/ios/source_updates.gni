@@ -140,10 +140,6 @@ update_target("//ios/chrome/browser/settings/ui_bundled:ui_bundled") {
   configs += [ "//vivaldi/gn/config:release_kind" ]
 }
 
-update_target("//ios/chrome/browser/popup_menu/overflow_menu/ui:ui_swift") {
-  sources += [ "//vivaldi/ios/ui/vivaldi_overflow_menu/vivaldi_overflow_action_add_to_view.swift" ]
-}
-
 update_target("//ios/chrome/browser/popup_menu/public:public") {
   sources += [
     "//vivaldi/ios/chrome/browser/popup_menu/ui_bundled/vivaldi_popup_menu_constants.h",
@@ -230,12 +226,14 @@ update_template_instance(
     "//ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/grid/resources:resources") {
   sources -= [
     "Assets.xcassets/tab_grid_incognito_tabs_empty_legacy.imageset/Contents.json",
-    "Assets.xcassets/tab_grid_incognito_tabs_empty_legacy.imageset/tab_grid_incognito_tabs_empty.pdf",
+    "Assets.xcassets/tab_grid_incognito_tabs_empty_legacy.imageset/tab_grid_incognito_tabs_empty@2x.png",
+    "Assets.xcassets/tab_grid_incognito_tabs_empty_legacy.imageset/tab_grid_incognito_tabs_empty@3x.png",
     "Assets.xcassets/tab_grid_regular_tabs_empty.imageset/Contents.json",
     "Assets.xcassets/tab_grid_regular_tabs_empty.imageset/tabs@2x.png",
     "Assets.xcassets/tab_grid_regular_tabs_empty.imageset/tabs@3x.png",
     "Assets.xcassets/tab_grid_regular_tabs_empty_legacy.imageset/Contents.json",
-    "Assets.xcassets/tab_grid_regular_tabs_empty_legacy.imageset/tab_grid_regular_tabs_empty.pdf",
+    "Assets.xcassets/tab_grid_regular_tabs_empty_legacy.imageset/tab_grid_regular_tabs_empty@2x.png",
+    "Assets.xcassets/tab_grid_regular_tabs_empty_legacy.imageset/tab_grid_regular_tabs_empty@3x.png",
   ]
 }
 

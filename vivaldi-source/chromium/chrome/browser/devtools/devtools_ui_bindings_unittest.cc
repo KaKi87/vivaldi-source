@@ -160,6 +160,24 @@ TEST_F(DevToolsUIBindingsLoadNetworkResourceTest,
 }
 
 TEST_F(DevToolsUIBindingsLoadNetworkResourceTest,
+       ClearExtensionsAPIOnNavigatingAway) {
+  bindings()->RegisterExtensionsAPIForTesting("http://example.test", "script");
+  EXPECT_EQ(bindings()->GetExtensionsAPIForTesting().size(), 1u);
+
+  // Navigate to a valid DevTools URL first.
+  GURL devtools_url("devtools://devtools/bundled/devtools_app.html");
+  content::NavigationSimulator::NavigateAndCommitFromBrowser(web_contents(),
+                                                             devtools_url);
+  EXPECT_EQ(bindings()->GetExtensionsAPIForTesting().size(), 1u);
+
+  // Navigate away to a non-DevTools URL.
+  GURL print_url("https://example.test");
+  content::NavigationSimulator::NavigateAndCommitFromBrowser(web_contents(),
+                                                             print_url);
+  EXPECT_TRUE(bindings()->GetExtensionsAPIForTesting().empty());
+}
+
+TEST_F(DevToolsUIBindingsLoadNetworkResourceTest,
        BlocksFileSchemeFromUntrustedFrontends) {
   std::vector<GURL> untrusted_urls = {
       GURL("devtools://devtools/remote/serve_rev/@12345/inspector.html"),
@@ -943,10 +961,6 @@ TEST_F(DevToolsUIBindingsHostConfigTest, GetHostConfigWithFeatures) {
   base::DictValue initial_config =
       DevToolsUIBindings::GetHostConfigDictionary(profile_.get());
 
-  const base::DictValue* initial_green_dev =
-      initial_config.FindDict("devToolsGreenDevUi");
-  ASSERT_FALSE(initial_green_dev);
-
   const base::DictValue* initial_protocol_monitor =
       initial_config.FindDict("devToolsProtocolMonitor");
   ASSERT_TRUE(initial_protocol_monitor);
@@ -962,20 +976,23 @@ TEST_F(DevToolsUIBindingsHostConfigTest, GetHostConfigWithFeatures) {
   ASSERT_TRUE(initial_aiv2_arch);
   EXPECT_FALSE(initial_aiv2_arch->FindBool("enabled").value_or(true));
 
+  const base::DictValue* initial_instrumentation_breakpoints =
+      initial_config.FindDict("devToolsInstrumentationBreakpoints");
+  ASSERT_TRUE(initial_instrumentation_breakpoints);
+  EXPECT_FALSE(
+      initial_instrumentation_breakpoints->FindBool("enabled").value_or(true));
+
   // Enable features.
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitWithFeatures(
-      {::features::kDevToolsGreenDevUi, ::features::kDevToolsProtocolMonitor,
-       ::features::kDevToolsFreestyler, ::features::kDevToolsAiV2Architecture},
+      {::features::kDevToolsProtocolMonitor, ::features::kDevToolsFreestyler,
+       ::features::kDevToolsAiV2Architecture,
+       ::features::kDevToolsInstrumentationBreakpoints},
       {});
 
   // Verify state of features after enabling them.
   base::DictValue result =
       DevToolsUIBindings::GetHostConfigDictionary(profile_.get());
-
-  const base::DictValue* green_dev = result.FindDict("devToolsGreenDevUi");
-  ASSERT_TRUE(green_dev);
-  EXPECT_TRUE(green_dev->FindBool("enabled").value_or(false));
 
   const base::DictValue* protocol_monitor =
       result.FindDict("devToolsProtocolMonitor");
@@ -990,6 +1007,12 @@ TEST_F(DevToolsUIBindingsHostConfigTest, GetHostConfigWithFeatures) {
       result.FindDict("devToolsAiV2Architecture");
   ASSERT_TRUE(aiv2_arch);
   EXPECT_TRUE(aiv2_arch->FindBool("enabled").value_or(false));
+
+  const base::DictValue* instrumentation_breakpoints =
+      result.FindDict("devToolsInstrumentationBreakpoints");
+  ASSERT_TRUE(instrumentation_breakpoints);
+  EXPECT_TRUE(
+      instrumentation_breakpoints->FindBool("enabled").value_or(false));
 }
 
 TEST_F(DevToolsUIBindingsHostConfigTest, GetHostConfigGdpProfiles) {

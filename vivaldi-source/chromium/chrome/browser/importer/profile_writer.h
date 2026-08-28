@@ -22,15 +22,6 @@ class Profile;
 struct ImportedNotesEntry;
 struct ImportedSpeedDialEntry;
 struct ImportedTabEntry;
-namespace extension_importer {
-class ChromiumExtensionsImporter;
-}
-#if !BUILDFLAG(IS_ANDROID) // Vivaldi VAB-11595
-struct ChromiumExtensionsImporterDeleter {
-  void operator()(extension_importer::ChromiumExtensionsImporter* ptr);
-};
-#endif // End Vivaldi
-class ExternalProcessImporterHost;
 
 namespace autofill {
 class AutocompleteEntry;
@@ -128,13 +119,6 @@ class ProfileWriter : public base::RefCountedThreadSafe<ProfileWriter> {
 
  private:
   const raw_ptr<Profile> profile_;
-
-#if !BUILDFLAG(IS_ANDROID) // VAB-11595
-  // Vivaldi
-  std::unique_ptr<extension_importer::ChromiumExtensionsImporter,
-                  ChromiumExtensionsImporterDeleter>
-      vivaldi_extensions_importer_;
-#endif
 };
 
 #endif  // CHROME_BROWSER_IMPORTER_PROFILE_WRITER_H_

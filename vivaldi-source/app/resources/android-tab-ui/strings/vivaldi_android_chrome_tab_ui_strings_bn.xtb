@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="bn">
+<translation id="1133985792690629147"><ph name="COLOR_NAME" /> ট্যাব স্ট্যাকের রঙের আইকন</translation>
+<translation id="19713940601468134">আপনার ট্যাবগুলো গুছিয়ে রাখতে স্তূপ তৈরি করুন।</translation>
+<translation id="2221077170275765262">"<ph name="TAB_GROUP_NAME" />" ট্যাব স্ট্যাক আর পাওয়া যাচ্ছে না</translation>
 <translation id="2330212241471632770">{TABS_COUNT,plural, =1{ট্যাব বুকমার্ক করুন}few{ট্যাব বুকমার্ক করুন}other{ট্যাব বুকমার্ক করুন}}</translation>
+<translation id="2823409674319971145">স্তূপে নতুন ট্যাব যোগ করুন</translation>
+<translation id="3832906837818406941"><ph name="TITLE_OF_GROUP" /> স্তূপীকৃত ট্যাব এর বিকল্পগুলো</translation>
+<translation id="4166594760689356813">সমস্ত ট্যাব বন্ধ করুন এবং স্তূপ করুন</translation>
+<translation id="4521279527488891004"><ph name="USER_EMAIL" /> স্তূপগুলো সংরক্ষিত হয়েছে (ট্যাবগুলি বন্ধ করা হবে এবং স্তূপগুলো ফেলা হবে)</translation>
+<translation id="4686942373615810936">এইমাত্র তৈরি করা হয়েছে</translation>
+<translation id="4870911314065352661">সব ট্যাব বন্ধ করবেন?</translation>
+<translation id="4871187110787939393">সব ব্যক্তিগত ট্যাব বন্ধ করবেন?</translation>
+<translation id="8176081848609891478">"<ph name="TAB_GROUP_NAME_1" />" এবং "<ph name="TAB_GROUP_NAME_2" />" ট্যাব স্ট্যাকগুলি আর পাওয়া যাচ্ছে না</translation>
+<translation id="825209846084758814"><ph name="TABS_COUNT_ONE" /> ট্যাব স্তূপ করা হয়েছে</translation>
+<translation id="8602902357364871325">স্তূপ বন্ধ করুন</translation>
+<translation id="8660513434781407996"><ph name="TABS_COUNT_MANY" /> ট্যাবগুলো স্তূপীকৃত</translation>
 </translationbundle>

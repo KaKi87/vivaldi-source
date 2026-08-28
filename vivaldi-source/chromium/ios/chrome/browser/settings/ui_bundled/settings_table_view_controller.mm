@@ -50,6 +50,10 @@
 #import "ios/chrome/browser/backend_promo/model/backend_promo_service.h"
 #import "ios/chrome/browser/bubble/ui_bundled/bubble_constants.h"
 #import "ios/chrome/browser/bubble/ui_bundled/bubble_view_controller_presenter.h"
+#import "ios/chrome/browser/catalogs/ui/button_catalog_view_controller.h"
+#import "ios/chrome/browser/catalogs/ui/table_cell_catalog_view_controller.h"
+#import "ios/chrome/browser/catalogs/ui/view_catalog_view_controller.h"
+#import "ios/chrome/browser/catalogs/ui/view_controller_catalog_view_controller.h"
 #import "ios/chrome/browser/commerce/model/push_notification/push_notification_feature.h"
 #import "ios/chrome/browser/content_notification/model/content_notification_util.h"
 #import "ios/chrome/browser/default_browser/model/utils.h"
@@ -85,7 +89,6 @@
 #import "ios/chrome/browser/settings/ui_bundled/autofill/autofill_credit_card_table_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/autofill/autofill_profile_table_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/bandwidth/bandwidth_management_table_view_controller.h"
-#import "ios/chrome/browser/settings/ui_bundled/button_catalog_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/bwg/coordinator/gemini_settings_coordinator.h"
 #import "ios/chrome/browser/settings/ui_bundled/cells/enhanced_safe_browsing_inline_promo_item.h"
 #import "ios/chrome/browser/settings/ui_bundled/cells/settings_check_item.h"
@@ -108,7 +111,6 @@
 #import "ios/chrome/browser/settings/ui_bundled/safety_check/safety_check_utils.h"
 #import "ios/chrome/browser/settings/ui_bundled/search_engine_table_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/settings_table_view_controller_constants.h"
-#import "ios/chrome/browser/settings/ui_bundled/table_cell_catalog_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/tabs/tabs_settings_coordinator.h"
 #import "ios/chrome/browser/settings/ui_bundled/voice_search_table_view_controller.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
@@ -246,20 +248,20 @@ struct EnhancedSafeBrowsingActivePromoData
     AuthenticationServiceObserving,
     AutofillAndPasswordsCoordinatorDelegate,
     BooleanObserver,
-    GeminiSettingsCoordinatorDelegate,
     ContentSettingsCoordinatorDelegate,
     DiscoverFeedVisibilityObserver,
     DownloadsSettingsCoordinatorDelegate,
     EnhancedSafeBrowsingInlinePromoDelegate,
+    GeminiSettingsCoordinatorDelegate,
     GoogleServicesSettingsCoordinatorDelegate,
-    IdentityManagerObserverBridgeDelegate,
+    IdentityManagerObserving,
     ManageSyncSettingsCoordinatorDelegate,
+    NotificationsCoordinatorDelegate,
     NotificationsSettingsObserverDelegate,
     PasswordCheckObserver,
     PasswordsCoordinatorDelegate,
     PopoverLabelViewControllerDelegate,
     PrefObserverDelegate,
-    NotificationsCoordinatorDelegate,
     PrivacyCoordinatorDelegate,
     SafariDataImportUIHandler,
     SafetyCheckCoordinatorDelegate,
@@ -756,6 +758,10 @@ struct EnhancedSafeBrowsingActivePromoData
     [model addItem:[self tableViewCatalogDetailItem]
         toSectionWithIdentifier:SettingsSectionIdentifierDebug];
     [model addItem:[self buttonCatalogDetailItem]
+        toSectionWithIdentifier:SettingsSectionIdentifierDebug];
+    [model addItem:[self viewControllerCatalogDetailItem]
+        toSectionWithIdentifier:SettingsSectionIdentifierDebug];
+    [model addItem:[self viewCatalogDetailItem]
         toSectionWithIdentifier:SettingsSectionIdentifierDebug];
   }
 
@@ -1407,6 +1413,24 @@ struct EnhancedSafeBrowsingActivePromoData
           accessibilityIdentifier:nil];
 }
 
+- (TableViewDetailIconItem*)viewControllerCatalogDetailItem {
+  return [self detailItemWithType:SettingsItemTypeViewControllerCatalog
+                             text:@"ViewController Catalog"
+                       detailText:nil
+                           symbol:DefaultSettingsRootSymbol(kCartSymbol)
+            symbolBackgroundColor:[UIColor colorNamed:kGrey400Color]
+          accessibilityIdentifier:nil];
+}
+
+- (TableViewDetailIconItem*)viewCatalogDetailItem {
+  return [self detailItemWithType:SettingsItemTypeViewCatalog
+                             text:@"View Catalog"
+                       detailText:nil
+                           symbol:DefaultSettingsRootSymbol(kCartSymbol)
+            symbolBackgroundColor:[UIColor colorNamed:kGrey400Color]
+          accessibilityIdentifier:nil];
+}
+
 #pragma mark Item Constructors
 
 - (TableViewDetailIconItem*)detailItemWithType:(NSInteger)type
@@ -1660,6 +1684,17 @@ struct EnhancedSafeBrowsingActivePromoData
     case SettingsItemTypeButtonCatalog:
       [self.navigationController
           pushViewController:[[ButtonCatalogViewController alloc] init]
+                    animated:YES];
+      break;
+    case SettingsItemTypeViewControllerCatalog:
+      [self.navigationController
+          pushViewController:[[ViewControllerCatalogViewController alloc] init]
+                    animated:YES];
+      break;
+    case SettingsItemTypeViewCatalog:
+      [self.navigationController
+          pushViewController:[[ViewCatalogViewController alloc]
+                                 initWithBrowser:_browser]
                     animated:YES];
       break;
     case SettingsItemTypeBWGSettings:
@@ -2537,7 +2572,6 @@ struct EnhancedSafeBrowsingActivePromoData
 }
 
 - (void)settingsWillBeDismissed {
-  CHECK(!_settingsAreDismissed, base::NotFatalUntil::M151);
   if (_settingsAreDismissed) {
     return;
   }
@@ -2950,7 +2984,7 @@ struct EnhancedSafeBrowsingActivePromoData
   _privacyCoordinator = nil;
 }
 
-#pragma mark - IdentityManagerObserverBridgeDelegate
+#pragma mark - IdentityManagerObserving
 
 // Notifies this controller that the sign in state has changed.
 - (void)signinStateDidChange {
@@ -2967,12 +3001,12 @@ struct EnhancedSafeBrowsingActivePromoData
   [self reloadData];
 }
 
-- (void)onPrimaryAccountChanged:
+- (void)primaryAccountDidChange:
     (const signin::PrimaryAccountChangeEvent&)event {
   [self signinStateDidChange];
 }
 
-- (void)onExtendedAccountInfoUpdated:(const AccountInfo&)info {
+- (void)extendedAccountInfoDidUpdate:(const AccountInfo&)info {
   id<SystemIdentity> identity =
       _accountManagerService->GetIdentityOnDeviceWithGaiaID(info.gaia);
   if ([_identity isEqual:identity]) {
@@ -3300,12 +3334,12 @@ struct EnhancedSafeBrowsingActivePromoData
   // Observe app icon change and update the settings cell.
   __weak __typeof(self) weakSelf = self;
   [self.appIconActionsBridge observeAppIconChange:^{
-      __strong __typeof(weakSelf) strongSelf = weakSelf;
-      if (strongSelf) {
-          strongSelf->_vivaldiAppIconItem.iconImage =
-            [VivaldiAppIconHelper appIcon];
-        [self reconfigureCellsForItems:@[ strongSelf->_vivaldiAppIconItem ]];
-      }
+    __strong __typeof(weakSelf) strongSelf = weakSelf;
+    if (!strongSelf) {
+      return;
+    }
+    strongSelf->_vivaldiAppIconItem.iconImage = [VivaldiAppIconHelper appIcon];
+    [strongSelf reconfigureCellsForItems:@[ strongSelf->_vivaldiAppIconItem ]];
   }];
 }
 

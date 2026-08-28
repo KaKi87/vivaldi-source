@@ -7,6 +7,7 @@
 #include <string>
 
 #include "base/metrics/histogram_functions.h"
+#include "base/strings/strcat.h"
 #include "third_party/omnibox_proto/model_mode.pb.h"
 #include "third_party/omnibox_proto/tool_mode.pb.h"
 
@@ -37,6 +38,8 @@ std::string GetToolModeString(omnibox::ToolMode mode) {
       return "Aim";
     case omnibox::TOOL_MODE_AIM_GEN_PROMPT:
       return "AimGenPrompt";
+    case omnibox::TOOL_MODE_AGENT_TASK:
+      return "AgentTask";
     default:
       return "Unspecified";
   }
@@ -57,6 +60,12 @@ std::string GetModelModeString(omnibox::ModelMode mode) {
       return "GeminiProAutoroute";
     case omnibox::MODEL_MODE_GEMINI_PRO_NO_GEN_UI:
       return "GeminiProNoGenUi";
+    case omnibox::MODEL_MODE_GEMINI_FLASH_LATEST:
+      return "GeminiFlashLatest";
+    case omnibox::MODEL_MODE_GEMINI_PRO_LATEST:
+      return "GeminiProLatest";
+    case omnibox::MODEL_MODE_GEMINI_PREVIEW:
+      return "GeminiPreview";
     default:
       return "Unspecified";
   }
@@ -96,9 +105,10 @@ std::string GetContextTypeString(ContextType type) {
 // LINT.ThenChange(//ui/webui/resources/cr_components/composebox/common.ts:getContextTypeString)
 
 void LogResultToContentReadyEarlyExitReason(
-    ResultToContentReadyEarlyExitReason reason) {
-  std::string_view name = "Omnibox.Popup.ResultToContentReadyEarlyExitReason";
-  base::UmaHistogramEnumeration(name, reason);
+    ResultToContentReadyEarlyExitReason reason,
+    std::string_view prefix) {
+  base::UmaHistogramEnumeration(
+      base::StrCat({prefix, ".ResultToContentReadyEarlyExitReason"}), reason);
 }
 
 }  // namespace omnibox

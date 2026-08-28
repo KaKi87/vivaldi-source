@@ -21,6 +21,8 @@
 #include "base/strings/string_util.h"
 #include "base/time/time.h"
 #include "base/values.h"
+#include "build/build_config.h"
+#include "build/buildflag.h"
 #include "chrome/updater/test/http_request.h"
 #include "chrome/updater/test/integration_test_commands.h"
 #include "chrome/updater/test/integration_tests_impl.h"
@@ -34,6 +36,14 @@
 
 namespace updater::test {
 namespace {
+
+#if BUILDFLAG(IS_MAC) && defined(ARCH_CPU_X86_64) && !defined(NDEBUG)
+// Debug x86_64 binaries exceed 600 MB, causing slow CECA launch due to
+// Gatekeeper verification and Rosetta translation.
+constexpr base::TimeDelta kCecaConnectionTimeout = base::Seconds(50);
+#else
+constexpr base::TimeDelta kCecaConnectionTimeout = base::Seconds(10);
+#endif
 
 std::string DebugStringForReq(HttpRequest& request) {
   std::vector<std::string> request_strs;
@@ -69,7 +79,7 @@ ScopedServer::ScopedServer(scoped_refptr<IntegrationTestCommands> commands) {
   commands->EnterTestMode(update_url(), crash_upload_url(),
                           /*app_logo_url=*/{},
                           /*event_logging_url=*/{}, base::Minutes(5),
-                          base::Seconds(2), base::Seconds(10),
+                          base::Seconds(2), kCecaConnectionTimeout,
                           /*event_logging_permission_provider=*/std::nullopt);
 }
 
@@ -125,7 +135,7 @@ std::unique_ptr<net::test_server::HttpResponse> ScopedServer::HandleRequest(
     return response;
   }
 
-  if (base::StartsWith(request.relative_url, download_path()) &&
+  if (request.relative_url.starts_with(download_path()) &&
       !download_delay_.is_zero()) {
     VLOG(0) << "Delay download response by: " << download_delay_;
     response.reset(new net::test_server::DelayedHttpResponse(download_delay_));
@@ -136,10 +146,10 @@ std::unique_ptr<net::test_server::HttpResponse> ScopedServer::HandleRequest(
       response_body_provider.Run(re2::RE2::PartialMatch(
           request.decoded_content, "\"protocol\": *\"4\\.0\""));
   response->set_code(response_code);
-  if (base::StartsWith(request.relative_url, device_management_path())) {
+  if (request.relative_url.starts_with(device_management_path())) {
     response->set_content_type("application/x-protobuf");
   }
-  if (base::StartsWith(request.relative_url, proxy_pac_path())) {
+  if (request.relative_url.starts_with(proxy_pac_path())) {
     VLOG(1) << "PAC proxy settings: [ " << response_body << "]";
   }
 

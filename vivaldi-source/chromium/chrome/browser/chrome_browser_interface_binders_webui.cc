@@ -13,7 +13,6 @@
 #include "chrome/browser/ui/webui/actor_internals/actor_internals_ui.h"
 #include "chrome/browser/ui/webui/bluetooth_internals/bluetooth_internals.mojom.h"
 #include "chrome/browser/ui/webui/bluetooth_internals/bluetooth_internals_ui.h"
-#include "chrome/browser/ui/webui/browsing_topics/browsing_topics_internals_ui.h"
 #include "chrome/browser/ui/webui/chrome_finds_internals/chrome_finds_internals.mojom.h"
 #include "chrome/browser/ui/webui/chrome_finds_internals/chrome_finds_internals_ui.h"
 #include "chrome/browser/ui/webui/chrome_urls/chrome_urls_ui.h"
@@ -31,14 +30,12 @@
 #include "chrome/browser/ui/webui/personal_context_internals/personal_context_internals.mojom.h"
 #include "chrome/browser/ui/webui/personal_context_internals/personal_context_internals_ui.h"
 #include "chrome/browser/ui/webui/policy/policy_ui.h"
-#include "chrome/browser/ui/webui/privacy_sandbox/privacy_sandbox_internals_ui.h"
 #include "chrome/browser/ui/webui/segmentation_internals/segmentation_internals_ui.h"
 #include "chrome/browser/ui/webui/subresource_filter/subresource_filter_internals_ui.h"
 #include "chrome/browser/ui/webui/usb_internals/usb_internals.mojom.h"
 #include "chrome/browser/ui/webui/usb_internals/usb_internals_ui.h"
 #include "chrome/common/webui_url_constants.h"
 #include "components/actor/public/mojom/actor_internals.mojom.h"
-#include "components/browsing_topics/mojom/browsing_topics_internals.mojom.h"
 #include "components/commerce/content/browser/commerce_internals_ui.h"
 #include "components/commerce/core/internals/mojom/commerce_internals.mojom.h"
 #include "components/contextual_tasks/public/features.h"
@@ -74,11 +71,19 @@
 #endif
 
 #if BUILDFLAG(ENABLE_WEBUI_NTP)
+#include "chrome/browser/new_tab_page/modules/file_suggestion/drive_suggestion.mojom.h"
+#include "chrome/browser/new_tab_page/modules/v2/calendar/google_calendar.mojom.h"
+#include "chrome/browser/new_tab_page/modules/v2/most_relevant_tab_resumption/most_relevant_tab_resumption.mojom.h"
+#include "chrome/browser/new_tab_page/new_tab_page_util.h"
 #include "chrome/browser/ui/webui/new_tab_page/action_chips/action_chips.mojom.h"
 #include "chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.h"
 #include "components/search/ntp_features.h"
-#include "ui/webui/resources/cr_components/help_bubble/help_bubble.mojom.h"
 #endif  // BUILDFLAG(ENABLE_WEBUI_NTP)
+
+#if BUILDFLAG(ENABLE_WEBUI_NTP) || \
+    BUILDFLAG(ENABLE_WEBUI_CONTEXTUAL_TASKS_COMPOSEBOX)
+#include "ui/webui/resources/cr_components/help_bubble/help_bubble.mojom.h"
+#endif
 
 #if BUILDFLAG(ENABLE_WEBUI_CONTEXTUAL_TASKS_COMPOSEBOX)
 #include "ui/webui/resources/cr_components/composebox/composebox.mojom.h"
@@ -180,11 +185,6 @@ void PopulateChromeWebUIFrameBindersPartsAllPlatforms(
       media::mojom::MediaEngagementScoreDetailsProvider, MediaEngagementUI>(
       map);
 
-#if !defined(VIVALDI_BUILD)
-  RegisterWebUIControllerInterfaceBinder<browsing_topics::mojom::PageHandler,
-                                         BrowsingTopicsInternalsUI>(map);
-#endif // Vivaldi
-
 #if !BUILDFLAG(IS_ANDROID)
   RegisterWebUIControllerInterfaceBinder<
       omnibox_popup_aim::mojom::PageHandlerFactory, OmniboxPopupUI>(map);
@@ -239,10 +239,6 @@ void PopulateChromeWebUIFrameBindersPartsAllPlatforms(
                                          LocationInternalsUI>(map);
 
   RegisterWebUIControllerInterfaceBinder<
-      privacy_sandbox_internals::mojom::PageHandler,
-      privacy_sandbox_internals::PrivacySandboxInternalsUI>(map);
-
-  RegisterWebUIControllerInterfaceBinder<
       actor_internals::mojom::PageHandlerFactory, ActorInternalsUI>(map);
 
   if (base::FeatureList::IsEnabled(
@@ -251,9 +247,13 @@ void PopulateChromeWebUIFrameBindersPartsAllPlatforms(
         policy::mojom::PolicyPageHandlerFactory, PolicyUI>(map);
   }
 
-  if (base::FeatureList::IsEnabled(contextual_tasks::kContextualTasks)) {
+  if (contextual_tasks::IsContextualTasksUIEnabled()) {
     RegisterWebUIControllerInterfaceBinder<
         contextual_tasks::mojom::PageHandlerFactory, ContextualTasksUI>(map);
+    RegisterWebUIControllerInterfaceBinder<
+        contextual_tasks_internals::mojom::
+            ContextualTasksInternalsPageHandlerFactory,
+        ContextualTasksUI>(map);
   }
 
   RegisterWebUIControllerInterfaceBinder<
@@ -279,6 +279,20 @@ void PopulateChromeWebUIFrameBindersPartsAllPlatforms(
     content::RegisterWebUIControllerInterfaceBinder<
         action_chips::mojom::ActionChipsHandlerFactory, NewTabPageUI>(map);
   }
+  if (base::FeatureList::IsEnabled(
+          ntp_features::kNtpMostRelevantTabResumptionModule)) {
+    content::RegisterWebUIControllerInterfaceBinder<
+        ntp::most_relevant_tab_resumption::mojom::PageHandler, NewTabPageUI>(
+        map);
+  }
+  if (IsDriveModuleEnabled()) {
+    content::RegisterWebUIControllerInterfaceBinder<
+        file_suggestion::mojom::DriveSuggestionHandler, NewTabPageUI>(map);
+  }
+  if (base::FeatureList::IsEnabled(ntp_features::kNtpCalendarModule)) {
+    content::RegisterWebUIControllerInterfaceBinder<
+        ntp::calendar::mojom::GoogleCalendarPageHandler, NewTabPageUI>(map);
+  }
 #endif  // BUILDFLAG(ENABLE_WEBUI_NTP)
 
 #if !BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_DESKTOP_ANDROID)
@@ -293,13 +307,9 @@ void PopulateChromeWebUIFrameBindersPartsAllPlatforms(
   // that enables them for more pages.
   content::RegisterWebUIControllerInterfaceBinder<
       searchbox::mojom::PageHandlerFactory, NewTabPageUI>(map);
-  content::RegisterWebUIControllerInterfaceBinder<
-      help_bubble::mojom::HelpBubbleHandlerFactory, NewTabPageUI>(map);
 #endif  // BUILDFLAG(ENABLE_WEBUI_NTP) && BUILDFLAG(IS_ANDROID)
 
-// For the case that's !IS_ANDROID, PageHandlerFactory is registered in
-// chrome_browser_interface_binders_webui_parts_desktop.cc.
-#if BUILDFLAG(IS_ANDROID) && \
+#if BUILDFLAG(IS_ANDROID) &&        \
     (BUILDFLAG(ENABLE_WEBUI_NTP) || \
      BUILDFLAG(ENABLE_WEBUI_CONTEXTUAL_TASKS_COMPOSEBOX))
   RegisterWebUIControllerInterfaceBinder<composebox::mojom::PageHandlerFactory
@@ -312,6 +322,18 @@ void PopulateChromeWebUIFrameBindersPartsAllPlatforms(
                                          ContextualTasksUI
 #endif
                                          >(map);
+
+  RegisterWebUIControllerInterfaceBinder<
+      help_bubble::mojom::HelpBubbleHandlerFactory
+#if BUILDFLAG(ENABLE_WEBUI_NTP)
+      ,
+      NewTabPageUI
+#endif
+#if BUILDFLAG(ENABLE_WEBUI_CONTEXTUAL_TASKS_COMPOSEBOX)
+      ,
+      ContextualTasksUI
+#endif
+      >(map);
 #endif  // BUILDFLAG(IS_ANDROID)
 
   map->Add<tracked_element::mojom::TrackedElementHandler>(
@@ -354,6 +376,8 @@ void PopulateChromeWebUIFrameBinders(
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
     BUILDFLAG(IS_CHROMEOS)
   RegisterWebUIControllerInterfaceBinder<skills::mojom::PageHandlerFactory,
+                                         skills::SkillsUI>(map);
+  RegisterWebUIControllerInterfaceBinder<skills::mojom::SkillsPageHandler,
                                          skills::SkillsUI>(map);
 #endif
 

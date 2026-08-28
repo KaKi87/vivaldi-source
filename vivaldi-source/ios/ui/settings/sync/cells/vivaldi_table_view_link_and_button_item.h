@@ -29,7 +29,7 @@
 // If yes, adds a 50% alpha to the background in disabled state.
 // Otherwise, colors in disabled state are the same as in enabled
 // state and it is the responsibility of the owner to update color
-// before calling `configureCell:withStyler:` (default YES).
+// before calling `configureCell:` (default YES).
 @property(nonatomic, assign) BOOL dimBackgroundWhenDisabled;
 
 // Accessibility identifier that will assigned to the button.

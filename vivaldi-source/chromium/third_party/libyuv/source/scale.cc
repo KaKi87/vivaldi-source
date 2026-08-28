@@ -11,6 +11,7 @@
 #include "libyuv/scale.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <string.h>
 
 #include "libyuv/cpu_id.h"
@@ -206,50 +207,6 @@ static void ScalePlaneDown2_16(int src_width,
   }
 }
 
-void ScalePlaneDown2_16To8(int src_width,
-                           int src_height,
-                           int dst_width,
-                           int dst_height,
-                           int src_stride,
-                           int dst_stride,
-                           const uint16_t* src_ptr,
-                           uint8_t* dst_ptr,
-                           int scale,
-                           enum FilterMode filtering) {
-  int y;
-  void (*ScaleRowDown2)(const uint16_t* src_ptr, ptrdiff_t src_stride,
-                        uint8_t* dst_ptr, int dst_width, int scale) =
-      (src_width & 1)
-          ? (filtering == kFilterNone
-                 ? ScaleRowDown2_16To8_Odd_C
-                 : (filtering == kFilterLinear ? ScaleRowDown2Linear_16To8_Odd_C
-                                               : ScaleRowDown2Box_16To8_Odd_C))
-          : (filtering == kFilterNone
-                 ? ScaleRowDown2_16To8_C
-                 : (filtering == kFilterLinear ? ScaleRowDown2Linear_16To8_C
-                                               : ScaleRowDown2Box_16To8_C));
-  ptrdiff_t row_stride = (ptrdiff_t)src_stride * 2;
-  (void)dst_height;
-  if (!filtering) {
-    src_ptr += src_stride;  // Point to odd rows.
-    src_stride = 0;
-  }
-
-  if (filtering == kFilterLinear) {
-    src_stride = 0;
-  }
-  for (y = 0; y < src_height / 2; ++y) {
-    ScaleRowDown2(src_ptr, src_stride, dst_ptr, dst_width, scale);
-    src_ptr += row_stride;
-    dst_ptr += dst_stride;
-  }
-  if (src_height & 1) {
-    if (!filtering) {
-      src_ptr -= src_stride;  // Point to last row.
-    }
-    ScaleRowDown2(src_ptr, 0, dst_ptr, dst_width, scale);
-  }
-}
 
 // Scale plane, 1/4
 // This is an optimized version for scaling down a plane to 1/4 of
@@ -1092,6 +1049,11 @@ static int ScalePlaneBilinearDown(int src_width,
     }
   }
 #endif
+#if defined(HAS_INTERPOLATEROW_SVE2)
+  if (TestCpuFlag(kCpuHasSVE2)) {
+    InterpolateRow = InterpolateRow_SVE2;
+  }
+#endif
 #if defined(HAS_INTERPOLATEROW_SME)
   if (TestCpuFlag(kCpuHasSME)) {
     InterpolateRow = InterpolateRow_SME;
@@ -1257,6 +1219,11 @@ static int ScalePlaneBilinearUp(int src_width,
                                 const uint8_t* src_ptr,
                                 uint8_t* dst_ptr,
                                 enum FilterMode filtering) {
+  assert(src_width > 0);
+  assert(src_height > 0);
+  assert(dst_width > 0);
+  assert(dst_height > 0);
+
   int j;
   // Initial source x/y coordinate and step values as 16.16 fixed point.
   int x = 0;
@@ -1272,6 +1239,7 @@ static int ScalePlaneBilinearUp(int src_width,
       filtering ? ScaleFilterCols_C : ScaleCols_C;
   ScaleSlope(src_width, src_height, dst_width, dst_height, filtering, &x, &y,
              &dx, &dy);
+  assert(dy <= 65536);
   src_width = Abs(src_width);
 
 #if defined(HAS_INTERPOLATEROW_AVX2)
@@ -1288,6 +1256,11 @@ static int ScalePlaneBilinearUp(int src_width,
     if (IS_ALIGNED(dst_width, 16)) {
       InterpolateRow = InterpolateRow_NEON;
     }
+  }
+#endif
+#if defined(HAS_INTERPOLATEROW_SVE2)
+  if (TestCpuFlag(kCpuHasSVE2)) {
+    InterpolateRow = InterpolateRow_SVE2;
   }
 #endif
 #if defined(HAS_INTERPOLATEROW_SME)
@@ -1360,22 +1333,27 @@ static int ScalePlaneBilinearUp(int src_width,
       src += src_stride;
     }
 
+    // 2-row rolling buffer:
+    // rowptr and (rowptr + rowstride) hold the scaled rows for yi and yi + 1.
+    // Because dy <= 65536 (dy <= 1.0 in 16.16), yi advances in unit steps.
+    // When yi != lasty:
+    // 1. Scale the next source row into the older buffer (rowptr).
+    // 2. Swap buffer pointers (rowptr += rowstride; rowstride = -rowstride;)
+    //    so rowptr points to yi and (rowptr + rowstride) points to yi + 1.
+    // 3. Advance src by 1 row if row yi + 2 exists ((y + 65536) < max_y),
+    //    otherwise clamp src at (src_height - 1) to avoid reading out of bounds.
     for (j = 0; j < dst_height; ++j) {
+      if (y > max_y) {
+        y = max_y;
+      }
       yi = y >> 16;
       if (yi != lasty) {
-        if (y > max_y) {
-          y = max_y;
-          yi = y >> 16;
-          src = src_ptr + yi * src_stride;
-        }
-        if (yi != lasty) {
-          ScaleFilterCols(rowptr, src, dst_width, x, dx);
-          rowptr += rowstride;
-          rowstride = -rowstride;
-          lasty = yi;
-          if ((y + 65536) < max_y) {
-            src += src_stride;
-          }
+        ScaleFilterCols(rowptr, src, dst_width, x, dx);
+        rowptr += rowstride;
+        rowstride = -rowstride;
+        lasty = yi;
+        if ((y + 65536) < max_y) {
+          src += src_stride;
         }
       }
       if (filtering == kFilterLinear) {
@@ -1738,6 +1716,11 @@ static int ScalePlaneBilinearUp_16(int src_width,
                                    const uint16_t* src_ptr,
                                    uint16_t* dst_ptr,
                                    enum FilterMode filtering) {
+  assert(src_width > 0);
+  assert(src_height > 0);
+  assert(dst_width > 0);
+  assert(dst_height > 0);
+
   int j;
   // Initial source x/y coordinate and step values as 16.16 fixed point.
   int x = 0;
@@ -1753,6 +1736,7 @@ static int ScalePlaneBilinearUp_16(int src_width,
       filtering ? ScaleFilterCols_16_C : ScaleCols_16_C;
   ScaleSlope(src_width, src_height, dst_width, dst_height, filtering, &x, &y,
              &dx, &dy);
+  assert(dy <= 65536);
   src_width = Abs(src_width);
 
 #if defined(HAS_INTERPOLATEROW_16_SSSE3)
@@ -1801,6 +1785,7 @@ static int ScalePlaneBilinearUp_16(int src_width,
     }
 #endif
   }
+
   if (y > max_y) {
     y = max_y;
   }
@@ -1826,22 +1811,27 @@ static int ScalePlaneBilinearUp_16(int src_width,
       src += src_stride;
     }
 
+    // 2-row rolling buffer:
+    // rowptr and (rowptr + rowstride) hold the scaled rows for yi and yi + 1.
+    // Because dy <= 65536 (dy <= 1.0 in 16.16), yi advances in unit steps.
+    // When yi != lasty:
+    // 1. Scale the next source row into the older buffer (rowptr).
+    // 2. Swap buffer pointers (rowptr += rowstride; rowstride = -rowstride;)
+    //    so rowptr points to yi and (rowptr + rowstride) points to yi + 1.
+    // 3. Advance src by 1 row if row yi + 2 exists ((y + 65536) < max_y),
+    //    otherwise clamp src at (src_height - 1) to avoid reading out of bounds.
     for (j = 0; j < dst_height; ++j) {
+      if (y > max_y) {
+        y = max_y;
+      }
       yi = y >> 16;
       if (yi != lasty) {
-        if (y > max_y) {
-          y = max_y;
-          yi = y >> 16;
-          src = src_ptr + yi * src_stride;
-        }
-        if (yi != lasty) {
-          ScaleFilterCols(rowptr, src, dst_width, x, dx);
-          rowptr += rowstride;
-          rowstride = -rowstride;
-          lasty = yi;
-          if ((y + 65536) < max_y) {
-            src += src_stride;
-          }
+        ScaleFilterCols(rowptr, src, dst_width, x, dx);
+        rowptr += rowstride;
+        rowstride = -rowstride;
+        lasty = yi;
+        if ((y + 65536) < max_y) {
+          src += src_stride;
         }
       }
       if (filtering == kFilterLinear) {
@@ -1950,9 +1940,9 @@ int ScalePlane(const uint8_t* src,
   // Reject dimensions larger than 32768 (or smaller than -32768 for height).
   // This prevents FixedDiv signed integer overflows that can lead to division
   // by zero/overflow crashes (SIGFPE on x86) or incorrect step calculations.
-  if (!src || src_width <= 0 || src_height == 0 ||
-      src_width > 32768 || src_height < -32768 || src_height > 32768 ||
-      !dst || dst_width <= 0 || dst_height <= 0) {
+  if (!src || src_width <= 0 || src_height == 0 || src_width > 32768 ||
+      src_height < -32768 || src_height > 32768 || !dst || dst_width <= 0 ||
+      dst_height <= 0) {
     return -1;
   }
   // Simplify filtering when possible.
@@ -2058,9 +2048,9 @@ int ScalePlane_16(const uint16_t* src,
   // Reject dimensions larger than 32768 (or smaller than -32768 for height).
   // This prevents FixedDiv signed integer overflows that can lead to division
   // by zero/overflow crashes (SIGFPE on x86) or incorrect step calculations.
-  if (!src || src_width <= 0 || src_height == 0 ||
-      src_width > 32768 || src_height < -32768 || src_height > 32768 ||
-      !dst || dst_width <= 0 || dst_height <= 0) {
+  if (!src || src_width <= 0 || src_height == 0 || src_width > 32768 ||
+      src_height < -32768 || src_height > 32768 || !dst || dst_width <= 0 ||
+      dst_height <= 0) {
     return -1;
   }
   // Simplify filtering when possible.
@@ -2170,9 +2160,9 @@ int ScalePlane_12(const uint16_t* src,
   // Reject dimensions larger than 32768 (or smaller than -32768 for height).
   // This prevents FixedDiv signed integer overflows that can lead to division
   // by zero/overflow crashes (SIGFPE on x86) or incorrect step calculations.
-  if (!src || src_width <= 0 || src_height == 0 ||
-      src_width > 32768 || src_height < -32768 || src_height > 32768 ||
-      !dst || dst_width <= 0 || dst_height <= 0) {
+  if (!src || src_width <= 0 || src_height == 0 || src_width > 32768 ||
+      src_height < -32768 || src_height > 32768 || !dst || dst_width <= 0 ||
+      dst_height <= 0) {
     return -1;
   }
   // Simplify filtering when possible.
@@ -2223,17 +2213,17 @@ int I420Scale(const uint8_t* src_y,
               int dst_width,
               int dst_height,
               enum FilterMode filtering) {
+  int r;
+
+  if (!src_y || !src_u || !src_v || src_width <= 0 || src_height == 0 ||
+      src_height == INT_MIN || !dst_y || !dst_u || !dst_v || dst_width <= 0 ||
+      dst_height <= 0) {
+    return -1;
+  }
   int src_halfwidth = SUBSAMPLE(src_width, 1, 1);
   int src_halfheight = SUBSAMPLE(src_height, 1, 1);
   int dst_halfwidth = SUBSAMPLE(dst_width, 1, 1);
   int dst_halfheight = SUBSAMPLE(dst_height, 1, 1);
-  int r;
-
-  if (!src_y || !src_u || !src_v || src_width <= 0 || src_height == 0 ||
-      src_width > 32768 || src_height > 32768 || !dst_y || !dst_u || !dst_v ||
-      dst_width <= 0 || dst_height <= 0) {
-    return -1;
-  }
 
   r = ScalePlane(src_y, src_stride_y, src_width, src_height, dst_y,
                  dst_stride_y, dst_width, dst_height, filtering);
@@ -2268,17 +2258,17 @@ int I420Scale_16(const uint16_t* src_y,
                  int dst_width,
                  int dst_height,
                  enum FilterMode filtering) {
+  int r;
+
+  if (!src_y || !src_u || !src_v || src_width <= 0 || src_height == 0 ||
+      src_height == INT_MIN || !dst_y || !dst_u || !dst_v || dst_width <= 0 ||
+      dst_height <= 0) {
+    return -1;
+  }
   int src_halfwidth = SUBSAMPLE(src_width, 1, 1);
   int src_halfheight = SUBSAMPLE(src_height, 1, 1);
   int dst_halfwidth = SUBSAMPLE(dst_width, 1, 1);
   int dst_halfheight = SUBSAMPLE(dst_height, 1, 1);
-  int r;
-
-  if (!src_y || !src_u || !src_v || src_width <= 0 || src_height == 0 ||
-      src_width > 32768 || src_height > 32768 || !dst_y || !dst_u || !dst_v ||
-      dst_width <= 0 || dst_height <= 0) {
-    return -1;
-  }
 
   r = ScalePlane_16(src_y, src_stride_y, src_width, src_height, dst_y,
                     dst_stride_y, dst_width, dst_height, filtering);
@@ -2313,17 +2303,17 @@ int I420Scale_12(const uint16_t* src_y,
                  int dst_width,
                  int dst_height,
                  enum FilterMode filtering) {
+  int r;
+
+  if (!src_y || !src_u || !src_v || src_width <= 0 || src_height == 0 ||
+      src_height == INT_MIN || !dst_y || !dst_u || !dst_v || dst_width <= 0 ||
+      dst_height <= 0) {
+    return -1;
+  }
   int src_halfwidth = SUBSAMPLE(src_width, 1, 1);
   int src_halfheight = SUBSAMPLE(src_height, 1, 1);
   int dst_halfwidth = SUBSAMPLE(dst_width, 1, 1);
   int dst_halfheight = SUBSAMPLE(dst_height, 1, 1);
-  int r;
-
-  if (!src_y || !src_u || !src_v || src_width <= 0 || src_height == 0 ||
-      src_width > 32768 || src_height > 32768 || !dst_y || !dst_u || !dst_v ||
-      dst_width <= 0 || dst_height <= 0) {
-    return -1;
-  }
 
   r = ScalePlane_12(src_y, src_stride_y, src_width, src_height, dst_y,
                     dst_stride_y, dst_width, dst_height, filtering);
@@ -2364,8 +2354,8 @@ int I444Scale(const uint8_t* src_y,
   int r;
 
   if (!src_y || !src_u || !src_v || src_width <= 0 || src_height == 0 ||
-      src_width > 32768 || src_height > 32768 || !dst_y || !dst_u || !dst_v ||
-      dst_width <= 0 || dst_height <= 0) {
+      src_height == INT_MIN || !dst_y || !dst_u || !dst_v || dst_width <= 0 ||
+      dst_height <= 0) {
     return -1;
   }
 
@@ -2405,8 +2395,8 @@ int I444Scale_16(const uint16_t* src_y,
   int r;
 
   if (!src_y || !src_u || !src_v || src_width <= 0 || src_height == 0 ||
-      src_width > 32768 || src_height > 32768 || !dst_y || !dst_u || !dst_v ||
-      dst_width <= 0 || dst_height <= 0) {
+      src_height == INT_MIN || !dst_y || !dst_u || !dst_v || dst_width <= 0 ||
+      dst_height <= 0) {
     return -1;
   }
 
@@ -2446,8 +2436,8 @@ int I444Scale_12(const uint16_t* src_y,
   int r;
 
   if (!src_y || !src_u || !src_v || src_width <= 0 || src_height == 0 ||
-      src_width > 32768 || src_height > 32768 || !dst_y || !dst_u || !dst_v ||
-      dst_width <= 0 || dst_height <= 0) {
+      src_height == INT_MIN || !dst_y || !dst_u || !dst_v || dst_width <= 0 ||
+      dst_height <= 0) {
     return -1;
   }
 
@@ -2487,15 +2477,15 @@ int I422Scale(const uint8_t* src_y,
               int dst_width,
               int dst_height,
               enum FilterMode filtering) {
-  int src_halfwidth = SUBSAMPLE(src_width, 1, 1);
-  int dst_halfwidth = SUBSAMPLE(dst_width, 1, 1);
   int r;
 
   if (!src_y || !src_u || !src_v || src_width <= 0 || src_height == 0 ||
-      src_width > 32768 || src_height > 32768 || !dst_y || !dst_u || !dst_v ||
-      dst_width <= 0 || dst_height <= 0) {
+      src_height == INT_MIN || !dst_y || !dst_u || !dst_v || dst_width <= 0 ||
+      dst_height <= 0) {
     return -1;
   }
+  int src_halfwidth = SUBSAMPLE(src_width, 1, 1);
+  int dst_halfwidth = SUBSAMPLE(dst_width, 1, 1);
 
   r = ScalePlane(src_y, src_stride_y, src_width, src_height, dst_y,
                  dst_stride_y, dst_width, dst_height, filtering);
@@ -2530,15 +2520,15 @@ int I422Scale_16(const uint16_t* src_y,
                  int dst_width,
                  int dst_height,
                  enum FilterMode filtering) {
-  int src_halfwidth = SUBSAMPLE(src_width, 1, 1);
-  int dst_halfwidth = SUBSAMPLE(dst_width, 1, 1);
   int r;
 
   if (!src_y || !src_u || !src_v || src_width <= 0 || src_height == 0 ||
-      src_width > 32768 || src_height > 32768 || !dst_y || !dst_u || !dst_v ||
-      dst_width <= 0 || dst_height <= 0) {
+      src_height == INT_MIN || !dst_y || !dst_u || !dst_v || dst_width <= 0 ||
+      dst_height <= 0) {
     return -1;
   }
+  int src_halfwidth = SUBSAMPLE(src_width, 1, 1);
+  int dst_halfwidth = SUBSAMPLE(dst_width, 1, 1);
 
   r = ScalePlane_16(src_y, src_stride_y, src_width, src_height, dst_y,
                     dst_stride_y, dst_width, dst_height, filtering);
@@ -2573,15 +2563,15 @@ int I422Scale_12(const uint16_t* src_y,
                  int dst_width,
                  int dst_height,
                  enum FilterMode filtering) {
-  int src_halfwidth = SUBSAMPLE(src_width, 1, 1);
-  int dst_halfwidth = SUBSAMPLE(dst_width, 1, 1);
   int r;
 
   if (!src_y || !src_u || !src_v || src_width <= 0 || src_height == 0 ||
-      src_width > 32768 || src_height > 32768 || !dst_y || !dst_u || !dst_v ||
-      dst_width <= 0 || dst_height <= 0) {
+      src_height == INT_MIN || !dst_y || !dst_u || !dst_v || dst_width <= 0 ||
+      dst_height <= 0) {
     return -1;
   }
+  int src_halfwidth = SUBSAMPLE(src_width, 1, 1);
+  int dst_halfwidth = SUBSAMPLE(dst_width, 1, 1);
 
   r = ScalePlane_12(src_y, src_stride_y, src_width, src_height, dst_y,
                     dst_stride_y, dst_width, dst_height, filtering);
@@ -2615,17 +2605,17 @@ int NV12Scale(const uint8_t* src_y,
               int dst_width,
               int dst_height,
               enum FilterMode filtering) {
+  int r;
+
+  if (!src_y || !src_uv || src_width <= 0 || src_height == 0 ||
+      src_height == INT_MIN || !dst_y || !dst_uv || dst_width <= 0 ||
+      dst_height <= 0) {
+    return -1;
+  }
   int src_halfwidth = SUBSAMPLE(src_width, 1, 1);
   int src_halfheight = SUBSAMPLE(src_height, 1, 1);
   int dst_halfwidth = SUBSAMPLE(dst_width, 1, 1);
   int dst_halfheight = SUBSAMPLE(dst_height, 1, 1);
-  int r;
-
-  if (!src_y || !src_uv || src_width <= 0 || src_height == 0 ||
-      src_width > 32768 || src_height > 32768 || !dst_y || !dst_uv ||
-      dst_width <= 0 || dst_height <= 0) {
-    return -1;
-  }
 
   r = ScalePlane(src_y, src_stride_y, src_width, src_height, dst_y,
                  dst_stride_y, dst_width, dst_height, filtering);
@@ -2654,8 +2644,8 @@ int NV24Scale(const uint8_t* src_y,
   int r;
 
   if (!src_y || !src_uv || src_width <= 0 || src_height == 0 ||
-      src_width > 32768 || src_height > 32768 || !dst_y || !dst_uv ||
-      dst_width <= 0 || dst_height <= 0) {
+      src_height == INT_MIN || !dst_y || !dst_uv || dst_width <= 0 ||
+      dst_height <= 0) {
     return -1;
   }
 

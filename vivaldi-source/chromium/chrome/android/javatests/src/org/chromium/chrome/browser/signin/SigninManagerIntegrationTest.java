@@ -28,8 +28,8 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisableIf;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.DoNotBatch;
-import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileManager;
@@ -40,7 +40,6 @@ import org.chromium.chrome.test.util.browser.signin.SigninTestRule;
 import org.chromium.chrome.test.util.browser.signin.SigninTestUtil;
 import org.chromium.components.signin.AccountManagerFacade;
 import org.chromium.components.signin.AccountManagerFacadeProvider;
-import org.chromium.components.signin.SigninFeatures;
 import org.chromium.components.signin.base.AccountInfo;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.metrics.SigninAccessPoint;
@@ -199,6 +198,7 @@ public class SigninManagerIntegrationTest {
 
     @Test
     @MediumTest
+    @DisabledTest(message = "crbug.com/538021346")
     public void testUpdateAccountListTwoAccountsThenRemoveNonSignedInOne() {
         // Add accounts.
         mSigninTestRule.addAccountThenSignin(TestAccounts.ACCOUNT1);
@@ -310,7 +310,6 @@ public class SigninManagerIntegrationTest {
 
     @Test
     @MediumTest
-    @EnableFeatures(SigninFeatures.SIGNIN_MANAGER_SEEDING_FIX)
     public void testPrimaryAccountRemoval_signsOut() {
         mSigninTestRule.addAccount(TestAccounts.ACCOUNT1);
         SigninTestUtil.signin(TestAccounts.ACCOUNT1);

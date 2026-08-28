@@ -120,7 +120,7 @@ public class IncognitoReauthControllerImpl
 
                 @Override
                 public void onFinishedHiding(int layoutType) {
-                    if (layoutType == LayoutType.TAB_SWITCHER) {
+                    if (layoutType == LayoutType.HUB) {
                         hideDialogIfShowing(DialogDismissalCause.DIALOG_INTERACTION_DEFERRED);
                     }
                 }
@@ -252,8 +252,7 @@ public class IncognitoReauthControllerImpl
 
         TabModelUtils.runOnTabStateInitialized(
                 mTabModelSelector,
-                mCallbackController.makeCancelable(
-                        unusedTabModelSelector -> onTabStateInitializedForReauth()));
+                mCallbackController.makeCancelable(_ -> onTabStateInitializedForReauth()));
     }
 
     /**
@@ -392,8 +391,7 @@ public class IncognitoReauthControllerImpl
 
         boolean showFullScreen =
                 !mIsTabbedActivity
-                        || !assumeNonNull(mLayoutStateProvider)
-                                .isLayoutVisible(LayoutType.TAB_SWITCHER);
+                        || !assumeNonNull(mLayoutStateProvider).isLayoutVisible(LayoutType.HUB);
         if (!mIncognitoReauthCoordinatorFactory.areDependenciesReadyFor(showFullScreen)) {
             return;
         }

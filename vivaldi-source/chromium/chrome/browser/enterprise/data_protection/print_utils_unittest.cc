@@ -124,10 +124,10 @@ class PrintTestContentAnalysisDelegate : public ContentAnalysisDelegate {
   static std::unique_ptr<ContentAnalysisDelegate> Create(
       content::WebContents* contents,
       ContentAnalysisDelegate::Data data,
-      ContentAnalysisDelegate::CompletionCallback callback) {
+      ContentAnalysisDelegate::CompletionCallback callback,
+      enterprise_connectors::DeepScanAccessPoint access_point) {
     auto delegate = base::WrapUnique(new PrintTestContentAnalysisDelegate(
-        contents, std::move(data), std::move(callback),
-        enterprise_connectors::DeepScanAccessPoint::PRINT));
+        contents, std::move(data), std::move(callback), access_point));
     test_delegate_ = delegate.get();
     return delegate;
   }
@@ -181,7 +181,7 @@ class PrintContentAnalysisUtilsTest
 
   void SetUp() override {
     PrintPreviewTest::SetUp();
-    chrome::NewTab(browser());
+    chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
 
     SetDMTokenForTesting(policy::DMToken::CreateValidToken(kDmToken));
 

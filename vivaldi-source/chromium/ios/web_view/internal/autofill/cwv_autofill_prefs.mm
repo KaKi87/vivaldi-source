@@ -9,10 +9,10 @@
 #import "components/sync/service/sync_prefs.h"
 
 namespace ios_web_view {
-void RegisterCWVAutofillPrefs(user_prefs::PrefRegistrySyncable* pref_registry) {
+void RegisterCWVAutofillPrefs(PrefRegistrySimple* pref_registry) {
   pref_registry->RegisterBooleanPref(kCWVAutofillAddressSyncEnabled, false);
   pref_registry->RegisterBooleanPref(kCWVAutofillVCNUsageEnabled, false);
-  pref_registry->RegisterBooleanPref(kRiskBasedAuthenticationEnabled, false);
+  pref_registry->RegisterBooleanPref(kCWVAutofillSafeLifecycleEnabled, false);
 }
 
 bool IsAutofillAddressSyncEnabled(const PrefService* prefs) {
@@ -31,11 +31,12 @@ void SetAutofillVCNUsageEnabled(PrefService* prefs, bool enabled) {
   prefs->SetBoolean(kCWVAutofillVCNUsageEnabled, enabled);
 }
 
-bool IsRiskBasedAuthenticationEnabled(const PrefService* prefs) {
-  return prefs->GetBoolean(kRiskBasedAuthenticationEnabled);
+bool IsAutofillSafeLifecycleEnabled(const PrefService* prefs) {
+  return prefs->GetBoolean(kCWVAutofillSafeLifecycleEnabled);
 }
-void SetRiskBasedAuthenticationEnabled(PrefService* prefs, bool enabled) {
-  prefs->SetBoolean(kRiskBasedAuthenticationEnabled, enabled);
+
+void SetAutofillSafeLifecycleEnabled(PrefService* prefs, bool enabled) {
+  prefs->SetBoolean(kCWVAutofillSafeLifecycleEnabled, enabled);
 }
 
 }  // namespace ios_web_view

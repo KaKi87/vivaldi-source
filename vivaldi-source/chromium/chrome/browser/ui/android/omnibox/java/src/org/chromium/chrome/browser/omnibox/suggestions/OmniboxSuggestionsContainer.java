@@ -74,7 +74,7 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        boolean isTablet = mEmbedder != null && mEmbedder.isTablet();
+        boolean shouldWrapDropdownHeight = mEmbedder != null && !mEmbedder.isPhoneStyleWindow();
 
         try (TraceEvent tracing = TraceEvent.scoped("OmniboxSuggestionsList.Measure");
                 TimingMetric metric = OmniboxMetrics.recordSuggestionListMeasureTime();
@@ -87,17 +87,13 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
 
             widthMeasureSpec = MeasureSpec.makeMeasureSpec(desiredWidth, MeasureSpec.EXACTLY);
 
-            // Note(nagamani@vivaldi.com): Use MeasureSpec.AT_MOST when the address bar is at
-            // bottom to anchor the suggestion drop down to the bottom
-            int heightParam = mDropdown.shouldAnchorToBottom() ? MeasureSpec.AT_MOST : MeasureSpec.EXACTLY;
-
             heightMeasureSpec =
                     MeasureSpec.makeMeasureSpec(
                             availableViewportHeight,
-                            isTablet ? MeasureSpec.AT_MOST : heightParam /* Vivaldi */);
+                            shouldWrapDropdownHeight ? MeasureSpec.AT_MOST : MeasureSpec.EXACTLY);
             super.onMeasure(widthMeasureSpec, heightMeasureSpec);
             if (!BuildConfig.IS_VIVALDI) // Vivaldi VAB-12615
-            if (isTablet) {
+            if (shouldWrapDropdownHeight) {
                 setRoundingCorners(mShouldRoundTopCorners, shouldRoundBottomCorners());
             }
 
@@ -139,15 +135,6 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
     @Override
     @SuppressLint("ClickableViewAccessibility")
     public boolean onTouchEvent(MotionEvent event) {
-        // Propagate touch events, to make possible touch elements behind this container. Omnibox
-        // autofocus feature prevents the Scrim to be shown as a result tab content is covered by
-        // this transparent container.
-        boolean shouldPassThroughUnhandledTouchEvents =
-                mEmbedder != null && mEmbedder.shouldPassThroughUnhandledTouchEvents();
-        if (shouldPassThroughUnhandledTouchEvents) {
-            return false;
-        }
-
         // Swallow all touch events, especially if these were not consumed by the Dropdown.
         // This ensures that touching the blank areas of the container does not dismiss the
         // Omnibox.

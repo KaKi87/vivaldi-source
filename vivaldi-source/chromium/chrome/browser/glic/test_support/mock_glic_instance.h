@@ -11,6 +11,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "chrome/browser/glic/public/glic_instance.h"
+#include "chrome/browser/glic/public/glic_invoke_options.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "ui/gfx/geometry/size.h"
@@ -23,6 +24,7 @@ class MockGlicInstance : public GlicInstance {
   ~MockGlicInstance() override;
 
   MOCK_METHOD(bool, IsActive, (), (override));
+  MOCK_METHOD(bool, IsHibernated, (), (const, override));
   MOCK_METHOD(void,
               AddStateObserver,
               (PanelStateObserver * observer),
@@ -33,15 +35,12 @@ class MockGlicInstance : public GlicInstance {
               (override));
   MOCK_METHOD(mojom::PanelState, GetPanelState, (), (override));
   MOCK_METHOD(base::CallbackListSubscription,
-              RegisterStateChange,
-              (StateChangeCallback),
-              (override));
-  MOCK_METHOD(base::CallbackListSubscription,
               RegisterWillBeDestroyed,
               (DestructionCallback),
               (override));
   MOCK_METHOD(bool, IsShowing, (), (const, override));
   MOCK_METHOD(gfx::Size, GetPanelSize, (), (override));
+  MOCK_METHOD(Target, GetInvokeTarget, (Target::Surface), (override));
   MOCK_METHOD(const InstanceId&, id, (), (const, override));
   MOCK_METHOD(std::optional<std::string>,
               conversation_id,
@@ -54,16 +53,26 @@ class MockGlicInstance : public GlicInstance {
               GetTimeSinceLastPromptSubmission,
               (),
               (const, override));
+  MOCK_METHOD(std::optional<mojom::InvocationSource>,
+              GetInitialInvocationSource,
+              (),
+              (const, override));
   MOCK_METHOD(GlicActorTaskManager*, GetActorTaskManager, (), (override));
+  MOCK_METHOD(GlicExperimentalTriggeringManager*,
+              GetExperimentalTriggeringManager,
+              (),
+              (override));
   MOCK_METHOD(bool, IsActuating, (), (const, override));
   MOCK_METHOD(void, CancelTask, (), (override));
+  MOCK_METHOD(bool, IsInvoking, (), (const, override));
+  MOCK_METHOD(void, CancelInvoke, (), (override));
 
+  MOCK_METHOD(GlicSharingManager*, GetSharingManager, (), (override));
   MOCK_METHOD(void,
-              GetExperimentalTriggeringUpdates,
-              (mojo::PendingRemote<mojom::ExperimentalTriggeringUpdatesHandler>,
-               base::OnceCallback<void(bool)>),
+              UpdateSkillPreviews,
+              (std::optional<tabs::TabInterface*>),
               (override));
-  MOCK_METHOD(Host&, host, (), (override));
+
   MOCK_METHOD(void,
               SendAdditionalContext,
               (mojom::AdditionalContextPtr),

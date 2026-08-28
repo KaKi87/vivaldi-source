@@ -25,6 +25,7 @@
 #import "ios/web_view/internal/autofill/cwv_autofill_prefs.h"
 #import "ios/web_view/internal/autofill/cwv_password_affiliation.h"
 #import "ios/web_view/internal/cwv_preferences_internal.h"
+#import "ios/web_view/internal/passwords/web_view_password_manager_client.h"
 #import "testing/gtest/include/gtest/gtest.h"
 #import "testing/gtest_mac.h"
 #import "testing/platform_test.h"
@@ -60,9 +61,11 @@ class CWVPreferencesTest : public PlatformTest {
     pref_registry->RegisterBooleanPref(
         ios_web_view::kCWVPasswordAffiliationEnabled, false);
     pref_registry->RegisterBooleanPref(
-        ios_web_view::kCWVAutofillVCNUsageEnabled, false);
+        ios_web_view::kCWVAutofillSafeLifecycleEnabled, false);
     pref_registry->RegisterBooleanPref(
-        ios_web_view::kRiskBasedAuthenticationEnabled, false);
+        ios_web_view::kPasswordManagerSafeLifecycleEnabled, false);
+    pref_registry->RegisterBooleanPref(
+        ios_web_view::kCWVAutofillVCNUsageEnabled, false);
 
     base::FilePath temp_dir_path;
     EXPECT_TRUE(base::PathService::Get(base::DIR_TEMP, &temp_dir_path));
@@ -151,6 +154,26 @@ TEST_F(CWVPreferencesTest, PasswordAffiliationEnabled) {
   EXPECT_FALSE(preferences.passwordAffiliationEnabled);
   preferences.passwordAffiliationEnabled = YES;
   EXPECT_TRUE(preferences.passwordAffiliationEnabled);
+}
+
+// Tests CWVPreferences `autofillSafeLifecycleEnabled`.
+TEST_F(CWVPreferencesTest, AutofillSafeLifecycleEnabled) {
+  std::unique_ptr<PrefService> pref_service = CreateTestPrefService();
+  CWVPreferences* preferences =
+      [[CWVPreferences alloc] initWithPrefService:pref_service.get()];
+  EXPECT_FALSE(preferences.autofillSafeLifecycleEnabled);
+  preferences.autofillSafeLifecycleEnabled = YES;
+  EXPECT_TRUE(preferences.autofillSafeLifecycleEnabled);
+}
+
+// Tests CWVPreferences `passwordManagerSafeLifecycleEnabled`.
+TEST_F(CWVPreferencesTest, PasswordManagerSafeLifecycleEnabled) {
+  std::unique_ptr<PrefService> pref_service = CreateTestPrefService();
+  CWVPreferences* preferences =
+      [[CWVPreferences alloc] initWithPrefService:pref_service.get()];
+  EXPECT_FALSE(preferences.passwordManagerSafeLifecycleEnabled);
+  preferences.passwordManagerSafeLifecycleEnabled = YES;
+  EXPECT_TRUE(preferences.passwordManagerSafeLifecycleEnabled);
 }
 
 // Tests safe browsing setting.

@@ -39,7 +39,6 @@
 <translation id="1601560923496285236">Pas toe</translation>
 <translation id="1603914832182249871">(Privaat)</translation>
 <translation id="1627276047960621195">Lêerbeskrywers</translation>
-<translation id="1654713139320245449">Geen uitsaaibestemmings gevind nie. Het u hulp nodig?</translation>
 <translation id="166278006618318542">Voorwerp se publieke sleutelalgoritme</translation>
 <translation id="1682548588986054654">Nuwe Privaat Venster</translation>
 <translation id="1708338024780164500">(Onaktief)</translation>
@@ -60,7 +59,6 @@
 <translation id="1906488504371069394">Ontdek meer uitbreidings en tema’s in die <ph name="BEGIN_LINK" />Chrome Webwinkel<ph name="END_LINK" /></translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">Voer gepasmaakte webadres in</translation>
-<translation id="1932098463447129402">Nie daarvoor</translation>
 <translation id="1936157145127842922">Toon in Vouer</translation>
 <translation id="1936931585862840749">Gebruik ’n syfer om aan te dui hoeveel kopieë gedruk moet word (1 tot <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">&amp;Open Oudio in Nuwe Oortjie</translation>
@@ -102,7 +100,6 @@
 <translation id="253557089021624350">Keepalive-telling</translation>
 <translation id="2550212893339833758">Wisselgeheue</translation>
 <translation id="2553440850688409052">Versteek Hierdie Inprop</translation>
-<translation id="2607101320794533334">Voorwerp se publieke sleutelinligting</translation>
 <translation id="261305050785128654">Laat webwerwe weet watter tale u praat. Hulle sal, waar moontlik, inhoud in daardie tale toon.</translation>
 <translation id="26224892172169984">Laat geen werf toe om protokolle te hanteer nie</translation>
 <translation id="2653275834716714682">Teksvervanging</translation>
@@ -112,7 +109,6 @@
 <translation id="2719936478972253983">Die volgende webkoekies is versper</translation>
 <translation id="2721037002783622288">&amp;Deursoek <ph name="SEARCH_ENGINE" /> vir beeld</translation>
 <translation id="2722547199758472013">ID: <ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">Nie daarna</translation>
 <translation id="2749881179542288782">Gaan grammatika saam met spelling na</translation>
 <translation id="2785873697295365461">Lêerbeskrywers</translation>
 <translation id="2825758591930162672">Voorwerp se publieke sleutel</translation>
@@ -163,7 +159,6 @@
 <translation id="3387614642886316601">Gebruik gevorderde speltoets</translation>
 <translation id="3390013585654699824">Toepdetails</translation>
 <translation id="345693547134384690">Open &amp;beeld in nuwe oortjie</translation>
-<translation id="3493881266323043047">Geldigheid</translation>
 <translation id="3511307672085573050">Kopieer Skakeladr&amp;es</translation>
 <translation id="354068948465830244">Dit kan werfdata lees en verander</translation>
 <translation id="3555812735919707620">Verwyder uitbreiding</translation>
@@ -179,7 +174,6 @@
 <translation id="3760460896538743390">Inspekteer &amp;Agtergrondblad</translation>
 <translation id="3786224729726357296">Skrap werfdata en toestemmings vir <ph name="SITE" /></translation>
 <translation id="3797900183766075808">&amp;Deursoek <ph name="SEARCH_ENGINE" /> vir “<ph name="SEARCH_TERMS" />”</translation>
-<translation id="3798449238516105146">Weergawe</translation>
 <translation id="3810973564298564668">Bestuur</translation>
 <translation id="3838085852053358637">Kon nie uitbreiding laai nie</translation>
 <translation id="383891835335927981">Geen werwe is in- of uitgezoem nie</translation>
@@ -266,12 +260,10 @@
 <translation id="5063480226653192405">Gebruik</translation>
 <translation id="5116628073786783676">Be&amp;Waar Oudio As…</translation>
 <translation id="5154108062446123722">Gevorderde instellings vir <ph name="PRINTING_DESTINATION" /></translation>
-<translation id="5154702632169343078">Onderwerp</translation>
 <translation id="5170568018924773124">Toon in vouer</translation>
 <translation id="5171343362375269016">Wisselgeheue</translation>
 <translation id="5233231016133573565">Proses-ID</translation>
 <translation id="5233736638227740678">&amp;Plak</translation>
-<translation id="5244466461749935369">Behou voorlopig</translation>
 <translation id="5256861893479663409">Op Alle Werwe</translation>
 <translation id="5260334392110301220">Slim aanhalingstekens</translation>
 <translation id="5269977353971873915">Afdruk Het Misluk</translation>
@@ -310,7 +302,6 @@
 <translation id="5780973441651030252">Prosesprioriteit</translation>
 <translation id="5804241973901381774">Toestemmings</translation>
 <translation id="5828633471261496623">Druk tans af…</translation>
-<translation id="5851868085455377790">Uitreiker</translation>
 <translation id="5860491529813859533">Aktiveer</translation>
 <translation id="5910363049092958439">Be&amp;waar Beeld As…</translation>
 <translation id="5914724413750400082">Modulus (<ph name="MODULUS_NUM_BITS" /> bisse):
@@ -383,6 +374,7 @@
 <translation id="7144856456372460176">&amp;Installeer <ph name="APP" />…</translation>
 <translation id="7175353351958621980">Gelaai vanaf:</translation>
 <translation id="7186088072322679094">Hou in Nutsbalk</translation>
+<translation id="7234025455364623479">U kan bewaarde wagwoorde op enige toestel gebruik. Dit word in die <ph name="VIVALDI_PASSWORD_MANAGER" /> vir <ph name="EMAIL" /> bewaar.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Gaan spelling na terwyl u tik</translation>
 <translation id="7359680654975233185">Kan nie oortjie send nie</translation>
@@ -458,7 +450,6 @@ Bewaar u sleutellêer op ’n veilige plek. U benodig dit om nuwe weergawes van 
 <translation id="862750493060684461">CSS-kasgeheue</translation>
 <translation id="8661290697478713397">Open Skakel in Inco&amp;gnito-venster</translation>
 <translation id="8664389313780386848">&amp;Bekyk bladsybron</translation>
-<translation id="8705331520020532516">Reeksnommer</translation>
 <translation id="8708000541097332489">Wis by verlaat</translation>
 <translation id="8714838604780058252">Agtergrondgrafika</translation>
 <translation id="8725066075913043281">Probeer Weer</translation>

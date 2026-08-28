@@ -84,9 +84,6 @@ import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.base.test.util.ScalableTimeout;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.enterprise.util.EnterpriseInfo;
-import org.chromium.chrome.browser.enterprise.util.EnterpriseInfo.OwnedState;
-import org.chromium.chrome.browser.enterprise.util.FakeEnterpriseInfo;
 import org.chromium.chrome.browser.firstrun.FirstRunPageDelegate;
 import org.chromium.chrome.browser.firstrun.FirstRunUtils;
 import org.chromium.chrome.browser.firstrun.FirstRunUtilsJni;
@@ -111,6 +108,9 @@ import org.chromium.chrome.test.util.ActivityTestUtils;
 import org.chromium.chrome.test.util.browser.signin.SigninTestRule;
 import org.chromium.chrome.test.util.browser.signin.SigninTestUtil;
 import org.chromium.components.externalauth.ExternalAuthUtils;
+import org.chromium.components.policy.EnterpriseInfo;
+import org.chromium.components.policy.EnterpriseInfo.OwnedState;
+import org.chromium.components.policy.test.FakeEnterpriseInfo;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.signin.SigninFeatures;
 import org.chromium.components.signin.base.AccountInfo;
@@ -1557,7 +1557,8 @@ public class SigninFirstRunFragmentTest {
                         mock(Drawable.class),
                         accountInfo.getFullName(),
                         accountInfo.getGivenName(),
-                        true);
+                        /* hasDisplayableEmailAddress= */ true,
+                        /* hasAiTierRing= */ false);
         onScrollToView(allOf(withId(R.id.title), withText(R.string.signin_fre_title)))
                 .check(matches(isDisplayed()));
         if (shouldShowSubtitle) {
@@ -1659,7 +1660,8 @@ public class SigninFirstRunFragmentTest {
                         mock(Drawable.class),
                         accountInfo.getFullName(),
                         accountInfo.getGivenName(),
-                        accountInfo.canHaveEmailAddressDisplayed());
+                        accountInfo.canHaveEmailAddressDisplayed(),
+                        /* hasAiTierRing= */ false);
         final String expectedTitle =
                 mActivityTestRule
                         .getActivity()

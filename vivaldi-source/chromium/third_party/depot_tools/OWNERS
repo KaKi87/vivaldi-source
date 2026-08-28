@@ -2,13 +2,18 @@ set noparent
 
 gavinmak@google.com
 yiwzhang@google.com
-bryner@google.com
 
 # Allow teams to self-manage who belongs to them.
 per-file BUILD_OWNERS=file://BUILD_OWNERS
 per-file CROS_OWNERS=file://CROS_OWNERS
 per-file LUCI_OWNERS=file://LUCI_OWNERS
 per-file RECLIENT_OWNERS=file://RECLIENT_OWNERS
+
+# Simple files that are safe to give expanded access to.
+# go/keep-sorted start
+per-file .git-blame-ignore-revs=*
+per-file .gitignore=*
+# go/keep-sorted end
 
 # Ninja
 per-file autoninja*=file://BUILD_OWNERS
@@ -35,10 +40,10 @@ per-file build_telemetry*=file://BUILD_OWNERS
 # Build util
 per-file caffeinate.py=file://BUILD_OWNERS
 
+per-file black*=vapier@chromium.org
 per-file pylint*=vapier@chromium.org
 
 # ChromeOS related tooling
-per-file cbuildbot=file://CROS_OWNERS
 per-file cros=file://CROS_OWNERS
 per-file *cros_python2*=file://CROS_OWNERS
 per-file cros_sdk=file://CROS_OWNERS
@@ -55,3 +60,17 @@ per-file cit*=file://LUCI_OWNERS
 per-file led*=file://LUCI_OWNERS
 per-file luci*=file://LUCI_OWNERS
 per-file vpython*=file://LUCI_OWNERS
+
+# CoW Workspaces
+per-file setup_btrfs_loop.sh=kiehl@google.com
+per-file setup_btrfs_loop.sh=nbilling@google.com
+
+# Crowbar CLI
+per-file crowbar*=file://SECURITY_TEAM_OWNERS
+
+# Ruff formatter
+per-file ruff*=ovsienko@google.com
+per-file .ruff.toml=ovsienko@google.com
+
+# Temp ownership of git cl while it get modified to work with ruff
+per-file git_cl.py=ovsienko@google.com

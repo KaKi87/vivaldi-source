@@ -33,6 +33,7 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.ApplicationTestUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.MinAndroidSdkLevel;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.content.WebContentsFactory;
@@ -51,6 +52,7 @@ import org.chromium.url.Origin;
 @RunWith(ChromeJUnit4ClassRunner.class)
 @Batch(Batch.PER_CLASS)
 @MinAndroidSdkLevel(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+@DisabledTest(message = "crbug.com/537505547")
 public class DocumentPictureInPictureActivityTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -277,6 +279,13 @@ public class DocumentPictureInPictureActivityTest {
                 dataUrl,
                 () -> {
                     ChromeTabUtils.loadUrlOnUiThread(mTab, dataUrl);
+                });
+
+        // Re-establish the native PiP session with the parent WebContents at its new URL.
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    DocumentPictureInPictureActivity.onActivityStartForTesting(
+                            mParentWebContents, mWebContents);
                 });
 
         // Launch the PiP activity. Its verifyOpenerOrigin() will check the origin of

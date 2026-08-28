@@ -23,9 +23,8 @@ const CGFloat kPadding = 9.0;
   return self;
 }
 
-- (void)configureCell:(LegacyTableViewCell*)tableCell
-           withStyler:(ChromeTableViewStyler*)styler {
-  [super configureCell:tableCell withStyler:styler];
+- (void)configureCell:(LegacyTableViewCell*)tableCell {
+  [super configureCell:tableCell];
   VivaldiTableViewSegmentedControlCell* cell =
       base::apple::ObjCCastStrict<VivaldiTableViewSegmentedControlCell>(
           tableCell);

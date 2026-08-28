@@ -191,6 +191,7 @@ DownloadTargetDeterminer::DownloadTargetDeterminer(
       danger_type_(download->GetDangerType()),
       danger_level_(DownloadFileType::NOT_DANGEROUS),
       virtual_path_(initial_virtual_path),
+      containment_directory_(download_prefs->DownloadPath()),
       is_filetype_handled_safely_(false),
 #if BUILDFLAG(IS_ANDROID)
       is_checking_dialog_confirmed_path_(false),
@@ -318,6 +319,7 @@ DownloadTargetDeterminer::Result
     conflict_action_ = DownloadPathReservationTracker::OVERWRITE;
     RecordDownloadPathGeneration(
         DownloadPathGenerationEvent::USE_EXISTING_VIRTUAL_PATH, false);
+    containment_directory_ = virtual_path_.DirName();
   } else if (!is_forced_path) {
     // If we don't have a forced path, we should construct a path for the
     // download. Forced paths are only specified for programmatic downloads
@@ -342,6 +344,7 @@ DownloadTargetDeterminer::Result
     }
     should_notify_extensions_ = true;
     virtual_path_ = target_directory.Append(generated_filename);
+    containment_directory_ = target_directory;
     DCHECK(virtual_path_.IsAbsolute());
 
     // Added by Vivaldi. VB-110404
@@ -364,6 +367,7 @@ DownloadTargetDeterminer::Result
     // supplied to a programmatic download is invalid, then the caller needs to
     // intervene.
     DCHECK(virtual_path_.IsAbsolute());
+    containment_directory_ = virtual_path_.DirName();
   }
   DVLOG(20) << "Generated virtual path: " << virtual_path_.AsUTF8Unsafe();
 
@@ -512,6 +516,7 @@ void DownloadTargetDeterminer::NotifyExtensionsDone(
 
     virtual_path_ = new_path;
     create_target_directory_ = true;
+    containment_directory_ = download_prefs_->DownloadPath();
   }
   // An extension may set conflictAction without setting filename.
   if (conflict_action != DownloadPathReservationTracker::UNIQUIFY)
@@ -531,6 +536,7 @@ DownloadTargetDeterminer::Result
 
   delegate_->ReserveVirtualPath(
       download_, virtual_path_, create_target_directory_, conflict_action_,
+      containment_directory_,
       base::BindOnce(&DownloadTargetDeterminer::ReserveVirtualPathDone,
                      weak_ptr_factory_.GetWeakPtr()));
   return QUIT_DOLOOP;
@@ -700,9 +706,11 @@ DownloadTargetDeterminer::DoRequestConfirmation() {
           Profile::FromBrowserContext(browser_context)->IsOffTheRecord();
       if (isOffTheRecord && (!download_->IsTransient() ||
                              !download_->AllowAutoOpenAfterCompletion())) {
-        delegate_->RequestIncognitoWarningConfirmation(base::BindOnce(
-            &DownloadTargetDeterminer::RequestIncognitoWarningConfirmationDone,
-            weak_ptr_factory_.GetWeakPtr()));
+        delegate_->RequestIncognitoWarningConfirmation(
+            content::DownloadItemUtils::GetWebContents(download_),
+            base::BindOnce(&DownloadTargetDeterminer::
+                               RequestIncognitoWarningConfirmationDone,
+                           weak_ptr_factory_.GetWeakPtr()));
         return QUIT_DOLOOP;
       }
 #endif
@@ -1211,7 +1219,7 @@ DownloadConfirmationReason DownloadTargetDeterminer::NeedsConfirmation(
   // For everything else, prompting is controlled by the PromptForDownload pref.
   // The user may still be prompted even if this pref is disabled due to, for
   // example, there being an unresolvable filename conflict or the target path
-  // is not writeable, or if the path is blocked by DLP.
+  // is not writable, or if the path is blocked by DLP.
   if (download_prefs_->PromptForDownload()) {
     return DownloadConfirmationReason::PREFERENCE;
   } else {

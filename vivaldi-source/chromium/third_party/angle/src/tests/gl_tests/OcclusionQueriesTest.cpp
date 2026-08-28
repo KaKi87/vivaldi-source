@@ -4,10 +4,7 @@
 // found in the LICENSE file.
 //
 
-#ifdef UNSAFE_BUFFERS_BUILD
-#    pragma allow_unsafe_buffers
-#endif
-
+#include "common/unsafe_buffers.h"
 #include "test_utils/ANGLETest.h"
 #include "test_utils/gl_raii.h"
 #include "util/EGLWindow.h"
@@ -401,13 +398,13 @@ TEST_P(OcclusionQueriesTest, FramebufferBindingChange)
 
     for (size_t index = 0; index < 2; ++index)
     {
-        glBindTexture(GL_TEXTURE_2D, color[index]);
+        glBindTexture(GL_TEXTURE_2D, ANGLE_UNSAFE_TODO(color[index]));
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kSize, kSize, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                      nullptr);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo[index]);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color[index],
-                               0);
+        glBindFramebuffer(GL_FRAMEBUFFER, ANGLE_UNSAFE_TODO(fbo[index]));
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                               ANGLE_UNSAFE_TODO(color[index]), 0);
 
         glClearColor(0, index, 1 - index, 1);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -425,7 +422,7 @@ TEST_P(OcclusionQueriesTest, FramebufferBindingChange)
 
     for (size_t index = 0; index < 2; ++index)
     {
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo[index]);
+        glBindFramebuffer(GL_FRAMEBUFFER, ANGLE_UNSAFE_TODO(fbo[index]));
         drawQuad(mProgram, essl1_shaders::PositionAttrib(), 0.5f);
     }
 
@@ -573,9 +570,6 @@ TEST_P(OcclusionQueriesTest, MultiQueries)
 
     // http://anglebug.com/42263499
     ANGLE_SKIP_TEST_IF(IsOpenGL() || IsD3D11());
-
-    // TODO(anglebug.com/40096747): Failing on ARM-based Apple DTKs.
-    ANGLE_SKIP_TEST_IF(IsMac() && IsARM64() && IsDesktopOpenGL());
 
     GLQueryEXT query[5];
 
@@ -870,8 +864,9 @@ TEST_P(OcclusionQueriesTest, MultiContext)
         {
             eglMakeCurrent(display, surface, surface, context.context);
 
-            float depth = context.visiblePasses[pass] ? mRNG.randomFloatBetween(0.0f, 0.4f)
-                                                      : mRNG.randomFloatBetween(0.6f, 1.0f);
+            float depth = ANGLE_UNSAFE_TODO(context.visiblePasses[pass])
+                              ? mRNG.randomFloatBetween(0.0f, 0.4f)
+                              : mRNG.randomFloatBetween(0.6f, 1.0f);
             drawQuad(context.program, essl1_shaders::PositionAttrib(), depth);
 
             EXPECT_GL_NO_ERROR();
@@ -1247,6 +1242,78 @@ TEST_P(OcclusionQueriesTestES3, QueryReuseWithMultipleFBOs)
 
     GLuint result = GL_FALSE;
     glGetQueryObjectuiv(query, GL_QUERY_RESULT, &result);
+    EXPECT_GL_TRUE(result);
+}
+
+// Test that deleting an FBO while a query result on that FBO is pending does not crash the driver
+// when calling glGetQueryObjectuiv.
+TEST_P(OcclusionQueriesTestES3, DeleteFBOWithPendingQuery)
+{
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Red());
+
+    GLTexture texture;
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 64, 64, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+
+    glViewport(0, 0, 64, 64);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    GLQueryEXT query;
+    glBeginQuery(GL_ANY_SAMPLES_PASSED, query);
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    glEndQuery(GL_ANY_SAMPLES_PASSED);
+
+    // Delete the FBO on which the query was executed, while result is still pending
+    fbo.reset();
+
+    // Retrieve query result - flushes pending jobs referencing the deleted FBO
+    GLuint result = GL_FALSE;
+    glGetQueryObjectuiv(query, GL_QUERY_RESULT, &result);
+    EXPECT_GL_NO_ERROR();
+    EXPECT_GL_TRUE(result);
+}
+
+// Test that unbinding an FBO while a query result on that FBO is pending does not crash the driver
+// when calling glGetQueryObjectuiv.
+TEST_P(OcclusionQueriesTestES3, UnbindFBOWithPendingQuery)
+{
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Red());
+
+    GLTexture texture;
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 64, 64, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+
+    glViewport(0, 0, 64, 64);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    GLQueryEXT query;
+    glBeginQuery(GL_ANY_SAMPLES_PASSED, query);
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+    glEndQuery(GL_ANY_SAMPLES_PASSED);
+
+    // Unbind user FBO by switching back to default framebuffer (0)
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // FORCE the driver to commit the unbind and end the previous render pass.
+    // Because drivers often optimize glClear, issuing geometry (drawQuad)
+    // strictly guarantees a new render pass is initiated in the hardware.
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+
+    // Retrieve query result
+    GLuint result = GL_FALSE;
+    glGetQueryObjectuiv(query, GL_QUERY_RESULT, &result);
+    EXPECT_GL_NO_ERROR();
     EXPECT_GL_TRUE(result);
 }
 

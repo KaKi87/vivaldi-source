@@ -15,7 +15,6 @@
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/views/controls/button/md_text_button.h"
-#include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/box_layout_view.h"
 #include "ui/views/layout/table_layout.h"
 #include "ui/views/style/typography.h"
@@ -41,7 +40,7 @@ ManageSavedIbanBubbleView::ManageSavedIbanBubbleView(
               },
               base::Unretained(this)),
           l10n_util::GetStringUTF16(IDS_AUTOFILL_MANAGE_SAVED_PAYMENT_METHODS)))
-      ->SetID(autofill::DialogViewId::MANAGE_IBANS_BUTTON);
+      ->SetID(DialogViewId::MANAGE_IBANS_BUTTON);
   SetShowCloseButton(true);
   set_fixed_width(views::LayoutProvider::Get()->GetDistanceMetric(
       views::DISTANCE_BUBBLE_PREFERRED_WIDTH));

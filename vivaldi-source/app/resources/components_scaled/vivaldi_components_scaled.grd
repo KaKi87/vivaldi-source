@@ -14,6 +14,15 @@
       <if expr="vivaldi_release_sopranos">
         <structure type="chrome_scaled_image" name="IDR_PRODUCT_LOGO" file="vivaldi_sopranos/product_icon_128.png" />
       </if>
+      <if expr="vivaldi_release_final">
+        <structure type="chrome_scaled_image" name="IDR_PRODUCT_FAVICON" file="vivaldi_final/favicon_product.png" />
+      </if>
+      <if expr="vivaldi_release_snapshot">
+        <structure type="chrome_scaled_image" name="IDR_PRODUCT_FAVICON" file="vivaldi_snapshot/favicon_product.png" />
+      </if>
+      <if expr="vivaldi_release_sopranos">
+        <structure type="chrome_scaled_image" name="IDR_PRODUCT_FAVICON" file="vivaldi_sopranos/favicon_product.png" />
+      </if>
       <structure type="chrome_scaled_image" name="IDR_SAD_WEBVIEW" file="vivaldi/webview-crash.png" />
     </structures>
   </release>

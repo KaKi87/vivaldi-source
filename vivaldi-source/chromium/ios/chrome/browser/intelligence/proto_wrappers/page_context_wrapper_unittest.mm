@@ -18,6 +18,7 @@
 #import "base/strings/strcat.h"
 #import "base/strings/string_number_conversions.h"
 #import "base/strings/string_split.h"
+#import "base/strings/string_util.h"
 #import "base/strings/stringprintf.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/strings/utf_string_conversions.h"
@@ -53,6 +54,7 @@
 #import "components/optimization_guide/core/optimization_guide_features.h"
 #import "components/optimization_guide/proto/features/common_quality_data.pb.h"
 #import "components/prefs/testing_pref_service.h"
+#import "components/safe_browsing/ios/browser/safe_browsing_url_allow_list.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/intelligence/proto_wrappers/page_context_extractor_java_script_feature.h"
 #import "ios/chrome/browser/intelligence/proto_wrappers/page_context_utils.h"
@@ -188,11 +190,13 @@ class TestAutofillManager : public autofill::TestBrowserAutofillManager {
     return forms_seen_waiter_.Wait(min_num_awaited_calls);
   }
 
-  void OnFormsSeen(std::vector<autofill::FormData> updated_forms,
-                   std::vector<autofill::FormGlobalId> removed_forms) override {
+  void OnFormsSeen(
+      std::vector<autofill::FormData> updated_forms,
+      std::vector<autofill::FormGlobalId> removed_forms,
+      autofill::AutofillManager::RendererEventPassKey pass_key) override {
     base::Extend(seen_forms_, updated_forms);
-    autofill::BrowserAutofillManager::OnFormsSeen(std::move(updated_forms),
-                                                  std::move(removed_forms));
+    autofill::BrowserAutofillManager::OnFormsSeen(
+        std::move(updated_forms), std::move(removed_forms), pass_key);
   }
 
   const std::vector<autofill::FormData>& seen_forms() { return seen_forms_; }
@@ -739,6 +743,223 @@ TEST_P(PageContextWrapperTest, PopulatePageContextWithAnchors) {
             "foo");
 }
 
+// Tests that ARIA-based custom form controls are correctly extracted.
+TEST_P(PageContextWrapperTest, PopulatePageContextWithAriaCustomFormControls) {
+  if (!IsRefactored()) {
+    GTEST_SKIP()
+        << "Rich Extraction not supported for the non-refactored APC wrapper";
+  }
+
+  auto page_structure = HtmlPage(
+      "",
+      RawHtml(
+          "<div id=\"ctrl1\" role=\"checkbox\" aria-checked=\"true\" "
+          "aria-required=\"true\" aria-placeholder=\"Check me\" "
+          "style=\"display:block;width:10px;height:10px;\">Checkbox</div>"
+          "<span id=\"ctrl2\" role=\"textbox\" aria-placeholder=\"Enter text\" "
+          "aria-readonly=\"true\" "
+          "style=\"display:block;width:10px;height:10px;\">Textbox</span>"
+          "<div id=\"ctrl3\" role=\"switch\" aria-checked=\"false\" "
+          "style=\"display:block;width:10px;height:10px;\">Switch</div>"
+          "<div id=\"ctrl4\" role=\"radio\" aria-checked=\"mixed\" "
+          "style=\"display:block;width:10px;height:10px;\">Radio</div>"
+          "<div id=\"ctrl5\" role=\"searchbox\" aria-placeholder=\"Search...\" "
+          "style=\"display:block;width:10px;height:10px;\">Searchbox</div>"
+          "<div id=\"ctrl6\" role=\"combobox\" aria-placeholder=\"Select...\" "
+          "style=\"display:block;width:10px;height:10px;\">Combobox</div>"
+          "<div id=\"ctrl7\" role=\"menuitemcheckbox\" aria-required=\"true\" "
+          "aria-checked=\"true\" "
+          "style=\"display:block;width:10px;height:10px;\">Menuitemcheckbox</"
+          "div>"
+          "<div id=\"ctrl8\" role=\"menuitemradio\" aria-required=\"true\" "
+          "aria-checked=\"true\" "
+          "style=\"display:block;width:10px;height:10px;\">Menuitemradio</div>"
+          "<div id=\"ctrl9\" role=\"checkbox\" aria-checked=\"undefined\" "
+          "style=\"display:block;width:10px;height:10px;\">Checkbox "
+          "Undefined</div>"
+          "<div id=\"ctrl10\" role=\"checkbox\" aria-required=\"TRUE\" "
+          "aria-checked=\"TRUE\" "
+          "style=\"display:block;width:10px;height:10px;\">Checkbox Case</div>"
+          "<span id=\"ctrl11\" role=\"textbox\" aria-readonly=\"TRUE\" "
+          "style=\"display:block;width:10px;height:10px;\">Textbox "
+          "Case</span>"));
+  std::string main_html = page_helper_->Build(page_structure);
+
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder().SetUseRichExtraction(true).Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+
+  ASSERT_TRUE(response.has_value());
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+
+  ASSERT_TRUE(page_context);
+  ASSERT_TRUE(page_context->has_annotated_page_content());
+
+  const auto& annotated_page_content = page_context->annotated_page_content();
+  const auto& root_node = annotated_page_content.root_node();
+
+  std::vector<optimization_guide::proto::ContentNode> form_controls;
+  for (const auto& child : root_node.children_nodes()) {
+    if (child.content_attributes().attribute_type() ==
+        optimization_guide::proto::CONTENT_ATTRIBUTE_FORM_CONTROL) {
+      form_controls.push_back(child);
+    }
+  }
+
+  ASSERT_EQ(form_controls.size(), 11u);
+
+  // 1. checkbox
+  // <div id="ctrl1" role="checkbox" aria-checked="true" aria-required="true"
+  // aria-placeholder="Check me" ...>
+  {
+    const auto& ctrl = form_controls[0];
+    const auto& data = ctrl.content_attributes().form_control_data();
+    EXPECT_EQ(data.form_control_type(),
+              optimization_guide::proto::FORM_CONTROL_TYPE_INPUT_CHECKBOX);
+    EXPECT_TRUE(data.is_checked());
+    EXPECT_TRUE(data.is_required());
+    EXPECT_FALSE(data.is_readonly());
+    EXPECT_FALSE(data.has_placeholder());
+  }
+
+  // 2. textbox
+  // <span id="ctrl2" role="textbox" aria-placeholder="Enter text"
+  // aria-readonly="true" ...>
+  {
+    const auto& ctrl = form_controls[1];
+    const auto& data = ctrl.content_attributes().form_control_data();
+    EXPECT_EQ(data.form_control_type(),
+              optimization_guide::proto::FORM_CONTROL_TYPE_INPUT_TEXT);
+    EXPECT_FALSE(data.is_checked());
+    EXPECT_FALSE(data.is_required());
+    EXPECT_TRUE(data.is_readonly());
+    EXPECT_EQ(data.placeholder(), "Enter text");
+  }
+
+  // 3. switch
+  // <div id="ctrl3" role="switch" aria-checked="false" ...>
+  {
+    const auto& ctrl = form_controls[2];
+    const auto& data = ctrl.content_attributes().form_control_data();
+    EXPECT_EQ(data.form_control_type(),
+              optimization_guide::proto::FORM_CONTROL_TYPE_INPUT_CHECKBOX);
+    EXPECT_FALSE(data.is_checked());
+    EXPECT_FALSE(data.is_required());
+    EXPECT_FALSE(data.is_readonly());
+    EXPECT_FALSE(data.has_placeholder());
+  }
+
+  // 4. radio (aria-checked="mixed")
+  // <div id="ctrl4" role="radio" aria-checked="mixed" ...>
+  {
+    const auto& ctrl = form_controls[3];
+    const auto& data = ctrl.content_attributes().form_control_data();
+    EXPECT_EQ(data.form_control_type(),
+              optimization_guide::proto::FORM_CONTROL_TYPE_INPUT_RADIO);
+    EXPECT_TRUE(data.is_checked());
+    EXPECT_FALSE(data.is_required());
+    EXPECT_FALSE(data.is_readonly());
+    EXPECT_FALSE(data.has_placeholder());
+  }
+
+  // 5. searchbox
+  // <div id="ctrl5" role="searchbox" aria-placeholder="Search..." ...>
+  {
+    const auto& ctrl = form_controls[4];
+    const auto& data = ctrl.content_attributes().form_control_data();
+    EXPECT_EQ(data.form_control_type(),
+              optimization_guide::proto::FORM_CONTROL_TYPE_INPUT_SEARCH);
+    EXPECT_FALSE(data.is_checked());
+    EXPECT_FALSE(data.is_required());
+    EXPECT_FALSE(data.is_readonly());
+    EXPECT_EQ(data.placeholder(), "Search...");
+  }
+
+  // 6. combobox
+  // <div id="ctrl6" role="combobox" aria-placeholder="Select..." ...>
+  {
+    const auto& ctrl = form_controls[5];
+    const auto& data = ctrl.content_attributes().form_control_data();
+    EXPECT_EQ(data.form_control_type(),
+              optimization_guide::proto::FORM_CONTROL_TYPE_INPUT_TEXT);
+    EXPECT_FALSE(data.is_checked());
+    EXPECT_FALSE(data.is_required());
+    EXPECT_FALSE(data.is_readonly());
+    EXPECT_EQ(data.placeholder(), "Select...");
+  }
+
+  // 7. menuitemcheckbox (aria-required not supported)
+  // <div id="ctrl7" role="menuitemcheckbox" aria-required="true"
+  // aria-checked="true" ...>
+  {
+    const auto& ctrl = form_controls[6];
+    const auto& data = ctrl.content_attributes().form_control_data();
+    EXPECT_EQ(data.form_control_type(),
+              optimization_guide::proto::FORM_CONTROL_TYPE_INPUT_CHECKBOX);
+    EXPECT_TRUE(data.is_checked());
+    EXPECT_FALSE(data.is_required());
+    EXPECT_FALSE(data.is_readonly());
+  }
+
+  // 8. menuitemradio (aria-required not supported)
+  // <div id="ctrl8" role="menuitemradio" aria-required="true"
+  // aria-checked="true" ...>
+  {
+    const auto& ctrl = form_controls[7];
+    const auto& data = ctrl.content_attributes().form_control_data();
+    EXPECT_EQ(data.form_control_type(),
+              optimization_guide::proto::FORM_CONTROL_TYPE_INPUT_RADIO);
+    EXPECT_TRUE(data.is_checked());
+    EXPECT_FALSE(data.is_required());
+    EXPECT_FALSE(data.is_readonly());
+  }
+
+  // 9. checkbox (aria-checked="undefined" evaluates to false)
+  // <div id="ctrl9" role="checkbox" aria-checked="undefined" ...>
+  {
+    const auto& ctrl = form_controls[8];
+    const auto& data = ctrl.content_attributes().form_control_data();
+    EXPECT_EQ(data.form_control_type(),
+              optimization_guide::proto::FORM_CONTROL_TYPE_INPUT_CHECKBOX);
+    EXPECT_FALSE(data.is_checked());
+    EXPECT_FALSE(data.is_required());
+    EXPECT_FALSE(data.is_readonly());
+  }
+
+  // 10. checkbox (case normalization: aria-required="TRUE",
+  // aria-checked="TRUE") <div id="ctrl10" role="checkbox" aria-required="TRUE"
+  // aria-checked="TRUE" ...>
+  {
+    const auto& ctrl = form_controls[9];
+    const auto& data = ctrl.content_attributes().form_control_data();
+    EXPECT_EQ(data.form_control_type(),
+              optimization_guide::proto::FORM_CONTROL_TYPE_INPUT_CHECKBOX);
+    EXPECT_TRUE(data.is_checked());
+    EXPECT_TRUE(data.is_required());
+    EXPECT_FALSE(data.is_readonly());
+  }
+
+  // 11. textbox (case normalization: aria-readonly="TRUE")
+  // <span id="ctrl11" role="textbox" aria-readonly="TRUE" ...>
+  {
+    const auto& ctrl = form_controls[10];
+    const auto& data = ctrl.content_attributes().form_control_data();
+    EXPECT_EQ(data.form_control_type(),
+              optimization_guide::proto::FORM_CONTROL_TYPE_INPUT_TEXT);
+    EXPECT_FALSE(data.is_checked());
+    EXPECT_FALSE(data.is_required());
+    EXPECT_TRUE(data.is_readonly());
+  }
+}
+
 // Tests that the wrapper records a screenshot failures.
 TEST_P(PageContextWrapperTest, PopulatePageContext_SnapshotFailure) {
   base::HistogramTester histogram_tester;
@@ -912,11 +1133,46 @@ TEST_P(PageContextWrapperTest, PopulatePageContext_NotExtractable) {
             PageContextWrapperError::kPageNotExtractableError);
 }
 
+// Tests that the wrapper correctly blocks extraction on unsafe pages when
+// `block_unsafe_pages` is enabled in config.
+TEST_P(PageContextWrapperTest, PopulatePageContext_UnsafePageBlocked) {
+  page_helper_->StartAllServers();
+  GURL dangerous_url = test_server_.GetURL("/dangerous.html");
+  web::test::LoadHtml(@"<html><body>Safe content</body></html>", dangerous_url,
+                      web_state());
+
+  SafeBrowsingUrlAllowList::CreateForWebState(web_state());
+  SafeBrowsingUrlAllowList::FromWebState(web_state())
+      ->AddPendingUnsafeNavigationDecision(
+          dangerous_url,
+          safe_browsing::SBThreatType::SB_THREAT_TYPE_URL_MALWARE);
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder()
+          .SetUseRefactoredExtractor(IsRefactored())
+          .Build();
+
+  base::test::TestFuture<PageContextWrapperCallbackResponse> future;
+  PageContextWrapper* wrapper =
+      [[PageContextWrapper alloc] initWithWebState:web_state()
+                                            config:config
+                                completionCallback:future.GetCallback()];
+  [wrapper setShouldGetAnnotatedPageContent:YES];
+  [wrapper populatePageContextFieldsAsync];
+
+  PageContextWrapperCallbackResponse captured_response = future.Take();
+
+  // Verify that the callback was called with a kPageUnsafeError error.
+  ASSERT_FALSE(captured_response.has_value());
+  EXPECT_EQ(captured_response.error(),
+            PageContextWrapperError::kPageUnsafeError);
+}
+
 // Tests that the wrapper correctly handles an unextractable page due to MIME
-// type (PDF).
-TEST_P(PageContextWrapperTest, PopulatePageContext_NotExtractable_PDF) {
-  fake_web_state()->SetVisibleURL(GURL("https://example.com/file.pdf"));
-  fake_web_state()->SetContentsMimeType("application/pdf");
+// type (zip).
+TEST_P(PageContextWrapperTest, PopulatePageContext_NotExtractable_Zip) {
+  fake_web_state()->SetVisibleURL(GURL("https://example.com/file.zip"));
+  fake_web_state()->SetContentsMimeType("application/zip");
 
   PageContextWrapperCallbackResponse captured_response =
       RunPageContextWrapper(fake_web_state(), ^(PageContextWrapper* wrapper) {
@@ -2029,7 +2285,8 @@ TEST_P(PageContextWrapperTest, PopulatePageContext_RichExtraction) {
           "    <a href='https://example.com' style='display: block;' "
           "       rel=\"noopener noreferrer\">Link</a>"
           "    <div style='width: 200px; height: 200px;'></div>"
-          "</div>"),
+          "</div>"
+          "<canvas width='10' height='10'></canvas>"),
       Iframe(TestOrigin::kCrossA,
              HtmlPage("Child Cross Origin",
                       Paragraph("Child frame cross-origin text")),
@@ -2086,7 +2343,7 @@ TEST_P(PageContextWrapperTest, PopulatePageContext_RichExtraction) {
   EXPECT_TRUE(root.content_attributes().has_common_ancestor_dom_node_id());
   EXPECT_EQ(root.content_attributes().common_ancestor_dom_node_id(), 1);
 
-  ASSERT_EQ(root.children_nodes_size(), 3);
+  ASSERT_EQ(root.children_nodes_size(), 4);
 
   // Verify root node content.
 
@@ -2194,11 +2451,11 @@ TEST_P(PageContextWrapperTest, PopulatePageContext_RichExtraction) {
   //   |   | Iframe (Cross-Origin)    |
   //   |   |   - P ("Child ...")      |
   //   |   +--------------------------+
-  const auto& iframe = root.children_nodes(1);
+  const auto& iframe = root.children_nodes(2);
   EXPECT_EQ(iframe.content_attributes().attribute_type(),
             optimization_guide::proto::CONTENT_ATTRIBUTE_IFRAME);
   EXPECT_TRUE(iframe.content_attributes().has_common_ancestor_dom_node_id());
-  EXPECT_EQ(iframe.content_attributes().common_ancestor_dom_node_id(), 8);
+  EXPECT_EQ(iframe.content_attributes().common_ancestor_dom_node_id(), 9);
   EXPECT_EQ(iframe.content_attributes().iframe_data().frame_data().url(),
             page_helper_->GetUrlForId("iframe_cross").spec());
   EXPECT_EQ(iframe.content_attributes().iframe_data().frame_data().title(),
@@ -2253,13 +2510,14 @@ TEST_P(PageContextWrapperTest, PopulatePageContext_RichExtraction) {
   //   |   | Iframe (Same-Origin)     |
   //   |   |   - P ("Child frame 3")  |
   //   |   +--------------------------+
-  const auto& same_origin_iframe = root.children_nodes(2);
+  const auto& same_origin_iframe = root.children_nodes(3);
   EXPECT_EQ(same_origin_iframe.content_attributes().attribute_type(),
             optimization_guide::proto::CONTENT_ATTRIBUTE_IFRAME);
   EXPECT_TRUE(same_origin_iframe.content_attributes()
                   .has_common_ancestor_dom_node_id());
   EXPECT_EQ(
-      same_origin_iframe.content_attributes().common_ancestor_dom_node_id(), 9);
+      same_origin_iframe.content_attributes().common_ancestor_dom_node_id(),
+      10);
   EXPECT_EQ(same_origin_iframe.content_attributes()
                 .iframe_data()
                 .frame_data()
@@ -2323,6 +2581,13 @@ TEST_P(PageContextWrapperTest, PopulatePageContext_RichExtraction) {
   EXPECT_EQ(
       same_origin_iframe_text.content_attributes().text_data().text_content(),
       "Child frame 3 text");
+
+  // ---------------------------------------------------------
+  // Section 4: Canvas
+  // ---------------------------------------------------------
+  const auto& canvas_node = root.children_nodes(1);
+  EXPECT_EQ(canvas_node.content_attributes().attribute_type(),
+            optimization_guide::proto::CONTENT_ATTRIBUTE_CANVAS);
 }
 
 // Tests that all the nested iframes on different origins are put under their
@@ -5412,7 +5677,8 @@ TEST_P(PageContextWrapperTest,
               "<div style='width: 50px; height: 50px; overflow: hidden;' "
               "id='hidden'>"
               "  <div style='width: 100px; height: 100px;'>Content</div>"
-              "</div>"));
+              "</div>"
+              "<canvas width='10' height='10'></canvas>"));
 
   std::string main_html = page_helper_->Build(page_structure);
   web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
@@ -6632,6 +6898,67 @@ TEST_P(PageContextWrapperTest,
             "Accept 2");
 }
 
+// Tests that the extraction pipeline prunes SVG metadata and layout tags
+// completely.
+TEST_P(PageContextWrapperTest,
+       PopulatePageContext_RichExtraction_PruningSvgMetadataNodes) {
+  if (!IsRefactored()) {
+    return;
+  }
+
+  auto page_structure =
+      HtmlPage("SVG Pruning Check", Paragraph("Accept 1"),
+               RawHtml("<svg>"
+                       "  <metadata>metadata content</metadata>"
+                       "  <defs>defs content</defs>"
+                       "  <symbol>symbol content</symbol>"
+                       "  <mask>mask content</mask>"
+                       "  <clipPath>clipPath content</clipPath>"
+                       "  <pattern>pattern content</pattern>"
+                       "</svg>"),
+               Paragraph("Accept 2"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder()
+          .SetUseRichExtraction(true)
+          .SetUseRefactoredExtractor(IsRefactored())
+          .Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+
+  ASSERT_TRUE(response.has_value());
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+
+  ASSERT_TRUE(page_context);
+  ASSERT_TRUE(page_context->has_annotated_page_content());
+
+  const auto& actual_apc = page_context->annotated_page_content();
+  const auto& root = actual_apc.root_node();
+
+  ASSERT_EQ(root.children_nodes_size(), 3);
+  EXPECT_EQ(root.children_nodes(0)
+                .children_nodes(0)
+                .content_attributes()
+                .text_data()
+                .text_content(),
+            "Accept 1");
+  EXPECT_EQ(root.children_nodes(1).children_nodes_size(), 0);
+  EXPECT_EQ(root.children_nodes(2)
+                .children_nodes(0)
+                .content_attributes()
+                .text_data()
+                .text_content(),
+            "Accept 2");
+}
+
 // Tests that the focused frame on cross origin is correctly identified and its
 // token is populated in the PageInteractionInfo.
 TEST_P(PageContextWrapperTest,
@@ -7166,6 +7493,322 @@ TEST_P(PageContextWrapperTest,
       checkbox_input.content_attributes().geometry().has_outer_bounding_box());
   EXPECT_FALSE(
       password_input.content_attributes().geometry().has_outer_bounding_box());
+}
+
+// Tests that the version and mode fields are correctly populated in the
+// AnnotatedPageContent proto based on the configured extraction mode.
+TEST_P(PageContextWrapperTest, PopulatePageContext_ApcVersionAndMode) {
+  if (!IsRefactored()) {
+    return;
+  }
+
+  auto page_structure = HtmlPage("Title", RawHtml("<div><p>Text</p></div>"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  auto verify_version_and_mode =
+      [&](bool use_rich, bool use_actionable,
+          optimization_guide::proto::AnnotatedPageContentVersion
+              expected_version,
+          optimization_guide::proto::AnnotatedPageContentMode expected_mode) {
+        PageContextWrapperConfig config =
+            PageContextWrapperConfigBuilder()
+                .SetUseRichExtraction(use_rich)
+                .SetUseRichExtractionWithActionable(use_actionable)
+                .Build();
+
+        PageContextWrapperCallbackResponse response =
+            RunPageContextWrapperWithConfig(
+                web_state(), config, ^(PageContextWrapper* wrapper) {
+                  wrapper.shouldGetAnnotatedPageContent = YES;
+                });
+
+        ASSERT_TRUE(response.has_value());
+        const auto& page_context = *response.value();
+        const auto& actual_apc = page_context.annotated_page_content();
+
+        EXPECT_EQ(actual_apc.version(), expected_version)
+            << "Failed for use_rich: " << use_rich
+            << ", use_actionable: " << use_actionable;
+        EXPECT_EQ(actual_apc.mode(), expected_mode)
+            << "Failed for use_rich: " << use_rich
+            << ", use_actionable: " << use_actionable;
+      };
+
+  // Rich Extraction and Actionable Mode Enabled
+  verify_version_and_mode(
+      /*use_rich=*/true, /*use_actionable=*/true,
+      optimization_guide::proto::ANNOTATED_PAGE_CONTENT_VERSION_1_0,
+      optimization_guide::proto::
+          ANNOTATED_PAGE_CONTENT_MODE_ACTIONABLE_ELEMENTS);
+
+  // Rich Extraction Enabled, Actionable Mode Disabled
+  verify_version_and_mode(
+      /*use_rich=*/true, /*use_actionable=*/false,
+      optimization_guide::proto::ANNOTATED_PAGE_CONTENT_VERSION_1_0,
+      optimization_guide::proto::ANNOTATED_PAGE_CONTENT_MODE_DEFAULT);
+
+  // Rich Extraction Disabled
+  verify_version_and_mode(
+      /*use_rich=*/false, /*use_actionable=*/false,
+      optimization_guide::proto::ANNOTATED_PAGE_CONTENT_VERSION_1_0,
+      optimization_guide::proto::ANNOTATED_PAGE_CONTENT_MODE_DEFAULT);
+}
+
+// Tests that when `include_same_site_only` is enabled.
+// 1. Same-site cross-origin subdomain iframes are extracted and grafted.
+// 2. Cross-site iframes are not extracted.
+// 3. Unresolved cross-site iframe placeholders are redacted in APCv2.
+TEST_P(PageContextWrapperTest, ExtractPageContext_SameSiteOnly) {
+  auto page_structure = HtmlPage(
+      "Main", Paragraph("Main frame text"),
+      Iframe(TestOrigin::kCrossA,
+             HtmlPage("Subdomain", Paragraph("Subdomain iframe text")),
+             "subdomain_frame"),
+      Iframe(TestOrigin::kCrossB,
+             HtmlPage("CrossSite", Paragraph("Cross-site iframe text")),
+             "cross_site_frame"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+
+  // Get the registered URLs for the subframes.
+  GURL subdomain_url = page_helper_->GetUrlForId("subdomain_frame");
+  GURL cross_site_url = page_helper_->GetUrlForId("cross_site_frame");
+
+  // Subdomain remains on 127.0.0.1 (same-site), while the cross-site iframe
+  // is resolved to "localhost" (cross-site).
+  GURL resolved_subdomain_url = subdomain_url;
+  GURL resolved_cross_site_url =
+      xorigin_test_server_b_.GetURL("localhost", cross_site_url.path());
+
+  // Replace the cross-site iframe URL in the main HTML.
+  base::ReplaceSubstringsAfterOffset(&main_html, 0, cross_site_url.spec(),
+                                     resolved_cross_site_url.spec());
+
+  // Load the main page using the standard 127.0.0.1 test server URL.
+  GURL main_url = test_server_.GetURL(kMainPagePath);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html), main_url,
+                      web_state());
+
+  PageContextWrapperConfigBuilder config_builder;
+  config_builder.SetGraftCrossOriginFrameContent(true);
+  config_builder.SetIncludeSameSiteOnly(true);
+
+  if (IsRefactored()) {
+    config_builder.SetUseRichExtraction(true);
+  }
+
+  PageContextWrapperConfig config = config_builder.Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        if (IsRefactored()) {
+          wrapper.shouldGetAnnotatedPageContent = YES;
+        } else {
+          wrapper.shouldGetInnerText = YES;
+          wrapper.shouldGetAnnotatedPageContent = YES;
+        }
+      });
+
+  ASSERT_TRUE(response.has_value());
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+
+  ASSERT_TRUE(page_context);
+  EXPECT_EQ(page_context->url(), main_url.spec());
+
+  if (IsRefactored()) {
+    const auto& annotated_page_content = page_context->annotated_page_content();
+    const auto& root_node = annotated_page_content.root_node();
+
+    // Root node should have:
+    // 1. Text node for main frame
+    // 2. Subdomain iframe node
+    // 3. Redacted iframe node for cross-site
+    ASSERT_EQ(root_node.children_nodes_size(), 3);
+
+    const optimization_guide::proto::ContentNode* subdomain_node =
+        &root_node.children_nodes(1);
+    const optimization_guide::proto::ContentNode* cross_site_node =
+        &root_node.children_nodes(2);
+
+    // Verify Subdomain (same-site) iframe.
+    // - It should have iframe_data with frame_data containing its URL.
+    // - It should NOT have redacted_frame_metadata.
+    // - It should have a child root node containing its extracted text.
+    EXPECT_EQ(subdomain_node->content_attributes().attribute_type(),
+              optimization_guide::proto::CONTENT_ATTRIBUTE_IFRAME);
+    EXPECT_TRUE(
+        subdomain_node->content_attributes().iframe_data().has_frame_data());
+    EXPECT_EQ(
+        subdomain_node->content_attributes().iframe_data().frame_data().url(),
+        resolved_subdomain_url.spec());
+    EXPECT_FALSE(subdomain_node->content_attributes()
+                     .iframe_data()
+                     .has_redacted_frame_metadata());
+
+    // Verify nested text content at the correct nesting level (no loss in dom
+    // structure).
+    ASSERT_EQ(subdomain_node->children_nodes_size(),
+              1);  // root PAGE node of subframe
+    const auto& subframe_page = subdomain_node->children_nodes(0);
+    ASSERT_EQ(subframe_page.children_nodes_size(), 1);  // PARAGRAPH node
+    const auto& subframe_paragraph = subframe_page.children_nodes(0);
+    ASSERT_EQ(subframe_paragraph.children_nodes_size(), 1);  // TEXT node
+    EXPECT_EQ(subframe_paragraph.children_nodes(0)
+                  .content_attributes()
+                  .text_data()
+                  .text_content(),
+              "Subdomain iframe text");
+
+    // Verify Cross-site iframe.
+    // - It should NOT have frame_data (it's cleared by redaction).
+    // - It should have redacted_frame_metadata with reason REASON_CROSS_SITE.
+    // - It should NOT have any children nodes.
+    EXPECT_EQ(cross_site_node->content_attributes().attribute_type(),
+              optimization_guide::proto::CONTENT_ATTRIBUTE_IFRAME);
+    EXPECT_FALSE(
+        cross_site_node->content_attributes().iframe_data().has_frame_data());
+    EXPECT_TRUE(cross_site_node->content_attributes()
+                    .iframe_data()
+                    .has_redacted_frame_metadata());
+    EXPECT_EQ(cross_site_node->content_attributes()
+                  .iframe_data()
+                  .redacted_frame_metadata()
+                  .reason(),
+              optimization_guide::proto::
+                  IframeData_RedactedFrameMetadata_Reason_REASON_CROSS_SITE);
+    EXPECT_EQ(cross_site_node->children_nodes_size(), 0);
+
+  } else {
+    const auto& inner_text = page_context->inner_text();
+    EXPECT_THAT(inner_text, testing::HasSubstr("Main frame text"));
+    // Subdomain (same-site) text SHOULD be extracted.
+    EXPECT_THAT(inner_text, testing::HasSubstr("Subdomain iframe text"));
+    // Cross-site text SHOULD NOT be extracted.
+    EXPECT_THAT(inner_text,
+                testing::Not(testing::HasSubstr("Cross-site iframe text")));
+
+    // Legacy APC tree should only have.
+    // 1. Text node for main frame
+    // 2. Text node for subdomain
+    const auto& annotated_page_content = page_context->annotated_page_content();
+    const auto& root_node = annotated_page_content.root_node();
+    ASSERT_EQ(root_node.children_nodes_size(), 2);
+  }
+}
+
+// Tests that when `include_same_site_only` is disabled.
+// 1. Same-site cross-origin subdomain iframes are extracted and grafted.
+// 2. Cross-site iframes are ALSO extracted and grafted (not skipped/redacted).
+TEST_P(PageContextWrapperTest, ExtractPageContext_SameSiteOnlyDisabled) {
+  auto page_structure = HtmlPage(
+      "Main", Paragraph("Main frame text"),
+      Iframe(TestOrigin::kCrossA,
+             HtmlPage("Subdomain", Paragraph("Subdomain iframe text")),
+             "subdomain_frame"),
+      Iframe(TestOrigin::kCrossB,
+             HtmlPage("CrossSite", Paragraph("Cross-site iframe text")),
+             "cross_site_frame"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+
+  GURL subdomain_url = page_helper_->GetUrlForId("subdomain_frame");
+  GURL cross_site_url = page_helper_->GetUrlForId("cross_site_frame");
+
+  GURL resolved_subdomain_url = subdomain_url;
+  GURL resolved_cross_site_url =
+      xorigin_test_server_b_.GetURL("localhost", cross_site_url.path());
+
+  base::ReplaceSubstringsAfterOffset(&main_html, 0, cross_site_url.spec(),
+                                     resolved_cross_site_url.spec());
+
+  GURL main_url = test_server_.GetURL(kMainPagePath);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html), main_url,
+                      web_state());
+
+  PageContextWrapperConfigBuilder config_builder;
+  config_builder.SetGraftCrossOriginFrameContent(true);
+  config_builder.SetIncludeSameSiteOnly(false);
+
+  if (IsRefactored()) {
+    config_builder.SetUseRichExtraction(true);
+  }
+
+  PageContextWrapperConfig config = config_builder.Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        if (IsRefactored()) {
+          wrapper.shouldGetAnnotatedPageContent = YES;
+        } else {
+          wrapper.shouldGetInnerText = YES;
+          wrapper.shouldGetAnnotatedPageContent = YES;
+        }
+      });
+
+  ASSERT_TRUE(response.has_value());
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+
+  ASSERT_TRUE(page_context);
+
+  if (IsRefactored()) {
+    const auto& annotated_page_content = page_context->annotated_page_content();
+    const auto& root_node = annotated_page_content.root_node();
+
+    // Both subframes should be successfully extracted/grafted.
+    ASSERT_EQ(root_node.children_nodes_size(), 3);
+
+    const optimization_guide::proto::ContentNode* subdomain_node =
+        &root_node.children_nodes(1);
+    const optimization_guide::proto::ContentNode* cross_site_node =
+        &root_node.children_nodes(2);
+
+    // Verify Subdomain is grafted.
+    EXPECT_TRUE(
+        subdomain_node->content_attributes().iframe_data().has_frame_data());
+    EXPECT_FALSE(subdomain_node->content_attributes()
+                     .iframe_data()
+                     .has_redacted_frame_metadata());
+
+    // Verify Cross-site is ALSO grafted.
+    EXPECT_TRUE(
+        cross_site_node->content_attributes().iframe_data().has_frame_data());
+    EXPECT_FALSE(cross_site_node->content_attributes()
+                     .iframe_data()
+                     .has_redacted_frame_metadata());
+    EXPECT_EQ(
+        cross_site_node->content_attributes().iframe_data().frame_data().url(),
+        resolved_cross_site_url.spec());
+
+    // Verify cross-site nested text is extracted.
+    ASSERT_EQ(cross_site_node->children_nodes_size(), 1);
+    const auto& cross_site_page = cross_site_node->children_nodes(0);
+    ASSERT_EQ(cross_site_page.children_nodes_size(), 1);
+    const auto& cross_site_paragraph = cross_site_page.children_nodes(0);
+    ASSERT_EQ(cross_site_paragraph.children_nodes_size(), 1);
+    EXPECT_EQ(cross_site_paragraph.children_nodes(0)
+                  .content_attributes()
+                  .text_data()
+                  .text_content(),
+              "Cross-site iframe text");
+
+  } else {
+    const auto& inner_text = page_context->inner_text();
+    EXPECT_THAT(inner_text, testing::HasSubstr("Main frame text"));
+    EXPECT_THAT(inner_text, testing::HasSubstr("Subdomain iframe text"));
+    // Cross-site text SHOULD also be extracted when same-site gating is
+    // disabled.
+    EXPECT_THAT(inner_text, testing::HasSubstr("Cross-site iframe text"));
+
+    const auto& annotated_page_content = page_context->annotated_page_content();
+    const auto& root_node = annotated_page_content.root_node();
+
+    ASSERT_EQ(root_node.children_nodes_size(), 3);
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(,

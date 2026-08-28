@@ -21,7 +21,6 @@ class VivaldiImportKeychainKeyProvider
   // os_crypt_async::KeyProvider interface.
   void GetKey(KeyCallback callback) override;
   bool UseForEncryption() override;
-  bool IsCompatibleWithOsCryptSync() override;
 
   user_data_importer::ImporterType importer_type_;
 };

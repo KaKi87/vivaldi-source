@@ -336,6 +336,18 @@ class UtilitiesGetUrlFragmentsFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
+class UtilitiesCalculateFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("utilities.calculate", UTILITIES_CALCULATE)
+  UtilitiesCalculateFunction() = default;
+
+ private:
+  ~UtilitiesCalculateFunction() override = default;
+
+  // ExtensionFunction:
+  ResponseAction Run() override;
+};
+
 // This is implemented in VivaldiUtilitiesHookDelegate and only here to satisfy
 // various JS bindings constrains.
 class UtilitiesUrlToThumbnailTextFunction : public ExtensionFunction {

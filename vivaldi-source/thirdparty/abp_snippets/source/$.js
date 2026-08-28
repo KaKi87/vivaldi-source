@@ -14,7 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 /* global chrome, browser, globalThis */
 
 import env from "./utils/env.js";
@@ -95,7 +94,6 @@ const upgrade = (value, hint) => {
   throw new Error("unknown brand " + brand);
 };
 
-/* eslint valid-jsdoc: 0 */
 /** @type {<T>(t:T)=>t} Any value that can be upgraded or wrapped */
 export default isExtensionContext ?
   value => (value === window || value === globalThis ? env : value) :

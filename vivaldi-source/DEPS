@@ -1,7 +1,7 @@
 # DO NOT EDIT EXCEPT FOR LOCAL TESTING.
 
 vars = {
-  "upstream_commit_id": "I9acdb083c1eb4a478baf95b96d29faf6378df1f2",
+  "upstream_commit_id": "Ia6de93b76dc562d4c785ef03e196d4b4f4dd7fe5",
 
   # The path of the sysroots.json file.
   # This is used by vendor builds like Electron.

@@ -16,11 +16,13 @@ import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.accessibility.settings.ChromeAccessibilitySettingsDelegate;
-import org.chromium.chrome.browser.autofill.options.AutofillOptionsCoordinator;
-import org.chromium.chrome.browser.autofill.options.AutofillOptionsFragment;
+import org.chromium.chrome.browser.autofill.settings.AutofillAndPasswordsFragment;
 import org.chromium.chrome.browser.autofill.settings.AutofillCreditCardEditor;
 import org.chromium.chrome.browser.autofill.settings.AutofillLocalIbanEditor;
-import org.chromium.chrome.browser.autofill.settings.HomeOfTransactionsFragment;
+import org.chromium.chrome.browser.autofill.settings.options.AutofillOptionsCoordinator;
+import org.chromium.chrome.browser.autofill.settings.options.AutofillOptionsFragment;
+import org.chromium.chrome.browser.autofill.settings.personal_context.AutofillPersonalContextCoordinator;
+import org.chromium.chrome.browser.autofill.settings.personal_context.AutofillPersonalContextFragment;
 import org.chromium.chrome.browser.device_lock.DeviceLockActivityLauncherImpl;
 import org.chromium.chrome.browser.image_descriptions.ImageDescriptionsController;
 import org.chromium.chrome.browser.image_descriptions.ImageDescriptionsSettings;
@@ -219,6 +221,10 @@ public class FragmentDependencyProvider extends FragmentManager.FragmentLifecycl
                     mModalDialogManagerSupplier,
                     () -> ApplicationLifetime.terminate(true));
         }
+        if (fragment instanceof AutofillPersonalContextFragment) {
+            AutofillPersonalContextCoordinator.createFor(
+                    (AutofillPersonalContextFragment) fragment, mActivity, mProfile);
+        }
         if (fragment instanceof AutofillCreditCardEditor) {
             ((AutofillCreditCardEditor) fragment)
                     .setModalDialogManagerSupplier(mModalDialogManagerSupplier);
@@ -259,8 +265,8 @@ public class FragmentDependencyProvider extends FragmentManager.FragmentLifecycl
         if (fragment instanceof SafetyHubBaseFragment) {
             ((SafetyHubBaseFragment) fragment).setSnackbarManagerSupplier(mSnackbarManagerSupplier);
         }
-        if (fragment instanceof HomeOfTransactionsFragment) {
-            ((HomeOfTransactionsFragment) fragment)
+        if (fragment instanceof AutofillAndPasswordsFragment) {
+            ((AutofillAndPasswordsFragment) fragment)
                     .setDependencies(
                             mModalDialogManagerSupplier,
                             mWindowAndroidSupplier,

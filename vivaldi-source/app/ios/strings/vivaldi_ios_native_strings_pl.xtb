@@ -221,6 +221,7 @@ reklama</translation>
 <translation id="3638687955382971136">Powiększenie tekstu</translation>
 <translation id="3646647753063635401">Synchronizuj wszystkie dane i automatycznie włączaj synchronizację nowych typów danych</translation>
 <translation id="3682791711395736890">Wyświetl wersję strony na komputery</translation>
+<translation id="3685766651529450469">Kopiuj wyczyszczony link</translation>
 <translation id="3689125468279190285">Wyświetlaj przycisk startowy</translation>
 <translation id="3694122362646626770">Strony internetowe</translation>
 <translation id="3699026013955941879">Kod wygasł. Poproś o nowy kod aktywacyjny.</translation>
@@ -553,7 +554,7 @@ Otwórz ustawienia, aby to naprawić.</translation>
 <translation id="7451784507428459503">Filmy z YouTube nie odtwarzają się lub występują problemy</translation>
 <translation id="7454640759045234067">Zablokowanych trackerów</translation>
 <translation id="7461899062138731833">ŹRÓDŁA</translation>
-<translation id="7468954955637197279">Widok dodatków klawiatury</translation>
+<translation id="7468954955637197279">Widok sugestii klawiatury</translation>
 <translation id="7473891865547856676">Nie, dziękuję</translation>
 <translation id="749277285729135008">Aktywuj pasek adresu na nowej karcie</translation>
 <translation id="7504733216949066481">Tłumaczenie nie powiodło się!</translation>
@@ -595,7 +596,7 @@ Otwórz ustawienia, aby to naprawić.</translation>
 <translation id="7925340978147141704">Pokaż hasło</translation>
 <translation id="7930665886069596866">Funkcja nie działa prawidłowo</translation>
 <translation id="7931102520806266819">Otwórz w trybie prywatnym</translation>
-<translation id="7932430723325928206">Wyświetla sugestie automatycznego wypełniania na górze klawiatury</translation>
+<translation id="7932430723325928206">Pokazuje sugestie autouzupełniania nad klawiaturą</translation>
 <translation id="7961270736686975887">Zamień kolejność</translation>
 <translation id="7967161908152532036">Adres strony internetowej</translation>
 <translation id="7979036127916589816">Błąd synchronizacji</translation>
@@ -707,7 +708,7 @@ reklam</translation>
 <translation id="9195802773917252923">Włącz skróty zakładek</translation>
 <translation id="9212737146310746733">Perska (<ph name="ORIGIN" />)</translation>
 <translation id="9218693288527810093">Blokuj trackery</translation>
-<translation id="9222340187757024053">Pokazuj widok dodatków klawiatury</translation>
+<translation id="9222340187757024053">Pokazuj pasek sugestii klawiatury</translation>
 <translation id="924053859552461110">Dostosuj stronę startową</translation>
 <translation id="925891113183098411">Mam problem z synchronizacją danych między urządzeniami</translation>
 <translation id="932327136139879170">Strona główna</translation>

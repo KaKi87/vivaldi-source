@@ -7,15 +7,10 @@ package org.chromium.chrome.browser.omnibox;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import android.content.Context;
-import android.content.res.Configuration;
-import android.content.res.Resources;
 import android.graphics.Color;
 import android.view.View;
 
@@ -23,44 +18,39 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
+import org.chromium.base.ContextUtils;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.chrome.R;
 import org.chromium.chrome.browser.browser_controls.BottomControlsStacker;
 import org.chromium.chrome.browser.browser_controls.BottomControlsStacker.LayerType;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.components.browser_ui.widget.scrim.ScrimManager;
 import org.chromium.components.browser_ui.widget.scrim.ScrimProperties;
+import org.chromium.components.omnibox.OmniboxCapabilities;
 import org.chromium.components.omnibox.OmniboxFeatureList;
-import org.chromium.ui.modelutil.PropertyModel;
 
-/** Unit tests for LocationBarFocusScrimHandler. */
+/** Unit tests for {@link LocationBarFocusScrimHandler}. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 public class LocationBarFocusScrimHandlerUnitTest {
     private static final int BOTTOM_CHIN_HEIGHT = 37;
+
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+
     @Mock private View mScrimTarget;
     @Mock private Runnable mClickDelegate;
     @Mock private LocationBarDataProvider mLocationBarDataProvider;
-    @Mock private Context mContext;
-    @Mock private Resources mResources;
-    @Mock private Configuration mConfiguration;
     @Mock private ScrimManager mScrimManager;
-    @Mock private NewTabPageDelegate mNewTabPageDelegate;
     @Mock private BottomControlsStacker mBottomControlsStacker;
-    @Captor private ArgumentCaptor<PropertyModel> mScrimModelCaptor;
 
     LocationBarFocusScrimHandler mScrimHandler;
+
     private final SettableNonNullObservableSupplier<Integer> mTabStripHeightSupplier =
             ObservableSuppliers.createNonNull(0);
 
@@ -71,13 +61,11 @@ public class LocationBarFocusScrimHandlerUnitTest {
                 .when(mBottomControlsStacker)
                 .getHeightFromLayerToBottom(LayerType.BOTTOM_CHIN);
 
-        doReturn(mResources).when(mContext).getResources();
-        doReturn(mConfiguration).when(mResources).getConfiguration();
         mScrimHandler =
                 new LocationBarFocusScrimHandler(
                         mScrimManager,
                         (visible) -> {},
-                        mContext,
+                        ContextUtils.getApplicationContext(),
                         mLocationBarDataProvider,
                         mClickDelegate,
                         mScrimTarget,
@@ -99,20 +87,8 @@ public class LocationBarFocusScrimHandlerUnitTest {
     }
 
     @Test
-    @EnableFeatures(ChromeFeatureList.OMNIBOX_AUTOFOCUS_ON_INCOGNITO_NTP)
-    public void testUpdateScrimVisualState_omniboxAutofocusOnIncognitoNtp() {
-        doReturn(mNewTabPageDelegate).when(mLocationBarDataProvider).getNewTabPageDelegate();
-        doReturn(true).when(mNewTabPageDelegate).isIncognitoNewTabPageCurrentlyVisible();
-        mScrimHandler.updateScrimVisualState();
-
-        // updateScrimVisualState should not show the scrim, it only updates the model.
-        verify(mScrimManager, never()).showScrim(any());
-    }
-
-    @Test
     public void testTabStripHeightChangeCallback() {
         int newHeight = 10;
-        doReturn(newHeight).when(mResources).getDimensionPixelSize(R.dimen.tab_strip_height);
         mTabStripHeightSupplier.set(newHeight);
         assertEquals(
                 "Scrim top margin should be updated when tab strip height changes.",
@@ -127,10 +103,10 @@ public class LocationBarFocusScrimHandlerUnitTest {
         mScrimHandler.updateScrimVisualState();
         assertEquals(
                 Color.TRANSPARENT,
-                (int)
-                        mScrimHandler
-                                .getScrimModelForTesting()
-                                .get(ScrimProperties.BACKGROUND_COLOR));
+                mScrimHandler
+                        .getScrimModelForTesting()
+                        .get(ScrimProperties.BACKGROUND_COLOR)
+                        .intValue());
     }
 
     @Test
@@ -138,6 +114,19 @@ public class LocationBarFocusScrimHandlerUnitTest {
         mScrimHandler.updateScrimVisualState();
         assertEquals(
                 BOTTOM_CHIN_HEIGHT,
-                (int) mScrimHandler.getScrimModelForTesting().get(ScrimProperties.BOTTOM_MARGIN));
+                mScrimHandler.getScrimModelForTesting().get(ScrimProperties.BOTTOM_MARGIN));
+    }
+
+    @Test
+    @Config(qualifiers = "sw800dp")
+    public void testUpdateScrimVisualState_transparentScrim_Desktop() {
+        OmniboxCapabilities.setIsDesktopPlatformForTesting(true);
+        mScrimHandler.updateScrimVisualState();
+        assertEquals(
+                Color.TRANSPARENT,
+                mScrimHandler
+                        .getScrimModelForTesting()
+                        .get(ScrimProperties.BACKGROUND_COLOR)
+                        .intValue());
     }
 }

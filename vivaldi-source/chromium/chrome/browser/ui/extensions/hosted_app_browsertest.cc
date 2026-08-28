@@ -45,7 +45,6 @@
 #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
 #include "chrome/browser/ui/web_applications/web_app_menu_model.h"
 #include "chrome/browser/web_applications/external_install_options.h"
-#include "chrome/browser/web_applications/link_capturing_features.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom.h"
 #include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
 #include "chrome/browser/web_applications/test/os_integration_test_override_impl.h"
@@ -417,8 +416,7 @@ IN_PROC_BROWSER_TEST_P(HostedOrWebAppTest, DISABLED_OpenLinkInNewTab) {
 #define MAYBE_CtrlClickLink CtrlClickLink
 #endif
 IN_PROC_BROWSER_TEST_P(HostedOrWebAppTest, MAYBE_CtrlClickLink) {
-  if (apps::features::IsNavigationCapturingReimplEnabled() &&
-      GetParam() == AppType::WEB_APP) {
+  if (GetParam() == AppType::WEB_APP) {
     GTEST_SKIP() << "Ctrl-click tests for web apps are thoroughly handled in "
                     "WebAppLinkCapturingParameterizedBrowserTest";
   }
@@ -559,10 +557,15 @@ IN_PROC_BROWSER_TEST_P(HostedAppTest, HasReloadButton) {
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL app_url = embedded_test_server()->GetURL("app.com", "/title1.html");
   SetupAppWithURL(app_url);
-  EXPECT_EQ(app_browser_->app_controller()->app_id(), app_id_);
-  EXPECT_EQ(app_browser_->app_controller()->GetTitle(), u"Hosted App");
-  EXPECT_EQ(app_browser_->app_controller()->GetDefaultBounds(), gfx::Rect());
-  EXPECT_TRUE(app_browser_->app_controller()->HasReloadButton());
+  EXPECT_EQ(web_app::AppBrowserController::From(app_browser_)->app_id(),
+            app_id_);
+  EXPECT_EQ(web_app::AppBrowserController::From(app_browser_)->GetTitle(),
+            u"Hosted App");
+  EXPECT_EQ(
+      web_app::AppBrowserController::From(app_browser_)->GetDefaultBounds(),
+      gfx::Rect());
+  EXPECT_TRUE(
+      web_app::AppBrowserController::From(app_browser_)->HasReloadButton());
 }
 
 class HostedAppTestWithPrerendering : public HostedOrWebAppTest {
@@ -710,7 +713,9 @@ IN_PROC_BROWSER_TEST_P(HostedAppTest, DISABLED_LoadIcon) {
   EXPECT_TRUE(app_service_test().AreIconImageEqual(
       app_service_test().LoadAppIconBlocking(
           app_id_, extension_misc::EXTENSION_ICON_SMALL),
-      app_browser_->app_controller()->GetWindowAppIcon().Rasterize(nullptr)));
+      web_app::AppBrowserController::From(app_browser_)
+          ->GetWindowAppIcon()
+          .Rasterize(nullptr)));
 }
 #endif
 
@@ -761,7 +766,8 @@ IN_PROC_BROWSER_TEST_P(HostedAppTestWithAutoupgradesDisabled,
       app_browser_->tab_strip_model()->GetActiveWebContents();
   EXPECT_TRUE(TryToLoadImage(
       web_contents, embedded_test_server()->GetURL("foo.com", kImagePath)));
-  EXPECT_TRUE(app_browser_->app_controller()->ShouldShowCustomTabBar());
+  EXPECT_TRUE(web_app::AppBrowserController::From(app_browser_)
+                  ->ShouldShowCustomTabBar());
 }
 
 IN_PROC_BROWSER_TEST_P(HostedOrWebAppTest,
@@ -901,7 +907,8 @@ IN_PROC_BROWSER_TEST_P(HostedOrWebAppTest, CanUserUninstall) {
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL app_url = embedded_test_server()->GetURL("app.com", "/title1.html");
   SetupAppWithURL(app_url);
-  EXPECT_TRUE(app_browser_->app_controller()->CanUserUninstall());
+  EXPECT_TRUE(
+      web_app::AppBrowserController::From(app_browser_)->CanUserUninstall());
 }
 
 // Tests that platform apps can still load mixed content.
@@ -999,7 +1006,7 @@ class HostedAppProcessModelTest : public HostedOrWebAppTest {
 
     should_swap_for_cross_site_ = content::AreAllSitesIsolatedForTesting();
 
-    process_map_ = extensions::ProcessMap::Get(browser()->profile());
+    process_map_ = extensions::ProcessMap::Get(browser()->GetProfile());
 
     same_dir_url_ = embedded_test_server()->GetURL("app.site.test",
                                                    "/frame_tree/simple.htm");
@@ -1160,21 +1167,21 @@ IN_PROC_BROWSER_TEST_P(HostedAppProcessModelTest, IframesInsideHostedApp) {
 
   // Sanity-check sites of all relevant frames to verify test setup.
   GURL app_site =
-      GetSiteForURL(app_browser_->profile(), app->GetLastCommittedURL());
+      GetSiteForURL(app_browser_->GetProfile(), app->GetLastCommittedURL());
   EXPECT_EQ(extensions::kExtensionScheme, app_site.GetScheme());
 
-  GURL same_dir_site =
-      GetSiteForURL(app_browser_->profile(), same_dir->GetLastCommittedURL());
+  GURL same_dir_site = GetSiteForURL(app_browser_->GetProfile(),
+                                     same_dir->GetLastCommittedURL());
   EXPECT_EQ(extensions::kExtensionScheme, same_dir_site.GetScheme());
   EXPECT_EQ(same_dir_site, app_site);
 
-  GURL diff_dir_site =
-      GetSiteForURL(app_browser_->profile(), diff_dir->GetLastCommittedURL());
+  GURL diff_dir_site = GetSiteForURL(app_browser_->GetProfile(),
+                                     diff_dir->GetLastCommittedURL());
   EXPECT_NE(extensions::kExtensionScheme, diff_dir_site.GetScheme());
   EXPECT_NE(diff_dir_site, app_site);
 
-  GURL same_site_site =
-      GetSiteForURL(app_browser_->profile(), same_site->GetLastCommittedURL());
+  GURL same_site_site = GetSiteForURL(app_browser_->GetProfile(),
+                                      same_site->GetLastCommittedURL());
   EXPECT_NE(extensions::kExtensionScheme, same_site_site.GetScheme());
   EXPECT_NE(same_site_site, app_site);
   EXPECT_EQ(same_site_site, diff_dir_site);
@@ -1190,15 +1197,15 @@ IN_PROC_BROWSER_TEST_P(HostedAppProcessModelTest, IframesInsideHostedApp) {
   // content/public via SiteInfo.  For now, this verification will be done
   // implicitly by comparing SiteInstances and then actual processes further
   // below.
-  GURL isolated_site =
-      GetSiteForURL(app_browser_->profile(), isolated->GetLastCommittedURL());
+  GURL isolated_site = GetSiteForURL(app_browser_->GetProfile(),
+                                     isolated->GetLastCommittedURL());
   EXPECT_EQ(extensions::kExtensionScheme, isolated_site.GetScheme());
   EXPECT_EQ(isolated_site, app_site);
   EXPECT_NE(isolated->GetSiteInstance(), app->GetSiteInstance());
   EXPECT_NE(isolated_site, diff_dir_site);
 
-  GURL cross_site_site =
-      GetSiteForURL(app_browser_->profile(), cross_site->GetLastCommittedURL());
+  GURL cross_site_site = GetSiteForURL(app_browser_->GetProfile(),
+                                       cross_site->GetLastCommittedURL());
   EXPECT_NE(cross_site_site, app_site);
   EXPECT_NE(cross_site_site, same_site_site);
 
@@ -1614,7 +1621,7 @@ IN_PROC_BROWSER_TEST_P(HostedAppProcessModelFencedFrameTest,
                                               .GetDeprecatedSiteURL()
                                               .GetScheme());
   GURL app_site =
-      GetSiteForURL(app_browser_->profile(), app->GetLastCommittedURL());
+      GetSiteForURL(app_browser_->GetProfile(), app->GetLastCommittedURL());
   EXPECT_EQ(extensions::kExtensionScheme, app_site.GetScheme());
   EXPECT_TRUE(process_map_->Contains(app->GetProcess()->GetDeprecatedID()));
 
@@ -1685,7 +1692,7 @@ IN_PROC_BROWSER_TEST_P(HostedAppIsolatedOriginTest,
                                               .GetDeprecatedSiteURL()
                                               .GetScheme());
   GURL app_site =
-      GetSiteForURL(app_browser_->profile(), app->GetLastCommittedURL());
+      GetSiteForURL(app_browser_->GetProfile(), app->GetLastCommittedURL());
   EXPECT_EQ(extensions::kExtensionScheme, app_site.GetScheme());
   EXPECT_TRUE(process_map_->Contains(app->GetProcess()->GetDeprecatedID()));
 
@@ -1919,7 +1926,7 @@ IN_PROC_BROWSER_TEST_P(HostedAppSitePerProcessTest,
                                              url::Origin::Create(bar_app_url)));
 
   // Both processes should still be app processes.
-  auto* process_map = extensions::ProcessMap::Get(browser()->profile());
+  auto* process_map = extensions::ProcessMap::Get(browser()->GetProfile());
   EXPECT_TRUE(process_map->Contains(foo_process->GetDeprecatedID()));
   EXPECT_TRUE(process_map->Contains(bar_process->GetDeprecatedID()));
 }
@@ -1981,7 +1988,7 @@ IN_PROC_BROWSER_TEST_P(HostedAppSitePerProcessPDFTest,
   EXPECT_EQ(foo_app_url, foo_contents->GetLastCommittedURL());
 
   // Ensure the app URL loaded in a hosted app process.
-  auto* process_map = extensions::ProcessMap::Get(browser()->profile());
+  auto* process_map = extensions::ProcessMap::Get(browser()->GetProfile());
   content::RenderFrameHost* app_frame = foo_contents->GetPrimaryMainFrame();
   EXPECT_TRUE(
       process_map->Contains(app_frame->GetProcess()->GetDeprecatedID()));
@@ -2181,7 +2188,7 @@ IN_PROC_BROWSER_TEST_P(HostedAppSitePerProcessTest,
   scoped_refptr<content::SiteInstance> foo_site_instance =
       web_contents->GetPrimaryMainFrame()->GetSiteInstance();
   auto* foo_process = foo_site_instance->GetProcess();
-  auto* process_map = extensions::ProcessMap::Get(browser()->profile());
+  auto* process_map = extensions::ProcessMap::Get(browser()->GetProfile());
   EXPECT_TRUE(process_map->Contains(foo_process->GetDeprecatedID()));
 
   // At this point the main frame process should have access to foo.com data
@@ -2323,7 +2330,7 @@ IN_PROC_BROWSER_TEST_P(HostedAppProcessModelTest,
   EXPECT_NE(foo_process, bar_process);
 
   // Ensure all tabs are in app processes.
-  auto* process_map = extensions::ProcessMap::Get(browser()->profile());
+  auto* process_map = extensions::ProcessMap::Get(browser()->GetProfile());
   EXPECT_TRUE(process_map->Contains(foo_process->GetDeprecatedID()));
   EXPECT_TRUE(process_map->Contains(bar_process->GetDeprecatedID()));
 

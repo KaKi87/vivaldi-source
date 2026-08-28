@@ -6,7 +6,6 @@
 
 #include <utility>
 
-#include "base/metrics/histogram_functions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
@@ -40,6 +39,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/singleton_tabs.h"
+#include "components/trusted_vault/trusted_vault_histograms.h"
 #include "content/public/browser/navigation_handle.h"
 #endif
 
@@ -335,7 +335,7 @@ bool ShouldShowSyncPassphraseError(const syncer::SyncService* service) {
 #if !BUILDFLAG(IS_ANDROID)
 void ShowSyncPassphraseDialogAndDecryptData(Browser& browser) {
   syncer::SyncService* sync_service =
-      SyncServiceFactory::GetForProfile(browser.profile());
+      SyncServiceFactory::GetForProfile(browser.GetProfile());
   if (!sync_service) {
     return;
   }
@@ -350,7 +350,7 @@ void ShowSyncPassphraseDialogAndDecryptData(Browser& browser) {
             return SyncPassphraseDialogDecryptData(
                 SyncServiceFactory::GetForProfile(profile.get()), passphrase);
           },
-          browser.profile()->GetWeakPtr()));
+          browser.GetProfile()->GetWeakPtr()));
 }
 #endif  // !BUILDFLAG(IS_ANDROID)
 
@@ -363,6 +363,9 @@ void OpenTabForSyncKeyRetrieval(
       GURL(UIThreadSearchTermsData().GoogleBaseURLValue());
 
   size_t account_index = GetAccountIndexForPrimaryAccount(browser);
+
+  trusted_vault::RecordTrustedVaultRecoveryFlowTriggeredEndpoint(
+      trusted_vault::TrustedVaultRecoveryFlowEndpoint::kDesktop);
 
   GURL retrieval_url =
       GaiaUrls::GetInstance()->SigninChromeSyncKeysRetrievalUrl(account_index);
@@ -381,6 +384,9 @@ void OpenTabForSyncKeyRecoverabilityDegraded(
       GURL(UIThreadSearchTermsData().GoogleBaseURLValue());
 
   size_t account_index = GetAccountIndexForPrimaryAccount(browser);
+
+  trusted_vault::RecordTrustedVaultRecoveryFlowTriggeredEndpoint(
+      trusted_vault::TrustedVaultRecoveryFlowEndpoint::kDesktop);
 
   GURL url =
       GaiaUrls::GetInstance()->SigninChromeSyncKeysRecoverabilityDegradedUrl(

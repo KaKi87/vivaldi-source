@@ -105,6 +105,13 @@ struct BLINK_COMMON_EXPORT UserAgentOverride {
 
   std::optional<UserAgentMetadata> GetUaMetaDataOverride(
       const std::string& hostname, bool return_main_metadata=true) const;
+  static std::optional<UserAgentMetadata> GetUaMetaDataOverrideGlobal(
+      const std::string& hostname);
+  static std::optional<UserAgentMetadata> GetUaMetaDataOverrideCommon(
+      const base::flat_map<std::string, UserAgentMetadata>&
+          use_domain_ua_metadata_override,
+      const std::string& hostname,
+      const std::optional<UserAgentMetadata>* return_main_metadata = nullptr);
 
   static void AddGetUaMetaDataOverride(const std::string& domainname,
                                        const UserAgentMetadata& metadata);

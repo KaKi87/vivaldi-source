@@ -63,7 +63,7 @@ public class SyncServiceImpl implements SyncService, AccountsChangeObserver {
         if (accountsPromise.isFulfilled()) {
             // The promise is already fulfilled - call immediately. If the promise is not fulfilled,
             // `keepSettingsOnlyForAccountManagerAccounts` will be invoked by
-            // `onCoreAccountInfosChanged` when `AccountManagerFacade` cache gets populated.
+            // `onAccountsChanged` when `AccountManagerFacade` cache gets populated.
             keepSettingsOnlyForAccountManagerAccounts(accountsPromise.getResult());
         }
     }
@@ -356,7 +356,7 @@ public class SyncServiceImpl implements SyncService, AccountsChangeObserver {
 
     @Override
     /* AccountsChangeObserver implementation. */
-    public void onCoreAccountInfosChanged() {
+    public void onAccountsChanged() {
         var accountsPromise = AccountManagerFacadeProvider.getInstance().getAccounts();
         assert accountsPromise.isFulfilled();
         keepSettingsOnlyForAccountManagerAccounts(accountsPromise.getResult());

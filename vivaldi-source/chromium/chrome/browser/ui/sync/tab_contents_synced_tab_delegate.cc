@@ -21,7 +21,7 @@
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
-#include "extensions/api/guest_view/parent_tab_user_data.h"
+#include "extensions/api/web_view_private/parent_tab_user_data.h"
 #endif
 
 using content::NavigationEntry;

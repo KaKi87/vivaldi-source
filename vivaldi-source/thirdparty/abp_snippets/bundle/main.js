@@ -40,14 +40,24 @@ import {jsonPrune} from "../source/behavioral/json-prune.js";
 import {mapOverride} from "../source/behavioral/map-override.js";
 import {overridePropertyRead} from
   "../source/behavioral/override-property-read.js";
+import {preventElementSrcLoading} from
+  "../source/behavioral/prevent-element-src-loading.js";
 import {preventListener} from "../source/behavioral/prevent-listener.js";
+import {preventWindowOpen} from "../source/behavioral/prevent-window-open.js";
+import {replaceArgument} from "../source/behavioral/replace-argument.js";
 import {replaceFetchResponse} from "../source/behavioral/replace-fetch-response.js";
 import {replaceOutboundValue} from "../source/behavioral/replace-outbound-value.js";
+import {replaceXhrRequest} from "../source/behavioral/replace-xhr-request.js";
 import {replaceXhrResponse} from "../source/behavioral/replace-xhr-response.js";
 import {setProfile} from "../source/introspection/profile.js";
 import {stripFetchQueryParameter} from
   "../source/behavioral/strip-fetch-query-parameter.js";
+  import {timerOverride} from
+  "../source/behavioral/timer-override.js";
 import {trace} from "../source/introspection/trace.js";
+import {tmpYtBufferingSpoof} from
+  "../source/behavioral/tmp-yt-buffering-spoof.js";
+import {tmpYtForceReload} from "../source/behavioral/tmp-yt-force-reload.js";
 
 export const snippets = {
   "abort-current-inline-script": abortCurrentInlineScript,
@@ -58,7 +68,6 @@ export const snippets = {
   "array-override": arrayOverride,
   "blob-override": blobOverride,
   "cookie-remover": cookieRemover,
-  "profile": setProfile,
   "debug": debug,
   "event-override": eventOverride,
   "freeze-element": freezeElement,
@@ -68,10 +77,18 @@ export const snippets = {
   "json-prune": jsonPrune,
   "map-override": mapOverride,
   "override-property-read": overridePropertyRead,
+  "prevent-element-src-loading": preventElementSrcLoading,
   "prevent-listener": preventListener,
+  "prevent-window-open": preventWindowOpen,
+  "profile": setProfile,
+  "replace-argument": replaceArgument,
   "replace-fetch-response": replaceFetchResponse,
   "replace-outbound-value": replaceOutboundValue,
+  "replace-xhr-request": replaceXhrRequest,
   "replace-xhr-response": replaceXhrResponse,
   "strip-fetch-query-parameter": stripFetchQueryParameter,
-  "trace": trace
+  "timer-override": timerOverride,
+  "trace": trace,
+  "tmp-yt-buffering-spoof": tmpYtBufferingSpoof,
+  "tmp-yt-force-reload": tmpYtForceReload
 };

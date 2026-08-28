@@ -4,6 +4,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <optional>
 #include <utility>
 
@@ -66,18 +67,15 @@ void RequestFilterManager::ProxySet::RemoveProxy(Proxy* proxy) {
   proxies_.erase(proxy_it);
 }
 
-bool RequestFilterManager::ProxySet::AssociateProxyWithRequestId(
+void RequestFilterManager::ProxySet::AssociateProxyWithRequestId(
     Proxy* proxy,
     const content::GlobalRequestID& id) {
   DCHECK(proxy);
   DCHECK(proxies_.count(proxy));
   DCHECK(id.request_id);
   auto result = request_id_to_proxy_map_.emplace(id, proxy);
-  if (!result.second) {
-    return false;
-  }
+  DCHECK(result.second) << "Unexpected request ID collision.";
   proxy_to_request_id_map_[proxy].insert(id);
-  return true;
 }
 
 void RequestFilterManager::ProxySet::DisassociateProxyWithRequestId(
@@ -102,13 +100,13 @@ RequestFilterManager::ProxySet::GetProxyFromRequestId(
 RequestFilterManager::RequestIDGenerator::RequestIDGenerator() = default;
 RequestFilterManager::RequestIDGenerator::~RequestIDGenerator() = default;
 
-int64_t RequestFilterManager::RequestIDGenerator::Generate(
+uint64_t RequestFilterManager::RequestIDGenerator::Generate(
     int32_t routing_id,
-    int32_t network_service_request_id) {
+    int32_t request_id_from_client) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  auto it = saved_id_map_.find({routing_id, network_service_request_id});
+  auto it = saved_id_map_.find({routing_id, request_id_from_client});
   if (it != saved_id_map_.end()) {
-    int64_t id = it->second;
+    uint64_t id = it->second;
     saved_id_map_.erase(it);
     return id;
   }
@@ -117,14 +115,21 @@ int64_t RequestFilterManager::RequestIDGenerator::Generate(
 
 void RequestFilterManager::RequestIDGenerator::SaveID(
     int32_t routing_id,
-    int32_t network_service_request_id,
+    int32_t request_id_from_client,
     uint64_t request_id) {
-  // If |network_service_request_id| is 0, we cannot reliably match the
-  // generated ID to a future request, so ignore it.
-  if (network_service_request_id != 0) {
-    saved_id_map_.insert(
-        {{routing_id, network_service_request_id}, request_id});
+  // If `request_id_from_client` is 0, we cannot reliably match the generated ID
+  // to a restarted request, so ignore it.
+  if (request_id_from_client != 0) {
+    saved_id_map_.insert({{routing_id, request_id_from_client}, request_id});
   }
+}
+
+int32_t RequestFilterManager::RequestIDGenerator::GenerateNetworkRequestId() {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  if (network_request_id_ == std::numeric_limits<int32_t>::max()) {
+    network_request_id_ = 0;
+  }
+  return ++network_request_id_;
 }
 
 RequestFilterManager::RequestFilterManager(content::BrowserContext* context)
@@ -225,12 +230,11 @@ void RequestFilterManager::ProxyWebSocket(
   const bool has_security_info = request_handler_.HasAnySecurityInfoListener();
 
   RequestFilterProxyingWebSocket::StartProxying(
-      std::move(factory), site_for_cookies, user_agent, url,
+      std::move(factory), url, site_for_cookies, user_agent,
       std::move(additional_headers), std::move(handshake_client),
-      std::move(authentication_handler), std::move(header_client),
-      has_extra_headers, has_security_info, process_id, frame_id,
-      &request_id_generator_, &request_handler_, frame_origin, browser_context_,
-      proxies_.get());
+      std::move(authentication_handler), has_extra_headers, has_security_info,
+      std::move(header_client), process_id, frame_id, &request_id_generator_,
+      &request_handler_, frame_origin, browser_context_, proxies_.get());
 }
 
 content::ContentBrowserClient::WillCreateWebTransportCallback
@@ -276,7 +280,7 @@ void RequestFilterManager::ProxyWebTransport(
     content::ContentBrowserClient::WillCreateWebTransportCallback callback,
     mojo::PendingRemote<network::mojom::WebTransportHandshakeClient>
         handshake_client) {
-  StartWebRequestProxyingWebTransport(
+  StartRequestFilterProxyingWebTransport(
       render_process_host, frame_routing_id, url, initiator_origin,
       std::move(handshake_client),
       request_id_generator_.Generate(IPC::mojom::kRoutingIdNone, 0),

@@ -95,7 +95,7 @@ void VivaldiSubresourceFilterAdblockingThrottle::CheckCurrentUrl() {
   if (matched) {
     result->threat_type =
         safe_browsing::SBThreatType::SB_THREAT_TYPE_SUBRESOURCE_FILTER;
-    result->threat_metadata.subresource_filter_match =
+    result->subresource_filter_match =
         safe_browsing::SubresourceFilterMatch(
             {{safe_browsing::SubresourceFilterType::ABUSIVE,
               safe_browsing::SubresourceFilterLevel::ENFORCE}});
@@ -225,7 +225,7 @@ VivaldiSubresourceFilterAdblockingThrottle::GetHighestPriorityConfiguration(
   bool matched = false;
   ActivationList matched_list =
       subresource_filter::GetListForThreatTypeAndMetadata(
-          result.threat_type, result.threat_metadata, &warning);
+          result.threat_type, result.subresource_filter_match, &warning);
   // If it's http or https, find the best config.
   if (navigation_handle()->GetURL().SchemeIsHTTPOrHTTPS()) {
     std::vector<Configuration> decreasing_configs;

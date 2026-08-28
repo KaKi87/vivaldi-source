@@ -13,4 +13,7 @@
 <translation id="7100573672995171864">Personnaliser et contrôler Vivaldi</translation>
 <translation id="7642161109152167169">Quand ce réglage est actif, Vivaldi préserve l’autonomie de la batterie en limitant l’activité en arrière-plan et les effets visuels, tels que le défilement fluide et le taux de rafraîchissement des vidéos. <ph name="BEGIN_LINK" />Pour en savoir plus<ph name="END_LINK" /></translation>
 <translation id="8031581238030785388">Applications Vivaldi</translation>
+<translation id="8532558197615073846">{NUM_EXTENSIONS, plural,
+        =1 {Cette extension a été désactivée car elle n’est plus prise en charge par Chromium. Vous pouvez la réactiver pour le moment, mais elle risque d’être supprimée prochainement. Nous vous conseillons de chercher des alternatives dans le Chrome Web Store.}
+        other {Ces extensions ont été désactivées car elles ne sont plus prises en charge par Chromium. Vous pouvez les réactiver pour le moment, mais elles risquent d’être supprimées prochainement. Nous vous conseillons de chercher des alternatives dans le Chrome Web Store.}}</translation>
 </translationbundle>

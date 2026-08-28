@@ -117,6 +117,12 @@ public class LocationProviderTest {
         assertTrue("Should be on UI thread", ThreadUtils.runningOnUiThread());
 
         setLocationProvider();
+        if (mApi == LocationProviderType.ANDROID) {
+            // TODO(crbug.com/502587667): Temporary workaround. For Android provider, we cannot
+            // request coarse location if precise permission is granted. Revoke precise permission
+            // to allow coarse request to succeed. Remove this once the original issue is fixed.
+            setPrecisePermission(false);
+        }
 
         createLocationProviderAdapter();
         startLocationProviderAdapter(/* enableHighAccuracy= */ false);
@@ -133,7 +139,17 @@ public class LocationProviderTest {
         setLocationProvider();
 
         createLocationProviderAdapter();
+        if (mApi == LocationProviderType.ANDROID) {
+            // TODO(crbug.com/502587667): Temporary workaround. For Android provider, we cannot
+            // request coarse location if precise permission is granted. Revoke precise permission
+            // to allow coarse request to succeed. Remove this once the original issue is fixed.
+            setPrecisePermission(false);
+        }
         startLocationProviderAdapter(/* enableHighAccuracy= */ false);
+        if (mApi == LocationProviderType.ANDROID) {
+            // TODO(crbug.com/502587667): Restore precise permission to test fine accuracy.
+            setPrecisePermission(true);
+        }
         startLocationProviderAdapter(/* enableHighAccuracy= */ true);
         stopLocationProviderAdapter();
     }
@@ -159,14 +175,26 @@ public class LocationProviderTest {
         LocationProviderFactory.setLocationProviderImpl(new MockLocationProvider());
     }
 
+    private Context mMockContext;
+
     private void setLocationProviderAndroid() {
-        Context context = Mockito.mock(Context.class);
-        when(context.checkCallingOrSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION))
-                .thenReturn(PackageManager.PERMISSION_GRANTED);
-        LocationProviderAndroid locationProviderAndroid = new LocationProviderAndroid(context);
+        mMockContext = Mockito.mock(Context.class);
+        setPrecisePermission(true);
+        LocationProviderAndroid locationProviderAndroid = new LocationProviderAndroid(mMockContext);
         mLocationManager = Mockito.mock(LocationManager.class);
         locationProviderAndroid.setLocationManagerForTesting(mLocationManager);
         LocationProviderFactory.setLocationProviderImpl(locationProviderAndroid);
+    }
+
+    private void setPrecisePermission(boolean granted) {
+        if (mMockContext != null) {
+            when(mMockContext.checkCallingOrSelfPermission(
+                            Manifest.permission.ACCESS_FINE_LOCATION))
+                    .thenReturn(
+                            granted
+                                    ? PackageManager.PERMISSION_GRANTED
+                                    : PackageManager.PERMISSION_DENIED);
+        }
     }
 
     private void setLocationProviderGmsCore() {
@@ -206,6 +234,12 @@ public class LocationProviderTest {
         setLocationProvider();
         createLocationProviderAdapter();
 
+        if (mApi == LocationProviderType.ANDROID) {
+            // TODO(crbug.com/502587667): Temporary workaround. For Android provider, we cannot
+            // request coarse location if precise permission is granted. Revoke precise permission
+            // to allow coarse request to succeed. Remove this once the original issue is fixed.
+            setPrecisePermission(false);
+        }
         startLocationProviderAdapter(/* enableHighAccuracy= */ false);
         if (mApi == LocationProviderType.ANDROID) {
             ArgumentCaptor<Criteria> captor = ArgumentCaptor.forClass(Criteria.class);
@@ -224,6 +258,10 @@ public class LocationProviderTest {
             assertEquals(Granularity.GRANULARITY_COARSE, captor.getValue().getGranularity());
         }
 
+        if (mApi == LocationProviderType.ANDROID) {
+            // TODO(crbug.com/502587667): Restore precise permission to test fine accuracy.
+            setPrecisePermission(true);
+        }
         startLocationProviderAdapter(/* enableHighAccuracy= */ true);
         if (mApi == LocationProviderType.ANDROID) {
             ArgumentCaptor<Criteria> captor = ArgumentCaptor.forClass(Criteria.class);
@@ -279,6 +317,10 @@ public class LocationProviderTest {
                             any(Looper.class));
             LocationListener firstListener = captor.getValue();
 
+            // TODO(crbug.com/502587667): Temporary workaround. For Android provider, we cannot
+            // request coarse location if precise permission is granted. Revoke precise permission
+            // to allow coarse request to succeed. Remove this once the original issue is fixed.
+            setPrecisePermission(false);
             // 2. Start a new approximate request.
             startLocationProviderAdapter(false);
 
@@ -370,7 +412,16 @@ public class LocationProviderTest {
                     .requestLocationUpdates(
                             any(LocationRequest.class), captor2.capture(), any(Looper.class));
             LocationCallback secondCallback = captor2.getValue();
-            secondCallback.onLocationResult(result);
+            Location coarseLocation = new Location("test");
+            coarseLocation.setLatitude(1.23);
+            coarseLocation.setLongitude(4.56);
+            coarseLocation.setTime(System.currentTimeMillis());
+            coarseLocation.setAccuracy(
+                    LocationProviderGmsCore.PRECISE_LOCATION_ACCURACY_THRESHOLD_METERS);
+            com.google.android.gms.location.LocationResult coarseResult =
+                    com.google.android.gms.location.LocationResult.create(
+                            Arrays.asList(coarseLocation));
+            secondCallback.onLocationResult(coarseResult);
 
             // 6. Verify that this callback is processed and correctly identifies the location
             // as not precise.

@@ -9,6 +9,7 @@
 #import "base/test/metrics/histogram_tester.h"
 #import "base/test/metrics/user_action_tester.h"
 #import "base/test/scoped_feature_list.h"
+#import "components/sync/test/test_sync_service.h"
 #import "components/test/ios/test_utils.h"
 #import "google_apis/gaia/gaia_id.h"
 #import "ios/chrome/browser/authentication/account_menu/ui/account_menu_data_source.h"
@@ -31,6 +32,8 @@
 #import "ios/chrome/browser/signin/model/fake_authentication_service_delegate.h"
 #import "ios/chrome/browser/signin/model/fake_system_identity.h"
 #import "ios/chrome/browser/signin/model/fake_system_identity_manager.h"
+#import "ios/chrome/browser/sync/model/sync_service_factory.h"
+#import "ios/chrome/browser/sync/model/test_sync_service_utils.h"
 #import "ios/chrome/grit/ios_branded_strings.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ios/chrome/test/ios_chrome_scoped_testing_local_state.h"
@@ -60,6 +63,9 @@ UIImage* kPrimaryAccountAvatar = [[UIImage alloc] init];
 // Redeclare properties as readwrite for testing.
 @property(nonatomic, strong, readwrite) NSString* primaryAccountEmail;
 @property(nonatomic, strong, readwrite) NSString* primaryAccountUserFullName;
+@property(nonatomic, strong, readwrite) UIImage* primaryAccountAvatar;
+@property(nonatomic, assign, readwrite) BOOL primaryAccountAvatarNeedsRing;
+@property(nonatomic, strong, readwrite) NSString* primaryAccountAITierFullName;
 @end
 
 @implementation FakeAccountMenuDataSource {
@@ -67,6 +73,8 @@ UIImage* kPrimaryAccountAvatar = [[UIImage alloc] init];
 }
 @synthesize primaryAccountEmail = _primaryAccountEmail;
 @synthesize primaryAccountAvatar = _primaryAccountAvatar;
+@synthesize primaryAccountAvatarNeedsRing = _primaryAccountAvatarNeedsRing;
+@synthesize primaryAccountAITierFullName = _primaryAccountAITierFullName;
 @synthesize primaryAccountUserFullName = _primaryAccountUserFullName;
 @synthesize managementDescription = _managementDescription;
 
@@ -77,6 +85,8 @@ UIImage* kPrimaryAccountAvatar = [[UIImage alloc] init];
     _secondaryAccountsGaiaIDs = {kSecondaryIdentity.gaiaId};
     _primaryAccountEmail = kPrimaryIdentity.userEmail;
     _primaryAccountAvatar = kPrimaryAccountAvatar;
+    _primaryAccountAvatarNeedsRing = NO;
+    _primaryAccountAITierFullName = nil;
     _primaryAccountUserFullName = kPrimaryIdentity.userFullName;
     _managementDescription = @"managementDescription";
   }
@@ -132,6 +142,8 @@ class AccountMenuViewControllerTest : public PlatformTest {
         AuthenticationServiceFactory::GetInstance(),
         AuthenticationServiceFactory::GetFactoryWithDelegate(
             std::make_unique<FakeAuthenticationServiceDelegate>()));
+    builder.AddTestingFactory(SyncServiceFactory::GetInstance(),
+                              base::BindRepeating(&CreateTestSyncService));
     profile_ = std::move(builder).Build();
     fake_system_identity_manager_ =
         FakeSystemIdentityManager::FromSystemIdentityManager(
@@ -187,7 +199,6 @@ class AccountMenuViewControllerTest : public PlatformTest {
   NSIndexPath* path_for_sign_out_ = [NSIndexPath indexPathForRow:0 inSection:1];
   NSIndexPath* path_for_add_account_ = [NSIndexPath indexPathForRow:1
                                                           inSection:0];
-  raw_ptr<AuthenticationService, DanglingUntriaged> authentication_service_;
   raw_ptr<FakeSystemIdentityManager> fake_system_identity_manager_;
   base::UserActionTester user_actions_;
 
@@ -247,6 +258,7 @@ class AccountMenuViewControllerTest : public PlatformTest {
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
   IOSChromeScopedTestingLocalState scoped_testing_local_state_;
   std::unique_ptr<TestProfileIOS> profile_;
+  raw_ptr<AuthenticationService> authentication_service_;
 };
 
 // Test the view controller when it starts.
@@ -267,8 +279,8 @@ TEST_F(AccountMenuViewControllerTest, TestDefaultSetting) {
   CentralAccountView* table_header_view =
       static_cast<CentralAccountView*>(table_header_view_);
   EXPECT_EQ(table_header_view.avatarImage, kPrimaryAccountAvatar);
-  EXPECT_EQ(table_header_view.title, kPrimaryIdentity.userFullName);
-  EXPECT_EQ(table_header_view.subtitle, kPrimaryIdentity.userEmail);
+  EXPECT_EQ(table_header_view.name, kPrimaryIdentity.userFullName);
+  EXPECT_EQ(table_header_view.email, kPrimaryIdentity.userEmail);
   EXPECT_EQ(table_header_view.managed, true);
 }
 
@@ -425,8 +437,8 @@ TEST_F(AccountMenuViewControllerTest, TestMissingGivenName) {
   EXPECT_TRUE([header isKindOfClass:[CentralAccountView class]]);
   CentralAccountView* centralAccountView =
       static_cast<CentralAccountView*>(header);
-  EXPECT_NSEQ(centralAccountView.title, identity.userFullName);
-  EXPECT_NSEQ(centralAccountView.subtitle, identity.userEmail);
+  EXPECT_NSEQ(centralAccountView.name, identity.userFullName);
+  EXPECT_NSEQ(centralAccountView.email, identity.userEmail);
 }
 
 // Test the account menu with an identity with missing names.
@@ -449,6 +461,77 @@ TEST_F(AccountMenuViewControllerTest, TestMissingNames) {
   EXPECT_TRUE([header isKindOfClass:[CentralAccountView class]]);
   CentralAccountView* centralAccountView =
       static_cast<CentralAccountView*>(header);
-  EXPECT_NSEQ(centralAccountView.title, identity.userEmail);
-  EXPECT_NSEQ(centralAccountView.subtitle, nil);
+  EXPECT_NSEQ(centralAccountView.name, identity.userEmail);
+  EXPECT_NSEQ(centralAccountView.email, nil);
+}
+
+// Tests that calling `-[AccountMenuViewController updateErrorSection:nil]`
+// does not crash when the snapshot has no error section (e.g. when opening
+// the menu without an active sync error).
+TEST_F(AccountMenuViewControllerTest, UpdateErrorSectionWithNilWhenNoError) {
+  EXPECT_EQ(2, TableView().numberOfSections);
+  [view_controller_ updateErrorSection:nil];
+  EXPECT_EQ(2, TableView().numberOfSections);
+}
+
+// Tests adding an error section and then clearing it with
+// `-[AccountMenuViewController updateErrorSection:nil]`.
+TEST_F(AccountMenuViewControllerTest, ClearErrorSection) {
+  AccountErrorUIInfo* errorInfo = [[AccountErrorUIInfo alloc]
+       initWithErrorType:syncer::SyncService::UserActionableError::
+                             kNeedsPassphrase
+      userActionableType:AccountErrorUserActionableType::kEnterPassphrase
+               messageID:IDS_IOS_ACCOUNT_TABLE_ERROR_ENTER_PASSPHRASE_MESSAGE
+           buttonLabelID:IDS_IOS_ACCOUNT_TABLE_ERROR_ENTER_PASSPHRASE_BUTTON];
+  data_source_.accountErrorUIInfo = errorInfo;
+  [view_controller_ updateErrorSection:errorInfo];
+  EXPECT_EQ(3, TableView().numberOfSections);
+
+  data_source_.accountErrorUIInfo = nil;
+  [view_controller_ updateErrorSection:nil];
+  EXPECT_EQ(2, TableView().numberOfSections);
+}
+
+// Tests updating the error section from one error type to another, ensuring
+// the message and button label update properly.
+TEST_F(AccountMenuViewControllerTest, TransitionBetweenErrorTypes) {
+  AccountErrorUIInfo* errorInfo1 = [[AccountErrorUIInfo alloc]
+       initWithErrorType:syncer::SyncService::UserActionableError::
+                             kNeedsPassphrase
+      userActionableType:AccountErrorUserActionableType::kEnterPassphrase
+               messageID:IDS_IOS_ACCOUNT_TABLE_ERROR_ENTER_PASSPHRASE_MESSAGE
+           buttonLabelID:IDS_IOS_ACCOUNT_TABLE_ERROR_ENTER_PASSPHRASE_BUTTON];
+  data_source_.accountErrorUIInfo = errorInfo1;
+  [view_controller_ updateErrorSection:errorInfo1];
+  EXPECT_EQ(3, TableView().numberOfSections);
+
+  NSIndexPath* path_for_error_message = [NSIndexPath indexPathForRow:0
+                                                           inSection:0];
+  NSIndexPath* path_for_error_button = [NSIndexPath indexPathForRow:1
+                                                          inSection:0];
+  ExpectSubtitleAtPath(
+      l10n_util::GetNSString(
+          IDS_IOS_ACCOUNT_TABLE_ERROR_ENTER_PASSPHRASE_MESSAGE),
+      path_for_error_message);
+  ExpectTextAtPath(l10n_util::GetNSString(
+                       IDS_IOS_ACCOUNT_TABLE_ERROR_ENTER_PASSPHRASE_BUTTON),
+                   path_for_error_button);
+
+  AccountErrorUIInfo* errorInfo2 = [[AccountErrorUIInfo alloc]
+       initWithErrorType:syncer::SyncService::UserActionableError::
+                             kSignInNeedsUpdate
+      userActionableType:AccountErrorUserActionableType::
+                             kReauthToResolveSigninError
+               messageID:IDS_IOS_ACCOUNT_TABLE_ERROR_VERIFY_ITS_YOU_MESSAGE
+           buttonLabelID:IDS_IOS_ACCOUNT_TABLE_ERROR_VERIFY_ITS_YOU_BUTTON];
+  data_source_.accountErrorUIInfo = errorInfo2;
+  [view_controller_ updateErrorSection:errorInfo2];
+  EXPECT_EQ(3, TableView().numberOfSections);
+
+  ExpectSubtitleAtPath(l10n_util::GetNSString(
+                           IDS_IOS_ACCOUNT_TABLE_ERROR_VERIFY_ITS_YOU_MESSAGE),
+                       path_for_error_message);
+  ExpectTextAtPath(
+      l10n_util::GetNSString(IDS_IOS_ACCOUNT_TABLE_ERROR_VERIFY_ITS_YOU_BUTTON),
+      path_for_error_button);
 }

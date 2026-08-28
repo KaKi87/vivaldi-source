@@ -136,8 +136,6 @@
 #include "chrome/browser/web_applications/web_app_utils.h"
 #include "chrome/common/chrome_constants.h"
 #include "chrome/common/chrome_switches.h"
-#include "chrome/common/extensions/extension_constants.h"
-#include "chrome/common/pref_names.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
 #include "chrome/test/base/test_browser_window_aura.h"
 #include "chrome/test/base/testing_browser_process.h"
@@ -776,8 +774,8 @@ class ChromeShelfControllerTestBase : public BrowserWithTestWindowTest,
   // Create and initialize the controller; create a tab and show the browser.
   void InitShelfControllerWithBrowser() {
     InitShelfController();
-    chrome::NewTab(browser());
-    browser()->window()->Show();
+    chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
+    browser()->GetWindow()->Show();
   }
 
   // Destroy the controller instance and clear the local pointer.
@@ -1603,9 +1601,9 @@ class MultiProfileMultiBrowserShelfLayoutChromeShelfControllerTest
       const std::string& url) {
     std::unique_ptr<Browser> browser(
         CreateBrowserWithTestWindowForProfile(profile));
-    chrome::NewTab(browser.get());
+    chrome::NewTab(browser.get(), NewTabTypes::kNoUserAction);
 
-    browser->window()->Show();
+    browser->GetWindow()->Show();
     NavigateAndCommitActiveTabWithTitle(browser.get(), GURL(url),
                                         ASCIIToUTF16(title));
     return browser;
@@ -1679,7 +1677,7 @@ TEST_F(ChromeShelfControllerTest, DefaultShelfPrefValues) {
 
   // Verify shelf prefs are initialized to default values if they're not set
   // either locally nor in sync data.
-  PrefService* const prefs = browser()->profile()->GetPrefs();
+  PrefService* const prefs = browser()->GetProfile()->GetPrefs();
   EXPECT_EQ(ash::ShelfAlignment::kBottom,
             ash::GetShelfAlignmentPref(prefs, GetPrimaryDisplayId()));
   EXPECT_EQ(ash::ShelfAutoHideBehavior::kNever,
@@ -1718,7 +1716,7 @@ TEST_F(ChromeShelfControllerTest, ShelfPrefsInitializedFromSyncData) {
   // received.
   InitShelfController();
 
-  PrefService* const prefs = browser()->profile()->GetPrefs();
+  PrefService* const prefs = browser()->GetProfile()->GetPrefs();
   EXPECT_EQ(ash::ShelfAlignment::kLeft,
             ash::GetShelfAlignmentPref(prefs, GetPrimaryDisplayId()));
   EXPECT_EQ(ash::ShelfAutoHideBehavior::kAlways,
@@ -1748,7 +1746,7 @@ TEST_F(ChromeShelfControllerTest,
   // before initial synced prefs have been received.
   InitShelfController();
 
-  PrefService* const prefs = browser()->profile()->GetPrefs();
+  PrefService* const prefs = browser()->GetProfile()->GetPrefs();
   EXPECT_EQ(ash::ShelfAlignment::kBottom,
             ash::GetShelfAlignmentPref(prefs, GetPrimaryDisplayId()));
   EXPECT_EQ(ash::ShelfAutoHideBehavior::kNever,
@@ -1788,7 +1786,7 @@ TEST_F(ChromeShelfControllerTest,
 
 TEST_F(ChromeShelfControllerTest, SyncedShelfPrefsDontOverrideLocalPref) {
   // Initialize shelf prefs before shelf controller gets initialized.
-  PrefService* const prefs = browser()->profile()->GetPrefs();
+  PrefService* const prefs = browser()->GetProfile()->GetPrefs();
   ash::SetShelfAlignmentPref(prefs, GetPrimaryDisplayId(),
                              ash::ShelfAlignment::kLeft);
   ash::SetShelfAutoHideBehaviorPref(prefs, GetPrimaryDisplayId(),
@@ -3228,7 +3226,7 @@ TEST_F(MultiProfileMultiBrowserShelfLayoutChromeShelfControllerTest,
   // Create a browser window with a native window for user0.
   std::unique_ptr<Browser> browser(
       CreateBrowserWithTestWindowForProfile(profile()));
-  BrowserWindow* browser_window = browser->window();
+  ui::BaseWindow* browser_window = browser->GetWindow();
   aura::Window* window = browser_window->GetNativeWindow();
   window_manager->SetWindowOwner(window, account_id());
 
@@ -3670,7 +3668,7 @@ void CheckAppMenu(ChromeShelfController* controller,
 // Check that browsers get reflected correctly in the shelf menu.
 TEST_F(ChromeShelfControllerTest, BrowserMenuGeneration) {
   EXPECT_EQ(1U, GlobalBrowserCollection::GetInstance()->GetSize());
-  chrome::NewTab(browser());
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
 
   InitShelfController();
 
@@ -3681,7 +3679,7 @@ TEST_F(ChromeShelfControllerTest, BrowserMenuGeneration) {
   CheckAppMenu(shelf_controller_.get(), item_browser, 0, nullptr);
 
   // Now make the created browser() visible by showing its browser window.
-  browser()->window()->Show();
+  browser()->GetWindow()->Show();
   std::u16string title1 = u"Test1";
   NavigateAndCommitActiveTabWithTitle(browser(), GURL("http://test1"), title1);
   std::u16string one_menu_item[] = {title1};
@@ -3691,8 +3689,8 @@ TEST_F(ChromeShelfControllerTest, BrowserMenuGeneration) {
   // Create one more browser/window and check that one more was added.
   std::unique_ptr<Browser> browser2(
       CreateBrowserWithTestWindowForProfile(profile()));
-  chrome::NewTab(browser2.get());
-  browser2->window()->Show();
+  chrome::NewTab(browser2.get(), NewTabTypes::kNoUserAction);
+  browser2->GetWindow()->Show();
   std::u16string title2 = u"Test2";
   NavigateAndCommitActiveTabWithTitle(browser2.get(), GURL("http://test2"),
                                       title2);
@@ -3717,11 +3715,11 @@ TEST_F(MultiProfileMultiBrowserShelfLayoutChromeShelfControllerTest,
   item_browser.id = ash::ShelfID(app_constants::kChromeAppId);
 
   // Check that the menu is empty.
-  chrome::NewTab(browser());
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
   CheckAppMenu(shelf_controller_.get(), item_browser, 0, nullptr);
 
   // Show the created |browser()| by showing its window.
-  browser()->window()->Show();
+  browser()->GetWindow()->Show();
   std::u16string title = u"Test";
   NavigateAndCommitActiveTabWithTitle(browser(), GURL("http://test"), title);
   std::u16string one_menu_item[] = {title};
@@ -3741,7 +3739,7 @@ TEST_F(MultiProfileMultiBrowserShelfLayoutChromeShelfControllerTest,
 
   // Transferred browsers of other users should not show up in the list.
   ash::Shell::Get()->multi_user_window_manager()->ShowWindowForUser(
-      browser()->window()->GetNativeWindow(), account_id1());
+      browser()->GetWindow()->GetNativeWindow(), account_id1());
   CheckAppMenu(shelf_controller_.get(), item_browser, 1, one_menu_item1);
 
   chrome::CloseTab(browser1.get());
@@ -3786,12 +3784,12 @@ TEST_F(ChromeShelfControllerTest, V1AppMenuGeneration) {
   CheckAppMenu(shelf_controller_.get(), item_gmail, 1, one_menu_item);
 
   // Create one empty tab.
-  chrome::NewTab(browser());
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
   std::u16string title2 = u"Test2";
   NavigateAndCommitActiveTabWithTitle(browser(), GURL("https://bla"), title2);
 
   // and another one with another gmail instance.
-  chrome::NewTab(browser());
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
   std::u16string title3 = u"Test3";
   NavigateAndCommitActiveTabWithTitle(browser(), GURL(kGmailUrl), title3);
   std::u16string two_menu_items[] = {title1, title3};
@@ -3817,7 +3815,7 @@ TEST_F(MultiProfileMultiBrowserShelfLayoutChromeShelfControllerTest,
   // Create a browser item in the controller.
   InitShelfController();
   StartPrefSyncService(syncer::SyncDataList());
-  chrome::NewTab(browser());
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
 
   // Installing Gmail pins it to the shelf.
   const ash::ShelfID gmail_id(ash::kGmailAppId);
@@ -3850,7 +3848,7 @@ TEST_F(MultiProfileMultiBrowserShelfLayoutChromeShelfControllerTest,
 
   // Transfer the browser of the first user - it should still not show up.
   ash::Shell::Get()->multi_user_window_manager()->ShowWindowForUser(
-      browser()->window()->GetNativeWindow(), account_id1());
+      browser()->GetWindow()->GetNativeWindow(), account_id1());
 
   CheckAppMenu(shelf_controller_.get(), item_browser, 0, nullptr);
   CheckAppMenu(shelf_controller_.get(), item_gmail, 0, nullptr);
@@ -4212,7 +4210,7 @@ TEST_F(ChromeShelfControllerTest, V1AppMenuExecution) {
   SetRefocusURL(gmail_id, GURL(kGmailUrl));
   std::u16string title1 = u"Test1";
   NavigateAndCommitActiveTabWithTitle(browser(), GURL(kGmailUrl), title1);
-  chrome::NewTab(browser());
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
   std::u16string title2 = u"Test2";
   NavigateAndCommitActiveTabWithTitle(browser(), GURL(kGmailUrl), title2);
 
@@ -4260,7 +4258,7 @@ TEST_F(ChromeShelfControllerTest, V1AppMenuDeletionExecution) {
   SetRefocusURL(gmail_id, GURL(kGmailUrl));
   std::u16string title1 = u"Test1";
   NavigateAndCommitActiveTabWithTitle(browser(), GURL(kGmailUrl), title1);
-  chrome::NewTab(browser());
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
   std::u16string title2 = u"Test2";
   NavigateAndCommitActiveTabWithTitle(browser(), GURL(kGmailUrl), title2);
 
@@ -4303,8 +4301,8 @@ TEST_F(ChromeShelfControllerTest, PersistShelfItemPositions) {
 
   TabStripModel* tab_strip_model = browser()->tab_strip_model();
   EXPECT_EQ(0, tab_strip_model->count());
-  chrome::NewTab(browser());
-  chrome::NewTab(browser());
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
   EXPECT_EQ(2, tab_strip_model->count());
   helper->SetAppID(tab_strip_model->GetWebContentsAt(0), "1");
   helper->SetAppID(tab_strip_model->GetWebContentsAt(1), "2");
@@ -4409,7 +4407,7 @@ TEST_F(ChromeShelfControllerTest, ExistingBrowserWindowShelfIDSet) {
   EXPECT_TRUE(shelf_controller_->GetItem(ash::ShelfID("1")));
   EXPECT_EQ(ash::ShelfID("1"),
             ash::ShelfID::Deserialize(
-                browser()->window()->GetNativeWindow()->GetProperty(
+                browser()->GetWindow()->GetNativeWindow()->GetProperty(
                     ash::kShelfIDKey)));
 }
 
@@ -4507,7 +4505,7 @@ TEST_F(ChromeShelfControllerWithArcTest, ApkWebAppPinPolicy) {
 
   constexpr char kMapsWebPackageName[] = "com.google.maps";
 
-  auto* service = ash::ApkWebAppService::Get(browser()->profile());
+  auto* service = ash::ApkWebAppService::Get(browser()->GetProfile());
   ASSERT_TRUE(service);
 
   base::test::TestFuture<const std::string&, const webapps::AppId&> future;
@@ -4790,6 +4788,113 @@ TEST_F(ChromeShelfControllerArcDefaultAppsTest, PlayStoreDeferredLaunch) {
 
   arc_app_test_.PreProfileTearDown();
   // TODO(crbug.com/454468678): This should be called after profile is deleted.
+  arc_app_test_.PostProfileTearDown();
+}
+
+// Regression test for a heap-use-after-free in ArcAppLauncher::MaybeLaunchApp.
+// When the ArcPlaystoreShortcutShelfItemController owns the ArcAppLauncher via
+// its |playstore_launcher_| member (because the constructor's MaybeLaunchApp
+// returned false), a later observer-driven MaybeLaunchApp call can synchronously
+// replace the shelf item delegate (via AddSpinnerToShelf ->
+// ReplaceShelfItemDelegate), destroying the controller and the launcher while
+// MaybeLaunchApp is still on the stack. The subsequent |app_launched_ = true|
+// write at the end of MaybeLaunchApp is then a UAF write to the freed |this|.
+TEST_F(ChromeShelfControllerArcDefaultAppsTest, PlayStoreDeferredLaunchUAF) {
+  // Add ARC host app to enable Play Store default app.
+  extension_registrar_->AddExtension(arc_support_host_.get());
+  arc_app_test_.PreProfileSetUp();
+  arc_app_test_.PostProfileSetUp(profile());
+  ArcAppListPrefs* const prefs = arc_app_test_.arc_app_list_prefs();
+  EXPECT_TRUE(prefs->IsRegistered(arc::kPlayStoreAppId));
+
+  InitShelfController();
+
+  EnablePlayStore(true);
+
+  // Play Store is registered as a default app with |ready == false| (ARC has
+  // not yet sent an app-list refresh). This is the precondition for entering
+  // the deferred-launch / spinner branch in arc::LaunchAppWithIntent.
+  std::unique_ptr<ArcAppListPrefs::AppInfo> app_info =
+      prefs->GetApp(arc::kPlayStoreAppId);
+  ASSERT_TRUE(app_info);
+  ASSERT_FALSE(app_info->ready);
+
+  // Pin Play Store. Its shelf delegate is an
+  // ArcPlaystoreShortcutShelfItemController (see ChromeShelfItemFactory).
+  PinAppWithIDToShelf(arc::kPlayStoreAppId);
+  EXPECT_TRUE(shelf_controller_->IsAppPinned(arc::kPlayStoreAppId));
+  EXPECT_FALSE(shelf_controller_->GetShelfSpinnerController()->HasApp(
+      arc::kPlayStoreAppId));
+
+  auto* proxy = apps::AppServiceProxyFactory::GetForProfile(profile());
+
+  // Step 1: simulate a state in which the Play Store entry in the
+  // AppRegistryCache has readiness != kReady. A compromised ARCVM controlling
+  // arc::mojom::AppHost can cause this by publishing the Play Store with
+  // |suspended = true|, which makes ArcApps::GetReadiness() return
+  // kDisabledByPolicy. We model that here by publishing the readiness delta
+  // directly to the cache.
+  {
+    std::vector<apps::AppPtr> deltas;
+    auto app = std::make_unique<apps::App>(apps::AppType::kArc,
+                                           arc::kPlayStoreAppId);
+    app->readiness = apps::Readiness::kDisabledByPolicy;
+    deltas.push_back(std::move(app));
+    proxy->OnApps(std::move(deltas), apps::AppType::kArc,
+                  /*should_notify_initialized=*/false);
+  }
+
+  // Step 2: simulate the user clicking the pinned Play Store shelf icon.
+  // ArcPlaystoreShortcutShelfItemController::ItemSelected constructs an
+  // ArcAppLauncher with deferred_launch_allowed=true. The constructor's
+  // MaybeLaunchApp returns false because AppRegistryCache readiness is
+  // kDisabledByPolicy (blocked at the kReady/kDisabledByLocalSettings gate),
+  // so the launcher is moved into the controller's |playstore_launcher_|
+  // member -- its lifetime is now tied to the shelf delegate.
+  ash::ShelfItemDelegate* item_delegate =
+      model_->GetShelfItemDelegate(ash::ShelfID(arc::kPlayStoreAppId));
+  ASSERT_TRUE(item_delegate);
+  SelectItem(item_delegate);
+  // The constructor path must NOT have launched (no spinner yet); otherwise
+  // |playstore_launcher_| was never populated and the UAF cannot occur.
+  ASSERT_FALSE(shelf_controller_->GetShelfSpinnerController()->HasApp(
+      arc::kPlayStoreAppId));
+  // Delegate must still be the original ArcPlaystoreShortcutShelfItemController.
+  ASSERT_EQ(item_delegate,
+            model_->GetShelfItemDelegate(ash::ShelfID(arc::kPlayStoreAppId)));
+
+  // Step 3: simulate the ARCVM flipping the Play Store back to unsuspended,
+  // which causes ArcApps to republish it as kReady to the AppRegistryCache.
+  // AppRegistryCache fires OnAppUpdate on the owned ArcAppLauncher, which
+  // re-reads prefs (still ready==false) and calls MaybeLaunchApp(..., kReady).
+  // MaybeLaunchApp then calls proxy->Launch(kPlayStoreAppId) which routes to
+  // ArcApps::Launch -> arc::LaunchAppWithIntent. Because |app_info->ready| is
+  // false, the deferred branch calls AddSpinnerToShelf, which (since the Play
+  // Store item exists with STATUS_CLOSED) calls
+  // ShelfModel::ReplaceShelfItemDelegate. That destroys the
+  // ArcPlaystoreShortcutShelfItemController -- and with it, the ArcAppLauncher
+  // currently executing MaybeLaunchApp. Control then returns to
+  // arc_app_launcher.cc and writes |app_launched_ = true| to the freed object.
+  //
+  // Under ASan this is detected as heap-use-after-free (WRITE of size 1).
+  {
+    std::vector<apps::AppPtr> deltas;
+    auto app = std::make_unique<apps::App>(apps::AppType::kArc,
+                                           arc::kPlayStoreAppId);
+    app->readiness = apps::Readiness::kReady;
+    deltas.push_back(std::move(app));
+    proxy->OnApps(std::move(deltas), apps::AppType::kArc,
+                  /*should_notify_initialized=*/false);
+  }
+
+  // If we get here without ASan firing, at least verify the synchronous chain
+  // ran end-to-end (the spinner replaced the Play Store delegate).
+  EXPECT_TRUE(shelf_controller_->GetShelfSpinnerController()->HasApp(
+      arc::kPlayStoreAppId));
+  EXPECT_NE(item_delegate,
+            model_->GetShelfItemDelegate(ash::ShelfID(arc::kPlayStoreAppId)));
+
+  arc_app_test_.PreProfileTearDown();
   arc_app_test_.PostProfileTearDown();
 }
 

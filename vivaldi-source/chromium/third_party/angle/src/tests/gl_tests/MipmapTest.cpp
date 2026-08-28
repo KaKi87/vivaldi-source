@@ -4,10 +4,7 @@
 // found in the LICENSE file.
 //
 
-#ifdef UNSAFE_BUFFERS_BUILD
-#    pragma allow_unsafe_buffers
-#endif
-
+#include "common/unsafe_buffers.h"
 #include "test_utils/ANGLETest.h"
 
 #include "test_utils/gl_raii.h"
@@ -514,9 +511,6 @@ class MipmapTestES31 : public BaseMipmapTest
 // conformance2/textures/misc/tex-mipmap-levels WebGL2 test.
 TEST_P(MipmapTestES3, GenerateMipmapPartialLevels)
 {
-    // TODO(anglebug.com/40096747): Failing on ARM-based Apple DTKs.
-    ANGLE_SKIP_TEST_IF(IsMac() && IsARM64() && IsDesktopOpenGL());
-
     const std::vector<GLColor> kRedData(64, GLColor::red);
     const std::vector<GLColor> kGreenData(16, GLColor::green);
     const std::vector<GLColor> kBlueData(4, GLColor::blue);
@@ -675,9 +669,7 @@ TEST_P(MipmapTestES3, GenerateMipmapLongNPOTTexture)
 // This test generates (and uses) mipmaps on a texture using init data. D3D11 will use a
 // non-renderable TextureStorage for this. The test then disables mips, renders to level zero of the
 // texture, and reenables mips before using the texture again. To do this, D3D11 has to convert the
-// TextureStorage into a renderable one. This test ensures that the conversion works correctly. In
-// particular, on D3D11 Feature Level 9_3 it ensures that both the zero LOD workaround texture AND
-// the 'normal' texture are copied during conversion.
+// TextureStorage into a renderable one. This test ensures that the conversion works correctly.
 TEST_P(MipmapTest, GenerateMipmapFromInitDataThenRender)
 {
     // http://anglebug.com/42264262
@@ -807,9 +799,6 @@ TEST_P(MipmapTest, GenerateMipmapAfterModifyingBaseLevel)
 }
 
 // This test ensures that mips are correctly generated from a rendered image.
-// In particular, on D3D11 Feature Level 9_3, the clear call will be performed on the zero-level
-// texture, rather than the mipped one. The test ensures that the zero-level texture is correctly
-// copied into the mipped texture before the mipmaps are generated.
 TEST_P(MipmapTest, GenerateMipmapFromRenderedImage)
 {
     // http://anglebug.com/42264262
@@ -928,7 +917,7 @@ TEST_P(MipmapTest, DefineValidExtraLevelAndUseItLater)
     for (int i = 0; i < maxLevel; i++)
     {
         glTexImage2D(GL_TEXTURE_2D, i, GL_RGB, getWindowWidth() >> i, getWindowHeight() >> i, 0,
-                     GL_RGB, GL_UNSIGNED_BYTE, levels[i % 3]);
+                     GL_RGB, GL_UNSIGNED_BYTE, ANGLE_UNSAFE_TODO(levels[i % 3]));
     }
 
     // Define an extra level that won't be used for now
@@ -968,7 +957,7 @@ TEST_P(MipmapTest, DefineValidExtraLevelAndUseItLater)
     for (int i = 0; i < maxLevel - 1; i++)
     {
         glTexImage2D(GL_TEXTURE_2D, i + 1, GL_RGB, getWindowWidth() >> i, getWindowHeight() >> i, 0,
-                     GL_RGB, GL_UNSIGNED_BYTE, levels[i % 3]);
+                     GL_RGB, GL_UNSIGNED_BYTE, ANGLE_UNSAFE_TODO(levels[i % 3]));
     }
 
     // At this point we have a valid mip chain, the last level being magenta if we draw 1x1 pixel.
@@ -1019,9 +1008,8 @@ TEST_P(MipmapTest, MipMapGenerationD3D9Bug)
     EXPECT_PIXEL_COLOR_NEAR(0, 0, mip1Color, 1.0);
 }
 
-// This test ensures that the level-zero workaround for TextureCubes (on D3D11 Feature Level 9_3)
-// works as expected. It tests enabling/disabling mipmaps, generating mipmaps, and rendering to
-// level zero.
+// This test ensures that TextureCubes work as expected when enabling/disabling mipmaps,
+// generating mipmaps, and rendering to level zero.
 TEST_P(MipmapTest, TextureCubeGeneralLevelZero)
 {
     // http://anglebug.com/42261821
@@ -1776,9 +1764,6 @@ TEST_P(MipmapTestES3, GenerateMipmapBaseLevel)
     // Observed incorrect rendering on AMD, sampling level 2 returns black.
     ANGLE_SKIP_TEST_IF(IsAMD() && IsDesktopOpenGL());
 
-    // TODO(anglebug.com/40096747): Failing on ARM-based Apple DTKs.
-    ANGLE_SKIP_TEST_IF(IsMac() && IsARM64() && IsDesktopOpenGL());
-
     glBindTexture(GL_TEXTURE_2D, mTexture);
 
     ASSERT_EQ(getWindowWidth(), getWindowHeight());
@@ -1830,9 +1815,6 @@ TEST_P(MipmapTestES3, GenerateMipmapPreservesOutOfRangeMips)
 
     // http://anglebug.com/40096708
     ANGLE_SKIP_TEST_IF(IsOpenGLES() && IsNVIDIAShield());
-
-    // TODO(anglebug.com/40096747): Failing on ARM-based Apple DTKs.
-    ANGLE_SKIP_TEST_IF(IsMac() && IsARM64() && IsDesktopOpenGL());
 
     constexpr GLint kTextureSize = 16;
     const std::vector<GLColor> kLevel0Data(kTextureSize * kTextureSize, GLColor::red);
@@ -1899,9 +1881,6 @@ TEST_P(MipmapTestES3, GenerateMipmapCubeBaseLevel)
     // Observed incorrect rendering on AMD, sampling level 2 returns black.
     ANGLE_SKIP_TEST_IF(IsAMD() && IsDesktopOpenGL());
 
-    // TODO(anglebug.com/40096747): Failing on ARM-based Apple DTKs.
-    ANGLE_SKIP_TEST_IF(IsMac() && IsARM64() && IsDesktopOpenGL());
-
     ASSERT_EQ(getWindowWidth(), getWindowHeight());
 
     glBindTexture(GL_TEXTURE_CUBE_MAP, mTexture);
@@ -1953,9 +1932,6 @@ TEST_P(MipmapTestES3, GenerateMipmapCubeBaseLevel)
 // the levelbase array, are left unchanged by this computation."
 TEST_P(MipmapTestES3, GenerateMipmapMaxLevel)
 {
-    // TODO(anglebug.com/40096747): Failing on ARM-based Apple DTKs.
-    ANGLE_SKIP_TEST_IF(IsMac() && IsARM64() && IsDesktopOpenGL());
-
     glBindTexture(GL_TEXTURE_2D, mTexture);
 
     // Fill level 0 with blue
@@ -2060,9 +2036,6 @@ TEST_P(MipmapTestES3, BaseLevelTextureBug)
     // Seems to be passing on AMD GPUs. Definitely not NVIDIA.
     // Probably not Intel.
     ANGLE_SKIP_TEST_IF(IsMac() && IsNVIDIA());
-
-    // TODO(anglebug.com/40096747): Failing on ARM-based Apple DTKs.
-    ANGLE_SKIP_TEST_IF(IsMac() && IsARM64() && IsDesktopOpenGL());
 
     std::vector<GLColor> texDataRed(2u * 2u, GLColor::red);
 
@@ -2283,10 +2256,12 @@ void main()
     GLubyte mip0Color[16 * 4];
     for (size_t i = 0; i < 16; i++)
     {
-        mip0Color[i * 4 + 0] = kRedColor[i];
-        mip0Color[i * 4 + 1] = 0;
-        mip0Color[i * 4 + 2] = 0;
-        mip0Color[i * 4 + 3] = 0xff;
+        ANGLE_UNSAFE_TODO({
+            mip0Color[i * 4 + 0] = kRedColor[i];
+            mip0Color[i * 4 + 1] = 0;
+            mip0Color[i * 4 + 2] = 0;
+            mip0Color[i * 4 + 3] = 0xff;
+        })
     }
 
     GLFramebuffer fb0, fb1, fb2;
@@ -2346,14 +2321,14 @@ void main()
     glReadPixels(0, 0, 2, 2, GL_RGBA, GL_UNSIGNED_BYTE, &resultColors[0]);
     for (size_t i = 0; i < 4; i++)
     {
-        EXPECT_EQ(resultColors[i * 4], kExpectedMip1Color[i]);
+        ANGLE_UNSAFE_TODO(EXPECT_EQ(resultColors[i * 4], kExpectedMip1Color[i]));
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, fb2);
     glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &resultColors[0]);
     for (size_t i = 0; i < 1; i++)
     {
-        EXPECT_EQ(resultColors[i * 4], kExpectedMip2Color[i]);
+        ANGLE_UNSAFE_TODO(EXPECT_EQ(resultColors[i * 4], kExpectedMip2Color[i]));
     }
 }
 

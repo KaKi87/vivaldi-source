@@ -369,7 +369,7 @@ CGFloat SpacingForSize(CGSize size,
 
   CGRect frame = [pageControl convertRect:pageControl.bounds
                                    toView:collectionView];
-  return CGRectGetMaxY(frame);
+  return CGRectGetMaxY(frame) - CGRectGetMinY(collectionView.bounds);
 }
 
 - (UIColor*)fadeTopColor {

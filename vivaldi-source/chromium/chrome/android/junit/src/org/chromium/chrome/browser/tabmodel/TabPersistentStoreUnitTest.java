@@ -42,6 +42,7 @@ import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.Token;
 import org.chromium.base.UserDataHost;
+import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.task.SequencedTaskRunner;
 import org.chromium.base.task.TaskRunner;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -58,11 +59,12 @@ import org.chromium.chrome.browser.tab.TabId;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tab.TabSelectionType;
 import org.chromium.chrome.browser.tab.TabState;
-import org.chromium.chrome.browser.tab.TabStateAttributes;
 import org.chromium.chrome.browser.tab.TabStateAttributes.DirtinessState;
+import org.chromium.chrome.browser.tab.TabStateAttributesRegistry;
 import org.chromium.chrome.browser.tabmodel.TabPersistentStoreImpl.TabRestoreDetails;
 import org.chromium.chrome.browser.tabpersistence.TabMetadataFileManager;
 import org.chromium.chrome.browser.tabpersistence.TabMetadataFileManager.TabModelSelectorMetadata;
+import org.chromium.chrome.browser.tabpersistence.TabStateDirectory;
 import org.chromium.chrome.browser.tabwindow.TabWindowManager;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.url.GURL;
@@ -114,6 +116,8 @@ public class TabPersistentStoreUnitTest {
         when(mNormalTabModel.iterator()).thenAnswer(inv -> Collections.emptyList().iterator());
         when(mTabModelSelector.getModel(false)).thenReturn(mNormalTabModel);
         when(mTabModelSelector.getModel(true)).thenReturn(mIncognitoTabModel);
+        when(mTabModelSelector.getCurrentTabModelSupplier())
+                .thenReturn(ObservableSuppliers.createMonotonic(mNormalTabModel));
 
         when(mTabCreatorManager.getTabCreator(false)).thenReturn(mNormalTabCreator);
         when(mTabCreatorManager.getTabCreator(true)).thenReturn(mIncognitoTabCreator);
@@ -166,9 +170,11 @@ public class TabPersistentStoreUnitTest {
         Tab emptyNtpTab = mock(Tab.class);
         UserDataHost emptyNtpTabUserDataHost = new UserDataHost();
         when(emptyNtpTab.getUserDataHost()).thenReturn(emptyNtpTabUserDataHost);
-        TabStateAttributes.createForTab(emptyNtpTab, TabCreationState.FROZEN_ON_RESTORE);
+        TabStateAttributesRegistry.createAttributesForTab(
+                emptyNtpTab, TabPersistentStoreImpl.class, TabCreationState.FROZEN_ON_RESTORE);
         when(emptyNtpTab.getUrl()).thenReturn(new GURL(getOriginalNativeNtpUrl()));
-        TabStateAttributes.from(emptyNtpTab).setStateForTesting(DirtinessState.DIRTY);
+        TabStateAttributesRegistry.getAttributesFor(emptyNtpTab, TabPersistentStoreImpl.class)
+                .setStateForTesting(DirtinessState.DIRTY);
 
         mPersistentStore.addTabToSaveQueue(emptyNtpTab);
         assertTrue(mPersistentStore.isTabPendingSave(emptyNtpTab));
@@ -189,6 +195,13 @@ public class TabPersistentStoreUnitTest {
                         /* recordLegacyTabCountMetrics= */ true);
         mPersistentStore.initializeRestoreVars(
                 /* ignoreIncognitoFiles= */ false, /* ignoreRegularFiles= */ false);
+
+        LoadUrlParamsUrlMatcher paramsMatcher =
+                new LoadUrlParamsUrlMatcher(getOriginalNativeNtpUrl());
+        Tab emptyNtp = mock(Tab.class);
+        when(mNormalTabCreator.createNewTab(
+                        argThat(paramsMatcher), eq(TabLaunchType.FROM_RESTORE), isNull()))
+                .thenReturn(emptyNtp);
 
         TabRestoreDetails emptyNtpDetails =
                 new TabRestoreDetails(1, 0, false, getOriginalNativeNtpUrl(), false);
@@ -815,13 +828,21 @@ public class TabPersistentStoreUnitTest {
 
         UserDataHost userDataHost = new UserDataHost();
         when(mTab.getUserDataHost()).thenReturn(userDataHost);
-        TabStateAttributes.createForTab(mTab, TabCreationState.LIVE_IN_FOREGROUND);
-        TabStateAttributes.from(mTab).updateIsDirty(DirtinessState.UNTIDY);
-        assertEquals(DirtinessState.UNTIDY, TabStateAttributes.from(mTab).getDirtinessState());
+        TabStateAttributesRegistry.createAttributesForTab(
+                mTab, TabPersistentStoreImpl.class, TabCreationState.LIVE_IN_FOREGROUND);
+        TabStateAttributesRegistry.getAttributesFor(mTab, TabPersistentStoreImpl.class)
+                .updateIsDirty(DirtinessState.UNTIDY);
+        assertEquals(
+                DirtinessState.UNTIDY,
+                TabStateAttributesRegistry.getAttributesFor(mTab, TabPersistentStoreImpl.class)
+                        .getDirtinessState());
 
         mPersistentStore.saveState();
 
-        assertEquals(DirtinessState.CLEAN, TabStateAttributes.from(mTab).getDirtinessState());
+        assertEquals(
+                DirtinessState.CLEAN,
+                TabStateAttributesRegistry.getAttributesFor(mTab, TabPersistentStoreImpl.class)
+                        .getDirtinessState());
     }
 
     @Test
@@ -1041,5 +1062,55 @@ public class TabPersistentStoreUnitTest {
         public boolean matches(LoadUrlParams argument) {
             return TextUtils.equals(mUrl, argument.getUrl());
         }
+    }
+
+    @Test
+    @Feature("TabPersistentStore")
+    public void testGetTabListForClosedWindow() throws Exception {
+        // Set base directory for tests.
+        TabStateDirectory.setBaseStateDirectoryForTests(mTemporaryFolder.getRoot());
+        TabStateDirectory.resetTabbedModeStateDirectoryForTesting();
+
+        int instanceId = 42;
+        TabModelSelectorMetadata metadata =
+                new TabModelSelectorMetadata(
+                        new TabMetadataFileManager.TabModelMetadata(/* selectedIndex= */ 1),
+                        new TabMetadataFileManager.TabModelMetadata(
+                                /* selectedIndex= */ TabList.INVALID_TAB_INDEX));
+
+        // Normal tabs:
+        metadata.normalModelMetadata.ids.add(10);
+        metadata.normalModelMetadata.urls.add("https://normal1.com");
+        metadata.normalModelMetadata.ids.add(20);
+        metadata.normalModelMetadata.urls.add("https://normal2.com");
+
+        // Incognito tabs:
+        metadata.incognitoModelMetadata.ids.add(30);
+        metadata.incognitoModelMetadata.urls.add("https://incognito1.com");
+
+        // Write file to the tabbed mode directory.
+        File dir = TabStateDirectory.getOrCreateTabbedModeStateDirectory();
+        File file =
+                new File(
+                        dir,
+                        TabMetadataFileManager.getMetadataFileName(Integer.toString(instanceId)));
+        TabMetadataFileManager.saveListToFile(file, metadata);
+
+        // Query tab list.
+        List<TabPersistentStoreImpl.ClosedWindowTabInfo> tabs =
+                TabPersistentStoreImpl.getTabListForClosedWindow(instanceId);
+
+        // Verify results. Incognito should be ignored.
+        assertThat(tabs).hasSize(2);
+
+        // First tab:
+        assertThat(tabs.get(0).id).isEqualTo(10);
+        assertThat(tabs.get(0).url.getSpec()).isEqualTo("https://normal1.com/");
+        assertThat(tabs.get(0).isActive).isFalse();
+
+        // Second tab (active):
+        assertThat(tabs.get(1).id).isEqualTo(20);
+        assertThat(tabs.get(1).url.getSpec()).isEqualTo("https://normal2.com/");
+        assertThat(tabs.get(1).isActive).isTrue();
     }
 }

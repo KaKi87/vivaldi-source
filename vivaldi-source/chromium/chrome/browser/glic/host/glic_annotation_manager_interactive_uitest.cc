@@ -201,10 +201,11 @@ class GlicAnnotationManagerUiTestBase : public InteractiveGlicTest {
 
       base::RunLoop run_loop(base::RunLoop::Type::kNestableTasksAllowed);
 
-      auto options = mojom::GetTabContextOptions::New();
-      options->include_annotated_page_content = true;
+      auto options = mojom::TabContextOptions::New();
+      options->annotated_page_content = true;
 
-      FocusedTabData data = GetHost()->sharing_manager().GetFocusedTabData();
+      FocusedTabData data =
+          GetHost()->GetSharingManagerInternal().GetFocusedTabData();
       CHECK(data.focus());
       FetchPageContext(
           data.focus(), *options,
@@ -428,7 +429,8 @@ class GlicAnnotationManagerUiTestBase : public InteractiveGlicTest {
                 ->web_contents();
       }
       CHECK(GetHost());
-      GlicSharingManager* sharing_manager = &GetHost()->sharing_manager();
+      GlicSharingManagerInternal* sharing_manager =
+          &GetHost()->GetSharingManagerInternal();
       FocusedTabData focused_tab_data = sharing_manager->GetFocusedTabData();
       content::WebContents* focused_web_contents =
           focused_tab_data.focus() ? focused_tab_data.focus()->GetContents()
@@ -467,7 +469,7 @@ class GlicAnnotationManagerUiTestBase : public InteractiveGlicTest {
   auto UserSwitchesConversation() {
     const DeepQuery kOnActiveThreadChanged{{"#dropScrollToHighlightBtn"}};
     static constexpr char kClickFn[] = "el => el.click()";
-    return ExecuteJsAt(test::kGlicContentsElementId, kOnActiveThreadChanged,
+    return ExecuteJsAt(kGlicContentsElementId, kOnActiveThreadChanged,
                        kClickFn);
   }
 
@@ -853,7 +855,7 @@ IN_PROC_BROWSER_TEST_F(
           mojom::ScrollToErrorReason::kFocusedTabChangedOrNavigated));
 }
 
-// This tests a state where GlicSharingManager has no focused tab. It
+// This tests a state where GlicSharingManagerInternal has no focused tab. It
 // relies on chrome://settings not being considered as a valid URL by the class.
 IN_PROC_BROWSER_TEST_F(MAYBE_GlicAnnotationManagerUiTest, NoFocusedTab) {
   RunTestSequence(InstrumentTab(kActiveTabId),
@@ -1280,11 +1282,9 @@ IN_PROC_BROWSER_TEST_F(
       // contents isn't visible.
       CheckResult(
           [&]() {
-            return content::EvalJs(GetGlicInstance()
-                                       ->host()
-                                       .webui_contents()
-                                       ->GetInnerWebContents()[0],
-                                   R"js(
+            return content::EvalJs(
+                       GetHost()->webui_contents()->GetInnerWebContents()[0],
+                       R"js(
               new Promise(resolve => {
                 window.scrollToPromise.catch(e => {
                   resolve(e.reason);
@@ -1488,7 +1488,7 @@ class MAYBE_GlicAnnotationManagerTabContextPermissionUiTest
       // When GlicDefaultTabContextSetting is disabled, we rely on a pref to
       // determine if tab context permission is enabled.
       return Steps(Do([this, enabled]() {
-        browser()->profile()->GetPrefs()->SetBoolean(
+        browser()->GetProfile()->GetPrefs()->SetBoolean(
             glic::prefs::kGlicTabContextEnabled, enabled);
       }));
     }

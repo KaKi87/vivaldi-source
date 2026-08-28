@@ -23,23 +23,60 @@ export function getHtml(this: NtpComposeboxElement) {
         .energyEffectAnimationEnabled="${this.energyEffectAnimationEnabled}"
         .darkThemeColorsEnabled="${false}"
         exportparts="composebox-background">
+      ${this.showFileCarousel && this.shouldShowVoiceSearchAnimation() &&
+          this.voiceSearchCoherenceEnabled ? html`
+        <div id="voiceCarouselContainer"
+            slot="carousel"
+            part="carousel-container">
+          <div id="voiceCarouselContainerInner"
+              class="carousel-container-inner">
+            <cr-composebox-file-carousel
+              id="voiceSearchCarousel"
+              .files="${this.getFilteredCarouselFiles()}"
+              enable-scrolling
+              @delete-file="${this.onDeleteFile}">
+            </cr-composebox-file-carousel>
+          </div>
+        </div>
+      ` : ''}
+      ${this.shouldShowVoiceSearchAnimation() &&
+            this.voiceSearchCoherenceEnabled && this.inToolMode
+          ? html`<div class=
+              "context-menu-container voice-context-menu-container"
+                    id="voiceToolChipsContainer"
+                    slot="tool-chip"
+                    part="tool-chips-container">
+                  <cr-composebox-tool-chip
+                    exportparts="tool-chip-label"
+                    .inputState="${this.inputState}"
+                    .isCanvasQuerySubmitted="
+                        ${this.isCanvasQuerySubmitted}"
+                    @tool-click="${this.onToolClick}"
+                    part="tool-chip">
+                  </cr-composebox-tool-chip>
+                </div>
+      ` : ''}
     </search-animated-glow>
-    <ntp-error-scrim id="errorScrim" part="error-scrim"
-        ?compact-mode="${this.files.size === 0}"
-        .errorMessage="${this.errorMessage}"
-        @dismiss-error-scrim="${this.onDismissErrorScrim}">
-    </ntp-error-scrim>
+    ${this.errorMessage ?
+      html`<ntp-error-scrim id="errorScrim" part="error-scrim"
+          ?compact-mode="${this.searchboxLayoutMode === 'Compact' &&
+                          this.files.size === 0}"
+          .errorMessage="${this.errorMessage}"
+          @dismiss-error-scrim="${this.onDismissErrorScrim}">
+      </ntp-error-scrim>`
+    : ''}
     <div id="composebox" part="composebox" ?inert="${!!this.errorMessage}"
         @keydown="${this.onKeydown}"
-        @dragenter="${this.dragAndDropHandler_.handleDragEnter}"
-        @dragover="${this.dragAndDropHandler_.handleDragOver}"
-        @dragleave="${this.dragAndDropHandler_.handleDragLeave}"
-        @drop="${this.dragAndDropHandler_.handleDrop}"
+        @dragenter="${this.dragAndDropHandler.handleDragEnter}"
+        @dragover="${this.dragAndDropHandler.handleDragOver}"
+        @dragleave="${this.dragAndDropHandler.handleDragLeave}"
+        @drop="${this.dragAndDropHandler.handleDrop}"
         @paste="${this.onPaste}">
       <div id="inputContainer" part="input-container">
         <cr-composebox-input id="composeboxInput"
             class="${this.hasTabs() ? 'has-tabs' : ''}"
             exportparts="text-container, icon-container, mirror, input, smart-compose, cancel, action-icon, cancel-icon"
+            .composeboxSkillsEnabled="${this.composeboxSkillsEnabled}"
             .disableCaretColorAnimation="${this.disableCaretColorAnimation}"
             .showDropdown="${this.showDropdown}"
             .inputPlaceholder="${this.inputPlaceholder}"
@@ -52,12 +89,19 @@ export function getHtml(this: NtpComposeboxElement) {
             @input-focusin="${this.onInputFocusin}"
             @cancel-click="${this.onCancelClick}"
             @clear-smart-compose="${this.onClearSmartCompose}">
+          ${this.shouldShowVoiceSearch() ? html`
+            <cr-icon-button id="voiceSearchButton" class="voice-icon"
+                slot="action-buttons"
+                part="voice-icon" iron-icon="cr:mic"
+                @click="${this.onVoiceSearchButtonClick}"
+                title="${this.i18n('voiceSearchButtonLabel')}">
+            </cr-icon-button>
+          ` : ''}
         </cr-composebox-input>
         <div id="context" part="context-entrypoint">
           <cr-composebox-file-inputs id="fileInputs"
               @file-change="${this.onFileChange}"
               .disableFileInputs="${this.shouldDisableFileInputs()}">
-            ${this.hasTabs() ? '' : getContextMenuHtml.bind(this)()}
             <div id="carouselContainer" part="carousel-container">
               <div class="carousel-container-inner">
                 ${this.showFileCarousel ? html`
@@ -68,8 +112,8 @@ export function getHtml(this: NtpComposeboxElement) {
                     .files="${this.getFilteredCarouselFiles()}"
                     @delete-file="${this.onDeleteFile}">
                   </cr-composebox-file-carousel> ` : ''}
-                  ${this.hasTabs() && this.contextMenuEnabled ? html`
-                    ${getContextMenuHtml.bind(this)()}
+                  ${this.contextMenuEnabled ? html`
+                      ${getContextMenuHtml.bind(this)()}
                   ` : ''}
                   ${this.inToolMode ? html`
                   <div class="context-menu-container" id="toolChipsContainer"

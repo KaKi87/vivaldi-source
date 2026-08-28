@@ -132,7 +132,7 @@ webapps::AppId InstallWebAppFromPage(Browser* browser,
   webapps::AppId app_id;
   base::RunLoop run_loop;
 
-  auto* provider = WebAppProvider::GetForTest(browser->profile());
+  auto* provider = WebAppProvider::GetForTest(browser->GetProfile());
   DCHECK(provider);
   test::WaitUntilReady(provider);
   base::test::TestFuture<const webapps::AppId&, webapps::InstallResultCode>
@@ -194,7 +194,7 @@ webapps::AppId InstallWebAppInNewTabAndClose(Browser* browser,
 
 webapps::AppId InstallWebAppFromManifest(Browser* browser,
                                          const GURL& app_url) {
-  ServiceWorkerRegistrationWaiter registration_waiter(browser->profile(),
+  ServiceWorkerRegistrationWaiter registration_waiter(browser->GetProfile(),
                                                       app_url);
   NavigateViaLinkClickToURLAndWait(browser, app_url);
   registration_waiter.AwaitRegistration();
@@ -211,7 +211,7 @@ webapps::AppId InstallWebAppFromManifest(Browser* browser,
   webapps::AppId app_id;
   base::RunLoop run_loop;
 
-  auto* provider = WebAppProvider::GetForTest(browser->profile());
+  auto* provider = WebAppProvider::GetForTest(browser->GetProfile());
   DCHECK(provider);
   test::WaitUntilReady(provider);
   provider->scheduler().FetchManifestAndInstall(
@@ -458,12 +458,13 @@ void NavigateAndCheckForToolbar(Browser* browser,
                                 bool expected_visibility,
                                 bool proceed_through_interstitial) {
   NavigateViaLinkClickToURLAndWait(browser, url, proceed_through_interstitial);
-  EXPECT_EQ(expected_visibility,
-            browser->app_controller()->ShouldShowCustomTabBar());
+  EXPECT_EQ(
+      expected_visibility,
+      web_app::AppBrowserController::From(browser)->ShouldShowCustomTabBar());
 }
 
 AppMenuCommandState GetAppMenuCommandState(int command_id, Browser* browser) {
-  DCHECK(!browser->app_controller())
+  DCHECK(!web_app::AppBrowserController::From(browser))
       << "This check only applies to regular browser windows.";
   auto app_menu_model = std::make_unique<AppMenuModel>(nullptr, browser);
   app_menu_model->Init();

@@ -2,7 +2,6 @@
 
 update_target("//chrome/browser:browser") {
   public_deps += [ "//vivaldi/calendar" ]
-  allow_circular_includes_from += [ "//vivaldi/calendar" ]
 }
 
 update_target("//chrome:dependencies") {

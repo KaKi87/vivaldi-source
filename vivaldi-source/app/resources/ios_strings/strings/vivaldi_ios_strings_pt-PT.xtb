@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Pedir para abrir em privado hiperligações de outras aplicações</translation>
 <translation id="1624481300475123200">Preencher automaticamente palavras-passe</translation>
 <translation id="1743244221910283364">Descartar alterações</translation>
+<translation id="1972589975368876259">Editar grupo de separadores</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Adicionar separador a um grupo}
         other {Adicionar separadores a um grupo}}</translation>
@@ -48,7 +49,6 @@
 <translation id="4772190485302020393">Fechar todos os separadores e grupos</translation>
 <translation id="4802185666270672526">Ocultar Pedir website para computador</translation>
 <translation id="4828571836982833289">Desagrupar o separador?</translation>
-<translation id="4838250035189612538">Mudar nome ao grupo</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 grupo de separadores fechado e guardado}
             other {{count} grupos de separadores fechados e guardados}}</translation>

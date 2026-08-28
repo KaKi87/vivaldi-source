@@ -283,7 +283,7 @@ class OperaProfileImporterBrowserTest : public InProcessBrowserTest {
 
     host->set_observer(observer.get());
     host->StartImportSettings(
-        import_profile, browser()->profile(), imported_items,
+        import_profile, browser()->GetProfile(), imported_items,
         base::WrapRefCounted<ProfileWriter>(observer.get()).get());
 
     loop.Run();

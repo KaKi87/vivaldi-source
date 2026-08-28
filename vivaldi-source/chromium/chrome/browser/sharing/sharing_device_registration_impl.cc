@@ -29,9 +29,8 @@
 #include "components/sync/service/sync_service.h"
 #include "components/sync_device_info/device_info.h"
 
-#if BUILDFLAG(IS_ANDROID)
-#include "chrome/android/chrome_jni_headers/SharingJNIBridge_jni.h"
-#endif
+
+#include "app/vivaldi_apptools.h"
 
 using instance_id::InstanceID;
 using SharingFeature = syncer::DeviceInfo::SharingFeature;
@@ -203,9 +202,11 @@ std::set<SharingFeature> SharingDeviceRegistrationImpl::GetEnabledFeatures()
   }
 
   std::set<SharingFeature> enabled_features;
-  if (IsClickToCallSupported()) {
-    enabled_features.insert(SharingFeature::kClickToCallV2);
+
+  if (vivaldi::IsVivaldiRunning()) {
+    return enabled_features; // Vivaldi: VB-128107 We do not want any of these enabled
   }
+
   if (IsSharedClipboardSupported()) {
     enabled_features.insert(SharingFeature::kSharedClipboardV2);
   }
@@ -226,15 +227,6 @@ std::set<SharingFeature> SharingDeviceRegistrationImpl::GetEnabledFeatures()
   }
 
   return enabled_features;
-}
-
-bool SharingDeviceRegistrationImpl::IsClickToCallSupported() const {
-#if BUILDFLAG(IS_ANDROID)
-  JNIEnv* env = jni_zero::AttachCurrentThread();
-  return Java_SharingJNIBridge_isTelephonySupported(env);
-#else
-  return false;
-#endif
 }
 
 bool SharingDeviceRegistrationImpl::IsSharedClipboardSupported() const {
@@ -284,6 +276,3 @@ void SharingDeviceRegistrationImpl::SetEnabledFeaturesForTesting(
   enabled_features_testing_value_ = std::move(enabled_features);
 }
 
-#if BUILDFLAG(IS_ANDROID)
-DEFINE_JNI(SharingJNIBridge)
-#endif

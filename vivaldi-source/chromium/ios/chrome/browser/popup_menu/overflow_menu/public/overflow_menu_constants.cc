@@ -215,6 +215,10 @@ std::optional<ActionType> ActionTypeForStringName(std::string action) {
     return overflow_menu::ActionType::HideToolbars;
   } else if (action == "ShareThisPage") {
     return overflow_menu::ActionType::ShareThisPage;
+  } else if (action == "Identity") {
+    return overflow_menu::ActionType::Identity;
+  } else if (action == "CustomizeHomePage") {
+    return overflow_menu::ActionType::CustomizeHomePage;
 
 #if defined(VIVALDI_BUILD)
   } else if (action == "Bookmarks") {
@@ -290,6 +294,12 @@ std::string StringNameForActionType(ActionType action) {
       NOTREACHED();
     case overflow_menu::ActionType::ShareThisPage:
       return "ShareThisPage";
+    case overflow_menu::ActionType::SigninDeprecated:
+      NOTREACHED();
+    case overflow_menu::ActionType::Identity:
+      return "Identity";
+    case overflow_menu::ActionType::CustomizeHomePage:
+      return "CustomizeHomePage";
 
     // Vivaldi
     case overflow_menu::ActionType::vAddPageTo:

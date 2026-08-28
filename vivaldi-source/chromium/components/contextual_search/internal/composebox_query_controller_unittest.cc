@@ -26,6 +26,7 @@
 #include "components/lens/lens_features.h"
 #include "components/lens/lens_overlay_invocation_source.h"
 #include "components/lens/lens_url_utils.h"
+#include "components/omnibox/common/composebox_features.h"
 #include "components/omnibox/composebox/composebox_query.mojom.h"
 #include "components/search_engines/search_engines_test_environment.h"
 #include "components/signin/public/identity_manager/access_token_info.h"
@@ -134,7 +135,8 @@ class ComposeboxQueryControllerTest
       bool enable_send_contextual_input_upload_type = false,
       bool send_contextual_input_upload_type_in_search_url = true,
       bool send_contextual_input_upload_type_in_aim_request = true,
-      bool exclude_raw_and_drive_files = true) {
+      bool exclude_raw_and_drive_files = true,
+      bool enable_contextual_tasks_upload_chunking = false) {
     scoped_feature_list_.Reset();
     std::vector<base::test::FeatureRefAndParams> enabled_features;
     std::vector<base::test::FeatureRef> disabled_features;
@@ -186,6 +188,15 @@ class ComposeboxQueryControllerTest
       disabled_features.push_back(
           contextual_tasks::kContextualTasksSendContextualInputUploadType);
     }
+
+    if (enable_contextual_tasks_upload_chunking) {
+      enabled_features.push_back(
+          {contextual_tasks::kContextualTasksUploadChunking, {}});
+    } else {
+      disabled_features.push_back(
+          contextual_tasks::kContextualTasksUploadChunking);
+    }
+
     scoped_feature_list_.InitWithFeaturesAndParameters(enabled_features,
                                                        disabled_features);
 
@@ -280,6 +291,22 @@ class ComposeboxQueryControllerTest
     input_data->context_input->push_back(
         lens::ContextualInput(file_data, lens::MimeType::kPdf));
     input_data->context_id = context_id;
+    input_data->upload_type = lens::LensOverlayContextualInputUploadType::
+        CONTEXTUAL_INPUT_UPLOAD_TYPE_EXPLICIT;
+
+    controller().StartFileUploadFlow(file_token, std::move(input_data),
+                                     /*image_options=*/std::nullopt);
+  }
+
+  void StartPdfRawFileUploadFlow(const base::UnguessableToken& file_token,
+                                 const std::vector<uint8_t>& file_data) {
+    std::unique_ptr<lens::ContextualInputData> input_data =
+        std::make_unique<lens::ContextualInputData>();
+    input_data->primary_content_type = lens::MimeType::kUnknown;
+    input_data->mime_type_string = "application/pdf";
+    input_data->context_input = std::vector<lens::ContextualInput>();
+    input_data->context_input->push_back(
+        lens::ContextualInput(file_data, lens::MimeType::kUnknown));
     input_data->upload_type = lens::LensOverlayContextualInputUploadType::
         CONTEXTUAL_INPUT_UPLOAD_TYPE_EXPLICIT;
 
@@ -598,9 +625,9 @@ class ComposeboxQueryControllerTest
                                   ContextUploadStatus,
                                   std::optional<ContextUploadErrorType>>
       context_upload_status_future_;
-  base::test::ScopedFeatureList scoped_feature_list_;
 
  private:
+  base::test::ScopedFeatureList scoped_feature_list_;
   base::test::TaskEnvironment task_environment_{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
   search_engines::SearchEnginesTestEnvironment search_engines_test_environment_;
@@ -1574,6 +1601,100 @@ TEST_F(ComposeboxQueryControllerTest,
             "test_image.jpg");
 }
 
+#if !BUILDFLAG(IS_IOS)
+TEST_F(ComposeboxQueryControllerTest, UploadImageRequestC2paBypass) {
+  base::test::ScopedFeatureList local_feature_list;
+  local_feature_list.InitAndEnableFeature(
+      lens::features::kLensBypassCompressionForC2pa);
+
+  // Act: Start the session.
+  controller().InitializeIfNeeded();
+
+  // Act: Start the file upload flow.
+  const base::UnguessableToken file_token = base::UnguessableToken::Create();
+  std::unique_ptr<lens::ContextualInputData> input_data =
+      std::make_unique<lens::ContextualInputData>();
+  input_data->primary_content_type = lens::MimeType::kImage;
+  input_data->context_input = std::vector<lens::ContextualInput>();
+
+  // Use CreateJPGBytes helper
+  std::vector<uint8_t> image_bytes = CreateJPGBytes(100, 100);
+  std::string c2pa_str = "urn:c2pa:";
+  image_bytes.insert(image_bytes.end(), c2pa_str.begin(), c2pa_str.end());
+
+  input_data->context_input->push_back(
+      lens::ContextualInput(image_bytes, lens::MimeType::kImage));
+  input_data->file_name = "test_image.jpg";
+
+  lens::ImageEncodingOptions image_options{.max_size = 1000000,
+                                           .max_height = 1000,
+                                           .max_width = 1000,
+                                           .compression_quality = 30};
+
+  controller().StartFileUploadFlow(file_token, std::move(input_data),
+                                   image_options);
+
+  WaitForClusterInfo();
+  WaitForFileUpload(file_token, lens::MimeType::kImage);
+
+  // Validate the file upload request payload has the exact same bytes due to
+  // bypass.
+  std::string payload_bytes = controller()
+                                  .last_sent_file_upload_request()
+                                  ->objects_request()
+                                  .image_data()
+                                  .payload()
+                                  .image_bytes();
+  EXPECT_EQ(payload_bytes.size(), image_bytes.size());
+}
+
+TEST_F(ComposeboxQueryControllerTest, UploadImageRequestC2paFlagDisabled) {
+  base::test::ScopedFeatureList local_feature_list;
+  local_feature_list.InitAndDisableFeature(
+      lens::features::kLensBypassCompressionForC2pa);
+
+  // Act: Start the session.
+  controller().InitializeIfNeeded();
+
+  // Act: Start the file upload flow.
+  const base::UnguessableToken file_token = base::UnguessableToken::Create();
+  std::unique_ptr<lens::ContextualInputData> input_data =
+      std::make_unique<lens::ContextualInputData>();
+  input_data->primary_content_type = lens::MimeType::kImage;
+  input_data->context_input = std::vector<lens::ContextualInput>();
+
+  // Use CreateJPGBytes helper
+  std::vector<uint8_t> image_bytes = CreateJPGBytes(100, 100);
+  std::string c2pa_str = "urn:c2pa:";
+  image_bytes.insert(image_bytes.end(), c2pa_str.begin(), c2pa_str.end());
+
+  input_data->context_input->push_back(
+      lens::ContextualInput(image_bytes, lens::MimeType::kImage));
+  input_data->file_name = "test_image.jpg";
+
+  lens::ImageEncodingOptions image_options{.max_size = 1000000,
+                                           .max_height = 1000,
+                                           .max_width = 1000,
+                                           .compression_quality = 30};
+
+  controller().StartFileUploadFlow(file_token, std::move(input_data),
+                                   image_options);
+
+  WaitForClusterInfo();
+  WaitForFileUpload(file_token, lens::MimeType::kImage);
+
+  // Validate the file upload request payload was downscaled (bytes size should
+  // be different).
+  std::string payload_bytes = controller()
+                                  .last_sent_file_upload_request()
+                                  ->objects_request()
+                                  .image_data()
+                                  .payload()
+                                  .image_bytes();
+  EXPECT_NE(payload_bytes.size(), image_bytes.size());
+}
+#endif
+
 TEST_F(ComposeboxQueryControllerTest, UploadDriveFileRequestSuccess) {
   // Act: Start the session.
   controller().InitializeIfNeeded();
@@ -2142,8 +2263,6 @@ TEST_F(ComposeboxQueryControllerTest, PopulatesContentMetadataForPdfUpload) {
       "test title");
   EXPECT_EQ(request->objects_request().payload().content_metadata().file_name(),
             "test_file.pdf");
-  EXPECT_EQ(request->objects_request().payload().content_metadata().url(),
-            "https://example.com/");
 }
 
 TEST_F(ComposeboxQueryControllerTest, UploadPdfFileRequestSuccess) {
@@ -2597,6 +2716,55 @@ TEST_F(ComposeboxQueryControllerTest, CreateSearchUrlWithVoiceSearch) {
   std::string gs_ivs_param;
   EXPECT_TRUE(net::GetValueForKeyInQuery(aim_url, "gs_ivs", &gs_ivs_param));
   EXPECT_EQ(gs_ivs_param, "1");
+}
+
+TEST_F(ComposeboxQueryControllerTest, CreateSearchUrl_WithDriveId) {
+  CreateController(/*send_lns_surface=*/false);
+  controller().InitializeIfNeeded();
+
+  const base::UnguessableToken file_token = base::UnguessableToken::Create();
+  std::unique_ptr<lens::ContextualInputData> input_data =
+      std::make_unique<lens::ContextualInputData>();
+  input_data->primary_content_type = lens::MimeType::kUnknown;
+  input_data->mime_type_string = "application/vnd.google-apps.document";
+  input_data->drive_id = "test_drive_id";
+  input_data->context_input = std::vector<lens::ContextualInput>();
+  input_data->context_input->push_back(
+      lens::ContextualInput(std::vector<uint8_t>(), lens::MimeType::kUnknown));
+  input_data->upload_type = lens::LensOverlayContextualInputUploadType::
+      CONTEXTUAL_INPUT_UPLOAD_TYPE_EXPLICIT;
+
+  controller().StartFileUploadFlow(file_token, std::move(input_data),
+                                   /*image_options=*/std::nullopt);
+
+  WaitForClusterInfo();
+  WaitForFileUpload(file_token, lens::MimeType::kUnknown);
+
+  std::unique_ptr<CreateSearchUrlRequestInfo> search_url_request_info =
+      std::make_unique<CreateSearchUrlRequestInfo>();
+  search_url_request_info->query_text = "test query";
+  search_url_request_info->query_start_time = kTestQueryStartTime;
+  search_url_request_info->file_tokens.push_back(file_token);
+
+  base::test::TestFuture<GURL> url_future;
+  controller().CreateSearchUrl(std::move(search_url_request_info),
+                               url_future.GetCallback());
+  GURL aim_url = url_future.Take();
+
+  // Assert: vsrid parameter is not present.
+  std::string vsrid_value;
+  EXPECT_FALSE(net::GetValueForKeyInQuery(aim_url, "vsrid", &vsrid_value));
+
+  // Assert: cinpts parameter is present and contains the drive_id.
+  lens::LensOverlayContextualInputs contextual_inputs =
+      GetContextualInputsFromUrl(aim_url.spec());
+  EXPECT_EQ(contextual_inputs.inputs_size(), 1);
+  EXPECT_EQ(contextual_inputs.inputs(0).drive_id(), "test_drive_id");
+  EXPECT_EQ(contextual_inputs.inputs(0).request_id().uuid(),
+            controller()
+                .GetFileInfoForTesting(file_token)
+                ->GetRequestIdForTesting()
+                ->uuid());
 }
 
 TEST_F(ComposeboxQueryControllerTest, CreateClientToAimRequestWithVoiceSearch) {
@@ -3590,6 +3758,49 @@ TEST_F(ComposeboxQueryControllerTest, CreateClientToAimRequestWithUploadedPdf) {
             kTestSearchSessionId);
 }
 
+TEST_F(ComposeboxQueryControllerTest, CreateClientToAimRequest_WithDriveId) {
+  CreateController(/*send_lns_surface=*/false);
+  controller().InitializeIfNeeded();
+
+  const base::UnguessableToken file_token = base::UnguessableToken::Create();
+  std::unique_ptr<lens::ContextualInputData> input_data =
+      std::make_unique<lens::ContextualInputData>();
+  input_data->primary_content_type = lens::MimeType::kUnknown;
+  input_data->mime_type_string = "application/vnd.google-apps.document";
+  input_data->drive_id = "test_drive_id";
+  input_data->context_input = std::vector<lens::ContextualInput>();
+  input_data->context_input->push_back(
+      lens::ContextualInput(std::vector<uint8_t>(), lens::MimeType::kUnknown));
+  input_data->upload_type = lens::LensOverlayContextualInputUploadType::
+      CONTEXTUAL_INPUT_UPLOAD_TYPE_EXPLICIT;
+
+  controller().StartFileUploadFlow(file_token, std::move(input_data),
+                                   /*image_options=*/std::nullopt);
+
+  WaitForClusterInfo();
+  WaitForFileUpload(file_token, lens::MimeType::kUnknown);
+
+  std::unique_ptr<CreateClientToAimRequestInfo> client_to_aim_request_info =
+      std::make_unique<CreateClientToAimRequestInfo>();
+  client_to_aim_request_info->query_text = "hello";
+  client_to_aim_request_info->file_tokens.push_back(file_token);
+  client_to_aim_request_info->query_start_time = kTestQueryStartTime;
+  std::optional<lens::ClientToAimMessage> client_to_aim_request =
+      controller().CreateClientToAimRequest(
+          std::move(client_to_aim_request_info));
+
+  ASSERT_TRUE(client_to_aim_request.has_value());
+  ASSERT_EQ(client_to_aim_request->submit_query()
+                .payload()
+                .lens_image_query_data_size(),
+            1);
+  EXPECT_EQ(client_to_aim_request->submit_query()
+                .payload()
+                .lens_image_query_data(0)
+                .drive_id(),
+            "test_drive_id");
+}
+
 TEST_F(ComposeboxQueryControllerTest,
        CreateClientToAimRequest_IncludesToolModeAndModelMode) {
   // Act: Start the session.
@@ -3632,6 +3843,29 @@ TEST_F(ComposeboxQueryControllerTest,
             lens::ModelMode::MODEL_MODE_GEMINI_REGULAR);
   EXPECT_EQ(client_to_aim_request_2.submit_query().payload().tool_mode(),
             lens::ToolMode::TOOL_MODE_IMAGE_GEN);
+}
+
+TEST_F(ComposeboxQueryControllerTest, CreateClientToAimRequestWithExitTool) {
+  controller().InitializeIfNeeded();
+
+  std::unique_ptr<CreateClientToAimRequestInfo> client_to_aim_request_info =
+      std::make_unique<CreateClientToAimRequestInfo>();
+  client_to_aim_request_info->exit_tool_info =
+      CreateClientToAimRequestInfo::ExitToolInfo{
+          .tool_mode = omnibox::ToolMode::TOOL_MODE_CANVAS,
+          .new_tool_mode = omnibox::ToolMode::TOOL_MODE_UNSPECIFIED,
+      };
+
+  lens::ClientToAimMessage client_to_aim_request =
+      controller().CreateClientToAimRequest(
+          std::move(client_to_aim_request_info));
+
+  EXPECT_TRUE(client_to_aim_request.has_exit_tool());
+  EXPECT_FALSE(client_to_aim_request.has_submit_query());
+  EXPECT_EQ(client_to_aim_request.exit_tool().payload().tool_mode(),
+            lens::ToolMode::TOOL_MODE_CANVAS);
+  EXPECT_EQ(client_to_aim_request.exit_tool().payload().new_tool_mode(),
+            lens::ToolMode::TOOL_MODE_UNSPECIFIED);
 }
 
 TEST_F(ComposeboxQueryControllerTest,
@@ -3701,6 +3935,47 @@ TEST_F(ComposeboxQueryControllerTest,
       client_to_aim_request->submit_query().payload().context_turn_metadata(0);
   EXPECT_EQ(context_turn_metadata.context_id(), 1);
   EXPECT_TRUE(context_turn_metadata.tab_metadata().is_active_tab());
+}
+
+TEST_F(ComposeboxQueryControllerTest,
+       CreateClientToAimRequestWithRemovedContexts) {
+  // Act: Start the session.
+  controller().InitializeIfNeeded();
+
+  // Act: Create the ClientToAimRequest.
+  std::unique_ptr<CreateClientToAimRequestInfo> client_to_aim_request_info =
+      std::make_unique<CreateClientToAimRequestInfo>();
+  client_to_aim_request_info->query_text = "hello";
+  client_to_aim_request_info->query_text_source =
+      lens::QueryPayload::QUERY_TEXT_SOURCE_KEYBOARD_INPUT;
+
+  lens::LensOverlayRequestId removed_context_1;
+  removed_context_1.set_uuid(12345);
+  removed_context_1.set_sequence_id(1);
+
+  lens::LensOverlayRequestId removed_context_2;
+  removed_context_2.set_uuid(67890);
+  removed_context_2.set_sequence_id(2);
+
+  client_to_aim_request_info->removed_contexts.push_back(removed_context_1);
+  client_to_aim_request_info->removed_contexts.push_back(removed_context_2);
+
+  lens::ClientToAimMessage client_to_aim_request =
+      controller().CreateClientToAimRequest(
+          std::move(client_to_aim_request_info));
+
+  // Assert: The ClientToAimRequest is populated correctly.
+  EXPECT_EQ(client_to_aim_request.submit_query().payload().query_text(),
+            "hello");
+  EXPECT_EQ(client_to_aim_request.submit_query().payload().query_text_source(),
+            lens::QueryPayload::QUERY_TEXT_SOURCE_KEYBOARD_INPUT);
+  ASSERT_EQ(
+      client_to_aim_request.submit_query().payload().expired_lens_ids_size(),
+      2);
+  EXPECT_EQ(client_to_aim_request.submit_query().payload().expired_lens_ids(0),
+            lens::Base64EncodeRequestId(removed_context_1));
+  EXPECT_EQ(client_to_aim_request.submit_query().payload().expired_lens_ids(1),
+            lens::Base64EncodeRequestId(removed_context_2));
 }
 
 TEST_F(ComposeboxQueryControllerTest,
@@ -4330,11 +4605,12 @@ TEST_F(ComposeboxQueryControllerTest, SuggestInputsForOnlyAttachment) {
   }
 
   {
-    // Check that multiple attachments result in no suggest inputs.
+    // Check that multiple attachments result in encoded_contextual_inputs.
     auto inputs = controller().CreateSuggestInputs({pdf_token, tab_token});
 
     EXPECT_FALSE(inputs->has_encoded_request_id());
-    EXPECT_FALSE(inputs->has_search_session_id());
+    EXPECT_TRUE(inputs->has_encoded_contextual_inputs());
+    EXPECT_TRUE(inputs->has_search_session_id());
   }
 }
 
@@ -4868,6 +5144,80 @@ TEST_F(ComposeboxQueryControllerTest, CreateSuggestInputsWithParsedUrl) {
 
   // Assert: Visual input type is set for the suggest request.
   EXPECT_EQ(suggest_inputs->contextual_visual_input_type(), "wp");
+}
+
+TEST_F(ComposeboxQueryControllerTest,
+       CreateSuggestInputsMultifileWithFeatureEnabled) {
+  CreateController(
+      /*send_lns_surface=*/false,
+      /*suppress_lns_surface_param_if_no_image=*/true,
+      /*enable_viewport_images=*/true,
+      /*use_separate_request_ids_for_viewport_images=*/false,
+      /*enable_cluster_info_ttl=*/false,
+      /*prioritize_suggestions_for_the_first_attached_document=*/false,
+      /*attach_page_title_and_url_to_suggest_requests=*/true);
+  StartSession();
+
+  auto pdf_token_1 = UploadSimpleTestAttachment(lens::MimeType::kPdf);
+  auto pdf_token_2 = UploadSimpleTestAttachment(lens::MimeType::kPdf);
+
+  auto suggest_inputs =
+      controller().CreateSuggestInputs({pdf_token_1, pdf_token_2});
+
+  EXPECT_TRUE(suggest_inputs->has_encoded_contextual_inputs());
+  EXPECT_FALSE(suggest_inputs->has_encoded_request_id());
+  EXPECT_FALSE(suggest_inputs->has_contextual_visual_input_type());
+
+  std::string decoded_contextual_inputs;
+  EXPECT_TRUE(base::Base64UrlDecode(
+      suggest_inputs->encoded_contextual_inputs(),
+      base::Base64UrlDecodePolicy::DISALLOW_PADDING,
+      &decoded_contextual_inputs));
+
+  lens::LensOverlayContextualInputs contextual_inputs;
+  EXPECT_TRUE(contextual_inputs.ParseFromString(decoded_contextual_inputs));
+  EXPECT_EQ(contextual_inputs.inputs_size(), 2);
+}
+
+TEST_F(ComposeboxQueryControllerTest,
+       CreateSuggestInputsMultifileWithFeatureDisabled) {
+  base::test::ScopedFeatureList local_feature_list;
+  local_feature_list.InitAndDisableFeature(
+      omnibox::kSuggestRequestSendsMultifileCgiParam);
+
+  StartSession();
+
+  auto pdf_token_1 = UploadSimpleTestAttachment(lens::MimeType::kPdf);
+  auto pdf_token_2 = UploadSimpleTestAttachment(lens::MimeType::kPdf);
+
+  auto suggest_inputs =
+      controller().CreateSuggestInputs({pdf_token_1, pdf_token_2});
+
+  EXPECT_FALSE(suggest_inputs->has_encoded_contextual_inputs());
+  EXPECT_FALSE(suggest_inputs->has_encoded_request_id());
+}
+
+TEST_F(ComposeboxQueryControllerTest,
+       CreateSuggestInputsMultifileWithPrioritizeFirstDocument) {
+  CreateController(
+      /*send_lns_surface=*/false,
+      /*suppress_lns_surface_param_if_no_image=*/true,
+      /*enable_viewport_images=*/true,
+      /*use_separate_request_ids_for_viewport_images=*/false,
+      /*enable_cluster_info_ttl=*/false,
+      /*prioritize_suggestions_for_the_first_attached_document=*/true,
+      /*attach_page_title_and_url_to_suggest_requests=*/true);
+  StartSession();
+
+  auto pdf_token_1 = UploadSimpleTestAttachment(lens::MimeType::kPdf);
+  auto pdf_token_2 = UploadSimpleTestAttachment(lens::MimeType::kPdf);
+
+  auto suggest_inputs =
+      controller().CreateSuggestInputs({pdf_token_1, pdf_token_2});
+
+  EXPECT_FALSE(suggest_inputs->has_encoded_contextual_inputs());
+  EXPECT_TRUE(suggest_inputs->has_encoded_request_id());
+  EXPECT_TRUE(suggest_inputs->has_contextual_visual_input_type());
 }
 
 TEST_F(ComposeboxQueryControllerTest, QuerySubmittedWithInvocationSource) {
@@ -6370,10 +6720,6 @@ TEST_F(ComposeboxQueryControllerTest, MimeTypeStringFromFileInfo) {
   EXPECT_EQ(ComposeboxQueryController::MimeTypeStringFromFileInfo(file_info),
             "text/plain");
 
-  file_info.mime_type = lens::MimeType::kImage;
-  EXPECT_EQ(ComposeboxQueryController::MimeTypeStringFromFileInfo(file_info),
-            "image/jpeg");
-
   file_info.mime_type = lens::MimeType::kAnnotatedPageContent;
   EXPECT_EQ(ComposeboxQueryController::MimeTypeStringFromFileInfo(file_info),
             "application/x-protobuf");
@@ -6887,7 +7233,8 @@ TEST_F(ComposeboxQueryControllerTest,
       /*enable_send_contextual_input_upload_type=*/false,
       /*send_contextual_input_upload_type_in_search_url=*/true,
       /*send_contextual_input_upload_type_in_aim_request=*/true,
-      /*exclude_raw_and_drive_files=*/true);
+      /*exclude_raw_and_drive_files=*/true,
+      /*enable_contextual_tasks_upload_chunking=*/false);
 
   controller().InitializeIfNeeded();
 
@@ -6976,7 +7323,8 @@ TEST_F(ComposeboxQueryControllerTest,
       /*enable_send_contextual_input_upload_type=*/false,
       /*send_contextual_input_upload_type_in_search_url=*/true,
       /*send_contextual_input_upload_type_in_aim_request=*/true,
-      /*exclude_raw_and_drive_files=*/false);
+      /*exclude_raw_and_drive_files=*/false,
+      /*enable_contextual_tasks_upload_chunking=*/false);
 
   controller().InitializeIfNeeded();
 
@@ -7396,5 +7744,226 @@ TEST_F(
             lens::LensOverlayContextualInputUploadType::
                 CONTEXTUAL_INPUT_UPLOAD_TYPE_UNSPECIFIED);
 }
+
+#if !BUILDFLAG(IS_ANDROID)
+TEST_F(ComposeboxQueryControllerTest,
+       UploadPdfFileRequest_ChunkingDisabledByDefault) {
+  CreateController(
+      /*send_lns_surface=*/false,
+      /*suppress_lns_surface_param_if_no_image=*/true,
+      /*enable_viewport_images=*/true,
+      /*use_separate_request_ids_for_viewport_images=*/true,
+      /*enable_cluster_info_ttl=*/false,
+      /*prioritize_suggestions_for_the_first_attached_document=*/false);
+  controller().InitializeIfNeeded();
+
+  // PDF size > chunk size, but chunking is disabled.
+  std::vector<uint8_t> large_pdf(
+      lens::features::GetLensOverlayChunkSizeBytes() + 100, 'a');
+  const base::UnguessableToken file_token = base::UnguessableToken::Create();
+  StartPdfFileUploadFlow(file_token, large_pdf);
+
+  WaitForClusterInfo();
+  WaitForFileUpload(file_token, lens::MimeType::kPdf);
+
+  // Assert: Chunking wasn't used; only 1 file upload request was sent, and it
+  // was the main objects request.
+  EXPECT_EQ(controller().num_chunk_upload_requests_sent(), 0);
+  EXPECT_EQ(controller().num_file_upload_requests_sent(), 1);
+  EXPECT_EQ(controller()
+                .last_sent_file_upload_request()
+                ->objects_request()
+                .payload()
+                .content()
+                .content_data(0)
+                .content_type(),
+            lens::ContentData::CONTENT_TYPE_PDF);
+  EXPECT_FALSE(controller()
+                   .last_sent_file_upload_request()
+                   ->objects_request()
+                   .payload()
+                   .content()
+                   .content_data(0)
+                   .stored_chunk_options()
+                   .read_stored_chunks());
+}
+
+TEST_F(ComposeboxQueryControllerTest, UploadPdfFileRequest_ChunkingEnabled) {
+  CreateController(
+      /*send_lns_surface=*/false,
+      /*suppress_lns_surface_param_if_no_image=*/true,
+      /*enable_viewport_images=*/true,
+      /*use_separate_request_ids_for_viewport_images=*/true,
+      /*enable_cluster_info_ttl=*/false,
+      /*prioritize_suggestions_for_the_first_attached_document=*/false,
+      /*attach_page_title_and_url_to_suggest_requests=*/false,
+      /*enable_send_vit_for_single_context_next_queries=*/true,
+      /*enable_send_raw_file_media_types=*/false,
+      /*enable_only_send_aai_for_modality_chips=*/true,
+      /*enable_send_contextual_input_upload_type=*/false,
+      /*send_contextual_input_upload_type_in_search_url=*/true,
+      /*send_contextual_input_upload_type_in_aim_request=*/true,
+      /*exclude_raw_and_drive_files=*/true,
+      /*enable_contextual_tasks_upload_chunking=*/true);
+  controller().InitializeIfNeeded();
+
+  // Create PDF that requires 2 chunks.
+  size_t chunk_size = lens::features::GetLensOverlayChunkSizeBytes();
+  std::vector<uint8_t> large_pdf(chunk_size + 100, 'a');
+
+  const base::UnguessableToken file_token = base::UnguessableToken::Create();
+  StartPdfFileUploadFlow(file_token, large_pdf);
+
+  WaitForClusterInfo();
+  WaitForFileUpload(file_token, lens::MimeType::kPdf);
+
+  // Assert: Chunks were sent. Since file size is chunk_size + 100, it should be
+  // split into 2 chunks.
+  EXPECT_EQ(controller().num_chunk_upload_requests_sent(), 2);
+  EXPECT_EQ(controller().num_file_upload_requests_sent(), 1);
+
+  // Check chunks.
+  EXPECT_EQ(controller().sent_chunk_upload_requests().size(), 2u);
+  EXPECT_EQ(controller().sent_chunk_upload_requests()[0].chunk_id(), 0);
+  EXPECT_EQ(controller().sent_chunk_upload_requests()[1].chunk_id(), 1);
+
+  // Validate the final objects request references the chunks.
+  EXPECT_TRUE(controller()
+                  .last_sent_file_upload_request()
+                  ->objects_request()
+                  .payload()
+                  .content()
+                  .content_data(0)
+                  .stored_chunk_options()
+                  .read_stored_chunks());
+  EXPECT_EQ(controller()
+                .last_sent_file_upload_request()
+                ->objects_request()
+                .payload()
+                .content()
+                .content_data(0)
+                .stored_chunk_options()
+                .total_stored_chunks(),
+            2);
+}
+
+TEST_F(ComposeboxQueryControllerTest, UploadPdfFileRequest_ChunkingRetry) {
+  CreateController(
+      /*send_lns_surface=*/false,
+      /*suppress_lns_surface_param_if_no_image=*/true,
+      /*enable_viewport_images=*/true,
+      /*use_separate_request_ids_for_viewport_images=*/true,
+      /*enable_cluster_info_ttl=*/false,
+      /*prioritize_suggestions_for_the_first_attached_document=*/false,
+      /*attach_page_title_and_url_to_suggest_requests=*/false,
+      /*enable_send_vit_for_single_context_next_queries=*/true,
+      /*enable_send_raw_file_media_types=*/false,
+      /*enable_only_send_aai_for_modality_chips=*/true,
+      /*enable_send_contextual_input_upload_type=*/false,
+      /*send_contextual_input_upload_type_in_search_url=*/true,
+      /*send_contextual_input_upload_type_in_aim_request=*/true,
+      /*exclude_raw_and_drive_files=*/true,
+      /*enable_contextual_tasks_upload_chunking=*/true);
+  controller().InitializeIfNeeded();
+
+  size_t chunk_size = lens::features::GetLensOverlayChunkSizeBytes();
+  std::vector<uint8_t> large_pdf(chunk_size + 100, 'a');
+
+  // Set up mock responses.
+  // The first time the objects request is made, we return a MISSING_CHUNKS
+  // error.
+  lens::LensOverlayServerResponse error_response;
+  error_response.mutable_error()->set_error_type(
+      lens::LensOverlayServerError_ErrorType_MISSING_CHUNKS);
+  auto* missing_chunks =
+      error_response.mutable_error()->mutable_missing_chunks_metadata();
+  missing_chunks->set_has_chunk_metadata(true);
+  missing_chunks->add_missing_chunk_ids(0);  // Only chunk 0 is missing.
+
+  controller().set_fake_file_upload_response(error_response);
+
+  const base::UnguessableToken file_token = base::UnguessableToken::Create();
+  StartPdfFileUploadFlow(file_token, large_pdf);
+
+  WaitForClusterInfo();
+
+  int fetcher_count = 0;
+  controller().AddEndpointFetcherCreatedCallback(
+      base::BindLambdaForTesting([&]() {
+        fetcher_count++;
+        if (fetcher_count == 4) {
+          lens::LensOverlayServerResponse success_response;
+          success_response.mutable_objects_response();  // success
+          controller().set_fake_file_upload_response(success_response);
+        }
+      }));
+
+  WaitForFileUpload(file_token, lens::MimeType::kPdf);
+
+  // Assert: Chunks sent: initial 2 + retry 1 = 3.
+  EXPECT_EQ(controller().num_chunk_upload_requests_sent(), 3);
+  // Main objects requests sent: initial 1 + retried 1 = 2.
+  EXPECT_EQ(controller().num_file_upload_requests_sent(), 2);
+
+  // Check details.
+  EXPECT_EQ(controller().sent_chunk_upload_requests().size(), 3u);
+  EXPECT_EQ(controller().sent_chunk_upload_requests()[2].chunk_id(),
+            0);  // Retry was chunk 0.
+}
+
+TEST_F(ComposeboxQueryControllerTest,
+       UploadPdfFileRequest_ChunkingEnabled_RawFileMediaTypes) {
+  CreateController(
+      /*send_lns_surface=*/false,
+      /*suppress_lns_surface_param_if_no_image=*/true,
+      /*enable_viewport_images=*/true,
+      /*use_separate_request_ids_for_viewport_images=*/true,
+      /*enable_cluster_info_ttl=*/false,
+      /*prioritize_suggestions_for_the_first_attached_document=*/false,
+      /*attach_page_title_and_url_to_suggest_requests=*/false,
+      /*enable_send_vit_for_single_context_next_queries=*/true,
+      /*enable_send_raw_file_media_types=*/true,
+      /*enable_only_send_aai_for_modality_chips=*/true,
+      /*enable_send_contextual_input_upload_type=*/false,
+      /*send_contextual_input_upload_type_in_search_url=*/true,
+      /*send_contextual_input_upload_type_in_aim_request=*/true,
+      /*exclude_raw_and_drive_files=*/true,
+      /*enable_contextual_tasks_upload_chunking=*/true);
+  controller().InitializeIfNeeded();
+
+  size_t chunk_size = lens::features::GetLensOverlayChunkSizeBytes();
+  std::vector<uint8_t> large_pdf(chunk_size + 100, 'a');
+
+  const base::UnguessableToken file_token = base::UnguessableToken::Create();
+  StartPdfRawFileUploadFlow(file_token, large_pdf);
+
+  WaitForClusterInfo();
+  WaitForFileUpload(file_token, lens::MimeType::kUnknown);
+
+  // Assert: Chunked upload was still used because we correctly recognized
+  // "application/pdf" mime type string.
+  EXPECT_EQ(controller().num_chunk_upload_requests_sent(), 2);
+  EXPECT_EQ(controller().num_file_upload_requests_sent(), 1);
+
+  // Validate the final objects request references the chunks.
+  EXPECT_TRUE(controller()
+                  .last_sent_file_upload_request()
+                  ->objects_request()
+                  .payload()
+                  .content()
+                  .content_data(0)
+                  .stored_chunk_options()
+                  .read_stored_chunks());
+  EXPECT_EQ(controller()
+                .last_sent_file_upload_request()
+                ->objects_request()
+                .payload()
+                .content()
+                .content_data(0)
+                .stored_chunk_options()
+                .total_stored_chunks(),
+            2);
+}
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 }  // namespace contextual_search

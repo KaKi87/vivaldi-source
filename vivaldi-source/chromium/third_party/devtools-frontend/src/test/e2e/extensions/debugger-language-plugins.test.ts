@@ -167,7 +167,7 @@ describe('The Debugger Language Plugins', () => {
     });
     const callframes = error.message?.split('\n').slice(1);
     assert.deepEqual(callframes, [
-      `    at Main (unreachable.wat:${pauseLocation.sourceLine})`,
+      `    at Main (unreachable.wat:${pauseLocation.sourceLine}:0)`,
       '    at window.loadModule (wasm_module.html?mod…&autorun=Main:24:46)',
     ]);
   });
@@ -415,9 +415,9 @@ describe('The Debugger Language Plugins', () => {
       }
       const message = messages[messages.length - 1];
       return message.message === `Uncaught (in promise) RuntimeError: unreachable
-    at inner_inline_func (unreachable.ll:6)
-    at outer_inline_func (unreachable.ll:11)
-    at Main (unreachable.ll:16)
+    at inner_inline_func (unreachable.ll:6:3)
+    at outer_inline_func (unreachable.ll:11:3)
+    at Main (unreachable.ll:16:3)
     at go (unreachable.html:27:29)`;
     });
   });
@@ -646,7 +646,7 @@ describe('The Debugger Language Plugins', () => {
 
     const dwoUrl = 'http://test.com/test.dwo';
     assert.deepEqual(selectedDetails, [
-      'failure',
+      'Failure',
       dwoUrl,
       inspectedPage.domain('extensions.test'),
       '',
@@ -955,12 +955,19 @@ describe('The Debugger Language Plugins', () => {
     });
     assert.deepEqual(watchTexts, ['foo: 23', 'bar: <not available>']);
 
-    const tooltipText = await watchResults[1].evaluate(e => {
-      const errorElement = e.querySelector('.watch-expression-error');
-      if (!errorElement) {
-        return 'NO ERROR COULD BE FOUND';
+    const tooltipText = await devToolsPage.waitForFunction(async () => {
+      const watchResults = await devToolsPage.$$('.watch-expression');
+      if (watchResults.length < 2) {
+        return null;
       }
-      return errorElement.getAttribute('title');
+      return await watchResults[1].evaluate(e => {
+        const errorElement = e.querySelector('.watch-expression-error');
+        if (!errorElement) {
+          return null;
+        }
+        const title = errorElement.getAttribute('title');
+        return title ? title : null;
+      });
     });
     assert.strictEqual(tooltipText, 'No typeinfo for bar');
 

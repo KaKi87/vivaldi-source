@@ -5,6 +5,7 @@
 #ifndef CHROME_BROWSER_EXTENSIONS_API_DOWNLOADS_DOWNLOADS_API_H_
 #define CHROME_BROWSER_EXTENSIONS_API_DOWNLOADS_DOWNLOADS_API_H_
 
+#include <deque>
 #include <memory>
 #include <set>
 #include <string>
@@ -57,7 +58,26 @@ class DownloadedByExtension : public base::SupportsUserData::Data {
   std::string name_;
 };
 
-class DownloadsDownloadFunction : public ExtensionFunction {
+class DownloadsFunction : public ExtensionFunction {
+ public:
+  DownloadsFunction();
+
+  DownloadsFunction(const DownloadsFunction&) = delete;
+  DownloadsFunction& operator=(const DownloadsFunction&) = delete;
+
+  // ExtensionFunction:
+  ResponseAction Run() override;
+  void ExecuteFromQueue();
+  void OnManagerGoingDown();
+
+ protected:
+  ~DownloadsFunction() override;
+
+  // Subclasses should implement this instead of Run().
+  virtual ResponseAction RunInternal() = 0;
+};
+
+class DownloadsDownloadFunction : public DownloadsFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("downloads.download", DOWNLOADS_DOWNLOAD)
   DownloadsDownloadFunction();
@@ -66,7 +86,7 @@ class DownloadsDownloadFunction : public ExtensionFunction {
   DownloadsDownloadFunction& operator=(const DownloadsDownloadFunction&) =
       delete;
 
-  ResponseAction Run() override;
+  ResponseAction RunInternal() override;
 
  protected:
   ~DownloadsDownloadFunction() override;
@@ -80,7 +100,7 @@ class DownloadsDownloadFunction : public ExtensionFunction {
                  download::DownloadInterruptReason interrupt_reason);
 };
 
-class DownloadsSearchFunction : public ExtensionFunction {
+class DownloadsSearchFunction : public DownloadsFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("downloads.search", DOWNLOADS_SEARCH)
   DownloadsSearchFunction();
@@ -88,13 +108,13 @@ class DownloadsSearchFunction : public ExtensionFunction {
   DownloadsSearchFunction(const DownloadsSearchFunction&) = delete;
   DownloadsSearchFunction& operator=(const DownloadsSearchFunction&) = delete;
 
-  ResponseAction Run() override;
+  ResponseAction RunInternal() override;
 
  protected:
   ~DownloadsSearchFunction() override;
 };
 
-class DownloadsPauseFunction : public ExtensionFunction {
+class DownloadsPauseFunction : public DownloadsFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("downloads.pause", DOWNLOADS_PAUSE)
   DownloadsPauseFunction();
@@ -102,13 +122,13 @@ class DownloadsPauseFunction : public ExtensionFunction {
   DownloadsPauseFunction(const DownloadsPauseFunction&) = delete;
   DownloadsPauseFunction& operator=(const DownloadsPauseFunction&) = delete;
 
-  ResponseAction Run() override;
+  ResponseAction RunInternal() override;
 
  protected:
   ~DownloadsPauseFunction() override;
 };
 
-class DownloadsResumeFunction : public ExtensionFunction {
+class DownloadsResumeFunction : public DownloadsFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("downloads.resume", DOWNLOADS_RESUME)
   DownloadsResumeFunction();
@@ -116,13 +136,13 @@ class DownloadsResumeFunction : public ExtensionFunction {
   DownloadsResumeFunction(const DownloadsResumeFunction&) = delete;
   DownloadsResumeFunction& operator=(const DownloadsResumeFunction&) = delete;
 
-  ResponseAction Run() override;
+  ResponseAction RunInternal() override;
 
  protected:
   ~DownloadsResumeFunction() override;
 };
 
-class DownloadsCancelFunction : public ExtensionFunction {
+class DownloadsCancelFunction : public DownloadsFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("downloads.cancel", DOWNLOADS_CANCEL)
   DownloadsCancelFunction();
@@ -130,13 +150,13 @@ class DownloadsCancelFunction : public ExtensionFunction {
   DownloadsCancelFunction(const DownloadsCancelFunction&) = delete;
   DownloadsCancelFunction& operator=(const DownloadsCancelFunction&) = delete;
 
-  ResponseAction Run() override;
+  ResponseAction RunInternal() override;
 
  protected:
   ~DownloadsCancelFunction() override;
 };
 
-class DownloadsEraseFunction : public ExtensionFunction {
+class DownloadsEraseFunction : public DownloadsFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("downloads.erase", DOWNLOADS_ERASE)
   DownloadsEraseFunction();
@@ -144,13 +164,13 @@ class DownloadsEraseFunction : public ExtensionFunction {
   DownloadsEraseFunction(const DownloadsEraseFunction&) = delete;
   DownloadsEraseFunction& operator=(const DownloadsEraseFunction&) = delete;
 
-  ResponseAction Run() override;
+  ResponseAction RunInternal() override;
 
  protected:
   ~DownloadsEraseFunction() override;
 };
 
-class DownloadsRemoveFileFunction : public ExtensionFunction {
+class DownloadsRemoveFileFunction : public DownloadsFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("downloads.removeFile", DOWNLOADS_REMOVEFILE)
   DownloadsRemoveFileFunction();
@@ -159,7 +179,7 @@ class DownloadsRemoveFileFunction : public ExtensionFunction {
   DownloadsRemoveFileFunction& operator=(const DownloadsRemoveFileFunction&) =
       delete;
 
-  ResponseAction Run() override;
+  ResponseAction RunInternal() override;
 
  protected:
   ~DownloadsRemoveFileFunction() override;
@@ -168,7 +188,7 @@ class DownloadsRemoveFileFunction : public ExtensionFunction {
   void Done(bool success);
 };
 
-class DownloadsAcceptDangerFunction : public ExtensionFunction {
+class DownloadsAcceptDangerFunction : public DownloadsFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("downloads.acceptDanger", DOWNLOADS_ACCEPTDANGER)
   DownloadsAcceptDangerFunction();
@@ -177,7 +197,7 @@ class DownloadsAcceptDangerFunction : public ExtensionFunction {
   DownloadsAcceptDangerFunction& operator=(
       const DownloadsAcceptDangerFunction&) = delete;
 
-  ResponseAction Run() override;
+  ResponseAction RunInternal() override;
 
   // Sets the action to take when a danger prompt is shown in tests. The
   // returned AutoReset restores the previous value, which is an empty
@@ -195,7 +215,7 @@ class DownloadsAcceptDangerFunction : public ExtensionFunction {
   void PromptOrWait(int download_id, int retries);
 };
 
-class DownloadsShowFunction : public ExtensionFunction {
+class DownloadsShowFunction : public DownloadsFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("downloads.show", DOWNLOADS_SHOW)
   DownloadsShowFunction();
@@ -203,7 +223,7 @@ class DownloadsShowFunction : public ExtensionFunction {
   DownloadsShowFunction(const DownloadsShowFunction&) = delete;
   DownloadsShowFunction& operator=(const DownloadsShowFunction&) = delete;
 
-  ResponseAction Run() override;
+  ResponseAction RunInternal() override;
 
  protected:
   ~DownloadsShowFunction() override;
@@ -226,7 +246,7 @@ class DownloadsShowDefaultFolderFunction : public ExtensionFunction {
   ~DownloadsShowDefaultFolderFunction() override;
 };
 
-class DownloadsOpenFunction : public ExtensionFunction {
+class DownloadsOpenFunction : public DownloadsFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("downloads.open", DOWNLOADS_OPEN)
   DownloadsOpenFunction();
@@ -234,7 +254,7 @@ class DownloadsOpenFunction : public ExtensionFunction {
   DownloadsOpenFunction(const DownloadsOpenFunction&) = delete;
   DownloadsOpenFunction& operator=(const DownloadsOpenFunction&) = delete;
 
-  ResponseAction Run() override;
+  ResponseAction RunInternal() override;
 
   [[nodiscard]] static base::AutoReset<bool> AcceptDialogForTesting();
 
@@ -278,7 +298,7 @@ class DownloadsSetUiOptionsFunction : public ExtensionFunction {
   ~DownloadsSetUiOptionsFunction() override;
 };
 
-class DownloadsGetFileIconFunction : public ExtensionFunction {
+class DownloadsGetFileIconFunction : public DownloadsFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("downloads.getFileIcon", DOWNLOADS_GETFILEICON)
   DownloadsGetFileIconFunction();
@@ -287,7 +307,7 @@ class DownloadsGetFileIconFunction : public ExtensionFunction {
   DownloadsGetFileIconFunction& operator=(const DownloadsGetFileIconFunction&) =
       delete;
 
-  ResponseAction Run() override;
+  ResponseAction RunInternal() override;
   void SetIconExtractorForTesting(DownloadFileIconExtractor* extractor);
 
  protected:
@@ -350,6 +370,8 @@ class ExtensionDownloadsEventRouter
   ExtensionDownloadsEventRouter& operator=(
       const ExtensionDownloadsEventRouter&) = delete;
 
+  void QueuePendingFunction(scoped_refptr<DownloadsFunction> function);
+
   ~ExtensionDownloadsEventRouter() override;
 
   void SetUiEnabled(const extensions::Extension* extension, bool enabled);
@@ -374,6 +396,8 @@ class ExtensionDownloadsEventRouter
                          download::DownloadItem* download_item) override;
   void OnDownloadRemoved(content::DownloadManager* manager,
                          download::DownloadItem* download_item) override;
+  void OnManagerInitialized(content::DownloadManager* manager) override;
+  void OnManagerGoingDown(content::DownloadManager* manager) override;
 
   // extensions::EventRouter::Observer.
   void OnListenerRemoved(const extensions::EventListenerInfo& details) override;
@@ -392,6 +416,7 @@ class ExtensionDownloadsEventRouter
                            const extensions::Extension* extension,
                            extensions::UnloadedExtensionReason reason) override;
 
+  std::deque<scoped_refptr<DownloadsFunction>> pending_functions_;
   raw_ptr<Profile> profile_;
   download::AllDownloadItemNotifier notifier_;
   std::set<raw_ptr<const extensions::Extension, SetExperimental>>

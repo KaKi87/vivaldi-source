@@ -7,11 +7,8 @@
 //   EGL extension EGL_EXT_buffer_age
 //
 
-#ifdef UNSAFE_BUFFERS_BUILD
-#    pragma allow_unsafe_buffers
-#endif
-
 #include <gtest/gtest.h>
+#include "common/unsafe_buffers.h"
 
 #include "test_utils/ANGLETest.h"
 #include "util/EGLWindow.h"
@@ -26,7 +23,13 @@ class EGLBufferAgeTest : public ANGLETest<>
 
     void testSetUp() override
     {
-        EGLAttrib dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, GetParam().getRenderer(), EGL_NONE};
+        mOSWindow = OSWindow::New();
+        mOSWindow->initialize("EGLBufferAgeTest", kWidth, kHeight);
+
+        EGLAttrib dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, GetParam().getRenderer(),
+                                 EGL_PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE,
+                                 static_cast<EGLAttrib>(mOSWindow->getNativeDisplayPlatformType()),
+                                 EGL_NONE};
         mDisplay              = eglGetPlatformDisplay(GetEglPlatform(),
                                                       reinterpret_cast<void *>(EGL_DEFAULT_DISPLAY), dispattrs);
         EXPECT_TRUE(mDisplay != EGL_NO_DISPLAY);
@@ -37,6 +40,9 @@ class EGLBufferAgeTest : public ANGLETest<>
 
     void testTearDown() override
     {
+        mOSWindow->destroy();
+        OSWindow::Delete(&mOSWindow);
+
         if (mDisplay != EGL_NO_DISPLAY)
         {
             eglTerminate(mDisplay);
@@ -130,6 +136,7 @@ class EGLBufferAgeTest : public ANGLETest<>
         return age;
     }
 
+    OSWindow *mOSWindow      = nullptr;
     EGLDisplay mDisplay      = EGL_NO_DISPLAY;
     EGLint mMajorVersion     = 0;
     const EGLint kWidth      = 64;
@@ -226,9 +233,7 @@ TEST_P(EGLBufferAgeTest, QueryBufferAge)
 
     EGLSurface surface = EGL_NO_SURFACE;
 
-    OSWindow *osWindow = OSWindow::New();
-    osWindow->initialize("EGLBufferAgeTest", kWidth, kHeight);
-    EXPECT_TRUE(createWindowSurface(config, osWindow->getNativeWindow(), &surface));
+    EXPECT_TRUE(createWindowSurface(config, mOSWindow->getNativeWindow(), &surface));
     ASSERT_EGL_SUCCESS() << "eglCreateWindowSurface failed.";
 
     EXPECT_TRUE(eglMakeCurrent(mDisplay, surface, surface, context));
@@ -271,8 +276,6 @@ TEST_P(EGLBufferAgeTest, QueryBufferAge)
 
     eglDestroySurface(mDisplay, surface);
     surface = EGL_NO_SURFACE;
-    osWindow->destroy();
-    OSWindow::Delete(&osWindow);
 
     eglDestroyContext(mDisplay, context);
     context = EGL_NO_CONTEXT;
@@ -292,9 +295,7 @@ TEST_P(EGLBufferAgeTest, QueryBufferAgeAfterLoop)
 
     EGLSurface surface = EGL_NO_SURFACE;
 
-    OSWindow *osWindow = OSWindow::New();
-    osWindow->initialize("EGLBufferAgeTest", kWidth, kHeight);
-    EXPECT_TRUE(createWindowSurface(config, osWindow->getNativeWindow(), &surface));
+    EXPECT_TRUE(createWindowSurface(config, mOSWindow->getNativeWindow(), &surface));
     ASSERT_EGL_SUCCESS() << "eglCreateWindowSurface failed.";
 
     EXPECT_TRUE(eglMakeCurrent(mDisplay, surface, surface, context));
@@ -319,8 +320,6 @@ TEST_P(EGLBufferAgeTest, QueryBufferAgeAfterLoop)
 
     eglDestroySurface(mDisplay, surface);
     surface = EGL_NO_SURFACE;
-    osWindow->destroy();
-    OSWindow::Delete(&osWindow);
 
     eglDestroyContext(mDisplay, context);
     context = EGL_NO_CONTEXT;
@@ -340,9 +339,7 @@ TEST_P(EGLBufferAgeTest, VerifyContents)
 
     EGLSurface surface = EGL_NO_SURFACE;
 
-    OSWindow *osWindow = OSWindow::New();
-    osWindow->initialize("EGLBufferAgeTest", kWidth, kHeight);
-    EXPECT_TRUE(createWindowSurface(config, osWindow->getNativeWindow(), &surface));
+    EXPECT_TRUE(createWindowSurface(config, mOSWindow->getNativeWindow(), &surface));
     ASSERT_EGL_SUCCESS() << "eglCreateWindowSurface failed.";
 
     EXPECT_TRUE(eglMakeCurrent(mDisplay, surface, surface, context));
@@ -365,14 +362,14 @@ TEST_P(EGLBufferAgeTest, VerifyContents)
         if (age > 0)
         {
             // Check that color/content is what we expect
-            expectedColor = kColorSet[i - age];
+            expectedColor = ANGLE_UNSAFE_TODO(kColorSet[i - age]);
             EXPECT_PIXEL_COLOR_EQ(1, 1, expectedColor);
         }
 
-        float red   = kColorSet[i].R / 255.0;
-        float green = kColorSet[i].G / 255.0;
-        float blue  = kColorSet[i].B / 255.0;
-        float alpha = kColorSet[i].A / 255.0;
+        float red   = ANGLE_UNSAFE_TODO(kColorSet[i]).R / 255.0;
+        float green = ANGLE_UNSAFE_TODO(kColorSet[i]).G / 255.0;
+        float blue  = ANGLE_UNSAFE_TODO(kColorSet[i]).B / 255.0;
+        float alpha = ANGLE_UNSAFE_TODO(kColorSet[i]).A / 255.0;
 
         glClearColor(red, green, blue, alpha);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -388,8 +385,6 @@ TEST_P(EGLBufferAgeTest, VerifyContents)
 
     eglDestroySurface(mDisplay, surface);
     surface = EGL_NO_SURFACE;
-    osWindow->destroy();
-    OSWindow::Delete(&osWindow);
 
     eglDestroyContext(mDisplay, context);
     context = EGL_NO_CONTEXT;
@@ -409,9 +404,7 @@ TEST_P(EGLBufferAgeTest, VerifyContentsAfterSwapBehaviorSwitch)
 
     EGLSurface surface = EGL_NO_SURFACE;
 
-    OSWindow *osWindow = OSWindow::New();
-    osWindow->initialize("EGLBufferAgeTest_MSAA", kWidth, kHeight);
-    EXPECT_TRUE(createWindowSurface(config, osWindow->getNativeWindow(), &surface));
+    EXPECT_TRUE(createWindowSurface(config, mOSWindow->getNativeWindow(), &surface));
     ASSERT_EGL_SUCCESS() << "eglCreateWindowSurface failed.";
 
     EXPECT_TRUE(eglMakeCurrent(mDisplay, surface, surface, context));
@@ -491,7 +484,7 @@ TEST_P(EGLBufferAgeTest, VerifyContentsAfterSwapBehaviorSwitch)
             // the previous loops.
             if (age <= i)
             {
-                expectedColor = kColorSet[i - age];
+                expectedColor = ANGLE_UNSAFE_TODO(kColorSet[i - age]);
             }
             else if (age <= i + 6)
             {
@@ -505,9 +498,9 @@ TEST_P(EGLBufferAgeTest, VerifyContentsAfterSwapBehaviorSwitch)
             EXPECT_PIXEL_COLOR_EQ(1, 1, expectedColor);
         }
 
-        glUniform4fv(colorLocation, 1, kColorSet[i].toNormalizedVector().data());
+        glUniform4fv(colorLocation, 1, ANGLE_UNSAFE_TODO(kColorSet[i]).toNormalizedVector().data());
         drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
-        EXPECT_PIXEL_COLOR_EQ(0, 0, kColorSet[i]);
+        ANGLE_UNSAFE_TODO(EXPECT_PIXEL_COLOR_EQ(0, 0, kColorSet[i]));
         eglSwapBuffers(mDisplay, surface);
     }
 
@@ -516,8 +509,6 @@ TEST_P(EGLBufferAgeTest, VerifyContentsAfterSwapBehaviorSwitch)
 
     eglDestroySurface(mDisplay, surface);
     surface = EGL_NO_SURFACE;
-    osWindow->destroy();
-    OSWindow::Delete(&osWindow);
 
     eglDestroyContext(mDisplay, context);
     context = EGL_NO_CONTEXT;
@@ -537,9 +528,7 @@ TEST_P(EGLBufferAgeTest_MSAA, VerifyContentsForMultisampled)
 
     EGLSurface surface = EGL_NO_SURFACE;
 
-    OSWindow *osWindow = OSWindow::New();
-    osWindow->initialize("EGLBufferAgeTest_MSAA", kWidth, kHeight);
-    EXPECT_TRUE(createWindowSurface(config, osWindow->getNativeWindow(), &surface));
+    EXPECT_TRUE(createWindowSurface(config, mOSWindow->getNativeWindow(), &surface));
     ASSERT_EGL_SUCCESS() << "eglCreateWindowSurface failed.";
 
     EXPECT_TRUE(eglMakeCurrent(mDisplay, surface, surface, context));
@@ -585,8 +574,6 @@ TEST_P(EGLBufferAgeTest_MSAA, VerifyContentsForMultisampled)
 
     eglDestroySurface(mDisplay, surface);
     surface = EGL_NO_SURFACE;
-    osWindow->destroy();
-    OSWindow::Delete(&osWindow);
 
     eglDestroyContext(mDisplay, context);
     context = EGL_NO_CONTEXT;
@@ -613,9 +600,7 @@ TEST_P(EGLBufferAgeTest_MSAA, VerifyContentsAfterSwapBehaviorSwitch)
 
     EGLSurface surface = EGL_NO_SURFACE;
 
-    OSWindow *osWindow = OSWindow::New();
-    osWindow->initialize("EGLBufferAgeTest_MSAA", kWidth, kHeight);
-    EXPECT_TRUE(createWindowSurface(config, osWindow->getNativeWindow(), &surface));
+    EXPECT_TRUE(createWindowSurface(config, mOSWindow->getNativeWindow(), &surface));
     ASSERT_EGL_SUCCESS() << "eglCreateWindowSurface failed.";
 
     EXPECT_TRUE(eglMakeCurrent(mDisplay, surface, surface, context));
@@ -677,8 +662,6 @@ TEST_P(EGLBufferAgeTest_MSAA, VerifyContentsAfterSwapBehaviorSwitch)
 
     eglDestroySurface(mDisplay, surface);
     surface = EGL_NO_SURFACE;
-    osWindow->destroy();
-    OSWindow::Delete(&osWindow);
 
     eglDestroyContext(mDisplay, context);
     context = EGL_NO_CONTEXT;
@@ -698,9 +681,7 @@ TEST_P(EGLBufferAgeTest_MSAA_DS, VerifyContentsForMultisampledWithDepthStencil)
 
     EGLSurface surface = EGL_NO_SURFACE;
 
-    OSWindow *osWindow = OSWindow::New();
-    osWindow->initialize("EGLBufferAgeTest_MSAA", kWidth, kHeight);
-    EXPECT_TRUE(createWindowSurface(config, osWindow->getNativeWindow(), &surface));
+    EXPECT_TRUE(createWindowSurface(config, mOSWindow->getNativeWindow(), &surface));
     ASSERT_EGL_SUCCESS() << "eglCreateWindowSurface failed.";
 
     EXPECT_TRUE(eglMakeCurrent(mDisplay, surface, surface, context));
@@ -746,8 +727,6 @@ TEST_P(EGLBufferAgeTest_MSAA_DS, VerifyContentsForMultisampledWithDepthStencil)
 
     eglDestroySurface(mDisplay, surface);
     surface = EGL_NO_SURFACE;
-    osWindow->destroy();
-    OSWindow::Delete(&osWindow);
 
     eglDestroyContext(mDisplay, context);
     context = EGL_NO_CONTEXT;
@@ -767,9 +746,7 @@ TEST_P(EGLBufferAgeTest, UncurrentContextBadSurface)
 
     EGLSurface surface = EGL_NO_SURFACE;
 
-    OSWindow *osWindow = OSWindow::New();
-    osWindow->initialize("EGLBufferAgeTest", kWidth, kHeight);
-    EXPECT_TRUE(createWindowSurface(config, osWindow->getNativeWindow(), &surface));
+    EXPECT_TRUE(createWindowSurface(config, mOSWindow->getNativeWindow(), &surface));
     ASSERT_EGL_SUCCESS() << "eglCreateWindowSurface failed.";
 
     // No current context
@@ -793,8 +770,6 @@ TEST_P(EGLBufferAgeTest, UncurrentContextBadSurface)
 
     eglDestroySurface(mDisplay, surface);
     surface = EGL_NO_SURFACE;
-    osWindow->destroy();
-    OSWindow::Delete(&osWindow);
 
     eglDestroyContext(mDisplay, otherContext);
     otherContext = EGL_NO_CONTEXT;
@@ -817,24 +792,20 @@ TEST_P(EGLBufferAgeTest, ValidateDamageRegion)
 
     EGLSurface surface = EGL_NO_SURFACE;
 
-    OSWindow *osWindow = OSWindow::New();
-    osWindow->initialize("EGLBufferAgeTest", 16, 16);
-    EXPECT_TRUE(createWindowSurface(config, osWindow->getNativeWindow(), &surface));
+    EXPECT_TRUE(createWindowSurface(config, mOSWindow->getNativeWindow(), &surface));
     ASSERT_EGL_SUCCESS() << "eglCreateWindowSurface failed.";
     EXPECT_TRUE(eglMakeCurrent(mDisplay, surface, surface, context));
 
     EGLint age                               = 0;
     EGLint rect[4]                           = {0, 0, 1, 1};
-    std::vector<std::vector<GLfloat>> colors = {{1.0f, 1.0f, 1.0f, 1.0f},
-                                                {1.0f, 0.0f, 0.0f, 1.0f},
-                                                {0.0f, 1.0f, 0.0f, 1.0f},
-                                                {0.0f, 0.0f, 1.0f, 1.0f}};
+    std::vector<GLColor> colors = {GLColor::white,  GLColor::red,  GLColor::green,  GLColor::blue,
+                                   GLColor::yellow, GLColor::cyan, GLColor::magenta};
 
     glDisable(GL_SCISSOR_TEST);
     for (auto color : colors)
     {
-
-        glClearColor(color[0], color[1], color[2], color[3]);
+        const angle::Vector4 clearColor = color.toNormalizedVector();
+        glClearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
         glClear(GL_COLOR_BUFFER_BIT);
         EXPECT_EGL_TRUE(eglSwapBuffers(mDisplay, surface));
         EXPECT_EGL_SUCCESS();
@@ -845,22 +816,28 @@ TEST_P(EGLBufferAgeTest, ValidateDamageRegion)
     EXPECT_EGL_SUCCESS();
     EXPECT_GE(age, 0);
 
-    eglSetDamageRegionKHR(mDisplay, surface, rect, 1);
-    EXPECT_EGL_SUCCESS();
+    if (age > 0)
+    {
+        eglSetDamageRegionKHR(mDisplay, surface, rect, 1);
+        EXPECT_EGL_SUCCESS();
 
-    glClearColor(1.0f, 1.0f, 0.0f, 1.0f);
-    glEnable(GL_SCISSOR_TEST);
-    glScissor(0, 0, 1, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glDisable(GL_SCISSOR_TEST);
-    ASSERT_GL_NO_ERROR();
+        glClearColor(1.0f, 1.0f, 0.0f, 1.0f);
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(0, 0, 1, 1);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glDisable(GL_SCISSOR_TEST);
+        ASSERT_GL_NO_ERROR();
 
-    std::vector<GLfloat> expectColorf = colors[colors.size() - age];
-    GLColor expectColor(expectColorf[0] * 255, expectColorf[1] * 255, expectColorf[2] * 255,
-                        expectColorf[3] * 255);
+        const GLColor &expectColor = colors[colors.size() - age];
+        EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::yellow);
+        EXPECT_PIXEL_COLOR_EQ(1, 1, expectColor);
+    }
 
-    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::yellow);
-    EXPECT_PIXEL_COLOR_EQ(1, 1, expectColor);
+    eglDestroySurface(mDisplay, surface);
+    surface = EGL_NO_SURFACE;
+
+    eglDestroyContext(mDisplay, context);
+    context = EGL_NO_CONTEXT;
 }
 
 // Expect age always == 1 when EGL_BUFFER_PRESERVED is chosen
@@ -877,9 +854,7 @@ TEST_P(EGLBufferAgeTest, BufferPreserved)
 
     EGLSurface surface = EGL_NO_SURFACE;
 
-    OSWindow *osWindow = OSWindow::New();
-    osWindow->initialize("EGLBufferAgeTest", kWidth, kHeight);
-    EXPECT_TRUE(createWindowSurface(config, osWindow->getNativeWindow(), &surface));
+    EXPECT_TRUE(createWindowSurface(config, mOSWindow->getNativeWindow(), &surface));
     ASSERT_EGL_SUCCESS() << "eglCreateWindowSurface failed.";
 
     EXPECT_TRUE(eglMakeCurrent(mDisplay, surface, surface, context));
@@ -910,8 +885,6 @@ TEST_P(EGLBufferAgeTest, BufferPreserved)
 
     eglDestroySurface(mDisplay, surface);
     surface = EGL_NO_SURFACE;
-    osWindow->destroy();
-    OSWindow::Delete(&osWindow);
 
     eglDestroyContext(mDisplay, context);
     context = EGL_NO_CONTEXT;
@@ -950,9 +923,7 @@ TEST_P(EGLBufferAgeTest, SingleBuffer)
 
     EGLSurface surface = EGL_NO_SURFACE;
 
-    OSWindow *osWindow = OSWindow::New();
-    osWindow->initialize("EGLBufferAgeTest", kWidth, kHeight);
-    EXPECT_TRUE(createWindowSurface(config, osWindow->getNativeWindow(), &surface));
+    EXPECT_TRUE(createWindowSurface(config, mOSWindow->getNativeWindow(), &surface));
     ASSERT_EGL_SUCCESS() << "eglCreateWindowSurface failed.";
 
     EXPECT_TRUE(eglMakeCurrent(mDisplay, surface, surface, context));
@@ -987,8 +958,6 @@ TEST_P(EGLBufferAgeTest, SingleBuffer)
 
     eglDestroySurface(mDisplay, surface);
     surface = EGL_NO_SURFACE;
-    osWindow->destroy();
-    OSWindow::Delete(&osWindow);
 
     eglDestroyContext(mDisplay, context);
     context = EGL_NO_CONTEXT;

@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Diğer Uygulamalardan Bağlantıları Gizli Olarak Açmayı İsteyin</translation>
 <translation id="1624481300475123200">Otomatik doldurma şifreleri</translation>
 <translation id="1743244221910283364">Değişiklikleri sil</translation>
+<translation id="1972589975368876259">Grubu Düzenle</translation>
 <translation id="2010481384079864967">{count, plural,
 =1 {Sekmeyi Yığına Ekle}
 other {Sekmeleri Yığına Ekle}}</translation>
@@ -48,7 +49,6 @@ other {Sekmeleri Yığına Ekle}}</translation>
 <translation id="4772190485302020393">Tüm Sekmeleri ve Yığınları Kapat</translation>
 <translation id="4802185666270672526">Masaüstü Sitesi İste Seçeneğini Gizle</translation>
 <translation id="4828571836982833289">Sekme yığınını kaldır?</translation>
-<translation id="4838250035189612538">Yığının Adını Değiştir</translation>
 <translation id="4873540827942947151">{count, plural,
 =1 {1 sekme yığını kapatıldı ve kaydedildi}
 other {{count} sekme yığını kapatıldı ve kaydedildi}}</translation>

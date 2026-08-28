@@ -11,14 +11,15 @@
 ImportValue<std::string> ImportFileOperations::ReadFileToString(
     const base::FilePath& file_path,
     int not_found_error_id,
-    int read_failed_error_id) {
+    int read_failed_error_id,
+    size_t max_size) {
   if (!base::PathExists(file_path)) {
     return import_result::Error<std::string>(not_found_error_id);
   }
 
   std::string content;
 
-  if (!base::ReadFileToString(file_path, &content)) {
+  if (!base::ReadFileToStringWithMaxSize(file_path, &content, max_size)) {
     return import_result::Error<std::string>(read_failed_error_id);
   }
 

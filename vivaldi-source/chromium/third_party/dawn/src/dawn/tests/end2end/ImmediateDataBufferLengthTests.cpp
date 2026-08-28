@@ -28,11 +28,11 @@
 #include <string>
 #include <vector>
 
-#include "src/dawn/common/Assert.h"
 #include "src/dawn/common/Constants.h"
 #include "src/dawn/tests/DawnTest.h"
 #include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
 #include "src/dawn/utils/WGPUHelpers.h"
+#include "src/utils/assert.h"
 
 namespace dawn {
 namespace {
@@ -261,11 +261,10 @@ class ImmediateDataBufferLengthTest : public DawnTest {
         resultIndex++;
     }
 
-    static constexpr uint32_t kMaxExecutionTime = 2u;
-    static constexpr uint32_t kMaxImmediateCount = 4u;
-    static constexpr uint32_t kMaxStorageBufferCount = 3u;
-    static constexpr uint32_t kResultSizeInExpectation =
-        kMaxImmediateCount + kMaxStorageBufferCount;
+    static constexpr size_t kMaxExecutionTime = 2u;
+    static constexpr size_t kMaxImmediateCount = 4u;
+    static constexpr size_t kMaxStorageBufferCount = 3u;
+    static constexpr size_t kResultSizeInExpectation = kMaxImmediateCount + kMaxStorageBufferCount;
 
     std::vector<wgpu::Buffer> mStorageBuffers;
     wgpu::Buffer mResultBuffer;

@@ -63,7 +63,7 @@ VivaldiSyncAuthManager::VivaldiSyncAuthManager(
     signin::IdentityManager* identity_manager,
     Delegate* delegate,
     VivaldiAccountManager* account_manager)
-    : SyncAuthManager(identity_manager, delegate),
+    : SyncAuthManager(identity_manager, delegate, {}),
       account_manager_(account_manager) {}
 
 VivaldiSyncAuthManager::~VivaldiSyncAuthManager() {

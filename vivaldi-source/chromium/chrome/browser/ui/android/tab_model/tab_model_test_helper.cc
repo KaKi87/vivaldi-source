@@ -40,11 +40,9 @@
 #endif
 
 TestTabModel::TestTabModel(Profile* profile,
-                           chrome::android::ActivityType activity_type)
-    : TabModel(profile,
-               activity_type,
-               std::nullopt,
-               TabModel::TabModelType::kStandard) {}
+                           chrome::android::ActivityType activity_type,
+                           TabModelType tab_model_type)
+    : TabModel(profile, activity_type, std::nullopt, tab_model_type) {}
 
 TestTabModel::~TestTabModel() = default;
 
@@ -113,6 +111,10 @@ void TestTabModel::SetIsActiveModel(bool is_active) {
 
 TabAndroid* TestTabModel::GetTabAt(int index) const {
   return nullptr;
+}
+
+bool TestTabModel::HasTab(TabAndroid* tab) const {
+  return false;
 }
 
 std::vector<tabs::TabHandle> TestTabModel::GetOrderedMultiSelectedTabs() const {
@@ -328,15 +330,15 @@ void TestTabModel::AssociateWithBrowserWindow(BrowserWindowInterface* browser) {
 
 OwningTestTabModel::OwningTestTabModel(
     Profile* profile,
-    chrome::android::ActivityType activity_type)
-    : TabModel(profile,
-               activity_type,
-               std::nullopt,
-               TabModel::TabModelType::kStandard) {
+    chrome::android::ActivityType activity_type,
+    TabModelType tab_model_type)
+    : TabModel(profile, activity_type, std::nullopt, tab_model_type) {
   TabModelList::AddTabModel(this);
 }
 
 OwningTestTabModel::~OwningTestTabModel() {
+  observer_list_.Notify(&TabModelObserver::OnTabModelDestroyed,
+                        std::ref(*this));
   ForceCloseAllTabs();
   TabModelList::RemoveTabModel(this);
 }
@@ -388,6 +390,16 @@ content::WebContents* OwningTestTabModel::GetWebContentsAt(int index) const {
 TabAndroid* OwningTestTabModel::GetTabAt(int index) const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   return owned_tabs_.at(index).get();
+}
+
+bool OwningTestTabModel::HasTab(TabAndroid* tab) const {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  for (const auto& owned_tab : owned_tabs_) {
+    if (owned_tab.get() == tab) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void OwningTestTabModel::SetActiveIndex(int index) {

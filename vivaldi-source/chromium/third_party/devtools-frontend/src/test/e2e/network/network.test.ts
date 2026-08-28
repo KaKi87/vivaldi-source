@@ -12,7 +12,8 @@ import {
   navigateToNetworkTab,
   selectRequestByName,
   setCacheDisabled,
-  setPersistLog,
+  setKeepLog,
+  setTextFilter,
   setTimeWindow,
   waitForSelectedRequestChange,
   waitForSomeRequestsToAppear,
@@ -27,7 +28,7 @@ describe('The Network Tab', function() {
   async function navigateToNetworkTabEmptyPage(devToolsPage: DevToolsPage, inspectedPage: InspectedPage) {
     await navigateToNetworkTab('empty.html', devToolsPage, inspectedPage);
     await setCacheDisabled(true, devToolsPage);
-    await setPersistLog(false, devToolsPage);
+    await setKeepLog(false, devToolsPage);
   }
 
   it('displays requests', async ({devToolsPage, inspectedPage}) => {
@@ -77,7 +78,7 @@ describe('The Network Tab', function() {
     await waitForSomeRequestsToAppear(SIMPLE_PAGE_REQUEST_NUMBER + 1, devToolsPage);
     const firstPageRequestNames = (await getAllRequestNames(devToolsPage)).sort();
 
-    await setPersistLog(true, devToolsPage);
+    await setKeepLog(true, devToolsPage);
 
     // Navigate to a new page, and wait for the same requests to still be there.
     await inspectedPage.goTo('about:blank');
@@ -119,12 +120,32 @@ describe('The Network Tab', function() {
        await waitForSomeRequestsToAppear(numOfRequest + 1, devToolsPage);
      });
 
+  it('should display preloaded request column with correct value', async ({devToolsPage, inspectedPage}) => {
+    await navigateToNetworkTabEmptyPage(devToolsPage, inspectedPage);
+    await navigateToNetworkTab('preload.html', devToolsPage, inspectedPage);
+
+    await setTextFilter('is:preloaded', devToolsPage);
+    await waitForSomeRequestsToAppear(1, devToolsPage);
+
+    const names = await getAllRequestNames(devToolsPage);
+    assert.include(names, 'style.css');
+
+    await devToolsPage.click('pierce/thead .name-column', {clickOptions: {button: 'right'}});
+    await devToolsPage.click('aria/Preloaded, unchecked');
+
+    await devToolsPage.waitForFunction(async () => {
+      const values = await devToolsPage.page.$$eval('pierce/.is-preloaded-column',
+                                                    cells => cells.map(cell => cell.textContent?.trim()));
+      return values.includes('true');
+    });
+  });
+
   describe('with durable messages', function() {
     setup({enabledFeatures: ['DevToolsEnableDurableMessages']});
 
     it('can persist requests across cross-origin navigation', async ({devToolsPage, inspectedPage}) => {
       await navigateToNetworkTabEmptyPage(devToolsPage, inspectedPage);
-      await setPersistLog(true, devToolsPage);
+      await setKeepLog(true, devToolsPage);
 
       await navigateToNetworkTab('headers-and-payload.html', devToolsPage, inspectedPage);
       await waitForSomeRequestsToAppear(3, devToolsPage);
@@ -142,21 +163,21 @@ describe('The Network Tab', function() {
       await devToolsPage.waitFor('devtools-text-editor');
     });
 
-    it('does not persist response body if preserve log was disabled during request',
+    it('does not persist response body if keep log was disabled during request',
        async ({devToolsPage, inspectedPage}) => {
          await navigateToNetworkTabEmptyPage(devToolsPage, inspectedPage);
-         await setPersistLog(false, devToolsPage);
+         await setKeepLog(false, devToolsPage);
 
          await navigateToNetworkTab('headers-and-payload.html', devToolsPage, inspectedPage);
          await waitForSomeRequestsToAppear(3, devToolsPage);
 
-         // Enable preserve log after requests are made
-         await setPersistLog(true, devToolsPage);
+         // Enable keep log after requests are made
+         await setKeepLog(true, devToolsPage);
 
          // Navigate to a different origin's page
          await inspectedPage.goToResourceWithCustomHost('devtools.test', 'host/page-with-oopif.html');
 
-         // Requests should still be there because preserve log was enabled before navigation
+         // Requests should still be there because keep log was enabled before navigation
          await waitForSomeRequestsToAppear(3, devToolsPage);
 
          // Introspect a request from the first navigation

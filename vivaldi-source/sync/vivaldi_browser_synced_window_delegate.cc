@@ -8,7 +8,6 @@
 
 #include "base/logging.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/sync/browser_synced_tab_delegate.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -39,7 +38,7 @@ sync_sessions::SyncedTabDelegate* VivaldiBrowserSyncedWindowDelegate::GetTabAt(
   }
 
   VivaldiBrowserWindow* window =
-      static_cast<VivaldiBrowserWindow*>(browser_copy_->window());
+      static_cast<VivaldiBrowserWindow*>(browser_copy_->GetWindow());
   LOG(ERROR) << "BrowserSyncedWindowDelegate found no SyncedTabDelegate for "
                 "tab position "
              << index << " with " << browser_copy_->tab_strip_model()->count()

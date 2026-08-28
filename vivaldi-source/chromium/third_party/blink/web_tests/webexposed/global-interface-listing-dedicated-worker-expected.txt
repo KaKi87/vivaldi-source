@@ -106,6 +106,7 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker]     method slice
 [Worker]     method stream
 [Worker]     method text
+[Worker]     method textStream
 [Worker] interface BroadcastChannel : EventTarget
 [Worker]     attribute @@toStringTag
 [Worker]     getter name
@@ -649,6 +650,29 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker]     setter variant
 [Worker]     setter variationSettings
 [Worker]     setter weight
+[Worker] interface FontFaceSet : EventTarget
+[Worker]     attribute @@toStringTag
+[Worker]     getter onloading
+[Worker]     getter onloadingdone
+[Worker]     getter onloadingerror
+[Worker]     getter ready
+[Worker]     getter size
+[Worker]     getter status
+[Worker]     method @@iterator
+[Worker]     method add
+[Worker]     method check
+[Worker]     method clear
+[Worker]     method constructor
+[Worker]     method delete
+[Worker]     method entries
+[Worker]     method forEach
+[Worker]     method has
+[Worker]     method keys
+[Worker]     method load
+[Worker]     method values
+[Worker]     setter onloading
+[Worker]     setter onloadingdone
+[Worker]     setter onloadingerror
 [Worker] interface FormData
 [Worker]     attribute @@toStringTag
 [Worker]     method @@iterator
@@ -767,6 +791,7 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker]     method setBindGroup
 [Worker]     method setImmediates
 [Worker]     method setPipeline
+[Worker]     method setResourceTable
 [Worker]     method writeTimestamp
 [Worker]     setter label
 [Worker] interface GPUComputePipeline
@@ -796,6 +821,7 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker]     method createRenderBundleEncoder
 [Worker]     method createRenderPipeline
 [Worker]     method createRenderPipelineAsync
+[Worker]     method createResourceTable
 [Worker]     method createSampler
 [Worker]     method createShaderModule
 [Worker]     method createTexture
@@ -909,6 +935,16 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker]     getter label
 [Worker]     method constructor
 [Worker]     method getBindGroupLayout
+[Worker]     setter label
+[Worker] interface GPUResourceTable
+[Worker]     attribute @@toStringTag
+[Worker]     getter label
+[Worker]     getter size
+[Worker]     method constructor
+[Worker]     method destroy
+[Worker]     method insert
+[Worker]     method remove
+[Worker]     method update
 [Worker]     setter label
 [Worker] interface GPUSampler
 [Worker]     attribute @@toStringTag
@@ -1636,6 +1672,19 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker]     getter startTime
 [Worker]     method constructor
 [Worker]     method toJSON
+[Worker] interface PerformanceLongAnimationFrameTiming : PerformanceEntry
+[Worker]     attribute @@toStringTag
+[Worker]     getter blockingDuration
+[Worker]     getter firstUIEventTimestamp
+[Worker]     getter layoutDuration
+[Worker]     getter renderStart
+[Worker]     getter scriptCount
+[Worker]     getter scripts
+[Worker]     getter styleAndLayoutStart
+[Worker]     getter styleDuration
+[Worker]     getter userTimingEntries
+[Worker]     method constructor
+[Worker]     method toJSON
 [Worker] interface PerformanceMark : PerformanceEntry
 [Worker]     attribute @@toStringTag
 [Worker]     getter detail
@@ -1689,6 +1738,22 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker]     getter workerMatchedSourceType
 [Worker]     getter workerRouterEvaluationStart
 [Worker]     getter workerStart
+[Worker]     method constructor
+[Worker]     method toJSON
+[Worker] interface PerformanceScriptTiming : PerformanceEntry
+[Worker]     attribute @@toStringTag
+[Worker]     getter executionStart
+[Worker]     getter forcedLayoutDuration
+[Worker]     getter forcedStyleAndLayoutDuration
+[Worker]     getter forcedStyleDuration
+[Worker]     getter invoker
+[Worker]     getter invokerType
+[Worker]     getter pauseDuration
+[Worker]     getter sourceCharPosition
+[Worker]     getter sourceColumn
+[Worker]     getter sourceFunctionName
+[Worker]     getter sourceLine
+[Worker]     getter sourceURL
 [Worker]     method constructor
 [Worker]     method toJSON
 [Worker] interface PerformanceServerTiming
@@ -2016,6 +2081,13 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker]     getter urlHash
 [Worker]     getter violatedDirective
 [Worker]     method constructor
+[Worker] interface SemanticEmbedder
+[Worker]     static method availability
+[Worker]     static method create
+[Worker]     attribute @@toStringTag
+[Worker]     method constructor
+[Worker]     method destroy
+[Worker]     method embed
 [Worker] interface Serial : EventTarget
 [Worker]     attribute @@toStringTag
 [Worker]     getter onconnect
@@ -2258,8 +2330,8 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker] interface TrustedParserOptions
 [Worker]     attribute @@toStringTag
 [Worker]     getter runScripts
-[Worker]     getter sanitizer
 [Worker]     method constructor
+[Worker]     method sanitizer
 [Worker] interface TrustedScript
 [Worker]     static method fromLiteral
 [Worker]     attribute @@toStringTag
@@ -2277,7 +2349,6 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker]     getter name
 [Worker]     method constructor
 [Worker]     method createHTML
-[Worker]     method createParserOptions
 [Worker]     method createScript
 [Worker]     method createScriptURL
 [Worker] interface TrustedTypePolicyFactory
@@ -3886,6 +3957,8 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker]     method constructor
 [Worker] interface WebTransport
 [Worker]     attribute @@toStringTag
+[Worker]     getter anticipatedConcurrentIncomingBidirectionalStreams
+[Worker]     getter anticipatedConcurrentIncomingUnidirectionalStreams
 [Worker]     getter closed
 [Worker]     getter congestionControl
 [Worker]     getter datagrams
@@ -3899,6 +3972,8 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker]     method createSendGroup
 [Worker]     method createUnidirectionalStream
 [Worker]     method getStats
+[Worker]     setter anticipatedConcurrentIncomingBidirectionalStreams
+[Worker]     setter anticipatedConcurrentIncomingUnidirectionalStreams
 [Worker] interface WebTransportBidirectionalStream
 [Worker]     attribute @@toStringTag
 [Worker]     getter readable
@@ -3908,16 +3983,20 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker]     attribute @@toStringTag
 [Worker]     getter incomingHighWaterMark
 [Worker]     getter incomingMaxAge
+[Worker]     getter incomingMaxBufferedDatagrams
 [Worker]     getter maxDatagramSize
 [Worker]     getter outgoingHighWaterMark
 [Worker]     getter outgoingMaxAge
+[Worker]     getter outgoingMaxBufferedDatagrams
 [Worker]     getter readable
 [Worker]     getter writable
 [Worker]     method constructor
 [Worker]     setter incomingHighWaterMark
 [Worker]     setter incomingMaxAge
+[Worker]     setter incomingMaxBufferedDatagrams
 [Worker]     setter outgoingHighWaterMark
 [Worker]     setter outgoingMaxAge
+[Worker]     setter outgoingMaxBufferedDatagrams
 [Worker] interface WebTransportError : DOMException
 [Worker]     attribute @@toStringTag
 [Worker]     getter source
@@ -4076,7 +4155,6 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker]     method open
 [Worker]     method overrideMimeType
 [Worker]     method send
-[Worker]     method setAttributionReporting
 [Worker]     method setPrivateToken
 [Worker]     method setRequestHeader
 [Worker]     setter onreadystatechange

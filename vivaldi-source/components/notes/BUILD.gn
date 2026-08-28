@@ -65,7 +65,6 @@ static_library("notes") {
 
     #"//vivaldi/sync",
   ]
-  allow_circular_includes_from = [ "//vivaldi/sync/notes:sync_notes" ]
 }
 
 static_library("factory") {
@@ -138,10 +137,6 @@ static_library("browser") {
       "//vivaldi/app:vivaldi_native_strings",
       "//vivaldi/sync/notes:sync_notes",
     ]
-  }
-  allow_circular_includes_from = [ ":notes" ]
-  if (!is_ios) {
-    allow_circular_includes_from += [ "//vivaldi/sync/notes:sync_notes" ]
   }
 }
 

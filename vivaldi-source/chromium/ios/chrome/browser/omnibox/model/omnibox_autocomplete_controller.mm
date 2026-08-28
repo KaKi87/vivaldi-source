@@ -313,6 +313,11 @@ using base::UserMetricsAction;
             : metrics::OmniboxEventProto::TOP_POSITION;
     _autocompleteController->SetSteadyStateOmniboxPosition(
         _preferredOmniboxPosition);
+
+    if (vivaldi::IsVivaldiRunning()) {
+      [self notifyDelegateOfBottomOmniboxEnabled];
+    }  // End Vivaldi
+
   }
 }
 
@@ -1041,6 +1046,18 @@ using base::UserMetricsAction;
          selector:@selector(handleOmniboxFocusNotification:)
              name:vNTPShowOmniboxPopupOnFocus
            object:nil];
+}
+
+- (void)setDelegate:(id<OmniboxAutocompleteControllerDelegate>)delegate {
+  _delegate = delegate;
+  [self notifyDelegateOfBottomOmniboxEnabled];
+}
+
+- (void)notifyDelegateOfBottomOmniboxEnabled {
+  if (!self.delegate || !_bottomOmniboxEnabled) {
+    return;
+  }
+  [self.delegate setBottomOmniboxEnabled:_bottomOmniboxEnabled.value];
 }
 
 - (void)handleOmniboxFocusNotification:(NSNotification*)notification {

@@ -1,5 +1,20 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="ar">
+<translation id="1133985792690629147"><ph name="COLOR_NAME" /> أيقونة لون مكدس علامات التبويب</translation>
+<translation id="19713940601468134">أنشئ مجموعات لتنظيم علامات التبويب</translation>
+<translation id="216776815027855047">تغيير مستوى التكبير لهذه الصفحة</translation>
+<translation id="2221077170275765262">"<ph name="TAB_GROUP_NAME" />" لم تعد مجموعة علامات التبويب متاحة</translation>
+<translation id="4166594760689356813">إغلاق جميع علامات التبويب والتكديس</translation>
+<translation id="4521279527488891004"><ph name="USER_EMAIL" /> تم حفظ المكدسات (سيتم إغلاق علامات التبويب وحذف المكدسات)</translation>
+<translation id="4686942373615810936">تم إنشاؤه للتو</translation>
+<translation id="4687160919883774711">فتح مجموعات علامات التبويب تلقائيًا من أجهزة أخرى</translation>
+<translation id="4779979121749047116">اختر متى يتم نقل علامات التبويب ومجموعات علامات التبويب تلقائيًا إلى القسم غير النشط.</translation>
+<translation id="4870911314065352661">إغلاق كافة علامات التبويب؟</translation>
 <translation id="4871187110787939393">إغلاق جميع التبويبات الخاصة؟</translation>
+<translation id="7640137753339219124">حذف المجموعة</translation>
+<translation id="8176081848609891478">لم تعد مجموعات علامات التبويب "<ph name="TAB_GROUP_NAME_1" />" و"<ph name="TAB_GROUP_NAME_2" />" متاحة</translation>
+<translation id="825209846084758814"><ph name="TABS_COUNT_ONE" /> علامات التبويب مكدسة</translation>
+<translation id="8602902357364871325">إغلاق المكدس</translation>
+<translation id="8660513434781407996"><ph name="TABS_COUNT_MANY" /> علامات التبويب مكدسة</translation>
 </translationbundle>

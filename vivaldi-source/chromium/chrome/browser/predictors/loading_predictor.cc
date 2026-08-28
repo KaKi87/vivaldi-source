@@ -10,6 +10,7 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
+#include "base/unguessable_token.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/predictors/lcp_critical_path_predictor/lcp_critical_path_predictor_util.h"
@@ -24,6 +25,7 @@
 #include "content/public/browser/storage_partition.h"
 #include "content/public/common/origin_util.h"
 #include "net/base/network_anonymization_key.h"
+#include "services/network/public/cpp/constants.h"
 #include "services/network/public/cpp/network_quality_tracker.h"
 #include "services/network/public/cpp/request_destination.h"
 #include "third_party/blink/public/common/features.h"
@@ -148,8 +150,10 @@ bool LoadingPredictor::PrepareForPageLoad(
     const std::optional<url::Origin>& initiator_origin,
     const GURL& url,
     HintOrigin origin,
+    base::UnguessableToken network_restrictions_id,
     bool preconnectable,
-    std::optional<PreconnectPrediction> preconnect_prediction) {
+    std::optional<PreconnectPrediction> preconnect_prediction,
+    content::GlobalRenderFrameHostId initiator_frame_id) {
   CHECK(!shutdown_);
 
   TRACE_EVENT("loading", "LoadingPredictor::PrepareForPageLoad");
@@ -180,21 +184,21 @@ bool LoadingPredictor::PrepareForPageLoad(
   if (origin == HintOrigin::OMNIBOX) {
     // Omnibox hints are lightweight and need a special treatment.
     HandleHintByOrigin(url, preconnectable, /*only_allow_https=*/false,
-                       omnibox_preconnect_data_);
+                       omnibox_preconnect_data_, network_restrictions_id);
     return true;
   }
 
   if (origin == HintOrigin::BOOKMARK_BAR) {
     // Bookmark hints are lightweight and need a special treatment.
     HandleHintByOrigin(url, /*preconnectable=*/true, /*only_allow_https=*/true,
-                       bookmark_bar_preconnect_data_);
+                       bookmark_bar_preconnect_data_, network_restrictions_id);
     return true;
   }
 
   if (origin == HintOrigin::NEW_TAB_PAGE) {
     // New Tab Page hints are lightweight and need a special treatment.
     HandleHintByOrigin(url, /*preconnectable=*/true, /*only_allow_https=*/true,
-                       new_tab_page_preconnect_data_);
+                       new_tab_page_preconnect_data_, network_restrictions_id);
     return true;
   }
 
@@ -227,6 +231,16 @@ bool LoadingPredictor::PrepareForPageLoad(
   // Return early if we do not have any requests.
   if (prediction.requests.empty() && prediction.prefetch_requests.empty())
     return false;
+
+  // For each request of the `PreconnectPrediction`, populate its
+  // `network_restrictions_id`.
+  for (auto& request : prediction.requests) {
+    request.network_restrictions_id = network_restrictions_id;
+  }
+  for (auto& request : prediction.prefetch_requests) {
+    request.network_restrictions_id = network_restrictions_id;
+    request.initiator_frame_id = initiator_frame_id;
+  }
 
   ++total_hints_activated_;
   active_hints_.emplace(url, base::TimeTicks::Now());
@@ -376,9 +390,10 @@ void LoadingPredictor::MaybeAddPreconnect(const GURL& url,
     prefetch_manager()->Start(url, std::move(prediction.prefetch_requests));
   }
 
-  if (!prediction.requests.empty())
+  if (!prediction.requests.empty()) {
     preconnect_manager()->Start(url, std::move(prediction.requests),
                                 kLoadingPredictorPreconnectTrafficAnnotation);
+  }
 }
 
 void LoadingPredictor::MaybeRemovePreconnect(const GURL& url) {
@@ -389,10 +404,12 @@ void LoadingPredictor::MaybeRemovePreconnect(const GURL& url) {
     prefetch_manager_->Stop(url);
 }
 
-bool LoadingPredictor::HandleHintByOrigin(const GURL& url,
-                                          bool preconnectable,
-                                          bool only_allow_https,
-                                          PreconnectData& preconnect_data) {
+bool LoadingPredictor::HandleHintByOrigin(
+    const GURL& url,
+    bool preconnectable,
+    bool only_allow_https,
+    PreconnectData& preconnect_data,
+    base::UnguessableToken network_restrictions_id) {
   if (!url.is_valid() || !url.has_host() || !IsPreconnectEnabled() ||
       (only_allow_https && url.GetScheme() != url::kHttpsScheme)) {
     return false;
@@ -421,13 +438,10 @@ bool LoadingPredictor::HandleHintByOrigin(const GURL& url,
                              kMinDelayBetweenPreconnectRequests) {
       preconnect_data.last_preconnect_time_ = now;
 
-      // TODO(crbug.com/447954811): pass the `network_restrictions_id` from the
-      // caller.
       preconnect_manager()->StartPreconnectUrl(
           url, true, network_anonymization_key,
           kLoadingPredictorPreconnectTrafficAnnotation,
-          /*storage_partition_config=*/nullptr,
-          /*network_restrictions_id=*/std::nullopt,
+          /*storage_partition_config=*/nullptr, network_restrictions_id,
           /*keepalive_config=*/std::nullopt, mojo::NullRemote());
     }
     return true;
@@ -439,8 +453,7 @@ bool LoadingPredictor::HandleHintByOrigin(const GURL& url,
     preconnect_manager()->StartPreresolveHost(
         url, network_anonymization_key,
         kLoadingPredictorPreconnectTrafficAnnotation,
-        /*storage_partition_config=*/nullptr,
-        /*network_restrictions_id=*/std::nullopt);
+        /*storage_partition_config=*/nullptr, network_restrictions_id);
     return true;
   }
 
@@ -501,17 +514,16 @@ void LoadingPredictor::PreconnectURLIfAllowed(
     const GURL& url,
     bool allow_credentials,
     const net::NetworkAnonymizationKey& network_anonymization_key,
+    const base::UnguessableToken& network_restrictions_id,
     const net::NetworkTrafficAnnotationTag& traffic_annotation,
     const content::StoragePartitionConfig* storage_partition_config) {
   if (!url.is_valid() || !url.has_host() || !IsPreconnectEnabled()) {
     return;
   }
 
-  // TODO(crbug.com/447954811): pass the `network_restrictions_id` from the
-  // caller.
   preconnect_manager()->StartPreconnectUrl(
       url, allow_credentials, network_anonymization_key, traffic_annotation,
-      storage_partition_config, /*network_restrictions_id=*/std::nullopt,
+      storage_partition_config, network_restrictions_id,
       /*keepalive_config=*/std::nullopt, mojo::NullRemote());
 }
 
@@ -530,7 +542,7 @@ void LoadingPredictor::MaybePrewarmResources(
   TRACE_EVENT("loading", "LoadingPredictor::MaybePrewarmResources");
 
   if (!top_frame_main_resource_url.is_valid() ||
-      !top_frame_main_resource_url.SchemeIsHTTPOrHTTPS()) {
+      !top_frame_main_resource_url.SchemeIs(url::kHttpsScheme)) {
     return;
   }
 

@@ -1,3 +1,12 @@
+
+declare_overrides() {
+  # The component build flag override must be set before the chromium BUILDCONFIG.gn file is read
+  # Would have preferred to have condition on official build, but that is not defined at this point
+  # Instead an assert has been added in the top BUILD.gn file
+  # IOS is also true, but handled in the rungn script.
+  is_component_build = !(current_os == "android")
+}
+
 declare_args() {
   is_vivaldi = true
   is_vivaldi_polestar = false

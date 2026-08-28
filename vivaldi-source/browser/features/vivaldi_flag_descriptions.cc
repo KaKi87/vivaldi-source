@@ -39,30 +39,26 @@ extern const char kInternalPageReaderModeDescription[] =
     "Should give better results on most pages but is lacking in translation "
     "features.";
 
+const char kLocalCalculatorInternalName[] = "vivaldi-local-calculator";
+const char kLocalCalculatorName[] = "Local Calculator";
+const char kLocalCalculatorDescription[] = "Local Omnibox Calculator";
+
 const char kNoteEditorName[] = "vivaldi-note-editor";
 const char kNoteEditorOption[] = "Use the new note editor";
 const char kNoteEditorDescription[] =
     "Give access to a new note editor with more features.";
 
-const char kRelatedTabsInternalName[] = "vivaldi-related-tabs";
-const char kRelatedTabsName[] = "Show related tabs sort option.";
-const char kRelatedTabsDescription[] =
-    "Display tabs in Window and Tabs panel as a opener-tree structure.";
-
 const char kSettings20InternalName[] = "vivaldi-settings20";
 const char kSettings20Name[] = "Settings 2.0";
 const char kSettings20Description[] = "New layout and features for Settings";
 
+extern const char kToolbarOverflowInternalName[] = "vivaldi-toolbar-overflow";
+extern const char kToolbarOverflowName[] = "Toolbar Overflow";
+extern const char kToolbarOverflowDescription[] =
+    "Put toolbar buttons that can't be displayed in a single button";
+
 #if BUILDFLAG(IS_IOS)
 // iOS specific feature flags should be delcared within this block.
-
-const char kBankIDDigIDLatencyWorkaroundInternalName[] =
-    "vivaldi-bankid-digid-latency-workaround";
-const char kBankIDDigIDLatencyWorkaroundName[] =
-    "BankID/DigID latency workaround";
-const char kBankIDDigIDLatencyWorkaroundDescription[] =
-    "Delays automatic POST form submission on affected BankID/DigID flows to "
-    "avoid a WKWebView navigation timing issue.";
 
 const char kVivaldiIOSCopySanitizedLinkInternalName[] =
     "vivaldi-ios-copy-sanitized-link";

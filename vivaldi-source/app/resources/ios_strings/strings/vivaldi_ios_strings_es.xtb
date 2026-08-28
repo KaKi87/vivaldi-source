@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Preguntar antes de abrir enlaces de otras aplicaciones en navegación privada</translation>
 <translation id="1624481300475123200">Autocompletar contraseñas</translation>
 <translation id="1743244221910283364">Descartar cambios</translation>
+<translation id="1972589975368876259">Editar pila</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Añadir pestaña a la pila}
         other {Añadir pestañas a la pila}}</translation>
@@ -33,6 +34,7 @@
 <translation id="353418192940651934">Mantener Pila</translation>
 <translation id="3607792383367580513">Traducir</translation>
 <translation id="3692650606013198282">Abrir en privado</translation>
+<translation id="3812085181789967792">Página de pestañas privadas</translation>
 <translation id="3873885181515160073">Crea tu nueva pila de pestañas dándole un nombre y un color</translation>
 <translation id="3922395466317605522">Personalizar menú</translation>
 <translation id="3981599532037327317">Abrir ${url} en privado</translation>
@@ -47,7 +49,6 @@
 <translation id="4772190485302020393">Cerrar todas las pestañas y apilables</translation>
 <translation id="4802185666270672526">Ocultar "Solicitar modo escritorio"</translation>
 <translation id="4828571836982833289">¿Desapilar la pila de pestañas?</translation>
-<translation id="4838250035189612538">Cambiar nombre de la pila</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 pila de pestañas cerrada y guardada}
             other {{count} pilas de pestañas cerradas y guardadas}}</translation>

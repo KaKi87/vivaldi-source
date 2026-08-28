@@ -4,8 +4,6 @@
 
 package org.chromium.android_webview.common;
 
-import static org.chromium.build.NullUtil.assumeNonNull;
-
 import static java.lang.annotation.ElementType.TYPE_USE;
 
 import android.content.SharedPreferences;
@@ -21,6 +19,7 @@ import org.jni_zero.NativeMethods;
 import org.chromium.base.BaseFeatures;
 import org.chromium.base.FeatureList;
 import org.chromium.base.FeatureOverrides;
+import org.chromium.base.ResettersForTesting;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -54,7 +53,6 @@ import java.util.Set;
 public class WebViewCachedFlags {
     private static final String CACHED_ENABLED_FLAGS_PREF = "CachedFlagsEnabled";
     private static final String CACHED_DISABLED_FLAGS_PREF = "CachedFlagsDisabled";
-    private static final String MIGRATION_HISTOGRAM_NAME = "Android.WebView.CachedFlagMigration";
     private static final String CACHED_FLAGS_EXIST_HISTOGRAM_NAME =
             "Android.WebView.CachedFlagsExist";
 
@@ -101,6 +99,56 @@ public class WebViewCachedFlags {
                 }
             };
 
+    // Add new CachedFlags here along with their default state.
+    private static final Map<String, @DefaultState Integer> FLAG_DEFINITIONS =
+            Map.ofEntries(
+                    Map.entry(
+                            AwFeatures.WEBVIEW_BACKGROUND_CLASS_PRELOADING, DefaultState.DISABLED),
+                    Map.entry(AwFeatures.WEBVIEW_AW_CLASS_PRELOADER, DefaultState.ENABLED),
+                    Map.entry(AwFeatures.WEBVIEW_MOVE_WORK_TO_PROVIDER_INIT, DefaultState.DISABLED),
+                    Map.entry(
+                            AwFeatures.WEBVIEW_MOVE_WORK_TO_PROVIDER_INIT_THREAD_POOL,
+                            DefaultState.DISABLED),
+                    Map.entry(AwFeatures.WEBVIEW_EARLY_TRACING_INIT, DefaultState.DISABLED),
+                    Map.entry(AwFeatures.WEBVIEW_BACKGROUND_TRACING_INIT, DefaultState.DISABLED),
+                    Map.entry(AwFeatures.WEBVIEW_EARLY_STARTUP_TRACING, DefaultState.DISABLED),
+                    Map.entry(AwFeatures.WEBVIEW_REDUCED_SEED_EXPIRATION, DefaultState.DISABLED),
+                    Map.entry(
+                            AwFeatures.WEBVIEW_REDUCED_SEED_REQUEST_PERIOD, DefaultState.DISABLED),
+                    Map.entry(
+                            TracingServiceFeatures.ENABLE_PERFETTO_SYSTEM_TRACING,
+                            DefaultState.DISABLED),
+                    Map.entry(
+                            AwFeatures.WEBVIEW_MULTI_PROFILE_SKIP_DEFAULT_PROFILE,
+                            DefaultState.DISABLED),
+                    Map.entry(
+                            AwFeatures.WEBVIEW_BYPASS_PROVISIONAL_COOKIE_MANAGER,
+                            DefaultState.DISABLED),
+                    Map.entry(
+                            AwFeatures.WEBVIEW_OPT_IN_TO_GMS_BIND_SERVICE_OPTIMIZATION,
+                            DefaultState.DISABLED),
+                    Map.entry(
+                            AwFeatures.WEBVIEW_ENABLE_API_CALL_USER_ACTIONS, DefaultState.DISABLED),
+                    Map.entry(
+                            AwFeatures.WEBVIEW_FASTER_GET_DEFAULT_USER_AGENT,
+                            DefaultState.DISABLED),
+                    Map.entry(
+                            BaseFeatures.SHUTDOWN_PRE_NATIVE_THREAD_POOL_AFTER_STARTUP,
+                            DefaultState.DISABLED),
+                    Map.entry(
+                            AwFeatures.STARTUP_NON_BLOCKING_WEBVIEW_CONSTRUCTOR,
+                            DefaultState.DISABLED),
+                    Map.entry(
+                            AwFeatures.POST_CHROMIUM_STARTUP_IN_WEBVIEW_CONSTRUCTOR,
+                            DefaultState.DISABLED),
+                    Map.entry(
+                            AwFeatures.WEBVIEW_STATIC_METHODS_NOT_TRIGGER_STARTUP,
+                            DefaultState.DISABLED),
+                    Map.entry(AwFeatures.WEBVIEW_REMOVE_INSTANT_APP_SUPPORT, DefaultState.DISABLED),
+                    Map.entry(
+                            AwFeatures.WEBVIEW_PROFILE_STORE_NOT_TRIGGER_STARTUP,
+                            DefaultState.DISABLED));
+
     /**
      * Initializes the singleton instance and reads the cached values from prefs. This method must
      * be called before get().
@@ -110,7 +158,19 @@ public class WebViewCachedFlags {
     public static void init(SharedPreferences prefs) {
         synchronized (sLock) {
             assert sInstance == null : "Cannot call WebViewCachedFlags.init more than once.";
-            initInternal(prefs);
+            initInternal(prefs, false);
+        }
+    }
+
+    /**
+     * Initializes cached flags singleton instance and uses the default values for all experiments.
+     *
+     * @param prefs the SharedPreferences which will be cleared during initialization.
+     */
+    public static void initForSafeMode(SharedPreferences prefs) {
+        synchronized (sLock) {
+            assert sInstance == null : "Cannot call WebViewCachedFlags.init more than once.";
+            initInternal(prefs, true);
         }
     }
 
@@ -122,106 +182,21 @@ public class WebViewCachedFlags {
      * @param prefs the SharedPreferences from which to initialize the caches.
      */
     public static void initForTesting(SharedPreferences prefs) {
-        initInternal(prefs);
+        initInternal(prefs, false);
+        ResettersForTesting.register(() -> resetForTesting());
     }
 
-    private static void initInternal(SharedPreferences prefs) {
+    /** Resets the singleton instance for testing. */
+    public static void resetForTesting() {
         synchronized (sLock) {
-            sInstance =
-                    new WebViewCachedFlags(
-                            prefs,
-                            // Add new CachedFlags here along with their default state.
-                            Map.ofEntries(
-                                    Map.entry(
-                                            AwFeatures.WEBVIEW_BACKGROUND_CLASS_PRELOADING,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            AwFeatures.WEBVIEW_MOVE_WORK_TO_PROVIDER_INIT,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            AwFeatures.WEBVIEW_EARLY_TRACING_INIT,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            AwFeatures.WEBVIEW_BACKGROUND_TRACING_INIT,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            AwFeatures.WEBVIEW_EARLY_STARTUP_TRACING,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            AwFeatures.WEBVIEW_USE_STARTUP_TASKS_LOGIC,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            AwFeatures.WEBVIEW_USE_STARTUP_TASKS_LOGIC_P2,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            AwFeatures.WEBVIEW_STARTUP_TASKS_YIELD_TO_NATIVE,
-                                            DefaultState.ENABLED),
-                                    Map.entry(
-                                            AwFeatures.WEBVIEW_REDUCED_SEED_EXPIRATION,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            AwFeatures.WEBVIEW_REDUCED_SEED_REQUEST_PERIOD,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            TracingServiceFeatures.ENABLE_PERFETTO_SYSTEM_TRACING,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            AwFeatures.WEBVIEW_BYPASS_PROVISIONAL_COOKIE_MANAGER,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            AwFeatures
-                                                    .WEBVIEW_OPT_IN_TO_GMS_BIND_SERVICE_OPTIMIZATION,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            AwFeatures.WEBVIEW_ENABLE_API_CALL_USER_ACTIONS,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            AwFeatures.WEBVIEW_USE_NONEMBEDDED_LOW_ENTROPY_SOURCE,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            AwFeatures.WEBVIEW_FASTER_GET_DEFAULT_USER_AGENT,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            BaseFeatures
-                                                    .SHUTDOWN_PRE_NATIVE_THREAD_POOL_AFTER_STARTUP,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            AwFeatures.STARTUP_NON_BLOCKING_WEBVIEW_CONSTRUCTOR,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            AwFeatures.POST_CHROMIUM_STARTUP_IN_WEBVIEW_CONSTRUCTOR,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            AwFeatures.WEBVIEW_STATIC_METHODS_NOT_TRIGGER_STARTUP,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            AwFeatures.WEBVIEW_REMOVE_INSTANT_APP_SUPPORT,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
-                                            AwFeatures.WEBVIEW_PROFILE_STORE_NOT_TRIGGER_STARTUP,
-                                            DefaultState.DISABLED)));
+            sInstance = null;
         }
     }
 
-    /**
-     * Initializes cached flags singleton instance and uses the default values for all experiments.
-     *
-     * @param prefs the SharedPreferences which will be cleared during initialization.
-     */
-    public static void initForSafeMode(SharedPreferences prefs) {
-        init(prefs);
-        // Once regular init has finished, reset both enabled and disabled sets so that every flag
-        // uses its default value.
-        assumeNonNull(sInstance).resetToDefaults();
-    }
-
-    /** Forces all experiments to use their default values. */
-    @VisibleForTesting
-    public void resetToDefaults() {
-        mOverrideEnabled.clear();
-        mOverrideDisabled.clear();
-        mFeaturesLoggedGeneral.clear();
-        mFeaturesLoggedEarly.clear();
+    private static void initInternal(SharedPreferences prefs, boolean forceDefaults) {
+        synchronized (sLock) {
+            sInstance = new WebViewCachedFlags(prefs, FLAG_DEFINITIONS, forceDefaults);
+        }
     }
 
     /**
@@ -322,22 +297,25 @@ public class WebViewCachedFlags {
 
     @VisibleForTesting
     public WebViewCachedFlags(
-            SharedPreferences prefs, Map<String, @DefaultState Integer> defaults) {
+            SharedPreferences prefs,
+            Map<String, @DefaultState Integer> defaults,
+            boolean forceDefaults) {
         boolean flagsExist =
                 prefs.contains(CACHED_ENABLED_FLAGS_PREF)
                         && prefs.contains(CACHED_DISABLED_FLAGS_PREF);
         RecordHistogram.recordBooleanHistogram(CACHED_FLAGS_EXIST_HISTOGRAM_NAME, flagsExist);
-        // TODO(crbug.com/414342590): Remove the call to HashSet constructor once the migration code
-        // is removed.
-        mOverrideEnabled =
-                new HashSet<>(
-                        prefs.getStringSet(CACHED_ENABLED_FLAGS_PREF, Collections.emptySet()));
-        mOverrideDisabled =
-                new HashSet<>(
-                        prefs.getStringSet(CACHED_DISABLED_FLAGS_PREF, Collections.emptySet()));
-        SharedPreferences.Editor editor = prefs.edit();
-        cleanUpOldManualExperiments(prefs, editor);
-        editor.remove(CACHED_ENABLED_FLAGS_PREF).remove(CACHED_DISABLED_FLAGS_PREF).apply();
+        if (forceDefaults) {
+            mOverrideEnabled = Collections.emptySet();
+            mOverrideDisabled = Collections.emptySet();
+            mFeaturesLoggedGeneral.clear();
+            mFeaturesLoggedEarly.clear();
+        } else {
+            mOverrideEnabled =
+                    prefs.getStringSet(CACHED_ENABLED_FLAGS_PREF, Collections.emptySet());
+            mOverrideDisabled =
+                    prefs.getStringSet(CACHED_DISABLED_FLAGS_PREF, Collections.emptySet());
+        }
+        prefs.edit().remove(CACHED_ENABLED_FLAGS_PREF).remove(CACHED_DISABLED_FLAGS_PREF).apply();
         mDefaults = defaults;
     }
 
@@ -345,44 +323,6 @@ public class WebViewCachedFlags {
     @CalledByNative
     private static boolean isFeatureEnabled(@JniType("std::string") String feature) {
         return get().isCachedFeatureEnabled(feature);
-    }
-
-    /**
-     * Before this generic mechanism was written, a number of early startup experiments used
-     * individual prefs to read experiment state. By migrating to the generic mechanism, we may
-     * leave many clients with old preferences on their devices. This method cleans up any old
-     * preferences from the manual experiments. It also uses the state of the old preference to
-     * carry forward the client's experiment state so that we don't revert them to the default
-     * behavior for a single startup.
-     *
-     * @param prefs the SharedPreferences object used to initialize this class.
-     * @param editor SharedPreferences.Editor used to make modifications to prefs.
-     */
-    // TODO(crbug.com/414342590): Remove this method once migrations are near 0.
-    private void cleanUpOldManualExperiments(
-            SharedPreferences prefs, SharedPreferences.Editor editor) {
-        boolean didMigration = false;
-        if (prefs.contains("useWebViewResourceContext")) {
-            // This flag has been cleaned up now so we don't need to add it to enabled set. Just
-            // remove the pref.
-            editor.remove("useWebViewResourceContext");
-            didMigration = true;
-        }
-        if (prefs.contains("defaultWebViewPartitionedCookiesState")) {
-            // This flag has been cleaned up now so we don't need to add it to enabled set. Just
-            // remove the pref.
-            editor.remove("defaultWebViewPartitionedCookiesState");
-            didMigration = true;
-        }
-        if (prefs.contains("webViewUseStartupTasksLogic")) {
-            // If this pref is present, we should enable the WEBVIEW_USE_STARTUP_TASKS_LOGIC flag
-            // for this run of WebView.
-            editor.remove("webViewUseStartupTasksLogic");
-            mOverrideDisabled.remove(AwFeatures.WEBVIEW_USE_STARTUP_TASKS_LOGIC);
-            mOverrideEnabled.add(AwFeatures.WEBVIEW_USE_STARTUP_TASKS_LOGIC);
-            didMigration = true;
-        }
-        RecordHistogram.recordBooleanHistogram(MIGRATION_HISTOGRAM_NAME, didMigration);
     }
 
     /**

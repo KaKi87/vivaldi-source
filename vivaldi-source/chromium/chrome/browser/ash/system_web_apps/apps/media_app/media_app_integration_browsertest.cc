@@ -27,6 +27,7 @@
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/ash/app_list/arc/arc_app_utils.h"
+#include "chrome/browser/ash/browser_delegate/browser_controller.h"
 #include "chrome/browser/ash/file_manager/app_service_file_tasks.h"
 #include "chrome/browser/ash/file_manager/file_manager_test_util.h"
 #include "chrome/browser/ash/file_manager/volume_manager.h"
@@ -56,6 +57,7 @@
 #include "chromeos/ash/components/dbus/cros_disks/cros_disks_client.h"
 #include "chromeos/ash/components/settings/cros_settings_names.h"
 #include "chromeos/ash/components/system_web_apps/system_web_app_type.h"
+#include "chromeos/ash/experiences/arc/app/arc_app_constants.h"
 #include "chromeos/constants/chromeos_features.h"
 #include "components/crash/content/browser/error_reporting/mock_crash_endpoint.h"
 #include "components/services/app_service/public/cpp/app_launch_params.h"
@@ -1170,10 +1172,14 @@ IN_PROC_BROWSER_TEST_P(MediaAppIntegrationTest,
   MediaAppUiBrowserTest::PrepareAppForTest(image_web_ui);
 
   EXPECT_NE(image_app_browser, audio_app_browser);
-  EXPECT_TRUE(ash::IsBrowserForSystemWebApp(image_app_browser,
-                                            ash::SystemWebAppType::MEDIA));
-  EXPECT_TRUE(ash::IsBrowserForSystemWebApp(audio_app_browser,
-                                            ash::SystemWebAppType::MEDIA));
+  EXPECT_TRUE(ash::IsBrowserForSystemWebApp(
+      CHECK_DEREF(ash::BrowserController::GetInstance()->GetDelegate(
+          image_app_browser)),
+      ash::SystemWebAppType::MEDIA));
+  EXPECT_TRUE(ash::IsBrowserForSystemWebApp(
+      CHECK_DEREF(ash::BrowserController::GetInstance()->GetDelegate(
+          audio_app_browser)),
+      ash::SystemWebAppType::MEDIA));
 
   // Verify that launch params were correctly proceed by the "second" app to
   // launch.

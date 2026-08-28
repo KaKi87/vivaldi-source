@@ -10,8 +10,11 @@
 #include <utility>
 #include <vector>
 
+#include "ash/constants/ash_extension_constants.h"
 #include "ash/webui/settings/public/constants/routes_util.h"
 #include "base/compiler_specific.h"
+#include "base/i18n/language_tag.h"
+#include "base/i18n/tag_converters.h"
 #include "base/no_destructor.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
@@ -19,7 +22,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/speech/extension_api/tts_extension_api.h"
 #include "chrome/browser/speech/extension_api/tts_extension_api_constants.h"
-#include "chrome/common/extensions/extension_constants.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/tts_controller.h"
@@ -104,7 +106,9 @@ ValidateAndConvertToTtsVoiceVector(const extensions::Extension* extension,
     }
     if (const base::Value* lang = voice_data.Find(constants::kLangKey)) {
       voice.lang = lang->is_string() ? lang->GetString() : std::string();
-      if (!l10n_util::IsValidLocaleSyntax(voice.lang)) {
+      if (!base::i18n::LanguageTagConverter::GetInstance()
+               .FromString(voice.lang)
+               .has_value()) {
         *error = constants::kErrorInvalidLang;
         if (return_after_first_error) {
           tts_voices->clear();

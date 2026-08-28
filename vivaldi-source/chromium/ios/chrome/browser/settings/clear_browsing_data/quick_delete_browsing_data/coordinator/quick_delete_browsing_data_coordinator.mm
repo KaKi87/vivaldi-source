@@ -159,6 +159,7 @@
                             rect:_viewController.view.frame
                             view:_viewController.view
         forceSnackbarOverToolbar:NO
+                  showUndoButton:NO
                       withSource:signout_source_metric
                       completion:^(BOOL success, SceneState* scene_state) {
                         [weakSelf handleAuthenticationOperationDidFinish];

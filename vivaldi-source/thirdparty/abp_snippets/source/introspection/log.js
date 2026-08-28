@@ -14,25 +14,26 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 import {bind} from "proxy-pants/function";
 import {profile} from "./profile.js";
-import {debug} from "./debug.js";
+import {debug, debugFilter} from "./debug.js";
 
 const {console} = $(window);
 
 export const noop = () => {};
 
 /**
- * Logs its arguments to the console.
+ * @description Logs its arguments to the console.
  *
  * This may be used for testing and debugging.
  *
- * @alias module:content/snippets.log
+ * @memberOf module:snippets/introspection
  *
  * @param {...*} [args] The arguments to log.
  *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69962268/log} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/debugging-snippets/log} for external documentation.
  * @since Adblock Plus 3.3
  */
 export function log(...args) {
@@ -66,6 +67,15 @@ export function log(...args) {
     }
 
     $(args).unshift(...logArgs);
+
+    const activeFilter = debugFilter();
+    if (activeFilter) {
+      const matches = $(args).some(
+        arg => $(activeFilter).test(arg)
+      );
+      if (!matches)
+        return;
+    }
   }
   mark();
   console.log(...args);
@@ -73,7 +83,8 @@ export function log(...args) {
 }
 
 /**
- * Returns a no-op if debugging mode is off, returns a bound log otherwise.
+ * @description Returns a no-op if debugging mode is off, returns
+ * a bound log otherwise.
  * @param {string} name the debugger name (first logged value)
  * @returns {function} either a no-op function or the logger one
  */

@@ -1,4 +1,4 @@
-# Copyright (c) 2011 The Chromium Authors. All rights reserved.
+# Copyright 2011 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -20,10 +20,11 @@ class MockFileSystem(object):
     file contents. A file content value of None indicates that the file should
     not exist (IOError will be raised if it is opened;
     reading from a missing key raises a KeyError, not an IOError."""
+
     def __init__(self, files=None):
         self.files = files or {}
         self.written_files = {}
-        self._sep = '/'
+        self._sep = "/"
 
     @property
     def sep(self):
@@ -36,12 +37,12 @@ class MockFileSystem(object):
 
     def basename(self, path):
         if self.sep not in path:
-            return ''
+            return ""
         return self.split(path)[-1] or self.sep
 
     def dirname(self, path):
         if self.sep not in path:
-            return ''
+            return ""
         return self.split(path)[0] or self.sep
 
     def exists(self, path):
@@ -81,9 +82,9 @@ class MockFileSystem(object):
         # use in tests.
         result = []
         for part in path.split(self.sep):
-            if part == '..':
+            if part == "..":
                 result.pop()
-            elif part == '.':
+            elif part == ".":
                 continue
             else:
                 result.append(part)
@@ -101,7 +102,7 @@ class MockFileSystem(object):
         if not base.endswith(self.sep):
             base += self.sep
         assert path.startswith(base)
-        return path[len(base):]
+        return path[len(base) :]
 
     def split(self, path):
         return path.rsplit(self.sep, 1)

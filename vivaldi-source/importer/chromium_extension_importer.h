@@ -4,7 +4,7 @@
 #define IMPORTER_CHROMIUM_EXTENSION_IMPORTER_H_
 
 #include "base/files/file_path.h"
-#include "base/memory/weak_ptr.h"
+#include "base/memory/ref_counted.h"
 #include "extensions/browser/webstore_install_result.h"
 
 #include <string>
@@ -14,10 +14,10 @@ class Profile;
 
 namespace extension_importer {
 
-class ChromiumExtensionsImporter {
+class ChromiumExtensionsImporter
+    : public base::RefCounted<ChromiumExtensionsImporter> {
  public:
   explicit ChromiumExtensionsImporter(Profile* profile);
-  ~ChromiumExtensionsImporter();
 
   void OnExtensionAdded(bool success,
                         const std::string& error,
@@ -29,9 +29,15 @@ class ChromiumExtensionsImporter {
       const base::FilePath& profile_dir);
 
  private:
+  friend class base::RefCounted<ChromiumExtensionsImporter>;
+  ~ChromiumExtensionsImporter();
+
+  void MaybeStartNextInstalls();
+
   const raw_ptr<Profile> profile_;
 
-  base::WeakPtrFactory<ChromiumExtensionsImporter> weak_ptr_factory_{this};
+  std::vector<std::string> pending_extensions_;
+  size_t active_installs_ = 0;
 };
 
 }  // namespace extension_importer

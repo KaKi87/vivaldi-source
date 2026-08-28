@@ -134,12 +134,7 @@ chrome::MessageBoxResult VivaldiMessageBoxDialog::Show(
 #endif
   }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  // System modals are only supported on IS_CHROMEOS_ASH.
-  const bool is_system_modal = !parent;
-#else
   const bool is_system_modal = false;
-#endif
 
   VivaldiMessageBoxDialog* dialog =
       new VivaldiMessageBoxDialog(config, is_system_modal);
@@ -211,12 +206,8 @@ VivaldiMessageBoxDialog::VivaldiMessageBoxDialog(const Config& config,
     : window_title_(config.title),
       type_(config.type),
       message_box_view_(new views::MessageBoxView(config.message)) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  SetModalType(is_system_modal ? ui::MODAL_TYPE_SYSTEM : ui::MODAL_TYPE_WINDOW);
-#else
   DCHECK(!is_system_modal);
   SetModalType(ui::mojom::ModalType::kWindow);
-#endif
   SetButtons(type_ == chrome::MESSAGE_BOX_TYPE_QUESTION
                  ? static_cast<int>(ui::mojom::DialogButton::kOk) |
                        static_cast<int>(ui::mojom::DialogButton::kCancel)

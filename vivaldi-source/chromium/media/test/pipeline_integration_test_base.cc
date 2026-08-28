@@ -63,9 +63,13 @@
 #include "media/filters/symphonia_audio_decoder.h"
 #endif
 
+#if BUILDFLAG(ENABLE_IAMF_TOOLS)
+#include "media/filters/iamf_audio_decoder.h"
+#endif
+
 #if defined(USE_SYSTEM_PROPRIETARY_CODECS)
 #include "platform_media/decoders/vivaldi_decoder_config.h"
-#endif
+#endif // Vivaldi
 
 using ::testing::_;
 using ::testing::AnyNumber;
@@ -87,14 +91,93 @@ namespace {
 static const constexpr uint64_t kMaxFuzzerCanvas = (1 << 28) - 1;
 
 #if BUILDFLAG(ENABLE_HLS_DEMUXER)
-class TestDataSourceFactory : public DataSource::Factory {
+
+class CrossOriginFileDataSourceWrapper : public CrossOriginDataSource {
+ public:
+  CrossOriginFileDataSourceWrapper() = default;
+  ~CrossOriginFileDataSourceWrapper() override = default;
+
+  // CrossOriginDataSource implementation.
+  const std::string& GetMimeType() const override {
+    static const std::string kEmptyMimeType;
+    return kEmptyMimeType;
+  }
+  void Initialize(base::OnceCallback<void(bool)> init_cb) override {
+    std::move(init_cb).Run(true);
+  }
+
+  // DataSource implementation.
+  void Read(int64_t position,
+            base::span<uint8_t> data,
+            DataSource::ReadCB read_cb) override {
+    file_data_source_.Read(position, data, std::move(read_cb));
+  }
+  void Stop() override { file_data_source_.Stop(); }
+  void Abort() override { file_data_source_.Abort(); }
+  bool GetSize(int64_t* size_out) override {
+    return file_data_source_.GetSize(size_out);
+  }
+  void SetBitrate(int bitrate) override {
+    file_data_source_.SetBitrate(bitrate);
+  }
+  bool PassedTimingAllowOriginCheck() override {
+    return file_data_source_.PassedTimingAllowOriginCheck();
+  }
+  bool AssumeFullyBuffered() const override {
+    return file_data_source_.AssumeFullyBuffered();
+  }
+  int64_t GetMemoryUsage() override {
+    return file_data_source_.GetMemoryUsage();
+  }
+  void SetPreload(media::DataSource::Preload preload) override {
+    file_data_source_.SetPreload(preload);
+  }
+  bool DidRedirect() const override { return file_data_source_.DidRedirect(); }
+  GURL GetUrlAfterRedirects() const override { return url_; }
+  void StopPreloading() override { file_data_source_.StopPreloading(); }
+  void OnMediaPlaybackRateChanged(double playback_rate) override {
+    file_data_source_.OnMediaPlaybackRateChanged(playback_rate);
+  }
+  void OnMediaIsPlaying() override { file_data_source_.OnMediaIsPlaying(); }
+
+  // DataSourceInfo implementation.
+  bool WouldTaintOrigin() const override {
+    return file_data_source_.WouldTaintOrigin();
+  }
+  bool IsStreaming() const override { return file_data_source_.IsStreaming(); }
+
+  // FileDataSource-like initialization.
+  bool Initialize(const base::FilePath& file_path) {
+    std::string path_utf8 = file_path.AsUTF8Unsafe();
+    std::string url_str = "file://";
+#if BUILDFLAG(IS_WIN)
+    std::replace(path_utf8.begin(), path_utf8.end(), '\\', '/');
+    if (path_utf8.size() > 0 && path_utf8[0] != '/') {
+      url_str += "/";
+    }
+    url_str += path_utf8;
+#else
+    url_str += path_utf8;
+#endif
+    url_ = GURL(url_str);
+    return file_data_source_.Initialize(file_path);
+  }
+
+ private:
+  GURL url_;
+  FileDataSource file_data_source_;
+};
+
+class TestDataSourceFactory : public CrossOriginDataSource::Factory {
  public:
   ~TestDataSourceFactory() override = default;
   void Create(const GURL& uri,
               DataSource::CacheMode,
               DataSource::EncodingMode,
-              DataSource::DataSourceCb callback) override {
-    auto file_data_source = std::make_unique<FileDataSource>();
+              base::OnceCallback<void(std::unique_ptr<CrossOriginDataSource>)>
+                  callback) override {
+    auto file_data_source =
+        std::make_unique<CrossOriginFileDataSourceWrapper>();
     base::FilePath file_path(
 #if BUILDFLAG(IS_WIN)
         // Windows file paths can't start with '/' the way unix file paths can,
@@ -162,6 +245,13 @@ std::vector<std::unique_ptr<AudioDecoder>> CreateAudioDecodersForTest(
     audio_decoders.push_back(
         std::make_unique<OpusAudioDecoder>(media_task_runner));
   }
+
+#if BUILDFLAG(ENABLE_IAMF_TOOLS)
+  if (base::FeatureList::IsEnabled(kIamfAudioDecoding)) {
+    audio_decoders.push_back(
+        std::make_unique<IamfAudioDecoder>(media_task_runner, media_log));
+  }
+#endif
 
 #if BUILDFLAG(ENABLE_SYMPHONIA)
   audio_decoders.push_back(
@@ -331,7 +421,8 @@ PipelineStatus PipelineIntegrationTestBase::StartPipelineWithHlsManifest(
       std::move(hls_dsp), task_environment_.GetMainThreadTaskRunner(),
       std::make_unique<ForwardingTrackManager>(
           base::DoNothing(), base::DoNothing(), base::DoNothing()),
-      /*name=*/false, manifest_root, &media_log_);
+      /*name=*/false, url::Origin::Create(manifest_root), manifest_root,
+      &media_log_);
   demuxer_ = std::make_unique<ManifestDemuxer>(
       task_environment_.GetMainThreadTaskRunner(), base::DoNothing(),
       std::move(engine), &media_log_);

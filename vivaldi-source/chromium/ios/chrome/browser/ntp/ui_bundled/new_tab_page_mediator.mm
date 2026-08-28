@@ -54,6 +54,7 @@
 #import "ios/chrome/browser/ntp/model/ntp_background_image_cache_service.h"
 #import "ios/chrome/browser/ntp/model/set_up_list_item_type.h"
 #import "ios/chrome/browser/ntp/model/set_up_list_prefs.h"
+#import "ios/chrome/browser/ntp/search_engine_logo/mediator/search_engine_logo_mediator.h"
 #import "ios/chrome/browser/ntp/search_engine_logo/ui/search_engine_logo_state.h"
 #import "ios/chrome/browser/ntp/shared/metrics/feed_metrics_constants.h"
 #import "ios/chrome/browser/ntp/shared/metrics/feed_metrics_recorder.h"
@@ -69,7 +70,6 @@
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_header_consumer.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_image_background_trait.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_trait.h"
-#import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_view_controller.h"
 #import "ios/chrome/browser/ntp/ui_bundled/theme_utils.h"
 #import "ios/chrome/browser/omnibox/model/placeholder_service/placeholder_service.h"
 #import "ios/chrome/browser/omnibox/model/placeholder_service/placeholder_service_observer_bridge.h"
@@ -290,7 +290,7 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
 
 @interface NewTabPageMediator () <BooleanObserver,
                                   HomeBackgroundCustomizationServiceObserving,
-                                  IdentityManagerObserverBridgeDelegate,
+                                  IdentityManagerObserving,
                                   PlaceholderServiceObserving,
                                   PrefObserverDelegate,
                                   SearchEngineObserving,
@@ -464,6 +464,13 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
   return self;
 }
 
+- (void)setConsumer:(id<NewTabPageConsumer>)consumer {
+  _consumer = consumer;
+  if (IsChromeNextIaEnabled() && IsBottomOmniboxAvailable()) {
+    [self.consumer setOmniboxInBottomPosition:_bottomOmniboxEnabled.value];
+  }
+}
+
 - (void)setHeaderConsumer:(id<NewTabPageHeaderConsumer>)headerConsumer {
   _headerConsumer = headerConsumer;
   if (IsChromeNextIaEnabled() && IsBottomOmniboxAvailable()) {
@@ -556,11 +563,9 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
                                                       fromState:previous_state];
               }));
   _discoverFeedVisibilityBrowserAgent->AddObserver(self.feedVisibilityObserver);
-  if (IsNTPBackgroundCustomizationEnabled()) {
-    _backgroundCustomizationServiceObserverBridge =
-        std::make_unique<HomeBackgroundCustomizationServiceObserverBridge>(
-            _backgroundCustomizationService, self);
-  }
+  _backgroundCustomizationServiceObserverBridge =
+      std::make_unique<HomeBackgroundCustomizationServiceObserverBridge>(
+          _backgroundCustomizationService, self);
   [self updateAIMAvailability];
   _mediatorSetUp = YES;
 }
@@ -639,6 +644,7 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
   CHECK(IsChromeNextIaEnabled());
   if (observableBoolean == _bottomOmniboxEnabled) {
     CHECK(IsBottomOmniboxAvailable());
+    [self.consumer setOmniboxInBottomPosition:_bottomOmniboxEnabled.value];
     [self.headerConsumer
         setOmniboxInBottomPosition:_bottomOmniboxEnabled.value];
   }
@@ -666,15 +672,15 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
   [self.headerConsumer setDefaultSearchEngineName:dseName];
 }
 
-#pragma mark - IdentityManagerObserverBridgeDelegate
+#pragma mark - IdentityManagerObserving
 
-- (void)onEndBatchOfPrimaryAccountChanges {
+- (void)batchOfPrimaryAccountChangesDidEnd {
   _signedInIdentity = self.authService->GetPrimaryIdentity();
   [self updateAccountImage];
   [self updateAccountErrorBadge];
 }
 
-- (void)onExtendedAccountInfoUpdated:(const AccountInfo&)info {
+- (void)extendedAccountInfoDidUpdate:(const AccountInfo&)info {
   if (info.gaia != _signedInIdentity.gaiaId) {
     return;
   }
@@ -770,6 +776,9 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
       initWithMutableTraits:self.consumer.traitOverrides];
   [traitAccessor setBoolForNewTabPageImageBackgroundTrait:(image != nil)];
   [traitAccessor setObjectForNewTabPageTrait:[NewTabPageTrait defaultValue]];
+
+  UIColor* tintColor = image ? UIColor.whiteColor : nil;
+  [self.logoMediator setLogoTintColor:tintColor];
 
   if (self.webState) {
     CleanupImageFetcherCacheIfNeeded(
@@ -976,6 +985,8 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
 
     [traitAccessor setObjectForNewTabPageTrait:colorPalette];
     [traitAccessor setBoolForNewTabPageImageBackgroundTrait:NO];
+    UIColor* tintColor = colorPalette.tintColor;
+    [self.logoMediator setLogoTintColor:tintColor];
     if (initialLoad) {
       base::UmaHistogramEnumeration(
           "IOS.HomeCustomization.Background.Ntp.Loaded",
@@ -988,6 +999,7 @@ void CleanupImageFetcherCacheIfNeeded(PrefService* pref_service,
   // reverting to the default colors defined by the trait.
   [traitAccessor setObjectForNewTabPageTrait:[NewTabPageTrait defaultValue]];
   [traitAccessor setBoolForNewTabPageImageBackgroundTrait:NO];
+  [self.logoMediator setLogoTintColor:nil];
   base::UmaHistogramEnumeration("IOS.HomeCustomization.Background.Ntp.Loaded",
                                 HomeCustomizationBackgroundStyle::kDefault);
 }

@@ -24,6 +24,7 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/child_process_security_policy.h"
 #include "content/public/browser/console_message.h"
+#include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/service_worker_context.h"
 #include "content/public/browser/service_worker_running_info.h"
@@ -263,7 +264,7 @@ bool ServiceWorkerTaskQueue::IsReadyToRunTasks(
   }
 
   const SequencedContextId context_id(
-      extension->id(), browser_context_->UniqueId(), *activation_token);
+      extension->id(), browser_context_->UniqueToken(), *activation_token);
   const ServiceWorkerState* worker_state = GetWorkerState(context_id);
 
   return worker_state && worker_state->IsReady();
@@ -289,7 +290,7 @@ void ServiceWorkerTaskQueue::AddPendingTask(
       << lazy_context_id.extension_id();
   const SequencedContextId context_id = {
       lazy_context_id.extension_id(),
-      lazy_context_id.browser_context()->UniqueId(), *activation_token};
+      lazy_context_id.browser_context()->UniqueToken(), *activation_token};
 
   if (!worker_registered_.contains(context_id)) {
     // If the worker hasn't finished registration, wait for it to complete. The
@@ -346,7 +347,7 @@ void ServiceWorkerTaskQueue::ActivateExtension(const Extension* extension) {
   base::UnguessableToken activation_token = base::UnguessableToken::Create();
   activation_tokens_[extension_id] = activation_token;
   const SequencedContextId context_id = {
-      extension_id, browser_context_->UniqueId(), activation_token};
+      extension_id, browser_context_->UniqueToken(), activation_token};
   DCHECK(!worker_state_map_.contains(context_id));
 
   content::ServiceWorkerContext* service_worker_context =
@@ -555,7 +556,7 @@ void ServiceWorkerTaskQueue::RegisterServiceWorker(
   service_worker_context->RegisterServiceWorker(
       script_url,
       blink::StorageKey::CreateFirstParty(url::Origin::Create(option.scope)),
-      option,
+      option, content::GlobalRenderFrameHostId(),
       base::BindOnce(&ServiceWorkerTaskQueue::DidRegisterServiceWorker,
                      weak_factory_.GetWeakPtr(), context_id, reason,
                      base::Time::Now()));
@@ -573,7 +574,7 @@ void ServiceWorkerTaskQueue::DeactivateExtension(const Extension* extension) {
 
   activation_tokens_.erase(extension_id);
   const SequencedContextId context_id = {
-      extension_id, browser_context_->UniqueId(), *activation_token};
+      extension_id, browser_context_->UniqueToken(), *activation_token};
   ServiceWorkerState* worker_state = GetWorkerState(context_id);
   // The worker state might still be marked as Ready if DeactivateExtension is
   // called before the unload event fully propagates and stops the worker
@@ -1135,8 +1136,8 @@ void ServiceWorkerTaskQueue::OnRegistrationStoredSync(int64_t registration_id,
   DCHECK_EQ("/", scope.GetPath());
 
   base::UnguessableToken activation_token = iter->second;
-  SequencedContextId context_id = {extension_id, browser_context_->UniqueId(),
-                                   activation_token};
+  SequencedContextId context_id = {
+      extension_id, browser_context_->UniqueToken(), activation_token};
   pending_storage_registrations_.erase(iter);
 
   ExtensionRegistry* registry = ExtensionRegistry::Get(browser_context_);
@@ -1201,7 +1202,7 @@ ServiceWorkerTaskQueue::GetWorkerStateForActivation(
   }
 
   const SequencedContextId context_id = {
-      extension_id, browser_context_->UniqueId(), activation_token};
+      extension_id, browser_context_->UniqueToken(), activation_token};
   ServiceWorkerState* worker_state = GetWorkerState(context_id);
 
   // If the extension is still activated, worker state should still exist.
@@ -1238,7 +1239,7 @@ bool ServiceWorkerTaskQueue::IsWorkerRegistered(
     return false;
   }
   const SequencedContextId context_id = {
-      extension_id, browser_context_->UniqueId(), *activation_token};
+      extension_id, browser_context_->UniqueToken(), *activation_token};
   return worker_registered_.contains(context_id);
 }
 
@@ -1263,7 +1264,7 @@ size_t ServiceWorkerTaskQueue::GetNumPendingTasksForTest(
   }
   const SequencedContextId context_id = {
       lazy_context_id.extension_id(),
-      lazy_context_id.browser_context()->UniqueId(), *activation_token};
+      lazy_context_id.browser_context()->UniqueToken(), *activation_token};
   std::vector<PendingTask>* tasks = pending_tasks(context_id);
   return tasks ? tasks->size() : 0;
 }

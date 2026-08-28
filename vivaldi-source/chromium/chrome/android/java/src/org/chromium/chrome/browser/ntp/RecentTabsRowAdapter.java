@@ -181,7 +181,6 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
          * @param isLastChild Whether this child is the last one.
          * @param convertView The re-usable child view (may be null).
          * @param parent The parent view group.
-         *
          * @return The view corresponding to the child.
          */
         View getChildView(
@@ -202,8 +201,8 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
         }
 
         /**
-         * Configures a view inflated from recent_tabs_list_item.xml to display information about
-         * a child in this group.
+         * Configures a view inflated from recent_tabs_list_item.xml to display information about a
+         * child in this group.
          *
          * @param childPosition The position of the child within this group.
          * @param viewHolder The ViewHolder with references to pieces of the view.
@@ -216,7 +215,6 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
          * @param isExpanded Whether the group is expanded.
          * @param convertView The re-usable group view (may be null).
          * @param parent The parent view group.
-         *
          * @return The view corresponding to the group.
          */
         public View getGroupView(boolean isExpanded, View convertView, ViewGroup parent) {
@@ -235,6 +233,7 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
 
         /**
          * Configures an RecentTabsGroupView to display the header of this group.
+         *
          * @param groupView The RecentTabsGroupView to configure.
          * @param isExpanded Whether the view is currently expanded.
          */
@@ -250,6 +249,7 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
 
         /**
          * Called when a child item is clicked.
+         *
          * @param childPosition The position of the child in the group.
          * @return Whether the click was handled.
          */
@@ -276,7 +276,7 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
     }
 
     /** A group containing all the tabs associated with a foreign session from a synced device. */
-    class ForeignSessionGroup extends Group {
+    private class ForeignSessionGroup extends Group {
         private final ForeignSession mForeignSession;
         private @Nullable ForeignSessionTab mLongPressedRow;
 
@@ -477,7 +477,7 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
     }
 
     /** A group containing the signin promo. */
-    class SigninPromoGroup extends PromoGroup {
+    private class SigninPromoGroup extends PromoGroup {
         @Override
         public @ChildType int getChildType() {
             return ChildType.SIGNIN_PROMO;
@@ -493,7 +493,7 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
     /** A group containing the empty state illustration. */
     // TODO(crbug.com/40923516): Consider using this PromoGroup subclass for the empty state
     // implementation of LegacySyncPromoView.
-    class EmptyStatePromoGroup extends PromoGroup {
+    private class EmptyStatePromoGroup extends PromoGroup {
         @Override
         int getChildType() {
             return ChildType.NONE;
@@ -531,9 +531,7 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
      * A group containing tabs that were recently closed on this device and a link to the history
      * page.
      */
-    class RecentlyClosedTabsGroup extends Group {
-        static final @StringRes int ID_OPEN_IN_NEW_TAB = R.string.contextmenu_open_in_new_tab;
-        static final @StringRes int ID_REMOVE_ALL = R.string.remove_all;
+    private class RecentlyClosedTabsGroup extends Group {
         private @Nullable RecentlyClosedEntry mLongPressedRow;
 
         @Override
@@ -797,7 +795,7 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
     }
 
     /** A group containing a blank separator. */
-    class SeparatorGroup extends Group {
+    private class SeparatorGroup extends Group {
         private final boolean mIsVisible;
 
         public SeparatorGroup(boolean isVisible) {
@@ -918,7 +916,7 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
      * row view initialization, and the references are cached here. Also stores a reference to the
      * favicon image callback; so that we can make sure we load the correct favicon.
      */
-    private static class ViewHolder {
+    static class ViewHolder {
         public final ImageView iconView;
         public final TextView textView;
         public final TextView domainView;
@@ -945,7 +943,7 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
         Drawable image =
                 UiUtils.getTintedDrawable(
                         mActivity,
-                        R.drawable.ic_features_24dp,
+                        R.drawable.ic_grid_view_24dp,
                         R.color.default_icon_color_tint_list);
         viewHolder.imageView.setImageDrawable(image);
     }
@@ -1144,5 +1142,23 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
     @Override
     public int getChildTypeCount() {
         return ChildType.NUM_ENTRIES;
+    }
+
+    /**
+     * Finds the group position for a foreign session with the given tag.
+     *
+     * @param sessionTag The tag of the foreign session.
+     * @return The group position, or -1 if not found.
+     */
+    public int getGroupPositionForForeignSession(String sessionTag) {
+        for (int i = 0; i < mGroups.size(); i++) {
+            Group group = mGroups.get(i);
+            if (group instanceof ForeignSessionGroup foreignSessionGroup) {
+                if (sessionTag.equals(foreignSessionGroup.mForeignSession.tag)) {
+                    return i;
+                }
+            }
+        }
+        return -1;
     }
 }

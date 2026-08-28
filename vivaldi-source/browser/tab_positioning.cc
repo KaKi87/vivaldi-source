@@ -83,8 +83,7 @@ bool IsLinkClick(TabInvokedBy invoked_by) {
   return invoked_by == TabInvokedBy::kHtml ||
          invoked_by == TabInvokedBy::kBackground ||
          invoked_by == TabInvokedBy::kEmailLink ||
-         invoked_by == TabInvokedBy::kEmailLinkBackground
-         ;
+         invoked_by == TabInvokedBy::kEmailLinkBackground;
 }
 
 enum struct LocalStrategy {
@@ -120,6 +119,8 @@ struct LocalState {
 
   // Open Tab in Current Tab Stack
   bool ShouldAvoidOpenInStack() const;
+  // Avoid stack and force to open the tab as the last.
+  bool ShouldForceLast() const;
 
   ResultPosition GetResultAfter(TabProbe probe,
                                 StackingMode stacking_mode,
@@ -138,8 +139,8 @@ struct LocalState {
   // forces branch of the related tabs tree
   bool direct_child = false;
 
-  private:
-    LocalState() = default;
+ private:
+  LocalState() = default;
 };
 
 TabProbe GetLastInGroup(const LocalState& local) {
@@ -188,15 +189,15 @@ void SetSemiLast(LocalState& local) {
   local.is_substrip_locked = false;
 }
 
-void AdjustByInvokeByExtraArg(LocalState &local, const std::string &json) {
+void AdjustByInvokeByExtraArg(LocalState& local, const std::string& json) {
   std::optional<InvokeByExtraArg> args = ParseExtraArg(json);
   if (!args) {
     LOG(WARNING) << "Can't parse invoke_by extra arg: " << json;
     return;
   }
   if (local.invoked_by == TabInvokedBy::kCommand) {
-    if (args->type == "COMMAND_NEW_TAB_OUTSIDE_GROUP" // "New Top Level Tab"
-        || args->type == "INFO_PAGE_TAG") { // "Menu->Help->..."
+    if (args->type == "COMMAND_NEW_TAB_OUTSIDE_GROUP"  // "New Top Level Tab"
+        || args->type == "INFO_PAGE_TAG") {            // "Menu->Help->..."
       SetSemiLast(local);
       return;
     } else if (args->type == "COMMAND_NEW_TAB_LINK") {
@@ -221,8 +222,7 @@ LocalState LocalState::Create(const TabPositioningParams& params,
   local.active_probe = active;
   local.invoked_by = params.invoked_by;
 
-  local.strategy =
-      ToLocalStrategy(state.placement_strategy);
+  local.strategy = ToLocalStrategy(state.placement_strategy);
 
   if (state.tab_stack_mode == TabstackMode::kOff) {
     local.is_substrip_locked = false;
@@ -243,7 +243,7 @@ LocalState LocalState::Create(const TabPositioningParams& params,
       local.invoked_by = TabInvokedBy::kTabBarButton;
       break;
     case TabInvokedBy::kSpeedDial:
-      local.force_avoid_stack = true;
+      SetSemiLast(local);
       break;
     case TabInvokedBy::kBookmarks:
       local.force_avoid_stack = true;
@@ -261,6 +261,18 @@ LocalState LocalState::Create(const TabPositioningParams& params,
       SetSemiLast(local);
       break;
     case TabInvokedBy::kEmailLinkBackground:
+      SetSemiLast(local);
+      break;
+    case TabInvokedBy::kPanelLinkBackground:
+      local.force_avoid_stack = !local.active_group;
+      break;
+    case TabInvokedBy::kPanelLink:
+      local.force_avoid_stack = !local.active_group;
+      break;
+    case TabInvokedBy::kVivaldiUi:
+      SetSemiLast(local);
+      break;
+    case TabInvokedBy::kDownload:
       SetSemiLast(local);
       break;
     default:
@@ -284,6 +296,16 @@ bool LocalState::ShouldAvoidOpenInStack() const {
   return true;
 }
 
+bool LocalState::ShouldForceLast() const {
+  if (force_last)
+    return true;
+
+  if (strategy == LocalStrategy::kAlwaysLast && !open_in_current_tab_stack)
+    return true;  // VB-129049
+
+  return false;
+}
+
 ResultPosition LocalState::GetResultAfter(TabProbe probe,
                                           StackingMode stacking_mode,
                                           bool pin_state) const {
@@ -302,7 +324,8 @@ ResultPosition LocalState::GetResultAfter(TabProbe probe,
     pin_state = false;
   }
 
-  if (force_last) {
+  if (ShouldForceLast()) {
+    stacking_mode = StackingMode::kAvoid;
     probe = GetLastInWorkspace(*this);
   }
 
@@ -427,7 +450,7 @@ std::optional<ResultPosition> OpenInTabstackWithRelated(
 }
 }  // namespace decide
 
-std::optional<ResultPosition> DetermineInternal(const LocalState &local) {
+std::optional<ResultPosition> DetermineInternal(const LocalState& local) {
   switch (local.strategy) {
     // As Last Tab
     case LocalStrategy::kAlwaysLast:
@@ -457,7 +480,7 @@ std::optional<ResultPosition> DetermineInternal(const LocalState &local) {
 
 std::optional<std::string> GetParentForNewTab(TabStripModel* tab_strip,
                                               content::WebContents* contents,
-                                              const LocalState &local) {
+                                              const LocalState& local) {
   namespace tab_probe = ::vivaldi::tab_probe;
   std::optional<::vivaldi::TabProbe> prev =
       tab_probe::TabLookup(tab_strip->active_index(), tab_strip);

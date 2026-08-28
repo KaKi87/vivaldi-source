@@ -42,7 +42,6 @@
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/ui/ash/login/login_display_host_webui.h"
 #include "chrome/browser/ui/webui/ash/login/app_launch_splash_screen_handler.h"
-#include "chrome/browser/ui/webui/ash/login/arc_vm_data_migration_screen_handler.h"
 #include "chrome/browser/ui/webui/ash/shimless_rma_dialog/shimless_rma_dialog.h"
 #include "chrome/common/chrome_switches.h"
 #include "chromeos/ash/components/account_manager/account_manager_factory.h"
@@ -173,14 +172,23 @@ void UpsertStubUserToAccountManager(Profile* user_profile,
       user->GetAccountId().GetGaiaId(), user->GetDisplayEmail());
 
   // 3. Set it as the Primary Account.
-  const signin::ConsentLevel consent_level =
-      !identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync) &&
-              base::FeatureList::IsEnabled(
-                  syncer::kReplaceSyncPromosWithSignInPromos) &&
-              base::FeatureList::IsEnabled(
-                  ::switches::kChromeOsUseConsentLevelSigninForNewUsers)
-          ? signin::ConsentLevel::kSignin
-          : signin::ConsentLevel::kSync;
+  const signin::ConsentLevel consent_level = [&]() {
+    if (identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync) ||
+        !base::FeatureList::IsEnabled(
+            syncer::kReplaceSyncPromosWithSignInPromos) ||
+        base::FeatureList::IsEnabled(
+            ::switches::kUndoChromeOsUseConsentLevelSignin)) {
+      return signin::ConsentLevel::kSync;
+    }
+
+    if (identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSignin) ||
+        base::FeatureList::IsEnabled(
+            ::switches::kChromeOsUseConsentLevelSigninForNewUsers)) {
+      return signin::ConsentLevel::kSignin;
+    }
+
+    return signin::ConsentLevel::kSync;
+  }();
 
   identity_manager->GetPrimaryAccountMutator()->SetPrimaryAccount(
       account_id, consent_level,
@@ -222,7 +230,7 @@ void StartUserSession(
     UserSessionManager* user_session_mgr = UserSessionManager::GetInstance();
     const user_manager::User* user = user_manager->GetActiveUser();
     if (!user) {
-      // This is possible if crash occured after profile removal
+      // This is possible if crash occurred after profile removal
       // (see crbug.com/40303043 for some more info).
       LOG(ERROR) << "Could not get active user after crash.";
       return;
@@ -354,23 +362,6 @@ void OnRmaIsRequiredResponse() {
   }
 }
 
-bool MaybeStartArcVmDataMigration(user_manager::UserManager* user_manager,
-                                  Profile* profile) {
-  // Migration should be performed only when the session is restarted with the
-  // primary user.
-  user_manager::User* user = ProfileHelper::Get()->GetUserByProfile(profile);
-  if (user && user_manager->GetPrimaryUser() == user) {
-    arc::ArcVmDataMigrationStatus data_migration_status =
-        arc::GetArcVmDataMigrationStatus(profile->GetPrefs());
-    if (data_migration_status == arc::ArcVmDataMigrationStatus::kConfirmed ||
-        data_migration_status == arc::ArcVmDataMigrationStatus::kStarted) {
-      ShowLoginWizard(ArcVmDataMigrationScreenView::kScreenId);
-      return true;
-    }
-  }
-  return false;
-}
-
 // NOTE: This has to be called before profile is initialized - so it is set up
 // when extension are loaded during profile initialization.
 void InitFeaturesSessionType(const user_manager::User* user) {
@@ -478,11 +469,6 @@ void ChromeSessionManager::Initialize(
         base::BindOnce(&OnRmaIsRequiredResponse));
   } else {
     VLOG(1) << "ChromeSessionManager::Initialize Shimless RMA is not allowed";
-  }
-
-  if (base::FeatureList::IsEnabled(arc::kEnableArcVmDataMigration) &&
-      MaybeStartArcVmDataMigration(user_manager_, profile)) {
-    return;
   }
 
   // Tests should be able to tune login manager before showing it. Thus only

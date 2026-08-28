@@ -82,12 +82,6 @@ public class PageZoomManager {
         return HostZoomMap.getDefaultZoomLevel(mDelegate.getBrowserContextHandle());
     }
 
-    /** Returns the adjusted default zoom level of the current Profile. */
-    @VisibleForTesting
-    public double getAdjustedDefaultZoomLevel() {
-        return HostZoomMap.getAdjustedDefaultZoomLevel(mDelegate.getBrowserContextHandle());
-    }
-
     /** Returns the WebContents of the current tab. */
     @VisibleForTesting
     public @Nullable WebContents getWebContents() {
@@ -133,6 +127,11 @@ public class PageZoomManager {
 
     public boolean isCurrentTabNull() {
         return mDelegate.isCurrentTabNull();
+    }
+
+    /** Returns true if the window/activity for this manager currently has window focus. */
+    public boolean isActivityFocused() {
+        return mDelegate.isActivityFocused();
     }
 
     // Snaps the zoom level of the current WebContents to the zoom factor at the given index in the

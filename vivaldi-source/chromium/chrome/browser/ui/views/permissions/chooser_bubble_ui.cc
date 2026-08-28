@@ -28,18 +28,18 @@
 #include "ui/display/types/display_constants.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/bubble/bubble_frame_view.h"
-#include "ui/views/controls/button/label_button.h"
-#include "ui/views/controls/styled_label.h"
 #include "ui/views/controls/table/table_view_observer.h"
 #include "ui/views/layout/fill_layout.h"
 #include "ui/views/widget/widget.h"
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "chrome/browser/ui/extensions/extensions_dialogs.h"
-#include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
+#include "chrome/browser/ui/views/extensions/extensions_container_views.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "extensions/browser/app_window/app_window_registry.h"
+#include "extensions/browser/extension_registry.h"
+#include "extensions/common/constants.h"
 #include "extensions/common/extension.h"
 
 // VB-114658: Vivaldi device chooser bridge.
@@ -196,8 +196,8 @@ void ChooserBubbleUiViewDelegate::UpdateAnchor(Browser* browser) {
                  configuration.anchor.GetIfElement()) {
     set_parent_window(element->GetNativeView());
   } else {
-    set_parent_window(
-        platform_util::GetViewForWindow(browser->window()->GetNativeWindow()));
+    set_parent_window(platform_util::GetViewForWindow(
+        browser->GetWindow()->GetNativeWindow()));
   }
   if (configuration.highlighted_element) {
     SetHighlightedElement(*configuration.highlighted_element);
@@ -247,11 +247,11 @@ base::OnceClosure ShowDeviceChooserDialogForExtension(
   }
 
   if(!vivaldi::IsVivaldiRunning()) {
-  // `GetExtensionsToolbarDesktop` may return `nullptr`, for instance in
+  // `GetExtensionsContainerViews` may return `nullptr`, for instance in
   // extension popup windows.
   auto* extensions_toolbar = BrowserView::GetBrowserViewForBrowser(browser)
                                  ->toolbar_button_provider()
-                                 ->GetExtensionsToolbarDesktop();
+                                 ->GetExtensionsContainerViews();
   if (!extensions_toolbar) {
     return base::DoNothing();
   }

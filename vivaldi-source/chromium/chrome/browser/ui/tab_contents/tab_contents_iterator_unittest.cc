@@ -14,6 +14,7 @@
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/unload_controller.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
 #include "chrome/test/base/test_browser_window.h"
 #include "components/tabs/public/tab_interface.h"
@@ -64,9 +65,9 @@ TEST_F(BrowserListTest, TabContentsIteratorVerifyCount) {
 
   // Add some tabs.
   for (size_t i = 0; i < 3; ++i) {
-    chrome::NewTab(browser2.get());
+    chrome::NewTab(browser2.get(), NewTabTypes::kNoUserAction);
   }
-  chrome::NewTab(browser3.get());
+  chrome::NewTab(browser3.get(), NewTabTypes::kNoUserAction);
 
   EXPECT_EQ(4U, CountAllTabs());
 
@@ -77,7 +78,7 @@ TEST_F(BrowserListTest, TabContentsIteratorVerifyCount) {
 
   // Add lots of tabs.
   for (size_t i = 0; i < 41; ++i) {
-    chrome::NewTab(browser());
+    chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
   }
 
   EXPECT_EQ(42U, CountAllTabs());
@@ -109,10 +110,10 @@ TEST_F(BrowserListTest, TabContentsIteratorVerifyBrowser) {
 
   // Add some tabs.
   for (size_t i = 0; i < 3; ++i) {
-    chrome::NewTab(browser2.get());
+    chrome::NewTab(browser2.get(), NewTabTypes::kNoUserAction);
   }
   for (size_t i = 0; i < 2; ++i) {
-    chrome::NewTab(browser3.get());
+    chrome::NewTab(browser3.get(), NewTabTypes::kNoUserAction);
   }
 
   absl::flat_hash_map<BrowserWindowInterface*, size_t> tab_counts;
@@ -127,7 +128,7 @@ TEST_F(BrowserListTest, TabContentsIteratorVerifyBrowser) {
   browser2->tab_strip_model()->CloseAllTabs();
   // This is normally invoked when the tab strip is empty (specifically from
   // BrowserView::OnWindowCloseRequested).
-  browser2->OnWindowClosing();
+  UnloadController::From(browser2.get())->OnWindowClosing();
   EXPECT_TRUE(browser2->IsDeleteScheduled());
   browser3->tab_strip_model()->CloseWebContentsAt(1, TabCloseTypes::CLOSE_NONE);
 
@@ -140,7 +141,7 @@ TEST_F(BrowserListTest, TabContentsIteratorVerifyBrowser) {
   EXPECT_EQ(1u, tab_counts[browser3.get()]);
 
   // Add one tab back to browser.
-  chrome::NewTab(browser());
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
 
   tab_counts.clear();
   tabs::ForEachTabInterface([&tab_counts](tabs::TabInterface* const tab) {

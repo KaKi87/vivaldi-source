@@ -4,6 +4,8 @@
 
 #include "ui/views/win/hwnd_message_handler_headless.h"
 
+#include <dwmapi.h>
+
 #include "base/notreached.h"
 #include "base/trace_event/trace_event.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
@@ -62,6 +64,18 @@ void HWNDMessageHandlerHeadless::Init(HWND parent, const gfx::Rect& bounds) {
   if (!weak_ptr) {
     return;
   }
+
+  // Tell DWM that we never want this window to be visible.
+  BOOL cloak = TRUE;
+  ::DwmSetWindowAttribute(hwnd(), DWMWA_CLOAK, &cloak, sizeof(cloak));
+
+  // Disable window transition animations to make the window appear instantly
+  // if it is ever made visible. This is important for tests that verify the
+  // window is correctly cloaked, preventing DWM fade-in transition delays from
+  // hiding the window when screenshots are captured.
+  BOOL disable_transition = TRUE;
+  ::DwmSetWindowAttribute(hwnd(), DWMWA_TRANSITIONS_FORCEDISABLED,
+                          &disable_transition, sizeof(disable_transition));
 
   // In headless mode remember the expected window bounds possibly adjusted
   // according to the scale factor.

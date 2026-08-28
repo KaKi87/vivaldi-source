@@ -24,6 +24,7 @@
 #include "base/check_deref.h"
 #include "base/check_is_test.h"
 #include "base/command_line.h"
+#include "base/debug/dump_without_crashing.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/json/json_string_value_serializer.h"
@@ -66,7 +67,6 @@
 #include "chrome/browser/ash/login/screens/ai_intro_screen.h"
 #include "chrome/browser/ash/login/screens/app_downloading_screen.h"
 #include "chrome/browser/ash/login/screens/app_launch_splash_screen.h"
-#include "chrome/browser/ash/login/screens/arc_vm_data_migration_screen.h"
 #include "chrome/browser/ash/login/screens/base_screen.h"
 #include "chrome/browser/ash/login/screens/categories_selection_screen.h"
 #include "chrome/browser/ash/login/screens/choobe_screen.h"
@@ -158,7 +158,7 @@
 #include "chrome/browser/browser_process_platform_part.h"
 #include "chrome/browser/enterprise/util/affiliation.h"
 #include "chrome/browser/enterprise/util/managed_browser_utils.h"
-#include "chrome/browser/metrics/cros_pre_consent_metrics_manager.h"
+#include "chrome/browser/metrics/cros_pre_choice_metrics_manager.h"
 #include "chrome/browser/metrics/metrics_reporting_state.h"
 #include "chrome/browser/policy/profile_policy_connector.h"
 #include "chrome/browser/profiles/profile.h"
@@ -170,7 +170,6 @@
 #include "chrome/browser/ui/webui/ash/login/ai_intro_screen_handler.h"
 #include "chrome/browser/ui/webui/ash/login/app_downloading_screen_handler.h"
 #include "chrome/browser/ui/webui/ash/login/app_launch_splash_screen_handler.h"
-#include "chrome/browser/ui/webui/ash/login/arc_vm_data_migration_screen_handler.h"
 #include "chrome/browser/ui/webui/ash/login/auto_enrollment_check_screen_handler.h"
 #include "chrome/browser/ui/webui/ash/login/categories_selection_screen_handler.h"
 #include "chrome/browser/ui/webui/ash/login/choobe_screen_handler.h"
@@ -255,6 +254,7 @@
 #include "chromeos/ash/components/geolocation/system_location_provider.h"
 #include "chromeos/ash/components/install_attributes/install_attributes.h"
 #include "chromeos/ash/components/language_packs/language_pack_manager.h"
+#include "chromeos/ash/components/login/auth/mount_performer.h"
 #include "chromeos/ash/components/network/network_state.h"
 #include "chromeos/ash/components/network/network_state_handler.h"
 #include "chromeos/ash/components/osauth/public/auth_session_storage.h"
@@ -412,7 +412,14 @@ bool IsInitialSetup(const WizardContext& wizard_context) {
 }
 
 void InvalidateTokenAndRequestSignout(const WizardContext& wizard_context) {
-  CHECK(wizard_context.extra_factors_token.has_value());
+  if (!wizard_context.extra_factors_token.has_value()) {
+    // If there is no token, we can just sign out. This can happen when the user
+    // is ephemeral.
+    LOG(WARNING) << "No extra factors token to invalidate, directly requesting "
+                    "sign out.";
+    session_manager::SessionManager::Get()->RequestSignOut();
+    return;
+  }
   ash::AuthSessionStorage::Get()->Invalidate(
       wizard_context.extra_factors_token.value(),
       base::BindOnce(&session_manager::SessionManager::RequestSignOut,
@@ -488,7 +495,7 @@ WizardController::WizardController(
     // as screens should work with late binding/early unbinding in that case.
     oobe_ui_observation_.Observe(GetOobeUI());
 
-    MaybeEnablePreConsentMetrics();
+    MaybeEnablePreChoiceMetrics();
   }
 }
 
@@ -516,7 +523,8 @@ void WizardController::Init(OobeScreenId first_screen) {
   is_initialized_ = true;
 
   prescribed_enrollment_config_ =
-      policy::EnrollmentConfig::GetPrescribedEnrollmentConfig();
+      policy::EnrollmentConfig::GetPrescribedEnrollmentConfig(
+          local_state_.get());
 
   VLOG(1) << "Starting OOBE wizard with screen: " << first_screen;
 
@@ -802,11 +810,6 @@ WizardController::CreateScreens() {
   append(std::make_unique<LocalStateErrorScreen>(
       oobe_ui->GetView<LocalStateErrorScreenHandler>()->AsWeakPtr()));
 
-  if (base::FeatureList::IsEnabled(arc::kEnableArcVmDataMigration)) {
-    append(std::make_unique<ArcVmDataMigrationScreen>(
-        oobe_ui->GetView<ArcVmDataMigrationScreenHandler>()->AsWeakPtr()));
-  }
-
   if (HIDDetectionScreen::CanShowScreen(local_state_.get())) {
     append(std::make_unique<HIDDetectionScreen>(
         &local_state_.get(),
@@ -859,6 +862,7 @@ WizardController::CreateScreens() {
       base::BindRepeating(&WizardController::OnMarketingOptInScreenExit,
                           weak_factory_.GetWeakPtr())));
   append(std::make_unique<PackagedLicenseScreen>(
+      &local_state_.get(),
       oobe_ui->GetView<PackagedLicenseScreenHandler>()->AsWeakPtr(),
       base::BindRepeating(&WizardController::OnPackagedLicenseScreenExit,
                           weak_factory_.GetWeakPtr())));
@@ -870,6 +874,7 @@ WizardController::CreateScreens() {
 
   append(std::make_unique<GaiaScreen>(
       &local_state_.get(), shared_url_loader_factory_,
+      browser_policy_connector_ash_->device_management_service(),
       oobe_ui->GetView<GaiaScreenHandler>()->AsWeakPtr(),
       base::BindRepeating(&WizardController::OnGaiaScreenExit,
                           weak_factory_.GetWeakPtr())));
@@ -980,7 +985,7 @@ WizardController::CreateScreens() {
           weak_factory_.GetWeakPtr())));
 
   append(std::make_unique<CryptohomeRecoveryScreen>(
-      &local_state_.get(), shared_url_loader_factory_,
+      local_state_.get(), shared_url_loader_factory_,
       oobe_ui->GetView<CryptohomeRecoveryScreenHandler>()->AsWeakPtr(),
       base::BindRepeating(&WizardController::OnCryptohomeRecoveryScreenExit,
                           weak_factory_.GetWeakPtr())));
@@ -1061,11 +1066,13 @@ WizardController::CreateScreens() {
                           weak_factory_.GetWeakPtr())));
 
   append(std::make_unique<LocalDataLossWarningScreen>(
+      local_state_.get(),
       oobe_ui->GetView<LocalDataLossWarningScreenHandler>()->AsWeakPtr(),
       base::BindRepeating(&WizardController::OnLocalDataLossWarningScreenExit,
                           weak_factory_.GetWeakPtr())));
 
   append(std::make_unique<EnterOldPasswordScreen>(
+      local_state_.get(),
       oobe_ui->GetView<EnterOldPasswordScreenHandler>()->AsWeakPtr(),
       base::BindRepeating(&WizardController::OnEnterOldPasswordScreenExit,
                           weak_factory_.GetWeakPtr())));
@@ -1243,7 +1250,8 @@ void WizardController::ShowEnrollmentScreen() {
   // Update the enrollment configuration and start the screen.
   GetLoginDisplayHost()->GetOobeMetricsHelper()->RecordEnrollingUserType();
   prescribed_enrollment_config_ =
-      policy::EnrollmentConfig::GetPrescribedEnrollmentConfig();
+      policy::EnrollmentConfig::GetPrescribedEnrollmentConfig(
+          local_state_.get());
   StartEnrollmentScreen();
 }
 
@@ -1429,12 +1437,12 @@ void WizardController::ShowOsTrialScreen() {
 }
 
 void WizardController::ShowConsolidatedConsentScreen() {
-  // Disable PreConsent metrics if the user is affiliated or managed.
+  // Disable PreChoice metrics if the user is affiliated or managed.
   Profile* profile = ProfileManager::GetActiveUserProfile();
   CHECK(profile);
   if (enterprise_util::IsBrowserManaged(profile)) {
-    if (metrics::CrOSPreConsentMetricsManager::Get()) {
-      metrics::CrOSPreConsentMetricsManager::Get()->Disable();
+    if (metrics::CrOSPreChoiceMetricsManager::Get()) {
+      metrics::CrOSPreChoiceMetricsManager::Get()->Disable();
     }
   }
 
@@ -1484,10 +1492,6 @@ void WizardController::ShowDisplaySizeScreen() {
 
 void WizardController::ShowGuestTosScreen() {
   SetCurrentScreen(GetScreen(GuestTosScreenView::kScreenId));
-}
-
-void WizardController::ShowArcVmDataMigrationScreen() {
-  SetCurrentScreen(GetScreen(ArcVmDataMigrationScreenView::kScreenId));
 }
 
 void WizardController::ShowCryptohomeRecoveryScreen(
@@ -1761,8 +1765,16 @@ void WizardController::OnSamlConfirmPasswordScreenExit(
     case SamlConfirmPasswordScreen::Result::kSuccess:
       switch (wizard_context_->knowledge_factor_setup.auth_setup_flow) {
         case WizardContext::AuthChangeFlow::kInitialSetup:
-          // Continue initial setup by showing other auth factors flows.
-          ShowPinSetupScreenAsMainFactor();
+          // `user_context` is only set on the wizard context for pre-cryptohome
+          // SAML confirm password screen exit. This can happen when the user is
+          // ephemeral as we always show the confirm password screen for
+          // ephemeral users before cryptohome mount.
+          if (wizard_context_->user_context != nullptr) {
+            CompleteLogin();
+          } else {
+            // Continue initial setup by showing other auth factors flows.
+            ShowPinSetupScreenAsMainFactor();
+          }
           break;
         case WizardContext::AuthChangeFlow::kRecovery:
         case WizardContext::AuthChangeFlow::kReauthentication:
@@ -2014,7 +2026,8 @@ void WizardController::OnLocalDataLossWarningScreenExit(
   OnScreenExit(LocalDataLossWarningScreenView::kScreenId,
                LocalDataLossWarningScreen::GetResultString(result));
   switch (result) {
-    case LocalDataLossWarningScreen::Result::kRemoveUser: {
+    case LocalDataLossWarningScreen::Result::kRemoveUser:
+    case LocalDataLossWarningScreen::Result::kAutoWipe: {
       std::unique_ptr<UserContext> context =
           std::move(wizard_context_->user_context);
       ash::LoginDisplayHost::default_host()->CompleteLogin(*context);
@@ -2405,11 +2418,12 @@ void WizardController::OnAutoEnrollmentCheckScreenExit(
   // Check whether the device is disabled. OnDeviceDisabledChecked() will be
   // invoked when the result of this check is known. Until then, the current
   // screen will remain visible and will continue showing a spinner.
-  g_browser_process->platform_part()
-      ->device_disabling_manager()
-      ->CheckWhetherDeviceDisabledDuringOOBE(
-          base::BindRepeating(&WizardController::OnDeviceDisabledChecked,
-                              weak_factory_.GetWeakPtr()));
+  auto* device_disabling_manager =
+      g_browser_process->platform_part()->device_disabling_manager();
+  CHECK(device_disabling_manager);
+  device_disabling_manager->CheckWhetherDeviceDisabledDuringOOBE(
+      base::BindRepeating(&WizardController::OnDeviceDisabledChecked,
+                          weak_factory_.GetWeakPtr()));
 }
 
 void WizardController::OnEnrollmentScreenExit(EnrollmentScreen::Result result) {
@@ -2913,6 +2927,15 @@ void WizardController::ObtainContextAndFinalizeAuth() {
 
 void WizardController::FinalizeAuthWithContext(
     std::unique_ptr<UserContext> context) {
+  if (!context) {
+    // Session has expired.
+    LOG(ERROR) << "Session expired before login could proceed.";
+    // Also dump to see in what scenarios would this happen.
+    base::debug::DumpWithoutCrashing(FROM_HERE);
+    session_manager::SessionManager::Get()->RequestSignOut();
+    return;
+  }
+
   auto mount_state = context->GetMountState();
   if (!mount_state.has_value()) {
     // In certain edge cases, such as a Reauthentication that transitions into
@@ -3282,11 +3305,11 @@ void WizardController::OnOobeFlowFinished() {
 
   GetLocalState()->ClearPref(prefs::kOobeMetricsClientIdAtOobeStart);
 
-  // Check if pre-consent metrics is still enabled.
-  if (metrics::CrOSPreConsentMetricsManager::Get()) {
-    LOG(ERROR) << "OOBE flow is finished and Pre-consent metrics is still "
-               << "enabled. Disabling pre-consent metrics.";
-    metrics::CrOSPreConsentMetricsManager::Get()->Disable();
+  // Check if pre-choice metrics is still enabled.
+  if (metrics::CrOSPreChoiceMetricsManager::Get()) {
+    LOG(ERROR) << "OOBE flow is finished and Pre-choice metrics is still "
+               << "enabled. Disabling pre-choice metrics.";
+    metrics::CrOSPreChoiceMetricsManager::Get()->Disable();
   }
 
   // Launch browser and delete login host controller.
@@ -3300,7 +3323,8 @@ void WizardController::OnOobeFlowFinished() {
 
 void WizardController::OnDeviceDisabledChecked(bool device_disabled) {
   prescribed_enrollment_config_ =
-      policy::EnrollmentConfig::GetPrescribedEnrollmentConfig();
+      policy::EnrollmentConfig::GetPrescribedEnrollmentConfig(
+          local_state_.get());
 
   if (device_disabled) {
     demo_setup_controller_.reset();
@@ -3666,8 +3690,6 @@ void WizardController::AdvanceToScreen(OobeScreenId screen_id) {
     ShowConsolidatedConsentScreen();
   } else if (screen_id == CryptohomeRecoverySetupScreenView::kScreenId) {
     ShowCryptohomeRecoverySetupScreen();
-  } else if (screen_id == ArcVmDataMigrationScreenView::kScreenId) {
-    ShowArcVmDataMigrationScreen();
   } else if (screen_id == TouchpadScrollScreenView::kScreenId) {
     ShowTouchpadScrollScreen();
   } else if (screen_id == GaiaInfoScreenView::kScreenId) {
@@ -4025,7 +4047,9 @@ WizardController::GetAutoEnrollmentController() {
   if (!auto_enrollment_controller_) {
     auto_enrollment_controller_ =
         std::make_unique<policy::AutoEnrollmentController>(
-            shared_url_loader_factory_);
+            &local_state_.get(), shared_url_loader_factory_,
+            browser_policy_connector_ash_->device_management_service(),
+            browser_policy_connector_ash_->GetStateKeysBroker());
   }
   return auto_enrollment_controller_.get();
 }
@@ -4053,27 +4077,27 @@ void WizardController::MaybeAbortQuickStartFlow(
   }
 }
 
-void WizardController::MaybeEnablePreConsentMetrics() {
+void WizardController::MaybeEnablePreChoiceMetrics() {
   if (switches::ShouldDisablePreConsentMetricsForTesting()) {
     return;
   }
-  // Enable pre-consent metrics if this device is in oobe and is the first
+  // Enable pre-choice metrics if this device is in oobe and is the first
   // user.
   Profile* profile = ProfileManager::GetActiveUserProfile();
   CHECK(profile);
   if (enterprise_util::IsBrowserManaged(profile)) {
-    VLOG(1) << "Device enrolled. Do not enable pre consent metrics.";
+    VLOG(1) << "Device enrolled. Do not enable pre choice metrics.";
     return;
   }
 
   if (!wizard_context_->is_add_person_flow &&
-      metrics::CrOSPreConsentMetricsManager::Get()) {
-    // Update stats reporter that the current metrics consent is enabled. This
+      metrics::CrOSPreChoiceMetricsManager::Get()) {
+    // Update stats reporter that the current metrics choice is enabled. This
     // will make sure that any changes in the future are properly propagated
     // when using the API.
     StatsReportingController::Get()->SetEnabled(
         ProfileManager::GetActiveUserProfile(), true);
-    metrics::CrOSPreConsentMetricsManager::Get()->Enable();
+    metrics::CrOSPreChoiceMetricsManager::Get()->Enable();
   }
 }
 

@@ -209,7 +209,6 @@ public class FuseboxMetricsTest {
         mPropertyModel.set(FuseboxProperties.POPUP_ATTACH_GALLERY_VISIBLE, true);
         mPropertyModel.set(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_VISIBLE, true);
         mPropertyModel.set(FuseboxProperties.POPUP_ATTACH_TAB_PICKER_VISIBLE, true);
-
         mPropertyModel.set(FuseboxProperties.POPUP_ATTACH_FILE_VISIBLE, true);
 
         var histogramWatcher =
@@ -244,7 +243,6 @@ public class FuseboxMetricsTest {
         mPropertyModel.set(FuseboxProperties.POPUP_ATTACH_GALLERY_VISIBLE, true);
         mPropertyModel.set(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_VISIBLE, false);
         mPropertyModel.set(FuseboxProperties.POPUP_ATTACH_TAB_PICKER_VISIBLE, false);
-
         mPropertyModel.set(FuseboxProperties.POPUP_ATTACH_FILE_VISIBLE, false);
 
         var histogramWatcher =
@@ -385,7 +383,6 @@ public class FuseboxMetricsTest {
         mPropertyModel.set(FuseboxProperties.POPUP_ATTACH_GALLERY_VISIBLE, true);
         mPropertyModel.set(FuseboxProperties.POPUP_ATTACH_CURRENT_TAB_VISIBLE, true);
         mPropertyModel.set(FuseboxProperties.POPUP_ATTACH_TAB_PICKER_VISIBLE, true);
-
         mPropertyModel.set(FuseboxProperties.POPUP_ATTACH_FILE_VISIBLE, true);
 
         var histogramWatcher =
@@ -512,6 +509,29 @@ public class FuseboxMetricsTest {
                 /* sizeInBytes= */ 50 * 1024, MimeTypeUtils.Type.VIDEO);
         FuseboxMetrics.notifyFileAttachmentSize(
                 /* sizeInBytes= */ 60 * 1024, MimeTypeUtils.Type.UNKNOWN);
+
+        histogramWatcher.assertExpected();
+    }
+
+    @Test
+    public void testRecordAttachmentLoadOom() {
+        var baseHistogram = FuseboxMetrics.ATTACHMENT_LOAD_OOM_HISTOGRAM;
+        var histogramWatcher =
+                HistogramWatcher.newBuilder()
+                        .expectBooleanRecord(baseHistogram, true)
+                        .expectBooleanRecord(
+                                FuseboxMetrics.getAttachmentLoadOomHistogram(
+                                        MimeTypeUtils.Type.IMAGE),
+                                true)
+                        .expectBooleanRecord(baseHistogram, false)
+                        .expectBooleanRecord(
+                                FuseboxMetrics.getAttachmentLoadOomHistogram(
+                                        MimeTypeUtils.Type.TEXT),
+                                false)
+                        .build();
+
+        FuseboxMetrics.recordAttachmentLoadOom(true, MimeTypeUtils.Type.IMAGE);
+        FuseboxMetrics.recordAttachmentLoadOom(false, MimeTypeUtils.Type.TEXT);
 
         histogramWatcher.assertExpected();
     }

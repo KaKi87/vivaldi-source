@@ -8,8 +8,8 @@
 #include "base/memory/weak_ptr.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
-#include "chrome/browser/glic/glic_pref_names.h"
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi: keep disabled
+#include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi: keep disabled
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"

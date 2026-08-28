@@ -47,6 +47,7 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.share.ShareDelegate;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
+import org.chromium.chrome.browser.tab_ui.TabListMode;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tasks.tab_management.TabGridDialogMediator.DialogController;
@@ -68,6 +69,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 // Vivaldi
+import org.chromium.chrome.browser.ChromeApplicationImpl;
 import org.chromium.chrome.browser.app.ChromeActivity;
 
 /**
@@ -210,7 +212,7 @@ public class TabGroupUiCoordinator implements TabGroupUiMediator.ResetHandler, T
         try (TraceEvent e = TraceEvent.scoped("TabGroupUiCoordinator.initializeWithNative")) {
             mTabStripCoordinator =
                     new TabListCoordinator(
-                            TabListCoordinator.TabListMode.STRIP,
+                            TabListMode.BOTTOM_STRIP,
                             mActivity,
                             mBrowserControlsStateProvider,
                             mModalDialogManager,

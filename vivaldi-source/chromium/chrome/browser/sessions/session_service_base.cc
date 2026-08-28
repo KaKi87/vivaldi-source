@@ -26,6 +26,7 @@
 #include "chrome/browser/sessions/session_service_utils.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
+#include "chrome/browser/ui/browser_init_state.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
@@ -33,6 +34,7 @@
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/ui_features.h"
+#include "chrome/browser/ui/window_metadata/window_metadata_controller.h"
 #include "components/saved_tab_groups/public/tab_group_sync_service.h"
 #include "components/sessions/content/content_serialized_navigation_builder.h"
 #include "components/sessions/content/session_tab_helper.h"
@@ -688,8 +690,8 @@ void SessionServiceBase::BuildCommandsForBrowser(
 
   command_storage_manager()->AppendRebuildCommand(
       sessions::CreateSetWindowBoundsCommand(
-          browser->session_id(), browser->window()->GetRestoredBounds(),
-          browser->window()->GetRestoredState()));
+          browser->session_id(), browser->GetWindow()->GetRestoredBounds(),
+          browser->GetWindow()->GetRestoredState()));
 
   command_storage_manager()->AppendRebuildCommand(
       sessions::CreateSetWindowTypeCommand(
@@ -701,10 +703,11 @@ void SessionServiceBase::BuildCommandsForBrowser(
                                                 browser->app_name()));
   }
 
-  if (!browser->user_title().empty()) {
+  if (!WindowMetadataController::From(browser)->user_title().empty()) {
     command_storage_manager()->AppendRebuildCommand(
-        sessions::CreateSetWindowUserTitleCommand(browser->session_id(),
-                                                  browser->user_title()));
+        sessions::CreateSetWindowUserTitleCommand(
+            browser->session_id(),
+            WindowMetadataController::From(browser)->user_title()));
   }
 
   vivaldi::VivaldiBrowserUiData* browser_ui_data =
@@ -717,12 +720,13 @@ void SessionServiceBase::BuildCommandsForBrowser(
 
   command_storage_manager()->AppendRebuildCommand(
       sessions::CreateSetWindowWorkspaceCommand(
-          browser->session_id(), browser->window()->GetWorkspace()));
+          browser->session_id(),
+          BrowserWindow::FromBrowser(browser)->GetWorkspace()));
 
   command_storage_manager()->AppendRebuildCommand(
       sessions::CreateSetWindowVisibleOnAllWorkspacesCommand(
           browser->session_id(),
-          browser->window()->IsVisibleOnAllWorkspaces()));
+          BrowserWindow::FromBrowser(browser)->IsVisibleOnAllWorkspaces()));
 
   command_storage_manager()->AppendRebuildCommand(
       sessions::CreateSetSelectedTabInWindowCommand(
@@ -734,7 +738,7 @@ void SessionServiceBase::BuildCommandsForBrowser(
     TabGroupModel* group_model = tab_strip->group_model();
     tab_groups::TabGroupSyncService* tab_group_service =
         tab_groups::TabGroupSyncServiceFactory::GetForProfile(
-            browser->profile());
+            browser->GetProfile());
 
     for (const tab_groups::TabGroupId& group_id :
          group_model->ListTabGroups()) {
@@ -834,7 +838,7 @@ bool SessionServiceBase::ShouldTrackBrowser(
     return false;
   }
 
-  if (browser->GetBrowserForMigrationOnly()->omit_from_session_restore()) {
+  if (BrowserInitState::From(browser)->omit_from_session_restore()) {
     return false;
   }
 
@@ -843,7 +847,7 @@ bool SessionServiceBase::ShouldTrackBrowser(
   // change SessionRestoreImpl::CreateRestoredBrowser().
   if ((browser->GetType() == BrowserWindowInterface::TYPE_APP ||
        browser->GetType() == BrowserWindowInterface::TYPE_APP_POPUP) &&
-      !browser->GetBrowserForMigrationOnly()->is_trusted_source()) {
+      !WindowFeatureController::From(browser)->IsTrustedSource()) {
     return false;
   }
 

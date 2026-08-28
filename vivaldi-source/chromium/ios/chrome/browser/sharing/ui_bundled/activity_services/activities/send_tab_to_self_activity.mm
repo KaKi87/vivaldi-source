@@ -7,10 +7,11 @@
 #import "base/metrics/histogram_functions.h"
 #import "base/metrics/user_metrics.h"
 #import "base/metrics/user_metrics_action.h"
+#import "components/send_tab_to_self/metrics_util.h"
+#import "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/browser/sharing/ui_bundled/activity_services/data/share_to_data.h"
-#import "ios/chrome/grit/ios_strings.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 
 namespace {
@@ -46,11 +47,11 @@ NSString* const kSendTabToSelfActivityType =
 }
 
 - (NSString*)activityTitle {
-  return l10n_util::GetNSString(IDS_IOS_SHARE_MENU_SEND_TAB_TO_SELF_ACTION);
+  return l10n_util::GetNSString(IDS_SEND_TAB_TO_SELF);
 }
 
 - (UIImage*)activityImage {
-  return CustomSymbolWithPointSize(kRecentTabsSymbol, kSymbolActionPointSize);
+  return SymbolWithPointSize(SymbolRecentTabs, kSymbolActionPointSize);
 }
 
 - (BOOL)canPerformWithActivityItems:(NSArray*)activityItems {
@@ -63,7 +64,10 @@ NSString* const kSendTabToSelfActivityType =
 
 - (void)performActivity {
   [self activityDidFinish:YES];
-  [self.handler showSendTabToSelfUI:self.data.shareURL title:self.data.title];
+  [self.handler
+      showSendTabToSelfUI:self.data.shareURL
+                    title:self.data.title
+               entryPoint:send_tab_to_self::ShareEntryPoint::kShareSheet];
 }
 
 @end

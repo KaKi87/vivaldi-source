@@ -7,6 +7,7 @@ package org.chromium.chrome.browser.ui.signin.signin_promo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -29,8 +30,11 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.mockito.quality.Strictness;
+import org.robolectric.ParameterizedRobolectricTestRunner;
+import org.robolectric.ParameterizedRobolectricTestRunner.Parameters;
 
-import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.FeatureOverrides;
+import org.chromium.base.test.BaseRobolectricTestRule;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.R;
@@ -57,12 +61,31 @@ import org.chromium.components.sync.UserSelectableType;
 import org.chromium.google_apis.gaia.CoreAccountId;
 import org.chromium.google_apis.gaia.GaiaId;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 
-@RunWith(BaseRobolectricTestRunner.class)
+/**
+ * TODO(crbug.com/493130564): Revert to regular runner after
+ * MAKE_IDENTITY_MANAGER_SOURCE_OF_ACCOUNTS launch.
+ */
+@RunWith(ParameterizedRobolectricTestRunner.class)
 @EnableFeatures(SigninFeatures.ENABLE_SEAMLESS_SIGNIN)
 public class SigninPromoDelegateTest {
+    @Parameters(name = "{index}_isIdentityMgrMigration={0}")
+    public static Collection parameters() {
+        return Arrays.asList(true, false);
+    }
+
+    public SigninPromoDelegateTest(boolean isIdentityManagerMigrationEnabled) {
+        FeatureOverrides.overrideFlag(
+                SigninFeatures.MAKE_IDENTITY_MANAGER_SOURCE_OF_ACCOUNTS,
+                isIdentityManagerMigrationEnabled);
+    }
+
+    @Rule public BaseRobolectricTestRule mBaseRule = new BaseRobolectricTestRule();
+
     @Rule
     public final MockitoRule mMockitoRule = MockitoJUnit.rule().strictness(Strictness.STRICT_STUBS);
 
@@ -98,6 +121,7 @@ public class SigninPromoDelegateTest {
                 .when(mIdentityServicesProvider)
                 .getSigninManager(mProfile);
         SyncServiceFactory.setInstanceForTesting(mSyncService);
+        lenient().doReturn(true).when(mSigninManager).isSigninSupported(anyBoolean());
     }
 
     @After
@@ -146,7 +170,8 @@ public class SigninPromoDelegateTest {
                         mock(Drawable.class),
                         "TestName LastName",
                         "TestName",
-                        true);
+                        /* hasDisplayableEmailAddress= */ true,
+                        /* hasAiTierRing= */ false);
 
         assertTrue(mDelegate.canShowPromo());
         assertEquals(
@@ -216,6 +241,14 @@ public class SigninPromoDelegateTest {
         setupDelegate(
                 SigninAccessPoint.NTP_FEED_TOP_PROMO,
                 TestDisplayableProfileData.profileDataOf(TestAccounts.ACCOUNT1));
+
+        assertFalse(mDelegate.canShowPromo());
+    }
+
+    @Test
+    public void testNtpPromoHidden_signinNotSupported() {
+        doReturn(false).when(mSigninManager).isSigninSupported(true);
+        setupDelegate(SigninAccessPoint.NTP_FEED_TOP_PROMO, /* visibleAccount= */ null);
 
         assertFalse(mDelegate.canShowPromo());
     }
@@ -688,16 +721,6 @@ public class SigninPromoDelegateTest {
                 promoShownTime,
                 ChromeSharedPreferences.getInstance()
                         .readLong(ChromePreferenceKeys.SIGNIN_PROMO_NTP_LAST_SHOWN_TIME));
-    }
-
-    @Test
-    public void testNtpPromoHidden_setupListActive() {
-        setupDelegate(
-                SigninAccessPoint.NTP_FEED_TOP_PROMO,
-                /* visibleAccount= */ null,
-                /* isSetupListActive= */ true);
-
-        assertFalse(mDelegate.canShowPromo());
     }
 
     private void setupDelegate(

@@ -12,6 +12,7 @@
 #include "base/functional/bind.h"
 #include "base/stl_util.h"
 #include "build/build_config.h"
+#include "browser/vivaldi_browser_finder.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/app_mode/app_mode_utils.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
@@ -26,10 +27,12 @@
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/web_contents.h"
-#include "extensions/api/window/window_private_api.h"
+#include "extensions/api/vivaldi_utilities/vivaldi_utilities_api.h"
+#include "extensions/api/window_private/window_private_api.h"
 #include "extensions/browser/guest_view/web_view/web_view_guest.h"
 #include "extensions/browser/image_loader.h"
 #include "extensions/common/manifest_handlers/icons_handler.h"
+#include "extensions/tools/vivaldi_tools.h"
 #include "grit/vivaldi_native_resources.h"
 #include "third_party/skia/include/core/SkRegion.h"
 #include "ui/base/metadata/metadata_header_macros.h"
@@ -45,10 +48,6 @@
 #include "ui/views/window/non_client_view.h"
 #include "ui/wm/core/easy_resize_window_targeter.h"
 
-#include "browser/vivaldi_browser_finder.h"
-#include "extensions/api/vivaldi_utilities/vivaldi_utilities_api.h"
-#include "extensions/api/window/window_private_api.h"
-#include "extensions/tools/vivaldi_tools.h"
 #include "ui/views/vivaldi_window_frame_view.h"
 #include "ui/vivaldi_browser_window.h"
 #include "ui/vivaldi_quit_confirmation_dialog.h"
@@ -267,7 +266,8 @@ views::ClientView* VivaldiWindowWidgetDelegate::CreateClientView(
   web_view->SetCanProcessEventsWithinSubtree(false);
   web_view->SetWebContents(contents);
 
-  bool is_private_window = window_->browser()->profile()->IsIncognitoProfile();
+  bool is_private_window =
+      window_->browser()->GetProfile()->IsIncognitoProfile();
   // The purpose of setting a background color for settings & popup windows is
   // to have something to render when resizing windows. Additionally for
   // browser windows is to show splash logo before first content is rendered.
@@ -455,6 +455,10 @@ bool VivaldiWindowWidgetDelegate::ExecuteWindowsCommand(int command_id) {
     command_id = command_id_from_app_command;
   }
 #endif
+
+  if (command_id == IDC_FOCUS_SEARCH) {
+    return false; // VB-130322: Cannot handle this in Chromium because we do not have a Location bar
+  }
 
   return chrome::ExecuteCommand(browser, command_id);
 }

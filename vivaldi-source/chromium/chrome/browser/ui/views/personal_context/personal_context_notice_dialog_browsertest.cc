@@ -16,7 +16,7 @@
 #include "chrome/browser/ui/views/personal_context/personal_context_notice_dialog_controller.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
-#include "components/accessibility_annotator/core/url_constants.h"
+#include "components/personal_context/core/url_constants.h"
 #include "components/personal_context/first_run/personal_context_first_run_types.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
@@ -71,7 +71,7 @@ IN_PROC_BROWSER_TEST_F(PersonalContextNoticeDialogBrowserTest,
 
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
 
   auto controller =
       std::make_unique<PersonalContextNoticeDialogController>(profile);
@@ -102,7 +102,7 @@ IN_PROC_BROWSER_TEST_F(PersonalContextNoticeDialogBrowserTest,
                        ManageSettingsClickOpensNewTab) {
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
 
   auto controller =
       std::make_unique<PersonalContextNoticeDialogController>(profile);
@@ -131,15 +131,14 @@ IN_PROC_BROWSER_TEST_F(PersonalContextNoticeDialogBrowserTest,
       base::StringPrintf(kClickButtonScriptTemplate, "#manageSettings")));
 
   content::WebContents* new_tab = tab_add_waiter.Wait();
-  EXPECT_EQ(new_tab->GetVisibleURL(),
-            GURL(accessibility_annotator::kAccessibilityAnnotatorSettingsURL));
+  EXPECT_EQ(new_tab->GetVisibleURL(), GURL(kPersonalContextConnectedAppsURL));
 }
 
 IN_PROC_BROWSER_TEST_F(PersonalContextNoticeDialogBrowserTest,
                        LearnMoreClickOpensNewTab) {
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
 
   auto controller =
       std::make_unique<PersonalContextNoticeDialogController>(profile);
@@ -168,8 +167,7 @@ IN_PROC_BROWSER_TEST_F(PersonalContextNoticeDialogBrowserTest,
       base::StringPrintf(kClickButtonScriptTemplate, "#learnMore a")));
 
   content::WebContents* new_tab = tab_add_waiter.Wait();
-  EXPECT_EQ(new_tab->GetVisibleURL(),
-            GURL(accessibility_annotator::kAccessibilityAnnotatorLearnMoreURL));
+  EXPECT_EQ(new_tab->GetVisibleURL(), GURL(kPersonalContextLearnMoreURL));
 }
 
 IN_PROC_BROWSER_TEST_F(PersonalContextNoticeDialogBrowserTest,
@@ -179,7 +177,7 @@ IN_PROC_BROWSER_TEST_F(PersonalContextNoticeDialogBrowserTest,
 
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
 
   auto controller =
       std::make_unique<PersonalContextNoticeDialogController>(profile);
@@ -227,7 +225,7 @@ IN_PROC_BROWSER_TEST_F(PersonalContextNoticeDialogBrowserTest,
 
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
-  Profile* profile = browser()->profile();
+  Profile* profile = browser()->GetProfile();
 
   auto controller =
       std::make_unique<PersonalContextNoticeDialogController>(profile);

@@ -6,6 +6,7 @@ package org.chromium.ui.base;
 
 import android.content.ClipData;
 import android.content.ClipDescription;
+import android.content.ContentResolver;
 import android.net.Uri;
 import android.os.Build;
 import android.os.PersistableBundle;
@@ -24,10 +25,13 @@ import org.jni_zero.JNINamespace;
 import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
+import org.chromium.base.CancelableRunnable;
 import org.chromium.base.ContentUriUtils;
 import org.chromium.base.Log;
 import org.chromium.base.TraceEvent;
 import org.chromium.base.metrics.RecordHistogram;
+import org.chromium.base.task.PostTask;
+import org.chromium.base.task.TaskTraits;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.components.input.InputFeatureMap;
@@ -63,6 +67,10 @@ public class EventForwarder {
 
     // The mime type for a URL.
     private static final String URL_MIME_TYPE = "text/x-moz-url";
+    // The delay is determined by heuristics to debounce transient hover exit events that occur
+    // during tool transitions (e.g., stylus lift-offs or mouse click sequences), preventing
+    // accidental dismissal of hover UI (like URL previews) while keeping response time short.
+    private static final int HOVER_EXIT_DELAY_MS = 50;
 
     private long mNativeEventForwarder;
 
@@ -78,6 +86,10 @@ public class EventForwarder {
 
     // Track the last tool type of touch sequence.
     private int mLastToolType;
+
+    private @Nullable MotionEvent mPendingHoverExitEvent;
+    private @Nullable CancelableRunnable mPendingHoverExitRunnable;
+    private boolean mIsHovering;
 
     // Tracks the starting position of the last trackpad scroll.
     // Only used when isTrackpadScrollEventFromAtLeastU() is true.
@@ -156,6 +168,7 @@ public class EventForwarder {
     @CalledByNative
     @VisibleForTesting
     public void destroy() {
+        cancelPendingHoverExit();
         if (mNativeEventForwarder != 0) {
             var oldValue = sEventForwarders.remove(mNativeEventForwarder);
             assert oldValue == this;
@@ -211,12 +224,17 @@ public class EventForwarder {
      * @see View#onTouchEvent(MotionEvent)
      */
     public boolean onTouchEvent(MotionEvent event) {
+        boolean requiresSpecialHandling = touchEventRequiresSpecialHandling(event);
+
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
             mLastToolType = event.getToolType(0);
             logActionDown(event);
+            if (!requiresSpecialHandling) {
+                sendPendingHoverExit();
+            }
         }
 
-        if (touchEventRequiresSpecialHandling(event)) {
+        if (requiresSpecialHandling) {
             return true;
         }
 
@@ -404,8 +422,9 @@ public class EventForwarder {
     }
 
     /**
-     * Creates a new motion event differed from the given event by current touch offset
-     * if the offset is not zero.
+     * Creates a new motion event differed from the given event by current touch offset if the
+     * offset is not zero.
+     *
      * @param src Source motion event.
      * @return A new motion event if we have non-zero touch offset. Otherwise return the same event.
      */
@@ -462,14 +481,37 @@ public class EventForwarder {
                                     event.getToolType(0));
                 }
                 mLastMouseButtonState = 0;
+
+                if (mPendingHoverExitEvent != null) {
+                    cancelPendingHoverExit();
+                    return true;
+                } else if (!mIsHovering) {
+                    mIsHovering = true;
+                    sendNativeMouseEventInternal(event, /* forceSend= */ true);
+                    return true;
+                }
+                return true;
             }
-            // If trackpad scrolls are converted to mousewheel scrolls, so do touchpad flings, and
-            // trackpad movements to stop fling need to be handled here too.
-            if (isTrackpadToMouseEventConversionEnabled()
-                    && event.isFromSource(InputDevice.SOURCE_MOUSE)
-                    && event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER
-                    && eventAction == MotionEvent.ACTION_HOVER_MOVE) {
-                cancelFling(event.getEventTime(), true);
+
+            if (eventAction == MotionEvent.ACTION_HOVER_EXIT) {
+                if (mIsHovering && mPendingHoverExitEvent == null) {
+                    mPendingHoverExitEvent = MotionEvent.obtain(event);
+                    mPendingHoverExitRunnable = new CancelableRunnable(this::sendPendingHoverExit);
+                    PostTask.postDelayedTask(
+                            TaskTraits.UI_DEFAULT, mPendingHoverExitRunnable, HOVER_EXIT_DELAY_MS);
+                }
+                return true;
+            }
+
+            if (eventAction == MotionEvent.ACTION_HOVER_MOVE) {
+                cancelPendingHoverExit();
+                // If trackpad scrolls are converted to mousewheel scrolls, so do touchpad flings,
+                // and trackpad movements to stop fling need to be handled here too.
+                if (isTrackpadToMouseEventConversionEnabled()
+                        && event.isFromSource(InputDevice.SOURCE_MOUSE)
+                        && event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER) {
+                    cancelFling(event.getEventTime(), true);
+                }
             }
             return sendNativeMouseEvent(event);
         } finally {
@@ -497,20 +539,38 @@ public class EventForwarder {
         }
     }
 
+    private void sendPendingHoverExit() {
+        if (mPendingHoverExitEvent != null) {
+            mIsHovering = false;
+            sendNativeMouseEventInternal(mPendingHoverExitEvent, /* forceSend= */ true);
+            cancelPendingHoverExit();
+        }
+    }
+
     /**
      * Sends mouse event to native. Hover event is also converted to mouse event, only
      * differentiated by an internal flag.
      */
     private boolean sendNativeMouseEvent(MotionEvent event) {
+        return sendNativeMouseEventInternal(event, /* forceSend= */ false);
+    }
+
+    private boolean sendNativeMouseEventInternal(MotionEvent event, boolean forceSend) {
         assert mNativeEventForwarder != 0;
 
         int eventAction = event.getActionMasked();
 
+        if (eventAction == MotionEvent.ACTION_DOWN
+                || eventAction == MotionEvent.ACTION_BUTTON_PRESS) {
+            cancelPendingHoverExit();
+        }
+
         // Ignore ACTION_HOVER_ENTER & ACTION_HOVER_EXIT because every mouse-down on Android
         // follows a hover-exit and is followed by a hover-enter.  https://crbug.com/715114
         // filed on distinguishing actual hover enter/exit from these bogus ones.
-        if (eventAction == MotionEvent.ACTION_HOVER_ENTER
-                || eventAction == MotionEvent.ACTION_HOVER_EXIT) {
+        if (!forceSend
+                && (eventAction == MotionEvent.ACTION_HOVER_ENTER
+                        || eventAction == MotionEvent.ACTION_HOVER_EXIT)) {
             return false;
         }
 
@@ -551,6 +611,7 @@ public class EventForwarder {
             mLastTrackpadScrollStartY = event.getY() + mCurrentTouchOffsetY;
             mLastTrackpadScrollStartRawX = event.getRawX() + mCurrentTouchOffsetX;
             mLastTrackpadScrollStartRawY = event.getRawY() + mCurrentTouchOffsetY;
+            cancelPendingHoverExit();
         } else {
             deltaX = event.getX() + mCurrentTouchOffsetX - mLastTrackpadScrollX;
             deltaY = event.getY() + mCurrentTouchOffsetY - mLastTrackpadScrollY;
@@ -568,11 +629,18 @@ public class EventForwarder {
             float velocityY = mVelocityTracker.getYVelocity();
             if (Math.abs(velocityX) > MIN_FLING_VELOCITY
                     || Math.abs(velocityY) > MIN_FLING_VELOCITY) {
-                // Trackpad scroll events are handled by manually calculating deltas from raw
-                // coordinates. These calculations produce Cartesian deltas (Swipe Right = +X).
-                // Chrome expects touchpad events to follow "natural" scrolling conventions
-                // (where Swipe Right = Scroll Left = +X).
-                startFling(event.getEventTime(), velocityX, velocityY, false, false, true);
+                startFling(
+                        event.getEventTime(),
+                        mLastTrackpadScrollStartX,
+                        mLastTrackpadScrollStartY,
+                        mLastTrackpadScrollStartRawX,
+                        mLastTrackpadScrollStartRawY,
+                        velocityX,
+                        velocityY,
+                        /* syntheticScroll= */ false,
+                        /* preventBoosting= */ false,
+                        /* isTouchpadEvent= */ true,
+                        /* targetViewport= */ false);
                 return;
             }
         }
@@ -594,6 +662,17 @@ public class EventForwarder {
                         mLastTrackpadScrollStartRawY,
                         deltaX,
                         deltaY);
+    }
+
+    private void cancelPendingHoverExit() {
+        if (mPendingHoverExitEvent != null) {
+            mPendingHoverExitEvent.recycle();
+            mPendingHoverExitEvent = null;
+        }
+        if (mPendingHoverExitRunnable != null) {
+            mPendingHoverExitRunnable.cancel();
+            mPendingHoverExitRunnable = null;
+        }
     }
 
     /**
@@ -624,14 +703,16 @@ public class EventForwarder {
      */
     public static boolean isTrackpadToMouseConversionEvent(MotionEvent event) {
         if (MotionEventUtils.isTrackpadEvent(event)) {
+            int action = event.getActionMasked();
             // Click or click-and-drag.
-            if (event.getAction() == MotionEvent.ACTION_BUTTON_RELEASE
-                    || event.getButtonState() != 0) {
+            if (action == MotionEvent.ACTION_BUTTON_RELEASE || event.getButtonState() != 0) {
                 return true;
             }
 
             // Hover.
-            if (event.getAction() == MotionEvent.ACTION_HOVER_MOVE) {
+            if (action == MotionEvent.ACTION_HOVER_MOVE
+                    || action == MotionEvent.ACTION_HOVER_ENTER
+                    || action == MotionEvent.ACTION_HOVER_EXIT) {
                 return true;
             }
         }
@@ -692,6 +773,16 @@ public class EventForwarder {
                     // If there are any Uris, set them as files.
                     Uri uri = clipData.getItemAt(i).getUri();
                     if (uri != null) {
+                        // Reject non-URIs or URIs originating from this app to prevent the browser
+                        // from opening private files on behalf of an untrusted paste request.
+                        if (UiAndroidFeatureMap.isEnabled(
+                                UiAndroidFeatures.CLIPBOARD_CONFUSED_DEPUTY_DEFENSE_FILES)) {
+                            if (!ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())
+                                    || ContentUriUtils.isUriFromThisApp(uri)) {
+                                continue;
+                            }
+                        }
+
                         String uriString = uri.toString();
                         String displayName = ContentUriUtils.maybeGetDisplayName(uriString);
                         if (displayName == null) {
@@ -904,35 +995,49 @@ public class EventForwarder {
     }
 
     /**
-     * Flings the viewport with velocity vector (velocityX, velocityY).
+     * Start a fling gesture.
      *
-     * @param timeMs the current time.
-     * @param velocityX fling speed in x-axis.
-     * @param velocityY fling speed in y-axis.
-     * @param syntheticScroll true if generated by gamepad (which will make this fixed-velocity
-     *     fling)
+     * @param timeMs Current time (in milliseconds).
+     * @param x The x coordinate of the fling start in view space.
+     * @param y The y coordinate of the fling start in view space.
+     * @param rawX The raw x coordinate of the fling start in screen space.
+     * @param rawY The raw y coordinate of the fling start in screen space.
+     * @param velocityX Velocity in X.
+     * @param velocityY Velocity in Y.
+     * @param syntheticScroll if true, this fling is synthetic scroll.
      * @param preventBoosting if false, this fling may boost an existing fling. Otherwise, ends the
      *     current fling and starts a new one.
      * @param isTouchpadEvent if true, the gesture event created will have source touchpad,
      *     touchscreen otherwise.
+     * @param targetViewport if true, the fling will target the viewport directly.
      */
     public void startFling(
             long timeMs,
+            float x,
+            float y,
+            float rawX,
+            float rawY,
             float velocityX,
             float velocityY,
             boolean syntheticScroll,
             boolean preventBoosting,
-            boolean isTouchpadEvent) {
+            boolean isTouchpadEvent,
+            boolean targetViewport) {
         if (mNativeEventForwarder == 0) return;
         EventForwarderJni.get()
                 .startFling(
                         mNativeEventForwarder,
                         timeMs,
+                        x,
+                        y,
+                        rawX,
+                        rawY,
                         velocityX,
                         velocityY,
                         syntheticScroll,
                         preventBoosting,
-                        isTouchpadEvent);
+                        isTouchpadEvent,
+                        targetViewport);
     }
 
     /**
@@ -1030,11 +1135,16 @@ public class EventForwarder {
         void startFling(
                 long nativeEventForwarder,
                 long timeMs,
+                float x,
+                float y,
+                float rawX,
+                float rawY,
                 float velocityX,
                 float velocityY,
                 boolean syntheticScroll,
                 boolean preventBoosting,
-                boolean isTouchpadEvent);
+                boolean isTouchpadEvent,
+                boolean targetViewport);
 
         void cancelFling(
                 long nativeEventForwarder,

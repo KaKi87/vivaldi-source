@@ -72,7 +72,7 @@ VivaldiFilterImportedTabsSessionCommands(
         if (!vivaldi_source) {
           std::unique_ptr<sessions::SessionCommand> adapted_command =
               std::make_unique<sessions::SessionCommand>(kCommandSetTabGroup, command->contents().size());
-          command->GetContents(&adapted_command, sizeof(command));
+          command->GetContents(adapted_command->contents());
           commands.push_back(std::move(adapted_command));
         }
         break;

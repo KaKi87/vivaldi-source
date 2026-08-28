@@ -13,7 +13,6 @@ import android.animation.AnimatorListenerAdapter;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.PendingIntent;
-import android.app.UiModeManager;
 import android.content.ComponentCallbacks;
 import android.content.Context;
 import android.content.Intent;
@@ -50,6 +49,7 @@ import org.chromium.base.ActivityState;
 import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
+import org.chromium.base.DeviceInfo;
 import org.chromium.base.Log;
 import org.chromium.base.ObserverList;
 import org.chromium.base.PackageManagerUtils;
@@ -66,7 +66,6 @@ import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.build.annotations.RequiresNonNull;
 import org.chromium.ui.KeyboardVisibilityDelegate;
 import org.chromium.ui.display.DisplayAndroid;
 import org.chromium.ui.display.DisplayAndroid.DisplayAndroidObserver;
@@ -271,7 +270,28 @@ public class WindowAndroid
     private final ObserverList<SelectionHandlesObserver> mSelectionHandlesObservers =
             new ObserverList<>();
 
-    private final boolean mAllowChangeRefreshRate;
+    /** Interface for delegating keyboard events. */
+    public interface KeyboardShortcutsDelegate {
+        /**
+         * Called before a keyboard event is dispatched to the page.
+         *
+         * @param event The KeyEvent to handle.
+         * @return true if the event was handled and should be consumed.
+         */
+        boolean preHandleKeyboardEvent(KeyEvent event);
+
+        /**
+         * Called to handle a keyboard event if it wasn't handled by the page.
+         *
+         * @param event The KeyEvent to handle.
+         * @return true if the event was handled and should be consumed.
+         */
+        boolean handleKeyboardEvent(KeyEvent event);
+    }
+
+    private @Nullable KeyboardShortcutsDelegate mKeyboardShortcutsDelegate;
+
+    private boolean mAllowChangeRefreshRate;
 
     /** Gets the view for readback. */
     public @Nullable View getReadbackView() {
@@ -396,9 +416,9 @@ public class WindowAndroid
             context.registerComponentCallbacks(mComponentCallbacks);
         }
 
-        // Disable refresh rate change on TV platforms, as it may cause black screen flicker due to
-        // display mode changes.
-        mAllowChangeRefreshRate = !isTv(context);
+        // Disable refresh rate change on TV platforms and external displays, as it may cause black
+        // screen flicker/blanking due to display mode changes.
+        mAllowChangeRefreshRate = computeAllowChangeRefreshRate(context);
 
         // Multiple refresh rate support is only available on M+.
         recomputeSupportedRefreshRates();
@@ -432,15 +452,13 @@ public class WindowAndroid
     }
 
     private boolean shouldTrackOcclusionWithTrustedPresentationApi() {
-        // On rotate Android seems to send a spurious occlusion signal. See crbug.com/380209799 for
-        // details.
+        AconfigFlaggedApiDelegate delegate = AconfigFlaggedApiDelegate.getInstance();
         return mOcclusionTrackingAllowed
-                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM
                 && UiAndroidFeatureList.sAndroidWindowOcclusion.isEnabled()
-                && "trusted_presentation"
-                        .equals(
-                                UiAndroidFeatureList.sAndroidWindowOcclusionTrackingMode
-                                        .getValue());
+                && "trusted_presentation_strict_mode"
+                        .equals(UiAndroidFeatureList.sAndroidWindowOcclusionTrackingMode.getValue())
+                && delegate != null
+                && delegate.isStrictOcclusionAvailable();
     }
 
     private void maybeTrackOcclusionWithTrustedPresentationApi() {
@@ -466,7 +484,13 @@ public class WindowAndroid
         Context context = assumeNonNull(getContext().get());
         WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
 
-        var thresholds = new TrustedPresentationThresholds(Float.MIN_VALUE, Float.MIN_VALUE, 1);
+        AconfigFlaggedApiDelegate delegate = AconfigFlaggedApiDelegate.getInstance();
+        assert delegate != null;
+        TrustedPresentationThresholds thresholds =
+                delegate.createTrustedPresentationThresholdsStrictMode(
+                        Float.MIN_VALUE, Float.MIN_VALUE, 1);
+        assert thresholds != null;
+
         mTrustedPresentationOcclusionObserver =
                 new Consumer<>() {
                     @Override
@@ -593,11 +617,14 @@ public class WindowAndroid
         }
     }
 
-    private static boolean isTv(Context context) {
-        UiModeManager uiModeManager =
-                (UiModeManager) context.getSystemService(Context.UI_MODE_SERVICE);
-        return uiModeManager != null
-                && uiModeManager.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION;
+    private static boolean isInternalDisplay(Context context) {
+        // TODO(b/521980379): Evaluate migrating to DisplayAndroid#isInternal for external display
+        // check.
+        return DisplayUtil.isContextInDefaultDisplay(context);
+    }
+
+    private static boolean computeAllowChangeRefreshRate(Context context) {
+        return !DeviceInfo.isTV() && isInternalDisplay(context);
     }
 
     @CalledByNativeForTesting
@@ -650,7 +677,7 @@ public class WindowAndroid
     public boolean showIntent(
             PendingIntent intent, @Nullable IntentCallback callback, @Nullable Integer errorId) {
         if (mIntentRequestTracker == null) {
-            Log.d(TAG, "Can't show intent as context is not an Activity: " + intent);
+            Log.d(TAG, "Can't show intent as context is not an Activity: %s", intent);
             return false;
         }
         return mIntentRequestTracker.showCancelableIntent(intent, callback, errorId) >= 0;
@@ -668,7 +695,7 @@ public class WindowAndroid
     public boolean showIntent(
             @Nullable Intent intent, @Nullable IntentCallback callback, @Nullable Integer errorId) {
         if (mIntentRequestTracker == null) {
-            Log.d(TAG, "Can't show intent as context is not an Activity: " + intent);
+            Log.d(TAG, "Can't show intent as context is not an Activity: %s", intent);
             return false;
         }
         return mIntentRequestTracker.showCancelableIntent(intent, callback, errorId) >= 0;
@@ -687,7 +714,7 @@ public class WindowAndroid
     public int showCancelableIntent(
             PendingIntent intent, @Nullable IntentCallback callback, @Nullable Integer errorId) {
         if (mIntentRequestTracker == null) {
-            Log.d(TAG, "Can't show intent as context is not an Activity: " + intent);
+            Log.d(TAG, "Can't show intent as context is not an Activity: %s", intent);
             return START_INTENT_FAILURE;
         }
         return mIntentRequestTracker.showCancelableIntent(intent, callback, errorId);
@@ -706,7 +733,7 @@ public class WindowAndroid
     public int showCancelableIntent(
             Intent intent, @Nullable IntentCallback callback, @Nullable Integer errorId) {
         if (mIntentRequestTracker == null) {
-            Log.d(TAG, "Can't show intent as context is not an Activity: " + intent);
+            Log.d(TAG, "Can't show intent as context is not an Activity: %s", intent);
             return START_INTENT_FAILURE;
         }
         return mIntentRequestTracker.showCancelableIntent(intent, callback, errorId);
@@ -725,11 +752,12 @@ public class WindowAndroid
 
     /**
      * Force finish another activity that you had previously started with showCancelableIntent.
+     *
      * @param requestCode The request code returned from showCancelableIntent.
      */
     public void cancelIntent(int requestCode) {
         if (mIntentRequestTracker == null) {
-            Log.d(TAG, "Can't cancel intent as context is not an Activity: " + requestCode);
+            Log.d(TAG, "Can't cancel intent as context is not an Activity: %d", requestCode);
             return;
         }
         mIntentRequestTracker.cancelIntent(requestCode);
@@ -1203,6 +1231,10 @@ public class WindowAndroid
         mUnownedUserDataHost.destroy();
         mApplicationBottomInsetSupplier.destroy();
 
+        if (KeyboardVisibilityDelegate.getInstance() == mKeyboardVisibilityDelegate) {
+            KeyboardVisibilityDelegate.setInstance(new KeyboardVisibilityDelegate() {});
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2) {
             if (mOverlayTransformApiHelper != null) {
                 mOverlayTransformApiHelper.destroy();
@@ -1302,6 +1334,20 @@ public class WindowAndroid
      */
     public KeyboardVisibilityDelegate getKeyboardDelegate() {
         return mKeyboardVisibilityDelegate;
+    }
+
+    /**
+     * @param delegate The delegate to handle keyboard events.
+     */
+    public void setKeyboardShortcutsDelegate(KeyboardShortcutsDelegate delegate) {
+        mKeyboardShortcutsDelegate = delegate;
+    }
+
+    /**
+     * @return The delegate to handle keyboard events.
+     */
+    public @Nullable KeyboardShortcutsDelegate getKeyboardShortcutsDelegate() {
+        return mKeyboardShortcutsDelegate;
     }
 
     /** Returns the {@link InsetObserver} for the root view of the activity or null. */
@@ -1435,6 +1481,10 @@ public class WindowAndroid
                 onAdaptiveRefreshRateInfoChanged(mDisplayAndroid.getAdaptiveRefreshRateInfo());
                 onRefreshRateChanged(mDisplayAndroid.getRefreshRate());
             }
+            mAllowChangeRefreshRate = computeAllowChangeRefreshRate(context);
+            if (!mAllowChangeRefreshRate) {
+                doSetPreferredRefreshRate(0);
+            }
             recomputeSupportedRefreshRates();
         }
     }
@@ -1531,13 +1581,13 @@ public class WindowAndroid
 
     @SuppressLint("NewApi")
     @CalledByNative
-    private void setPreferredRefreshRate(float preferredRefreshRate) {
+    /* package */ void setPreferredRefreshRate(float preferredRefreshRate) {
         mRefreshRate = preferredRefreshRate;
         if (mHasFocus) doSetPreferredRefreshRate(preferredRefreshRate);
     }
 
     private void doSetPreferredRefreshRate(float preferredRefreshRate) {
-        if (mSupportedRefreshRateModes == null || !mAllowChangeRefreshRate) return;
+        if (!mAllowChangeRefreshRate && preferredRefreshRate != 0) return;
 
         int preferredModeId = getPreferredModeId(preferredRefreshRate);
         Window window = getWindow();
@@ -1551,9 +1601,8 @@ public class WindowAndroid
 
     @SuppressLint("NewApi")
     // mSupportedRefreshRateModes should only be set if Display.Mode is available.
-    @RequiresNonNull("mSupportedRefreshRateModes")
     private int getPreferredModeId(float preferredRefreshRate) {
-        if (preferredRefreshRate == 0) return 0;
+        if (preferredRefreshRate == 0 || mSupportedRefreshRateModes == null) return 0;
 
         Display.Mode preferredMode = null;
         float preferredModeDelta = Float.MAX_VALUE;

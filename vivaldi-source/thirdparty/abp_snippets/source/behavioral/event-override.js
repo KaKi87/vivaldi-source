@@ -14,13 +14,15 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 import {apply, call, proxy} from "proxy-pants/function";
 
-import {formatArguments, toRegExp} from "../utils/general.js";
+import {
+  formatArguments, sendSnippetHitEvent, toRegExp
+} from "../utils/general.js";
 import {getDebugger} from "../introspection/log.js";
 import {profile} from "../introspection/profile.js";
+import {proxyToStringCalls} from "../utils/toString.js";
 
 const {Map, Object, Reflect, WeakMap} = $(window);
 
@@ -30,10 +32,17 @@ const originalRemoveEventListener = window.EventTarget.
 
 const listenerMap = new WeakMap();
 let eventOverrides = [];
+const hitFilters = new Set();
+function sendHitOnce(filter) {
+  if (!hitFilters.has(filter)) {
+    hitFilters.add(filter);
+    sendSnippetHitEvent(filter);
+  }
+}
 
 /**
- * Overrides events by changing their properties or disabling them.
- * @alias module:content/snippets.array-override
+ * @description Overrides events by changing their properties or disabling them.
+ * @memberof module:snippets/behavioral
  *
  * @param {string} eventType The event type that to be targeted.
  * Example: click, mouseover...
@@ -42,6 +51,13 @@ let eventOverrides = [];
  * 'disable' mode disables the matching event.
  * @param {?string} needle Needle to look for in the event listener function
  *
+ * @example
+ * event-override click disable => Will disable all event
+ * listeners for the click event
+ *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/849051731/event-override} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/behavioral-snippets/event-override} for external documentation.
+ * @since Adblock Plus 4.22.2
  */
 export function eventOverride(eventType,
                               mode,
@@ -69,88 +85,96 @@ export function eventOverride(eventType,
   );
 
   if (addEventListenerDescriptor.configurable) {
+    let wrappedAddEventListener = proxy(
+      originalAddEventListener,
+      function(type, listener, options) {
+        mark();
+
+        const filteredEvents = eventOverrides.filter(
+          ev => ev.eventType === type
+        );
+
+        if (!filteredEvents.length || type !== filteredEvents[0].eventType) {
+          end();
+          return apply(originalAddEventListener, this, arguments);
+        }
+
+        const disabledEvent = filteredEvents.find(
+          ev =>
+            (ev.mode === "disable") &&
+            (ev.needle ? ev.needle.test(listener.toString()) : true)
+        );
+
+        if (disabledEvent) {
+          debugLog("success", `Disabling ${disabledEvent.eventType} event, \nFILTER: event-override ${disabledEvent.formattedArgs}`);
+          sendHitOnce("event-override " + disabledEvent.formattedArgs);
+          end();
+          return;
+        }
+
+        const changedEvents = filteredEvents.filter(
+          ev =>
+            (ev.mode === "trusted") &&
+            (ev.needle ? ev.needle.test(listener.toString()) : true)
+        );
+
+        if (typeof listener !== "function" &&
+            !(listener && typeof listener.handleEvent === "function") ||
+            !changedEvents.length || type !== changedEvents[0].eventType) {
+          end();
+          return apply(originalAddEventListener, this, arguments);
+        }
+
+        const wrappedListener = function(originalEvent) {
+          const customEvent = new Proxy(originalEvent, {
+            get(target, prop) {
+              if (prop === "isTrusted") {
+                debugLog("success", `Providing trusted value for ${originalEvent.type} event`);
+                // changedEvents are filtered by event type, so
+                // they share the same type. If multiple filters
+                // target the same event type with different args,
+                // only the first is attributed here.
+                sendHitOnce("event-override " + changedEvents[0].formattedArgs);
+                return true;
+              }
+
+              const val = Reflect.get(target, prop);
+
+              if (typeof val === "function") {
+                return function(...args) {
+                  return apply(val, target, args);
+                };
+              }
+
+              return val;
+            }
+          });
+
+          if (typeof listener === "function")
+            return call(listener, this, customEvent);
+
+          return call(listener.handleEvent, listener, customEvent);
+        };
+
+        wrappedListener.originalListener = listener;
+
+        if (!listenerMap.has(listener))
+          listenerMap.set(listener, new Map());
+
+        listenerMap.get(listener).set(type, wrappedListener);
+        debugLog("info", `\nWrapping event listener for ${type}`);
+
+        end();
+        return apply(
+          originalAddEventListener,
+          this,
+          [type, wrappedListener, options]
+        );
+      });
+    proxyToStringCalls(wrappedAddEventListener, originalAddEventListener);
     Object.defineProperty(window.EventTarget.prototype, "addEventListener", {
       ...addEventListenerDescriptor,
-      value: proxy(
-        originalAddEventListener,
-        function(type, listener, options) {
-          mark();
-
-          const filteredEvents = eventOverrides.filter(
-            ev => ev.eventType === type
-          );
-
-          if (!filteredEvents.length || type !== filteredEvents[0].eventType) {
-            end();
-            return apply(originalAddEventListener, this, arguments);
-          }
-
-          const disabledEvent = filteredEvents.find(
-            ev =>
-              (ev.mode === "disable") &&
-              (ev.needle ? ev.needle.test(listener.toString()) : true)
-          );
-
-          if (disabledEvent) {
-            debugLog("success", `Disabling ${disabledEvent.eventType} event, \nFILTER: event-override ${disabledEvent.formattedArgs}`);
-            end();
-            return;
-          }
-
-          const changedEvents = filteredEvents.filter(
-            ev =>
-              (ev.mode === "trusted") &&
-              (ev.needle ? ev.needle.test(listener.toString()) : true)
-          );
-
-          if (typeof listener !== "function" &&
-              !(listener && typeof listener.handleEvent === "function") ||
-              !changedEvents.length || type !== changedEvents[0].eventType) {
-            end();
-            return apply(originalAddEventListener, this, arguments);
-          }
-
-          const wrappedListener = function(originalEvent) {
-            const customEvent = new Proxy(originalEvent, {
-              get(target, prop) {
-                if (prop === "isTrusted") {
-                  debugLog("success", `Providing trusted value for ${originalEvent.type} event`);
-                  return true;
-                }
-
-                const val = Reflect.get(target, prop);
-
-                if (typeof val === "function") {
-                  return function(...args) {
-                    return apply(val, target, args);
-                  };
-                }
-
-                return val;
-              }
-            });
-
-            if (typeof listener === "function")
-              return call(listener, this, customEvent);
-
-            return call(listener.handleEvent, listener, customEvent);
-          };
-
-          wrappedListener.originalListener = listener;
-
-          if (!listenerMap.has(listener))
-            listenerMap.set(listener, new Map());
-
-          listenerMap.get(listener).set(type, wrappedListener);
-          debugLog("info", `\nWrapping event listener for ${type}`);
-
-          end();
-          return apply(
-            originalAddEventListener,
-            this,
-            [type, wrappedListener, options]
-          );
-        })
+      value: wrappedAddEventListener
     });
   }
 
@@ -160,24 +184,26 @@ export function eventOverride(eventType,
     "removeEventListener"
   );
   if (removeEventListenerDescriptor.configurable) {
+    let wrappedRemoveEventListener = proxy(
+      originalRemoveEventListener,
+      function(type, listener, options) {
+        if (listener &&
+          listenerMap.has(listener) && listenerMap.get(listener).has(type)) {
+          const wrappedListener = listenerMap.get(listener).get(type);
+          listenerMap.get(listener).delete(type);
+          return apply(
+            originalRemoveEventListener,
+            this,
+            [type, wrappedListener, options]
+          );
+        }
+
+        return apply(originalRemoveEventListener, this, arguments);
+      });
+    proxyToStringCalls(wrappedRemoveEventListener, originalRemoveEventListener);
     Object.defineProperty(window.EventTarget.prototype, "removeEventListener", {
       ...removeEventListenerDescriptor,
-      value: proxy(
-        originalRemoveEventListener,
-        function(type, listener, options) {
-          if (listener &&
-            listenerMap.has(listener) && listenerMap.get(listener).has(type)) {
-            const wrappedListener = listenerMap.get(listener).get(type);
-            listenerMap.get(listener).delete(type);
-            return apply(
-              originalRemoveEventListener,
-              this,
-              [type, wrappedListener, options]
-            );
-          }
-
-          return apply(originalRemoveEventListener, this, arguments);
-        })
+      value: wrappedRemoveEventListener
     });
   }
 

@@ -21,6 +21,7 @@
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/views/location_bar/icon_label_bubble_view.h"
 #include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
+#include "chrome/browser/ui/views/page_action/page_action_view_interface.h"
 #include "chrome/browser/ui/views/promos/ios_promo_bubble.h"
 #include "chrome/browser/ui/views/side_panel/side_panel.h"
 #include "chrome/browser/ui/views/toolbar/app_menu_control.h"
@@ -66,7 +67,7 @@ void ShowIOSDesktopPromoBubble(PromoType promo_type,
       IOSPromoBubble::ShowPromoBubble(
           {toolbar_button_provider->GetBubbleAnchor(
               kActionShowPasswordsBubbleOrPage)},
-          toolbar_button_provider->GetPageActionView(
+          toolbar_button_provider->GetPageActionViewInterface(
               kActionShowPasswordsBubbleOrPage),
           kPasswordsOmniboxKeyIconElementId, profile, PromoType::kPassword,
           bubble_type);
@@ -75,16 +76,16 @@ void ShowIOSDesktopPromoBubble(PromoType promo_type,
       IOSPromoBubble::ShowPromoBubble(
           {toolbar_button_provider->GetBubbleAnchor(
               kActionShowAddressesBubbleOrPage)},
-          toolbar_button_provider->GetPageActionView(
+          toolbar_button_provider->GetPageActionViewInterface(
               kActionShowAddressesBubbleOrPage),
           kAutofillAddressPageActionElementId, profile, PromoType::kAddress,
           bubble_type);
       break;
     }
     case PromoType::kPayment:
-      IconLabelBubbleView* icon_view;
+      page_actions::PageActionViewInterface* icon_view;
       if (IsPageActionMigrated(PageActionIconType::kSaveCard)) {
-        icon_view = toolbar_button_provider->GetPageActionView(
+        icon_view = toolbar_button_provider->GetPageActionViewInterface(
             kActionShowPaymentsBubbleOrPage);
       } else {
         icon_view = toolbar_button_provider->GetPageActionIconView(
@@ -167,12 +168,12 @@ void OnIOSPromoClassificationResult(
   // released in `IOSPromoBubble::IOSPromoBubbleDelegate::OnDismissal()`.
   if (promos_utils::UserNotClassifiedAsMobileDeviceSwitcher(result) &&
       feature_engagement::NonIphPromo::RequestPermissionToShow(
-          browser->profile(),
+          browser->GetProfile(),
           promos_utils::GetIOSDesktopPromoFeatureEngagement(promo_type))) {
     RunCallback(std::move(promo_will_be_shown_callback));
-    promos_utils::IOSDesktopPromoShown(browser->profile(), promo_type);
+    promos_utils::IOSDesktopPromoShown(browser->GetProfile(), promo_type);
     ShowIOSDesktopPromoBubble(
-        promo_type, bubble_type, browser->profile(),
+        promo_type, bubble_type, browser->GetProfile(),
         BrowserView::GetBrowserViewForBrowser(browser.get()));
     return;
   }
@@ -188,13 +189,13 @@ void VerifyIOSPromoEligibilityCriteriaAsync(
         std::nullopt,
     std::optional<base::OnceClosure> promo_not_shown_callback = std::nullopt) {
   const syncer::SyncService* sync_service =
-      SyncServiceFactory::GetForProfile(browser->profile());
+      SyncServiceFactory::GetForProfile(browser->GetProfile());
 
   // Verify that the user is currently syncing their preferences, hasn't
   // exceeded their impression limit, is not in the cooldown period or has not
   // opted-out from seeing the promo.
   if (sync_service && promos_utils::ShouldShowIOSDesktopPromo(
-                          browser->profile(), sync_service, promo_type)) {
+                          browser->GetProfile(), sync_service, promo_type)) {
     auto input_context =
         base::MakeRefCounted<segmentation_platform::InputContext>();
     input_context->metadata_args.emplace(
@@ -208,7 +209,7 @@ void VerifyIOSPromoEligibilityCriteriaAsync(
 
     // Get segmentation platform classification results and pass callback.
     segmentation_platform::SegmentationPlatformServiceFactory::GetForProfile(
-        browser->profile())
+        browser->GetProfile())
         ->GetClassificationResult(
             segmentation_platform::kDeviceSwitcherKey, options, input_context,
             base::BindOnce(&OnIOSPromoClassificationResult, promo_type,

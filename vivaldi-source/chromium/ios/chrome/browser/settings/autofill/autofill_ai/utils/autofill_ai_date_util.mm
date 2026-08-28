@@ -4,9 +4,12 @@
 
 #import "ios/chrome/browser/settings/autofill/autofill_ai/utils/autofill_ai_date_util.h"
 
+#import <UIKit/UIKit.h>
+
 #import "components/autofill/core/browser/autofill_format_string.h"
 #import "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
 #import "components/autofill/core/browser/proto/server.pb.h"
+#import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 
 namespace {
 
@@ -63,4 +66,18 @@ std::u16string AttributeValueFromNSDate(NSDate* date) {
 autofill::AutofillFormatString GetAttributeFormatString() {
   return autofill::AutofillFormatString(kLibraryDateFormat,
                                         autofill::FormatString_Type_DATE);
+}
+
+bool ShouldUsePopoverForDatePicker(UIView* view) {
+  UIWindow* window = view.window;
+  if (!window) {
+    window = GetAnyKeyWindow();
+  }
+
+  UITraitCollection* trait_collection =
+      window ? window.traitCollection : view.traitCollection;
+  return trait_collection &&
+         trait_collection.horizontalSizeClass ==
+             UIUserInterfaceSizeClassRegular &&
+         trait_collection.verticalSizeClass == UIUserInterfaceSizeClassRegular;
 }

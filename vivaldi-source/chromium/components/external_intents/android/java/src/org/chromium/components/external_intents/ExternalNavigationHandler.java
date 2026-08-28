@@ -199,7 +199,7 @@ public class ExternalNavigationHandler implements ExternalNavigationHelper {
         }
     }
 
-    private static class IntentBasedSupplier<T extends @Nullable Object> extends LazySupplier<T> {
+    protected static class IntentBasedSupplier<T extends @Nullable Object> extends LazySupplier<T> {
         protected final Intent mIntent;
         private @Nullable Intent mIntentCopy;
 
@@ -500,7 +500,7 @@ public class ExternalNavigationHandler implements ExternalNavigationHelper {
             }
         }
 
-        final QueryNonDefaultSupplier mNonDefaultSupplier;
+        private final QueryNonDefaultSupplier mNonDefaultSupplier;
 
         public QueryIntentActivitiesSupplier(Intent intent) {
             super(intent, () -> queryIntentActivities(intent));
@@ -770,11 +770,6 @@ public class ExternalNavigationHandler implements ExternalNavigationHelper {
         }
         if (debug()) printDebugShouldOverrideUrlLoadingResultType(result);
 
-        if (result.getResultType() == OverrideUrlLoadingResultType.OVERRIDE_WITH_EXTERNAL_INTENT
-                || result.getResultType()
-                        == OverrideUrlLoadingResultType.OVERRIDE_WITH_ASYNC_ACTION) {
-            mDelegate.maybeRecordExternalNavigationSchemeHistogram(params.getUrl());
-        }
         if (result.getResultType() == OverrideUrlLoadingResultType.OVERRIDE_WITH_ASYNC_ACTION) {
             params.onAsyncActionStarted();
         }
@@ -1558,19 +1553,21 @@ public class ExternalNavigationHandler implements ExternalNavigationHelper {
     }
 
     /**
-     * Prepare the intent to be sent. This function does not change the filtering for the intent,
-     * so the list if resolveInfos for the intent will be the same before and after this function.
+     * Prepare the intent to be sent. This function does not change the filtering for the intent, so
+     * the list if resolveInfos for the intent will be the same before and after this function.
      */
     private void prepareExternalIntent(
             Intent targetIntent,
             ExternalNavigationParams params,
             List<ResolveInfo> resolvingInfos) {
-        // Set the Browser application ID to us in case the user chooses this app
-        // as the app.  This will make sure the link is opened in the same tab
-        // instead of making a new one in the case of Chrome.
-        targetIntent.putExtra(
-                Browser.EXTRA_APPLICATION_ID,
-                ContextUtils.getApplicationContext().getPackageName());
+        if (!ExternalIntentsFeatures.DONT_CLOBBER_TABS_WITH_CHROME_APP_ID.isEnabled()) {
+            // Set the Browser application ID to us in case the user chooses this app
+            // as the app.  This will make sure the link is opened in the same tab
+            // instead of making a new one in the case of Chrome.
+            targetIntent.putExtra(
+                    Browser.EXTRA_APPLICATION_ID,
+                    ContextUtils.getApplicationContext().getPackageName());
+        }
         if (params.isOpenInNewTab()) targetIntent.putExtra(Browser.EXTRA_CREATE_NEW_TAB, true);
         targetIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         // Ensure intents re-target potential caller activity when we run in CCT mode.
@@ -2047,8 +2044,8 @@ public class ExternalNavigationHandler implements ExternalNavigationHelper {
                     browserFallbackUrl);
         }
 
-        if (handleDigitalCredentialsIntent(params, targetIntent)) {
-            return OverrideUrlLoadingResult.forAsyncAction();
+        if (isDigitalCredentialsIntent(params.getUrl(), targetIntent)) {
+            return handleDigitalCredentialsIntent(params, targetIntent);
         }
 
         if (launchWebApkIfSoleIntentHandler(resolvingInfos, targetIntent, params)) {
@@ -2169,25 +2166,32 @@ public class ExternalNavigationHandler implements ExternalNavigationHelper {
         return handleFallbackUrl(params, fallbackUrl, false);
     }
 
-    private boolean handleDigitalCredentialsIntent(
-            ExternalNavigationParams params, Intent targetIntent) {
-        final @Nullable String scheme = getSchemeFromUrlOrIntent(params.getUrl(), targetIntent);
-        if (scheme != null
+    private boolean isDigitalCredentialsIntent(GURL url, Intent targetIntent) {
+        final @Nullable String scheme = getSchemeFromUrlOrIntent(url, targetIntent);
+        return scheme != null
                 && (scheme.startsWith(OPENID4VP_SCHEME_PREFIX_SUFFIX)
                         || scheme.endsWith(OPENID4VP_SCHEME_PREFIX_SUFFIX)
                         || scheme.equals(MDOC_SCHEME)
                         || scheme.equals(OPENID4VCI_SCHEME)
                         || scheme.equals(HAIP_VP_SCHEME)
-                        || scheme.equals(HAIP_VCI_SCHEME))) {
-            if (debug()) Log.i(TAG, "Digital Credentials intent detected");
-            Context context = mDelegate.getContext();
-            assumeNonNull(context);
-            mDigitalCredentialsWarningDialogDelegate =
-                    new DigitalCredentialsWarningDialogDelegate(context, params, targetIntent);
-            mDigitalCredentialsWarningDialogDelegate.showDialog();
-            return true;
+                        || scheme.equals(HAIP_VCI_SCHEME));
+    }
+
+    private OverrideUrlLoadingResult handleDigitalCredentialsIntent(
+            ExternalNavigationParams params, Intent targetIntent) {
+        Origin origin = params.getInitiatorOrigin();
+        if (origin != null && origin.isOpaque()) {
+            if (debug()) Log.i(TAG, "Blocking Digital Credentials intent due to opaque origin");
+            return OverrideUrlLoadingResult.forNoOverride();
         }
-        return false;
+
+        if (debug()) Log.i(TAG, "Digital Credentials intent detected");
+        Context context = mDelegate.getContext();
+        assumeNonNull(context);
+        mDigitalCredentialsWarningDialogDelegate =
+                new DigitalCredentialsWarningDialogDelegate(context, params, targetIntent);
+        mDigitalCredentialsWarningDialogDelegate.showDialog();
+        return OverrideUrlLoadingResult.forAsyncAction();
     }
 
     private void cancelDialogs() {

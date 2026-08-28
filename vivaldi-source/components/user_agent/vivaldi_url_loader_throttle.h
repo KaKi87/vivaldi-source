@@ -23,6 +23,11 @@ class VivaldiURLLoaderThrottle final : public blink::URLLoaderThrottle {
   void DetachFromCurrentSequence() override;
   void WillStartRequest(network::ResourceRequest* request,
                         bool* defer) override;
+  void WillRedirectRequest(
+      net::RedirectInfo* redirect_info,
+      const network::mojom::URLResponseHead& response_head,
+      bool* defer,
+      network::HttpRequestHeadersUpdateParams* headers_update_params) override;
 
   raw_ptr<content::FrameTreeNode> frame_tree_node_ = nullptr;
 };

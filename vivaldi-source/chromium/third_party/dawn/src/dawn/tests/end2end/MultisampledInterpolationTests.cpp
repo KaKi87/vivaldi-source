@@ -25,6 +25,7 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include <array>
 #include <vector>
 
 #include "src/dawn/common/GPUInfo.h"
@@ -49,7 +50,12 @@ class MultisampledInterpolationTest : public DawnTest {
     // A compute pipeline to texelFetch the sample locations and output the results to a buffer.
     wgpu::ComputePipeline checkSamplePipeline;
 
-    void SetUp() override { DawnTest::SetUp(); }
+    void SetUp() override {
+        DawnTest::SetUp();
+
+        // TODO(crbug.com/522869942): Produces incorrect result on Pixel 10.
+        DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsImgTec() && IsVulkan());
+    }
 
     void CreatePipelines() {
         {
@@ -178,7 +184,7 @@ TEST_P(MultisampledInterpolationTest, SamplePositions) {
 
     static constexpr wgpu::Extent3D kTextureSize = {10, 10, 1};
 
-    wgpu::Texture colorTextures[4];
+    std::array<wgpu::Texture, 4> colorTextures;
     {
         wgpu::TextureDescriptor desc = {};
         desc.usage = wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::RenderAttachment;
@@ -190,7 +196,7 @@ TEST_P(MultisampledInterpolationTest, SamplePositions) {
         }
     }
 
-    wgpu::TextureView colorViews[4];
+    std::array<wgpu::TextureView, 4> colorViews;
     for (int i = 0; i < 4; i++) {
         auto& each = DAWN_UNSAFE_TODO(colorViews[i]);
         each = DAWN_UNSAFE_TODO(colorTextures[i]).CreateView();

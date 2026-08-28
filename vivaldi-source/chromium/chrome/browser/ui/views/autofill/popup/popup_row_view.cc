@@ -27,7 +27,6 @@
 #include "chrome/browser/ui/views/autofill/popup/popup_view_utils.h"
 #include "chrome/browser/ui/views/autofill/popup/popup_view_views.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
-#include "components/autofill/core/browser/filling/filling_product.h"
 #include "components/autofill/core/browser/metrics/autofill_metrics.h"
 #include "components/autofill/core/browser/suggestions/suggestion.h"
 #include "components/autofill/core/browser/suggestions/suggestion_type.h"
@@ -35,7 +34,6 @@
 #include "components/strings/grit/components_strings.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
 #include "ui/accessibility/ax_enums.mojom.h"
-#include "ui/accessibility/ax_node_data.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/base_type_conversion.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
@@ -58,6 +56,23 @@
 namespace autofill {
 
 namespace {
+
+bool ShouldIgnoreMouseObservedOutsideItemBoundsCheck(
+    const AutofillPopupController& controller,
+    const Suggestion& suggestion) {
+  // Keep the controller-owned policy for popup-level exemptions, such as
+  // explicitly opened manual fallback popups and autocomplete rows regenerated
+  // after deletion.
+  if (controller.ShouldIgnoreMouseObservedOutsideItemBoundsCheck()) {
+    return true;
+  }
+
+  // Datalist entries are page-provided choices for the current field. The
+  // initial-hover suppression protects against accidental acceptance of
+  // non-page-provided suggestions and should not make datalist clicks depend on
+  // pointer movement.
+  return suggestion.type == SuggestionType::kDatalistEntry;
+}
 
 // Utility event handler for mouse enter/exit and tap events.
 class EnterExitHandler : public ui::EventHandler {
@@ -178,8 +193,10 @@ PopupRowView::PopupRowView(
       controller_(controller),
       line_number_(line_number),
       should_ignore_mouse_observed_outside_item_bounds_check_(
-          controller &&
-          controller->ShouldIgnoreMouseObservedOutsideItemBoundsCheck()),
+          controller && line_number < controller->GetLineCount() &&
+          ShouldIgnoreMouseObservedOutsideItemBoundsCheck(
+              *controller,
+              controller->GetSuggestionAt(line_number))),
       suggestion_is_acceptable_(
           controller && line_number < controller->GetLineCount() &&
           controller->GetSuggestionAt(line_number).IsAcceptable()) {
@@ -352,6 +369,10 @@ void PopupRowView::OnViewFocused(views::View* view) {
   // a11y), but for selection purposes these non-mouse sources are similar
   // enough to treat them equally as a keyboard.
   OnCellSelected(type, PopupCellSelectionSource::kKeyboard);
+}
+
+std::optional<PopupRowView::CellType> PopupRowView::GetSelectedCell() const {
+  return selected_cell_;
 }
 
 void PopupRowView::SetSelectedCell(std::optional<CellType> new_cell) {

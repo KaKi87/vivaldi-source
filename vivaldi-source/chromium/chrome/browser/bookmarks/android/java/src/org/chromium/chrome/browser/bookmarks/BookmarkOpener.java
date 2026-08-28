@@ -4,6 +4,8 @@
 
 package org.chromium.chrome.browser.bookmarks;
 
+import android.os.Bundle;
+
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.tab.TabLaunchType;
@@ -45,10 +47,27 @@ public interface BookmarkOpener {
      * @param tabLaunchType The launch type to use when creating new tabs.
      * @return Whether the bookmark ids were successfully opened.
      */
+    default boolean openBookmarksInNewTabs(
+            List<BookmarkId> bookmarkIds,
+            boolean incognito,
+            @Nullable @TabLaunchType Integer tabLaunchType) {
+        return openBookmarksInNewTabs(bookmarkIds, incognito, tabLaunchType, /* extras= */ null);
+    }
+
+    /**
+     * Open the given bookmarkIds in new tabs.
+     *
+     * @param bookmarkIds The bookmark ids to open.
+     * @param incognito Whether the bookmarks should be opened in incognito mode.
+     * @param tabLaunchType The launch type to use when creating new tabs.
+     * @param extras Extras to put in the launch intent, can be null.
+     * @return Whether the bookmark ids were successfully opened.
+     */
     boolean openBookmarksInNewTabs(
             List<BookmarkId> bookmarkIds,
             boolean incognito,
-            @Nullable @TabLaunchType Integer tabLaunchType);
+            @Nullable @TabLaunchType Integer tabLaunchType,
+            @Nullable Bundle extras);
 
     /**
      * Open the given bookmarkIds in a new window.
@@ -65,7 +84,17 @@ public interface BookmarkOpener {
     boolean isOpenInNewWindowSupported();
 
     /**
-     * Vivaldi
+     * Open the given bookmarkIds in new tabs in a new tab group with an optional title.
+     *
+     * @param bookmarkIds The bookmark ids to open.
+     * @param incognito Whether the bookmarks should be opened in incognito mode.
+     * @param title The title of the tab group, can be null.
+     * @return Whether the bookmark ids were successfully opened.
+     */
+    boolean openBookmarksInNewTabGroup(
+            List<BookmarkId> bookmarkIds, boolean incognito, @Nullable String title);
+
+    /** Vivaldi
      * Open the given id in the current tab, not using intent (for Android Auto compatibility).
      *
      * @param currentTab The tab to open bookmark in.

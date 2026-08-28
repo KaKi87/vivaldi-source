@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 
+#include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/user_metrics.h"
 #include "base/strings/strcat.h"
@@ -42,7 +43,6 @@
 #include "ui/base/base_window.h"
 
 #if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/glic/fre/glic_fre_controller.h"
 #include "chrome/browser/glic/widget/browser_conditions.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/desktop_browser_window_capabilities.h"
@@ -65,14 +65,15 @@ class DummyDelegateImpl : public GlicMetrics::Delegate {
   bool IsWindowAttached() const override { return false; }
   content::WebContents* GetFocusedWebContents() override { return nullptr; }
   int32_t GetNumPinnedTabs() const override { return 0; }
-  std::vector<content::WebContents*> GetPinnedAndSharedWebContents() override {
-    return std::vector<content::WebContents*>();
+  std::vector<raw_ptr<content::WebContents>> GetPinnedAndSharedWebContents()
+      override {
+    return std::vector<raw_ptr<content::WebContents>>();
   }
 };
 
 class BaseDelegate : public GlicMetrics::Delegate {
  public:
-  explicit BaseDelegate(GlicSharingManager* sharing_manager,
+  explicit BaseDelegate(GlicSharingManagerInternal* sharing_manager,
                         PrefService* pref_service)
       : sharing_manager_(sharing_manager), pref_service_(pref_service) {}
   content::WebContents* GetFocusedWebContents() override {
@@ -82,8 +83,9 @@ class BaseDelegate : public GlicMetrics::Delegate {
   int32_t GetNumPinnedTabs() const override {
     return sharing_manager_->GetNumPinnedTabs();
   }
-  std::vector<content::WebContents*> GetPinnedAndSharedWebContents() override {
-    std::vector<content::WebContents*> pinned_and_shared;
+  std::vector<raw_ptr<content::WebContents>> GetPinnedAndSharedWebContents()
+      override {
+    std::vector<raw_ptr<content::WebContents>> pinned_and_shared;
     for (tabs::TabInterface* tab : sharing_manager_->GetPinnedTabs()) {
       content::WebContents* web_contents = tab->GetContents();
       if (web_contents && IsTabValidForSharing(web_contents)) {
@@ -94,15 +96,16 @@ class BaseDelegate : public GlicMetrics::Delegate {
   }
 
  protected:
-  raw_ptr<GlicSharingManager> sharing_manager_;
+  raw_ptr<GlicSharingManagerInternal> sharing_manager_;
   raw_ptr<PrefService> pref_service_;
 };
 
 class DelegateMultiInstanceImpl : public BaseDelegate {
  public:
-  explicit DelegateMultiInstanceImpl(GlicInstance* glic_instance,
-                                     GlicSharingManager* sharing_manager,
-                                     PrefService* pref_service)
+  explicit DelegateMultiInstanceImpl(
+      GlicInstance* glic_instance,
+      GlicSharingManagerInternal* sharing_manager,
+      PrefService* pref_service)
       : BaseDelegate(sharing_manager, pref_service),
         glic_instance_(glic_instance) {}
   gfx::Size GetWindowSize() const override {
@@ -262,10 +265,15 @@ GlicMetrics::GlicMetrics(Profile* profile, GlicEnabling* enabling)
   }
 
   is_enabled_ = enabling_->IsEnabledAndConsentForProfile(profile_);
+  is_pinned_ = profile_->GetPrefs()->GetBoolean(prefs::kGlicPinnedToTabstrip);
+  pref_registrar_.Init(profile_->GetPrefs());
   subscriptions_.push_back(
       enabling_->RegisterOnConsentChanged(base::BindRepeating(
           &GlicMetrics::OnMaybeEnabledAndConsentForProfileChanged,
           base::Unretained(this))));
+  pref_registrar_.Add(prefs::kGlicPinnedToTabstrip,
+                      base::BindRepeating(&GlicMetrics::OnPinningPrefChanged,
+                                          base::Unretained(this)));
 }
 
 GlicMetrics::~GlicMetrics() = default;
@@ -299,7 +307,6 @@ void GlicMetrics::RecordGlicProfilePreferences() {
 void GlicMetrics::OnTrustFirstOnboardingAccept() {
   OnFreAccepted();
   OnOptInAccepted(OptInFlow::kGlicFre);
-  base::RecordAction(base::UserMetricsAction("Glic.Fre.Accept.Onboarding"));
   base::UmaHistogramEnumeration("Glic.Fre.Accept.InvocationSource",
                                 invocation_source_);
 
@@ -318,7 +325,6 @@ void GlicMetrics::OnInstanceOpened() {
 
   if (!enabling_->HasConsented()) {
     OnOptInShown(OptInFlow::kGlicFre);
-    base::RecordAction(base::UserMetricsAction("Glic.Fre.Shown.Onboarding"));
     base::UmaHistogramEnumeration("Glic.Fre.Shown.InvocationSource",
                                   invocation_source_);
     onboarding_shown_time_ = base::TimeTicks::Now();
@@ -331,7 +337,6 @@ void GlicMetrics::OnInstanceClosed() {
   }
 
   OnOptInDismissed(OptInFlow::kGlicFre);
-  base::RecordAction(base::UserMetricsAction("Glic.Fre.Dismissed.Onboarding"));
   base::UmaHistogramEnumeration("Glic.Fre.Dismissed.InvocationSource",
                                 invocation_source_);
   base::UmaHistogramLongTimes("Glic.Fre.TotalTime.Dismissed.Onboarding",
@@ -358,7 +363,11 @@ void GlicMetrics::OnOptInImpression(OptInFlow flow) {
 }
 
 void GlicMetrics::OnOptInAccepted(OptInFlow flow) {
-  base::RecordAction(base::UserMetricsAction("Glic.Fre.Accept"));
+  if (base::FeatureList::IsEnabled(features::kGlicOnboardingMetricsMigration)) {
+    base::RecordAction(base::UserMetricsAction("Glic.Onboarding.OptInAccept"));
+  } else {
+    base::RecordAction(base::UserMetricsAction("Glic.Fre.Accept"));
+  }
   base::UmaHistogramEnumeration("Glic.Fre.Accept.FlowSource", flow);
 }
 
@@ -723,6 +732,11 @@ void GlicMetrics::LogGetContextForActorFromTabError(
       error);
 }
 
+void GlicMetrics::LogGetImageBytesFromTabError(
+    GlicGetContextFromTabError error) {
+  base::UmaHistogramEnumeration("Glic.Api.GetImageBytesFromTab.Error", error);
+}
+
 void GlicMetrics::OnActivateTabFromInstance(tabs::TabInterface* tab) {
   const actor::ActorTask* task =
       actor::ActorKeyedService::Get(profile_)->GetTaskFromTab(*tab);
@@ -735,7 +749,7 @@ void GlicMetrics::OnActivateTabFromInstance(tabs::TabInterface* tab) {
 
 void GlicMetrics::SetControllersWithInstance(
     GlicInstance* glic_instance,
-    GlicSharingManager* sharing_manager) {
+    GlicSharingManagerInternal* sharing_manager) {
   delegate_ = std::make_unique<DelegateMultiInstanceImpl>(
       glic_instance, sharing_manager, profile_->GetPrefs());
 }
@@ -810,14 +824,12 @@ void GlicMetrics::OnImpressionTimerFired() {
       impression = EntryPointStatus::kAfterFreThreeDotOnly;
     }
 #else
-    bool is_pinned =
-        profile_->GetPrefs()->GetBoolean(prefs::kGlicPinnedToTabstrip);
     bool is_os_entrypoint_enabled =
         g_browser_process->local_state()->GetBoolean(
             prefs::kGlicLauncherEnabled);
-    if (is_pinned && is_os_entrypoint_enabled) {
+    if (is_pinned_ && is_os_entrypoint_enabled) {
       impression = EntryPointStatus::kAfterFreBrowserAndOs;
-    } else if (is_pinned) {
+    } else if (is_pinned_) {
       impression = EntryPointStatus::kAfterFreBrowserOnly;
     } else if (is_os_entrypoint_enabled) {
       impression = EntryPointStatus::kAfterFreOsOnly;
@@ -832,7 +844,7 @@ void GlicMetrics::OnImpressionTimerFired() {
 
 #if !BUILDFLAG(IS_ANDROID)
   ui::Accelerator saved_hotkey =
-      glic::GlicLauncherConfiguration::GetGlobalHotkey();
+      glic::GlicLauncherConfiguration::GetToggleHotkey();
   base::UmaHistogramBoolean("Glic.OsEntrypoint.Settings.ShortcutStatus",
                             saved_hotkey != ui::Accelerator());
 #endif
@@ -866,6 +878,21 @@ void GlicMetrics::OnMaybeEnabledAndConsentForProfileChanged() {
     base::RecordAction(base::UserMetricsAction("Glic.Enabled"));
   } else {
     base::RecordAction(base::UserMetricsAction("Glic.Disabled"));
+  }
+}
+
+void GlicMetrics::OnPinningPrefChanged() {
+  bool is_pinned =
+      profile_->GetPrefs()->GetBoolean(prefs::kGlicPinnedToTabstrip);
+  if (is_pinned == is_pinned_) {
+    // No change, early exit.
+    return;
+  }
+  is_pinned_ = is_pinned;
+  if (is_pinned_) {
+    base::RecordAction(base::UserMetricsAction("Glic.Pinned"));
+  } else {
+    base::RecordAction(base::UserMetricsAction("Glic.Unpinned"));
   }
 }
 

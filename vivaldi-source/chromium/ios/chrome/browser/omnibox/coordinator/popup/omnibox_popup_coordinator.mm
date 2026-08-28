@@ -190,15 +190,15 @@
   [self.sharingCoordinator stop];
   self.sharingCoordinator = nil;
 
+  if (vivaldi::IsVivaldiRunning()) {
+    [self.mediator disconnect];
+  } // End Vivaldi
+
   [self.popupViewController disconnect];
   self.popupViewController = nil;
   self.mediator = nil;
   self.autocompleteController = nullptr;
   _omniboxImageFetcher = nil;
-
-  if (vivaldi::IsVivaldiRunning()) {
-    [self.mediator disconnect];
-  } // End Vivaldi
 }
 
 - (BOOL)isOpen {
@@ -243,6 +243,7 @@
       initWithURL:URL
             title:title
          scenario:SharingScenario::OmniboxMostVisitedEntry];
+  [self.sharingCoordinator stop];
   self.sharingCoordinator = [[SharingCoordinator alloc]
       initWithBaseViewController:self.popupViewController
                          browser:self.browser

@@ -62,8 +62,6 @@
 
 namespace fuzztest::internal {
 
-constexpr auto kPollMinimalTimeout = absl::Milliseconds(1);
-
 class CentipedeCallbacks::PersistentModeServer {
  public:
   explicit PersistentModeServer(std::string server_path)
@@ -194,9 +192,7 @@ class CentipedeCallbacks::PersistentModeServer {
     int poll_ret = -1;
     do {
       poll_fd = {fd, static_cast<short>(event)};
-      const int poll_timeout_ms = static_cast<int>(absl::ToInt64Milliseconds(
-          std::max(deadline - absl::Now(), kPollMinimalTimeout)));
-      poll_ret = poll(&poll_fd, 1, poll_timeout_ms);
+      poll_ret = poll(&poll_fd, 1, PollTimeoutMs(deadline - absl::Now()));
     } while (poll_ret < 0 && errno == EINTR);
     if (poll_ret == 1 && (poll_fd.revents & (event | POLLHUP)) == event) {
       return true;
@@ -343,7 +339,6 @@ std::string CentipedeCallbacks::ConstructRunnerFlags(
   std::vector<std::string> flags = {
       "CENTIPEDE_RUNNER_FLAGS=",
       absl::StrCat("timeout_per_input=", env_.timeout_per_input),
-      absl::StrCat("timeout_per_batch=", env_.timeout_per_batch),
       absl::StrCat("address_space_limit_mb=", env_.address_space_limit_mb),
       absl::StrCat("rss_limit_mb=", env_.rss_limit_mb),
       absl::StrCat("stack_limit_kb=", env_.stack_limit_kb),
@@ -469,7 +464,7 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
           ? absl::InfiniteDuration()
           : absl::Seconds(env_.timeout_per_batch) + absl::Seconds(5);
   const auto deadline =
-      std::min(absl::Now() + amortized_timeout, GetStopTime());
+      std::min(absl::Now() + amortized_timeout, stop_condition_.GetStopTime());
   int exit_code = EXIT_SUCCESS;
   const bool should_clean_up = [&] {
     if (!cmd.is_executing()) {
@@ -491,7 +486,7 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
       }
       return false;
     }
-    const std::optional<int> ret = cmd.Wait(deadline);
+    const std::optional<int> ret = cmd.Wait(deadline, &stop_condition_);
     if (!ret.has_value()) return true;
     exit_code = *ret;
     return false;
@@ -565,8 +560,12 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   }
 
   // Run.
+  const auto batch_start_time = absl::Now();
   const int exit_code = RunBatchForBinary(binary);
   inputs_blobseq_.ReleaseSharedMemory();  // Inputs are already consumed.
+  const bool batch_timed_out =
+      env_.timeout_per_batch > 0 &&
+      absl::Now() - batch_start_time > absl::Seconds(env_.timeout_per_batch);
 
   // Get results.
   batch_result.exit_code() = exit_code;
@@ -590,6 +589,16 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
   }
 
   if (env_.print_runner_log) PrintExecutionLog();
+
+  if (batch_timed_out) {
+    FUZZTEST_LOG(INFO)
+        << "Batch timeout detected. Replacing the original exit code: "
+        << exit_code
+        << ", failure description: " << batch_result.failure_description();
+    batch_result.failure_description() = kExecutionFailurePerBatchTimeout;
+    batch_result.exit_code() = EXIT_FAILURE;
+    return EXIT_FAILURE;
+  }
 
   // TODO: b/467103298 - Handle failures when the exit code is zero, e.g., when
   // the target exits via `std::_Exit(0)`.
@@ -660,7 +669,8 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
                           << cmd.ToString();
       return EXIT_FAILURE;
     }
-    const auto wait_result = cmd.Wait(GetStopTime());
+    const auto wait_result =
+        cmd.Wait(stop_condition_.GetStopTime(), &stop_condition_);
     if (!wait_result.has_value()) {
       FUZZTEST_LOG(ERROR) << "Failed to wait for the seeding command "
                           << cmd.ToString();

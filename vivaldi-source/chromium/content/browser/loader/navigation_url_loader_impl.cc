@@ -28,7 +28,6 @@
 #include "build/build_config.h"
 #include "components/download/public/common/download_stats.h"
 #include "content/browser/about_url_loader_factory.h"
-#include "content/browser/attribution_reporting/attribution_manager.h"
 #include "content/browser/blob_storage/chrome_blob_storage_context.h"
 #include "content/browser/client_hints/client_hints.h"
 #include "content/browser/data_url_loader_factory.h"
@@ -172,12 +171,11 @@ class NavigationLoaderInterceptorBrowserContainer
       const network::ResourceRequest& request,
       network::mojom::URLResponseHeadPtr* response_head,
       mojo::ScopedDataPipeConsumerHandle* response_body,
-      mojo::PendingRemote<network::mojom::URLLoader>* loader,
       mojo::PendingReceiver<network::mojom::URLLoaderClient>* client_receiver,
       blink::ThrottlingURLLoader* url_loader,
       bool* skip_other_interceptors) override {
     return browser_interceptor_->MaybeCreateLoaderForResponse(
-        status, request, response_head, response_body, loader, client_receiver,
+        status, request, response_head, response_body, client_receiver,
         url_loader);
   }
 
@@ -340,26 +338,14 @@ std::unique_ptr<network::ResourceRequest> CreateResourceRequest(
   const bool is_same_origin_initiator =
       request_info.begin_params->initiator_frame_token ==
           frame_tree_node->current_frame_host()->GetFrameToken() &&
-      request_info.common_params->initiator_origin &&
-      request_info.common_params->initiator_origin->IsSameOriginWith(
-          request_info.common_params->url);
+      frame_tree_node->current_frame_host()
+          ->GetLastCommittedOrigin()
+          .IsSameOriginWith(request_info.common_params->url);
 
   new_request->storage_access_api_status =
       is_storage_access_grant_eligible && is_same_origin_initiator
           ? net::StorageAccessApiStatus::kAccessViaAPI
           : net::StorageAccessApiStatus::kNone;
-
-  WebContentsImpl* web_contents = static_cast<WebContentsImpl*>(
-      WebContents::FromFrameTreeNodeId(frame_tree_node->frame_tree_node_id()));
-  new_request->attribution_reporting_support =
-      web_contents ? web_contents->GetAttributionSupport()
-                   : AttributionManager::GetAttributionSupport(
-                         /*client_os_disabled=*/false);
-
-  new_request->attribution_reporting_eligibility =
-      request_info.begin_params->impression.has_value()
-          ? network::mojom::AttributionReportingEligibility::kNavigationSource
-          : network::mojom::AttributionReportingEligibility::kUnset;
 
   new_request->shared_storage_writable_eligible =
       request_info.shared_storage_writable_eligible;
@@ -797,8 +783,7 @@ void NavigationURLLoaderImpl::CreateInterceptors() {
         interceptors_.push_back(std::make_unique<PrefetchURLLoaderInterceptor>(
             PrefetchServiceWorkerState::kControlled,
             service_worker_handle_->AsWeakPtr(), frame_tree_node_id_,
-            request_info_->initiator_document_token,
-            request_info_->prefetch_serving_page_metrics_container));
+            request_info_->initiator_document_token));
       }
 
       interceptors_.push_back(std::move(service_worker_interceptor));
@@ -820,8 +805,7 @@ void NavigationURLLoaderImpl::CreateInterceptors() {
   interceptors_.push_back(std::make_unique<PrefetchURLLoaderInterceptor>(
       PrefetchServiceWorkerState::kDisallowed,
       /*service_worker_handle=*/nullptr, frame_tree_node_id_,
-      request_info_->initiator_document_token,
-      request_info_->prefetch_serving_page_metrics_container));
+      request_info_->initiator_document_token));
 
   // See if embedders want to add interceptors.
   std::vector<std::unique_ptr<URLLoaderRequestInterceptor>>
@@ -1119,11 +1103,10 @@ NavigationURLLoaderImpl::LoaderHolder::Unbind() {
     // TODO(https://crbug.com/40251638): Clean up this behavior if needed.
     return url_loader_->Unbind();
   } else {
-    // TODO(https://crbug.com/434182226): Turn this to `CHECK()`.
     DUMP_WILL_BE_CHECK_EQ(state_, State::kLoadingViaReceiver);
     state_ = State::kUnbound;
     return network::mojom::URLLoaderClientEndpoints::New(
-        std::move(response_url_loader_), response_loader_receiver_.Unbind());
+        mojo::NullRemote(), response_loader_receiver_.Unbind());
   }
 }
 
@@ -1467,6 +1450,7 @@ void NavigationURLLoaderImpl::OnReceiveResponse(
 
   response_body_ = std::move(response_body);
   received_response_ = true;
+  CancelNavigationTimeout();
 
   if (!head_update_params_.load_timing_info.service_worker_start_time
            .is_null()) {
@@ -1594,8 +1578,11 @@ void NavigationURLLoaderImpl::OnReceiveRedirect(
           ? head->bypass_redirect_checks
           : bypass_redirect_checks_;
 
-  if (!bypass_redirect_checks &&
-      !IsSafeRedirectTarget(url_, redirect_info.new_url)) {
+  if (url_.SchemeIsBlob()) {
+    // Loading a blob URL never produces a redirect.
+    error = net::ERR_UNSAFE_REDIRECT;
+  } else if (!bypass_redirect_checks &&
+             !IsSafeRedirectTarget(url_, redirect_info.new_url)) {
     error = net::ERR_UNSAFE_REDIRECT;
   } else if (--redirect_limit_ == 0) {
     error = net::ERR_TOO_MANY_REDIRECTS;
@@ -1944,8 +1931,8 @@ bool NavigationURLLoaderImpl::MaybeCreateLoaderForResponse(
 
     if (interceptor->MaybeCreateLoaderForResponse(
             status, resource_request(), response, &response_body_,
-            loader_holder_.response_url_loader(), &response_client_receiver,
-            loader_holder_.url_loader(), &skip_other_interceptors)) {
+            &response_client_receiver, loader_holder_.url_loader(),
+            &skip_other_interceptors)) {
       loader_holder_.BindReceiver(
           std::move(response_client_receiver),
           GetUIThreadTaskRunner({BrowserTaskType::kNavigationNetworkResponse}));
@@ -2140,11 +2127,6 @@ NavigationURLLoaderImpl::NavigationURLLoaderImpl(
               perfetto::Flow::FromPointer(this));
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  TRACE_EVENT_BEGIN("navigation", "Navigation timeToResponseStarted",
-                    perfetto::Track::FromPointer(this),
-                    request_info_->common_params->navigation_start,
-                    "FrameTreeNode id", frame_tree_node_id_);
-
   mojo::PendingRemote<network::mojom::AcceptCHFrameObserver>
       accept_ch_frame_observer;
   // Use |kNavigationNetworkResponse| thread runner. Messages received related
@@ -2168,9 +2150,23 @@ NavigationURLLoaderImpl::NavigationURLLoaderImpl(
       std::move(device_bound_session_observer),
       std::move(accept_ch_frame_observer));
 
+  allow_same_site_none_cookies_override_ =
+      ShouldAllowSameSiteNoneCookiesInSandbox(*frame_tree_node);
   network_loader_factory_ = CreateNetworkLoaderFactory(
       browser_context_, storage_partition_, frame_tree_node,
-      ukm::SourceIdObj::FromInt64(ukm_source_id_), &bypass_redirect_checks_);
+      ukm::SourceIdObj::FromInt64(ukm_source_id_), &bypass_redirect_checks_,
+      allow_same_site_none_cookies_override_);
+
+  if (base::FeatureList::IsEnabled(
+          network::features::kBrowserInitiatedFileUploadValidation) &&
+      resource_request_->request_body) {
+    std::vector<base::FilePath> files =
+        resource_request_->request_body->GetReferencedFiles();
+    if (!files.empty()) {
+      scoped_browser_file_access_ =
+          std::make_unique<ScopedBrowserFileAccess>(std::move(files));
+    }
+  }
 }
 
 // static
@@ -2254,7 +2250,8 @@ NavigationURLLoaderImpl::CreateNetworkLoaderFactory(
     StoragePartitionImpl* storage_partition,
     FrameTreeNode* frame_tree_node,
     const ukm::SourceIdObj& ukm_id,
-    bool* bypass_redirect_checks) {
+    bool* bypass_redirect_checks,
+    bool allow_same_site_none_cookies_override) {
   mojo::PendingRemote<network::mojom::TrustedURLLoaderHeaderClient>
       header_client;
 
@@ -2286,7 +2283,7 @@ NavigationURLLoaderImpl::CreateNetworkLoaderFactory(
       devtools_params.agent_host(), devtools_cookie_overrides);
 
   net::CookieSettingOverrides cookie_overrides;
-  if (ShouldAllowSameSiteNoneCookiesInSandbox(*frame_tree_node)) {
+  if (allow_same_site_none_cookies_override) {
     // Include a CookieSettingOverride in the UrlLoaderFactoryParams for the
     // frame's SharedURLLoaderFactory if the frame contains the
     // `allow-same-site-none-cookies` value in its sandbox policy.
@@ -2295,11 +2292,16 @@ NavigationURLLoaderImpl::CreateNetworkLoaderFactory(
   }
 
   if (header_client) {
+    // A standard frame navigation request does not need network
+    // restrictions id to be passed, so we pass NoOp id.
+    // Navigations are subjected to Connection Allowlists via the
+    // `NavigationRequest::IsAllowedByConnectionAllowlist` check instead.
     return base::MakeRefCounted<network::WrapperSharedURLLoaderFactory>(
         CreateURLLoaderFactoryWithHeaderClient(
             std::move(header_client), std::move(factory_builder),
             storage_partition, std::move(devtools_cookie_overrides),
-            std::move(cookie_overrides)));
+            std::move(cookie_overrides),
+            network::GetNoOpNetworkRestrictionsId()));
   } else {
     if (!devtools_cookie_overrides.empty() || !cookie_overrides.empty()) {
       network::mojom::URLLoaderFactoryParamsPtr params =
@@ -2361,6 +2363,27 @@ void NavigationURLLoaderImpl::FollowRedirect(
   resource_request_->UpdateOnRedirect(redirect_info_);
   resource_request_->navigation_redirect_chain.push_back(
       redirect_info_.new_url);
+
+  // The decision to apply the SameSite=None sandbox override depends on the
+  // navigation's tentative origin, which may change after a redirect. Recreate
+  // the network factory and reset the loader if the decision changes so the
+  // override is not applied to the redirected request.
+  if (FrameTreeNode* frame_tree_node =
+          FrameTreeNode::GloballyFindByID(frame_tree_node_id_);
+      frame_tree_node && frame_tree_node->navigation_request()) {
+    const bool allow_same_site_none_cookies_override =
+        ShouldAllowSameSiteNoneCookiesInSandbox(*frame_tree_node);
+    if (allow_same_site_none_cookies_override !=
+        allow_same_site_none_cookies_override_) {
+      allow_same_site_none_cookies_override_ =
+          allow_same_site_none_cookies_override;
+      network_loader_factory_ = CreateNetworkLoaderFactory(
+          browser_context_, storage_partition_, frame_tree_node,
+          ukm::SourceIdObj::FromInt64(ukm_source_id_), &bypass_redirect_checks_,
+          allow_same_site_none_cookies_override_);
+      default_loader_used_ = false;
+    }
+  }
 
   if (base::FeatureList::IsEnabled(
           network::features::kOffloadAcceptCHFrameCheck)) {
@@ -2426,11 +2449,7 @@ void NavigationURLLoaderImpl::NotifyResponseStarted(
     bool is_download,
     network::mojom::URLResponseHeadPtr response_head) {
   TRACE_EVENT("navigation", "NavigationURLLoaderImpl::NotifyResponseStarted",
-              perfetto::Flow::FromPointer(this));
-  // End "Navigation timeToResponseStarted" trace event.
-  TRACE_EVENT_END("navigation", perfetto::Track::FromPointer(this),
-                  "&NavigationURLLoaderImpl", static_cast<void*>(this),
-                  "success", true);
+              perfetto::TerminatingFlow::FromPointer(this));
 
   NavigationURLLoaderDelegate::EarlyHints early_hints;
   if (early_hints_manager_) {
@@ -2473,10 +2492,8 @@ void NavigationURLLoaderImpl::NotifyRequestRedirected(
 
 void NavigationURLLoaderImpl::NotifyRequestFailed(
     const network::URLLoaderCompletionStatus& status) {
-  // End "Navigation timeToResponseStarted" trace event.
-  TRACE_EVENT_END("navigation", perfetto::Track::FromPointer(this),
-                  "&NavigationURLLoaderImpl", static_cast<void*>(this),
-                  "success", false);
+  TRACE_EVENT("navigation", "NavigationURLLoaderImpl::NotifyRequestFailed",
+              perfetto::TerminatingFlow::FromPointer(this));
   delegate_->OnRequestFailed(status);
 }
 
@@ -2488,7 +2505,8 @@ NavigationURLLoaderImpl::CreateURLLoaderFactoryWithHeaderClient(
     network::URLLoaderFactoryBuilder factory_builder,
     StoragePartitionImpl* partition,
     std::optional<net::CookieSettingOverrides> devtools_cookie_overrides,
-    std::optional<net::CookieSettingOverrides> cookie_overrides) {
+    std::optional<net::CookieSettingOverrides> cookie_overrides,
+    const base::UnguessableToken& network_restrictions_id) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   if (url_loader_factory::GetTestingInterceptor()) {
@@ -2502,6 +2520,7 @@ NavigationURLLoaderImpl::CreateURLLoaderFactoryWithHeaderClient(
   params->process_id = network::OriginatingProcessId::browser();
   params->is_trusted = true;
   params->is_orb_enabled = false;
+  params->network_restrictions_id = network_restrictions_id;
   params->disable_web_security =
       base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kDisableWebSecurity);

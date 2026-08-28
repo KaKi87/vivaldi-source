@@ -13,6 +13,8 @@ extern const CGFloat vLocationBarSteadyViewLocationImageToLabelSpacing;
 extern const CGFloat vLocationBarSteadyViewShareButtonTrailingSpacing;
 // Size for site connection security status icon
 extern const CGFloat vLocationBarSiteConnectionStatusIconSize;
+// Width of the tracker blocker button touch target.
+extern const CGFloat vLocationBarLeadingButtonTouchTargetWidth;
 
 #pragma mark - Icons
 extern NSString* vLocationBarPageInfo;

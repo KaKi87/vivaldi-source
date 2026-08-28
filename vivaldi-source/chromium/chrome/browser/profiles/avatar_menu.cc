@@ -29,7 +29,6 @@
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/webui_url_constants.h"
-#include "chrome/grit/generated_resources.h"
 #include "components/prefs/pref_service.h"
 #include "components/supervised_user/core/browser/supervised_user_service.h"
 #include "content/public/browser/browser_thread.h"
@@ -96,7 +95,7 @@ AvatarMenu::AvatarMenu(ProfileAttributesStorage* profile_storage,
   // of changes to the custodian info.
   if (browser_) {
     auto* supervised_user_service =
-        SupervisedUserServiceFactory::GetForProfile(browser_->GetProfile());
+        supervised_user::SupervisedUserServiceFactory::GetForProfile(browser_->GetProfile());
     if (supervised_user_service) {
       supervised_user_observation_.Observe(supervised_user_service);
     }

@@ -20,6 +20,7 @@
 #include "chrome/browser/ash/input_method/input_method_configuration.h"
 #include "chrome/browser/ash/login/session/user_session_manager.h"
 #include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
+#include "chrome/browser/ash/settings/scoped_cros_settings_test_helper.h"
 #include "chrome/browser/ash/settings/scoped_testing_cros_settings.h"
 #include "chrome/browser/global_features.h"
 #include "chrome/common/chrome_constants.h"
@@ -191,7 +192,7 @@ class PreferencesTest : public testing::Test {
     current_input_method_.Init(ash::prefs::kLanguageCurrentInputMethod,
                                pref_service_);
     current_input_method_.SetValue("KeyboardB");
-    consumer_auto_update_toggle_.Init(::prefs::kConsumerAutoUpdateToggle,
+    consumer_auto_update_toggle_.Init(::ash::prefs::kConsumerAutoUpdateToggle,
                                       g_browser_process->local_state());
     consumer_auto_update_toggle_.SetValue(true);
 

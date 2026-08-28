@@ -22,11 +22,12 @@
 #include "chrome/browser/autocomplete/tab_matcher_desktop.h"
 #endif
 
-class Profile;
-class TabMatcher;
+class AiModeButtonService;
+class AimEligibilityService;
 class AutocompleteScoringModelService;
 class OnDeviceTailModelService;
-class AimEligibilityService;
+class Profile;
+class TabMatcher;
 
 namespace content {
 class StoragePartition;
@@ -74,6 +75,7 @@ class ChromeAutocompleteProviderClient : public AutocompleteProviderClient {
   TemplateURLService* GetTemplateURLService() override;
   const TemplateURLService* GetTemplateURLService() const override;
   GeolocationHeaderService* GetGeolocationHeaderService() const override;
+  void ResetGeolocationPermissionToAsk(const GURL& url) const override;
   DocumentSuggestionsService* GetDocumentSuggestionsService() const override;
   RemoteSuggestionsService* GetRemoteSuggestionsService(
       bool create_if_necessary) const override;
@@ -103,6 +105,7 @@ class ChromeAutocompleteProviderClient : public AutocompleteProviderClient {
   tab_groups::TabGroupSyncService* GetTabGroupSyncService() const override;
   sync_sessions::SessionSyncService* GetSessionSyncService() const override;
   AimEligibilityService* GetAimEligibilityService() const override;
+  AiModeButtonService* GetAiModeButtonService() const override;
 
   bool IsOffTheRecord() const override;
   bool IsIncognitoProfile() const override;
@@ -115,7 +118,7 @@ class ChromeAutocompleteProviderClient : public AutocompleteProviderClient {
   std::string ProfileUserName() const override;
   void Classify(
       const std::u16string& text,
-      bool prefer_keyword,
+      bool in_keyword_mode,
       bool allow_exact_keyword_match,
       metrics::OmniboxEventProto::PageClassification page_classification,
       AutocompleteMatch* match,
@@ -141,6 +144,7 @@ class ChromeAutocompleteProviderClient : public AutocompleteProviderClient {
   base::CallbackListSubscription GetLensSuggestInputsWhenReady(
       LensOverlaySuggestInputsCallback callback) const override;
   base::WeakPtr<AutocompleteProviderClient> GetWeakPtr() override;
+  bool IsWebUiNtpEnabledForDesktopAndroid() const override;
 
   // Vivaldi
   direct_match::DirectMatchService* GetDirectMatchService() override;
@@ -158,6 +162,10 @@ class ChromeAutocompleteProviderClient : public AutocompleteProviderClient {
   void PromptPageTranslation() override;
   bool OpenJourneys(const std::string& query) override;
   void OpenLensOverlay(bool show) override;
+  bool ShouldOpenCoBrowsePanel() const override;
+  void OpenCoBrowsePanel() override;
+  bool ShouldOpenComposeboxForAskG() const override;
+  void OpenComposeboxForAskG() override;
   void IssueContextualSearchRequest(const GURL& destination_url,
                                     AutocompleteMatchType::Type match_type,
                                     bool is_zero_prefix_suggestion) override;

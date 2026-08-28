@@ -14,12 +14,12 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 import {call} from "proxy-pants/function";
 
 import {overrideOnError, wrapPropertyAccess} from "../utils/execution.js";
-import {formatArguments, randomId, toRegExp} from "../utils/general.js";
+import {formatArguments, randomId, sendSnippetHitEvent, toRegExp}
+  from "../utils/general.js";
 import {getDebugger} from "../introspection/log.js";
 import {profile} from "../introspection/profile.js";
 
@@ -27,13 +27,21 @@ let {HTMLScriptElement, Object, ReferenceError} = $(window);
 let Script = Object.getPrototypeOf(HTMLScriptElement);
 
 /**
- * Aborts the execution of an inline script.
- * @alias module:content/snippets.abort-current-inline-script
+ * @description Aborts the execution of an inline script.
+ * @memberof module:snippets/behavioral
  *
  * @param {string} api API function or property name to anchor on.
  * @param {?string} [search] If specified, only scripts containing the given
  *   string are prevented from executing. If the string begins and ends with a
  *   slash (`/`), the text in between is treated as a regular expression.
+ * @example
+ * abort-current-inline-script document.head.appendChild => The code that
+ * calls/writes the appendChild function throws an exception. This function
+ * is a property of head, witch is a property of document global object.
+ * This approach is risky because it will block any code that
+ * appends a element to head.
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69960702/abort-current-inline-script} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/behavioral-snippets/abort-current-inline-script} for external documentation.
  *
  * @since Adblock Plus 3.4.3
  */
@@ -45,6 +53,7 @@ export function abortCurrentInlineScript(api, search = null) {
 
   const rid = randomId();
   const us = $(document).currentScript;
+  let hitEventSent = false;
 
   let object = window;
   const path = $(api).split(".");
@@ -80,6 +89,12 @@ export function abortCurrentInlineScript(api, search = null) {
                element,
                "\nFILTER: abort-current-inline-script",
                formattedArguments);
+      if (!hitEventSent) {
+        hitEventSent = true;
+        sendSnippetHitEvent(
+          "abort-current-inline-script " + formattedArguments
+        );
+      }
       throw new ReferenceError(rid);
     }
   };

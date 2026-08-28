@@ -6,8 +6,10 @@
 #include "base/feature_list.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
+#include "base/scoped_observation.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/test/run_until.h"
 #include "build/build_config.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/preloading/scoped_prewarm_feature_list.h"
@@ -22,6 +24,7 @@
 #include "chrome/browser/ui/exclusive_access/exclusive_access_context.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_test.h"
+#include "chrome/browser/ui/fullscreen/browser_window_fullscreen_controller.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/web_applications/test/isolated_web_app_test_utils.h"
 #include "chrome/browser/ui/web_modal/browser_window_modal_dialog_delegate.h"
@@ -59,6 +62,8 @@
 #include "ui/display/screen.h"
 #include "ui/display/test/virtual_display_util.h"
 #include "ui/display/types/display_constants.h"
+#include "ui/views/widget/widget.h"
+#include "ui/views/widget/widget_observer.h"
 
 #if BUILDFLAG(IS_LINUX) && BUILDFLAG(IS_OZONE)
 #include "ui/ozone/public/ozone_platform.h"
@@ -197,11 +202,11 @@ void FullscreenControllerInteractiveTest::ToggleTabFullscreenNoRetries(
 
 void FullscreenControllerInteractiveTest::ToggleBrowserFullscreen(
     bool enter_fullscreen) {
-  ASSERT_EQ(browser()->window()->IsFullscreen(), !enter_fullscreen);
+  ASSERT_EQ(browser()->GetWindow()->IsFullscreen(), !enter_fullscreen);
 
   ui_test_utils::ToggleFullscreenModeAndWait(browser());
 
-  ASSERT_EQ(browser()->window()->IsFullscreen(), enter_fullscreen);
+  ASSERT_EQ(browser()->GetWindow()->IsFullscreen(), enter_fullscreen);
   ASSERT_EQ(IsFullscreenForBrowser(), enter_fullscreen);
 }
 
@@ -222,10 +227,10 @@ void FullscreenControllerInteractiveTest::ToggleTabFullscreen_Internal(
     // This addresses flakiness on test bots running many fullscreen
     // tests in parallel.
   } while (retry_until_success && !IsFullscreenForBrowser() &&
-           browser()->window()->IsFullscreen() != enter_fullscreen);
+           browser()->GetWindow()->IsFullscreen() != enter_fullscreen);
   ASSERT_EQ(IsWindowFullscreenForTabOrPending(), enter_fullscreen);
   if (!IsFullscreenForBrowser()) {
-    ASSERT_EQ(browser()->window()->IsFullscreen(), enter_fullscreen);
+    ASSERT_EQ(browser()->GetWindow()->IsFullscreen(), enter_fullscreen);
   }
 }
 
@@ -254,7 +259,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerInteractiveTest,
     ASSERT_TRUE(
         AddTabAtIndex(1, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_TYPED));
     waiter.Wait();
-    ASSERT_FALSE(browser()->window()->IsFullscreen());
+    ASSERT_FALSE(browser()->GetWindow()->IsFullscreen());
   }
 }
 
@@ -309,7 +314,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerInteractiveTest,
 
   // Exit browser fullscreen.
   ASSERT_NO_FATAL_FAILURE(ToggleBrowserFullscreen(false));
-  ASSERT_FALSE(browser()->window()->IsFullscreen());
+  ASSERT_FALSE(browser()->GetWindow()->IsFullscreen());
 }
 
 // Tests Browser Fullscreen remains active after Tab mode entered and exited.
@@ -349,7 +354,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerInteractiveTest,
   ASSERT_NO_FATAL_FAILURE(ToggleTabFullscreen(true));
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome://newtab")));
 
-  ASSERT_FALSE(browser()->window()->IsFullscreen());
+  ASSERT_FALSE(browser()->GetWindow()->IsFullscreen());
 }
 
 // Test is flaky on all platforms: https://crbug.com/40781433
@@ -365,7 +370,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerInteractiveTest,
 
   GoBack();
 
-  ASSERT_FALSE(browser()->window()->IsFullscreen());
+  ASSERT_FALSE(browser()->GetWindow()->IsFullscreen());
 }
 
 // Tests fullscreen is not exited on sub frame navigation.
@@ -419,9 +424,9 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerInteractiveTest,
       AddTabAtIndex(0, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_TYPED));
 
   {
-    EXPECT_FALSE(browser()->window()->IsFullscreen());
+    EXPECT_FALSE(browser()->GetWindow()->IsFullscreen());
     ASSERT_NO_FATAL_FAILURE(ToggleTabFullscreenNoRetries(true));
-    EXPECT_TRUE(browser()->window()->IsFullscreen());
+    EXPECT_TRUE(browser()->GetWindow()->IsFullscreen());
   }
 
   {
@@ -429,14 +434,14 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerInteractiveTest,
                                            {.tab_fullscreen = false});
     chrome::ToggleFullscreenMode(browser());
     waiter.Wait();
-    EXPECT_FALSE(browser()->window()->IsFullscreen());
+    EXPECT_FALSE(browser()->GetWindow()->IsFullscreen());
   }
 
   {
     // Test that tab fullscreen mode doesn't make presentation mode the default
     // on Lion.
     ui_test_utils::ToggleFullscreenModeAndWait(browser());
-    EXPECT_TRUE(browser()->window()->IsFullscreen());
+    EXPECT_TRUE(browser()->GetWindow()->IsFullscreen());
   }
 }
 
@@ -1028,7 +1033,7 @@ class AutomaticFullscreenTest : public FullscreenControllerInteractiveTest,
   void SetUpOnMainThread() override {
     FullscreenControllerInteractiveTest::SetUpOnMainThread();
     auto allow_automatic_fullscreen = [&](const GURL& url) {
-      HostContentSettingsMapFactory::GetForProfile(browser()->profile())
+      HostContentSettingsMapFactory::GetForProfile(browser()->GetProfile())
           ->SetContentSettingDefaultScope(
               url, url, ContentSettingsType::AUTOMATIC_FULLSCREEN,
               CONTENT_SETTING_ALLOW);
@@ -1046,10 +1051,10 @@ class AutomaticFullscreenTest : public FullscreenControllerInteractiveTest,
               .BuildBundle();
       app->TrustSigningKey();
       web_app::IsolatedWebAppUrlInfo url_info =
-          app->InstallChecked(browser()->profile());
+          app->InstallChecked(browser()->GetProfile());
       allow_automatic_fullscreen(url_info.origin().GetURL());
-      auto* frame =
-          web_app::OpenIsolatedWebApp(browser()->profile(), url_info.app_id());
+      auto* frame = web_app::OpenIsolatedWebApp(browser()->GetProfile(),
+                                                url_info.app_id());
       web_contents_ = content::WebContents::FromRenderFrameHost(frame);
     } else {
       GURL url = embedded_https_test_server().GetURL("a.com", "/simple.html");
@@ -1136,7 +1141,7 @@ class AutomaticFullscreenTest : public FullscreenControllerInteractiveTest,
     if (result.is_ok() && result.ExtractBool()) {
       waiter.Wait();
     }
-    return std::make_pair(popup->window()->IsFullscreen(), popup);
+    return std::make_pair(popup->GetWindow()->IsFullscreen(), popup);
   }
 
   std::string QueryPermission(
@@ -1270,7 +1275,7 @@ IN_PROC_BROWSER_TEST_P(AutomaticFullscreenTest, ImmediatelyAfterPopupExit) {
   EXPECT_LT(base::TimeTicks::Now() - exit, base::Seconds(5));
   EXPECT_FALSE(RequestFullscreen());
   ui_test_utils::BrowserDestroyedObserver observer(popup);
-  popup->window()->Close();
+  popup->GetWindow()->Close();
   observer.Wait();
   EXPECT_LT(base::TimeTicks::Now() - exit, base::Seconds(5));
   EXPECT_FALSE(RequestFullscreen());
@@ -1441,7 +1446,7 @@ class MAYBE_MultiScreenFullscreenControllerInteractiveTest
     // it shows the permission bubble before granting the permission, which will
     // cause content fullscreen to exit due to security reason.
     auto* content_settings =
-        HostContentSettingsMapFactory::GetForProfile(browser()->profile());
+        HostContentSettingsMapFactory::GetForProfile(browser()->GetProfile());
     content_settings->SetContentSettingDefaultScope(
         url, GURL(), ContentSettingsType::WINDOW_MANAGEMENT,
         CONTENT_SETTING_ALLOW);
@@ -1469,7 +1474,7 @@ class MAYBE_MultiScreenFullscreenControllerInteractiveTest
     auto* tab = browser()->tab_strip_model()->GetActiveWebContents();
     content::EvalJsResult result = EvalJs(tab, eval_js_script, eval_js_options);
     waiter.Wait();
-    EXPECT_EQ(expect_window_fullscreen, browser()->window()->IsFullscreen());
+    EXPECT_EQ(expect_window_fullscreen, browser()->GetWindow()->IsFullscreen());
     return result;
   }
 
@@ -1556,7 +1561,7 @@ IN_PROC_BROWSER_TEST_F(MAYBE_MultiScreenFullscreenControllerInteractiveTest,
                        MAYBE_SeparateDisplay) {
   SetUpWindowManagementTab();
 #if !BUILDFLAG(IS_MAC)
-  const gfx::Rect original_bounds = browser()->window()->GetBounds();
+  const gfx::Rect original_bounds = browser()->GetWindow()->GetBounds();
 #endif
   const display::Display original_display = GetCurrentDisplay(browser());
 
@@ -1568,7 +1573,7 @@ IN_PROC_BROWSER_TEST_F(MAYBE_MultiScreenFullscreenControllerInteractiveTest,
   EXPECT_EQ(original_display.id(), GetCurrentDisplay(browser()).id());
   // TODO(crbug.com/40277425): Bounds are flaky on Mac.
 #if !BUILDFLAG(IS_MAC)
-  EXPECT_EQ(original_bounds, browser()->window()->GetBounds());
+  EXPECT_EQ(original_bounds, browser()->GetWindow()->GetBounds());
 #endif
 }
 
@@ -1588,7 +1593,7 @@ IN_PROC_BROWSER_TEST_F(MAYBE_MultiScreenFullscreenControllerInteractiveTest,
                        MAYBE_SeparateDisplayMaximized) {
   SetUpWindowManagementTab();
 #if !BUILDFLAG(IS_MAC)
-  const gfx::Rect original_bounds = browser()->window()->GetBounds();
+  const gfx::Rect original_bounds = browser()->GetWindow()->GetBounds();
 #else
   // TODO(crbug.com/510801992): Re-enable on macOS 26 once test is deflaked
   if (base::mac::MacOSMajorVersion() == 26) {
@@ -1597,10 +1602,10 @@ IN_PROC_BROWSER_TEST_F(MAYBE_MultiScreenFullscreenControllerInteractiveTest,
 #endif
   const display::Display original_display = GetCurrentDisplay(browser());
 
-  browser()->window()->Maximize();
-  EXPECT_TRUE(browser()->window()->IsMaximized());
+  browser()->GetWindow()->Maximize();
+  EXPECT_TRUE(browser()->GetWindow()->IsMaximized());
 #if !BUILDFLAG(IS_MAC)
-  const gfx::Rect maximized_bounds = browser()->window()->GetBounds();
+  const gfx::Rect maximized_bounds = browser()->GetWindow()->GetBounds();
 #endif
 
   // Execute JS to request fullscreen on a different screen.
@@ -1608,20 +1613,20 @@ IN_PROC_BROWSER_TEST_F(MAYBE_MultiScreenFullscreenControllerInteractiveTest,
   EXPECT_NE(original_display.id(), GetCurrentDisplay(browser()).id());
 
   ExitContentFullscreen();
-  EXPECT_TRUE(browser()->window()->IsMaximized());
+  EXPECT_TRUE(browser()->GetWindow()->IsMaximized());
   EXPECT_EQ(original_display.id(), GetCurrentDisplay(browser()).id());
   // TODO(crbug.com/40277425): Bounds are flaky on Mac.
 #if !BUILDFLAG(IS_MAC)
-  EXPECT_EQ(maximized_bounds, browser()->window()->GetBounds());
+  EXPECT_EQ(maximized_bounds, browser()->GetWindow()->GetBounds());
 #endif
 
   // Unmaximize the window and check that the original bounds are restored.
-  browser()->window()->Restore();
-  EXPECT_FALSE(browser()->window()->IsMaximized());
+  browser()->GetWindow()->Restore();
+  EXPECT_FALSE(browser()->GetWindow()->IsMaximized());
   EXPECT_EQ(original_display.id(), GetCurrentDisplay(browser()).id());
   // TODO(crbug.com/40277425): Bounds are flaky on Mac.
 #if !BUILDFLAG(IS_MAC)
-  EXPECT_EQ(original_bounds, browser()->window()->GetBounds());
+  EXPECT_EQ(original_bounds, browser()->GetWindow()->GetBounds());
 #endif
 }
 
@@ -1641,7 +1646,7 @@ IN_PROC_BROWSER_TEST_F(MAYBE_MultiScreenFullscreenControllerInteractiveTest,
                        MAYBE_SameDisplayAndSwap) {
   SetUpWindowManagementTab();
 #if !BUILDFLAG(IS_MAC)
-  const gfx::Rect original_bounds = browser()->window()->GetBounds();
+  const gfx::Rect original_bounds = browser()->GetWindow()->GetBounds();
 #endif
   const display::Display original_display = GetCurrentDisplay(browser());
 
@@ -1657,7 +1662,7 @@ IN_PROC_BROWSER_TEST_F(MAYBE_MultiScreenFullscreenControllerInteractiveTest,
   EXPECT_EQ(original_display.id(), GetCurrentDisplay(browser()).id());
   // TODO(crbug.com/40277425): Bounds are flaky on Mac.
 #if !BUILDFLAG(IS_MAC)
-  EXPECT_EQ(original_bounds, browser()->window()->GetBounds());
+  EXPECT_EQ(original_bounds, browser()->GetWindow()->GetBounds());
 #endif
 }
 
@@ -1678,7 +1683,7 @@ IN_PROC_BROWSER_TEST_F(MAYBE_MultiScreenFullscreenControllerInteractiveTest,
                        MAYBE_SameDisplayAndSwapMaximized) {
   SetUpWindowManagementTab();
 #if !BUILDFLAG(IS_MAC)
-  const gfx::Rect original_bounds = browser()->window()->GetBounds();
+  const gfx::Rect original_bounds = browser()->GetWindow()->GetBounds();
 #else
   // TODO(crbug.com/510801992): Re-enable on macOS 26 once test is deflaked
   if (base::mac::MacOSMajorVersion() == 26) {
@@ -1687,10 +1692,10 @@ IN_PROC_BROWSER_TEST_F(MAYBE_MultiScreenFullscreenControllerInteractiveTest,
 #endif
   const display::Display original_display = GetCurrentDisplay(browser());
 
-  browser()->window()->Maximize();
-  EXPECT_TRUE(browser()->window()->IsMaximized());
+  browser()->GetWindow()->Maximize();
+  EXPECT_TRUE(browser()->GetWindow()->IsMaximized());
 #if !BUILDFLAG(IS_MAC)
-  const gfx::Rect maximized_bounds = browser()->window()->GetBounds();
+  const gfx::Rect maximized_bounds = browser()->GetWindow()->GetBounds();
 #endif
 
   // Execute JS to request fullscreen on the current screen.
@@ -1702,19 +1707,19 @@ IN_PROC_BROWSER_TEST_F(MAYBE_MultiScreenFullscreenControllerInteractiveTest,
   EXPECT_NE(original_display.id(), GetCurrentDisplay(browser()).id());
 
   ExitContentFullscreen();
-  EXPECT_TRUE(browser()->window()->IsMaximized());
+  EXPECT_TRUE(browser()->GetWindow()->IsMaximized());
   // TODO(crbug.com/40277425): Bounds are flaky on Mac.
 #if !BUILDFLAG(IS_MAC)
-  EXPECT_EQ(maximized_bounds, browser()->window()->GetBounds());
+  EXPECT_EQ(maximized_bounds, browser()->GetWindow()->GetBounds());
 #endif
 
   // Unmaximize the window and check that the original bounds are restored.
-  browser()->window()->Restore();
-  EXPECT_FALSE(browser()->window()->IsMaximized());
+  browser()->GetWindow()->Restore();
+  EXPECT_FALSE(browser()->GetWindow()->IsMaximized());
   EXPECT_EQ(original_display.id(), GetCurrentDisplay(browser()).id());
   // TODO(crbug.com/40277425): Bounds are flaky on Mac.
 #if !BUILDFLAG(IS_MAC)
-  EXPECT_EQ(original_bounds, browser()->window()->GetBounds());
+  EXPECT_EQ(original_bounds, browser()->GetWindow()->GetBounds());
 #endif
 }
 
@@ -1742,7 +1747,7 @@ IN_PROC_BROWSER_TEST_F(MAYBE_MultiScreenFullscreenControllerInteractiveTest,
   EXPECT_TRUE(IsFullscreenForBrowser());
   EXPECT_FALSE(IsWindowFullscreenForTabOrPending());
 
-  const gfx::Rect fullscreen_bounds = browser()->window()->GetBounds();
+  const gfx::Rect fullscreen_bounds = browser()->GetWindow()->GetBounds();
   const display::Display original_display = GetCurrentDisplay(browser());
 
   // On the Mac, the available fullscreen space is not always the entire
@@ -1780,7 +1785,7 @@ IN_PROC_BROWSER_TEST_F(MAYBE_MultiScreenFullscreenControllerInteractiveTest,
   EXPECT_TRUE(IsWindowFullscreenForTabOrPending());
 
   ExitContentFullscreen(/*expect_window_fullscreen=*/true);
-  EXPECT_EQ(fullscreen_bounds, browser()->window()->GetBounds());
+  EXPECT_EQ(fullscreen_bounds, browser()->GetWindow()->GetBounds());
   EXPECT_TRUE(IsFullscreenForBrowser());
   EXPECT_FALSE(IsWindowFullscreenForTabOrPending());
 }
@@ -1801,7 +1806,7 @@ IN_PROC_BROWSER_TEST_F(MAYBE_MultiScreenFullscreenControllerInteractiveTest,
                        MAYBE_SeparateDisplayAndSwap) {
   SetUpWindowManagementTab();
 #if !BUILDFLAG(IS_MAC)
-  const gfx::Rect original_bounds = browser()->window()->GetBounds();
+  const gfx::Rect original_bounds = browser()->GetWindow()->GetBounds();
 #endif
   const display::Display original_display = GetCurrentDisplay(browser());
   display::Display last_recorded_display = original_display;
@@ -1817,7 +1822,7 @@ IN_PROC_BROWSER_TEST_F(MAYBE_MultiScreenFullscreenControllerInteractiveTest,
   EXPECT_EQ(original_display.id(), GetCurrentDisplay(browser()).id());
   // TODO(crbug.com/40277425): Bounds are flaky on Mac.
 #if !BUILDFLAG(IS_MAC)
-  EXPECT_EQ(original_bounds, browser()->window()->GetBounds());
+  EXPECT_EQ(original_bounds, browser()->GetWindow()->GetBounds());
 #endif
 }
 
@@ -2052,3 +2057,52 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerInteractiveTest,
 
   watcher.Wait();
 }
+
+class StartFullscreenInteractiveTest : public InProcessBrowserTest {
+ public:
+  // InProcessBrowserTest:
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    InProcessBrowserTest::SetUpCommandLine(command_line);
+    command_line->AppendSwitch(switches::kStartFullscreen);
+  }
+
+  void WaitForViewportSizeToMatchDisplay(BrowserWindowInterface* browser) {
+    EXPECT_TRUE(base::test::RunUntil([&]() {
+      if (!browser->GetWindow()->IsFullscreen()) {
+        return false;
+      }
+      if (!BrowserWindowFullscreenController::From(browser)
+               ->ShouldHideUIForFullscreen()) {
+        return false;
+      }
+      gfx::Rect display_bounds =
+          display::Screen::Get()
+              ->GetDisplayNearestWindow(browser->GetWindow()->GetNativeWindow())
+              .bounds();
+      gfx::Rect web_contents_bounds =
+          browser->GetTabStripModel()->GetActiveWebContents()->GetViewBounds();
+      return display_bounds.size() == web_contents_bounds.size();
+    }));
+  }
+};
+
+// TODO(crbug.com/532711215): The Wayland, X11, and Mac test environments have
+// issues with bounds propagating when entering fullscreen.
+#if BUILDFLAG(IS_WIN)
+IN_PROC_BROWSER_TEST_F(StartFullscreenInteractiveTest,
+                       ViewportSizeMatchesDisplay) {
+  // Create a new browser directly in fullscreen but don't show it yet. This
+  // explicitly mimics session restore recovering a fullscreen window better
+  // than toggling an unshown browser.
+  Browser::CreateParams params(browser()->GetProfile(), true);
+  params.initial_show_state = ui::mojom::WindowShowState::kFullscreen;
+  BrowserWindowInterface* new_browser = Browser::Create(params);
+
+  // Show the browser and wait for it to become fully initialized.
+  AddBlankTabAndShow(new_browser->GetBrowserForMigrationOnly());
+
+  // Verify the WebContents bounds eventually match the display bounds, proving
+  // no space was reserved for the top UI.
+  WaitForViewportSizeToMatchDisplay(new_browser);
+}
+#endif  // BUILDFLAG(IS_WIN)

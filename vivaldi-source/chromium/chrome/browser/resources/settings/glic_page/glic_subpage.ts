@@ -9,6 +9,7 @@ import 'chrome://resources/cr_components/cr_shortcut_input/cr_shortcut_input.js'
 import '../controls/settings_toggle_button.js';
 import 'chrome://resources/cr_elements/cr_expand_button/cr_expand_button.js';
 import 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
+import 'chrome://resources/cr_elements/md_select.css.js';
 import '../icons.html.js';
 import '../privacy_icons.html.js';
 import '../settings_page/settings_subpage.js';
@@ -43,6 +44,7 @@ import {getTemplate} from './glic_subpage.html.js';
 
 export enum SettingsGlicPageFeaturePrefName {
   CLOSED_CAPTIONS_ENABLED = 'glic.closed_captioning_enabled',
+  MEDIA_UNDERSTANDING_ENABLED = 'glic.media_understanding_enabled',
   GEOLOCATION_ENABLED = 'glic.geolocation_enabled',
   LAUNCHER_ENABLED = 'glic.launcher_enabled',
   MICROPHONE_ENABLED = 'glic.microphone_enabled',
@@ -55,6 +57,7 @@ export enum SettingsGlicPageFeaturePrefName {
   EXPERIMENTAL_TRIGGERING_ENABLED = 'glic.experimental_triggering_enabled',
   KEEP_SIDEPANEL_OPEN_ON_NEW_TABS_ENABLED =
       'glic.keep_sidepanel_open_on_new_tabs_enabled',
+  HOTKEY_GLOBAL_SCOPE_ENABLED = 'glic.hotkey_global_scope_enabled',
 }
 
 // browser_element_identifiers constants
@@ -84,6 +87,12 @@ export class SettingsGlicSubpageElement extends SettingsGlicSubpageElementBase {
       disallowedByAdmin_: {
         type: Boolean,
         value: false,
+      },
+
+      selectedScope_: {
+        type: String,
+        computed: 'computeSelectedScope_(' +
+            'prefs.glic.hotkey_global_scope_enabled.value)',
       },
 
       registeredShortcut_: {
@@ -125,6 +134,11 @@ export class SettingsGlicSubpageElement extends SettingsGlicSubpageElementBase {
         },
       },
 
+      headlessCaptionsEnabled_: {
+        type: Boolean,
+        value: () => loadTimeData.getBoolean('headlessCaptionsEnabled'),
+      },
+
       glicExtensionsFeatureEnabled_: {
         type: Boolean,
         value: () => {
@@ -141,6 +155,11 @@ export class SettingsGlicSubpageElement extends SettingsGlicSubpageElementBase {
       glicSelectionFeatureEnabled_: {
         type: Boolean,
         value: () => loadTimeData.getBoolean('glicSelectionFeatureEnabled'),
+      },
+
+      glicHotkeyLocalScopeEnabled_: {
+        type: Boolean,
+        value: () => loadTimeData.getBoolean('glicHotkeyLocalScopeEnabled'),
       },
 
       showGlicDefaultTabContextSetting_: {
@@ -297,7 +316,7 @@ export class SettingsGlicSubpageElement extends SettingsGlicSubpageElementBase {
       },
 
       webActuationSubLabel_: {
-        type: String,
+        type: Object,
         computed: `computeWebActuationSubLabel_(prefs.${
             SettingsGlicPageFeaturePrefName.USER_STATUS}.value)`,
       },
@@ -312,6 +331,11 @@ export class SettingsGlicSubpageElement extends SettingsGlicSubpageElementBase {
         type: Boolean,
         value: () =>
             loadTimeData.getBoolean('actorLoginFederatedLoginSupportEnabled'),
+      },
+
+      webActuationToggleConsider2_: {
+        type: Object,
+        computed: 'computeWebActuationToggleConsider2_()',
       },
     };
   }
@@ -335,6 +359,7 @@ export class SettingsGlicSubpageElement extends SettingsGlicSubpageElementBase {
   private selectionShortcutInput_: string;
   private removedShortcut_: string|null = null;
   declare private disallowedByAdmin_: boolean;
+  declare private selectedScope_: string;
   declare private registeredShortcut_: string;
   declare private registeredFocusToggleShortcut_: string;
   declare private registeredSelectionShortcut_: string;
@@ -345,9 +370,11 @@ export class SettingsGlicSubpageElement extends SettingsGlicSubpageElementBase {
   declare private tabAccessToggleExpanded_: boolean;
   declare private defaultTabAccessToggleExpanded_: boolean;
   declare private closedCaptionsToggleEnabled_: boolean;
+  declare private headlessCaptionsEnabled_: boolean;
   declare private glicExtensionsFeatureEnabled_: boolean;
   declare private glicUserStatusCheckFeatureEnabled_: boolean;
   declare private glicSelectionFeatureEnabled_: boolean;
+  declare private glicHotkeyLocalScopeEnabled_: boolean;
   declare private showGlicDefaultTabContextSetting_: boolean;
   declare private showGlicExperimentalTriggering_: boolean;
   declare private showGlicPersonalContextLink_: boolean;
@@ -363,7 +390,7 @@ export class SettingsGlicSubpageElement extends SettingsGlicSubpageElementBase {
   declare private defaultTabAccessLearnMoreUrl_: string;
   declare private spark_: string;
   declare private isEnterpriseAccountDataProtected_: boolean;
-  declare private webActuationSubLabel_: string;
+  declare private webActuationSubLabel_: TrustedHTML;
   declare private webActuationLearnMoreUrl_: string;
   declare private webActuationFeatureEnabled_: boolean;
   declare private webActuationEnabledPref_:
@@ -372,6 +399,7 @@ export class SettingsGlicSubpageElement extends SettingsGlicSubpageElementBase {
       chrome.settingsPrivate.PrefObject<boolean>;
   declare private experimentalTriggeringSubLabel_: string;
   declare private experimentalTriggeringExpanded_: boolean;
+  declare private webActuationToggleConsider2_: TrustedHTML;
   declare private isWebActuationDisabledForEnterprise_: boolean;
   declare private webActuationDisabledForEnterprisePref_:
       chrome.settingsPrivate.PrefObject<boolean>;
@@ -449,9 +477,27 @@ export class SettingsGlicSubpageElement extends SettingsGlicSubpageElementBase {
     const enabled = (event.target as SettingsToggleButtonElement).checked;
     this.browserProxy_.setGlicOsLauncherEnabled(enabled);
     this.metricsBrowserProxy_.recordAction(
-        'Glic.OsEntrypoint.Settings.Toggle' +
+        'GlicOsEntrypoint.Settings.Toggle' +
         (enabled ? '.Enabled' : '.Disabled'));
     this.hideHelpBubble(OS_WIDGET_TOGGLE_ELEMENT_ID);
+  }
+
+  private computeSelectedScope_(globalEnabled: boolean): string {
+    return globalEnabled ? 'GLOBAL' : 'CHROME';
+  }
+
+  private computeMainShortcutOpened_(
+      launcherEnabled: boolean, localScopeEnabled: boolean): boolean {
+    return launcherEnabled || localScopeEnabled;
+  }
+
+  private onScopeChanged_(event: Event) {
+    const select = event.target as HTMLSelectElement;
+    const isGlobal = select.value === 'GLOBAL';
+    this.setPrefValue(
+        SettingsGlicPageFeaturePrefName.HOTKEY_GLOBAL_SCOPE_ENABLED, isGlobal);
+    this.metricsBrowserProxy_.recordAction(
+        'Glic.Settings.HotkeyScope.' + (isGlobal ? 'Global' : 'Chrome'));
   }
 
   private onGeolocationToggleChange_(event: Event) {
@@ -756,7 +802,11 @@ export class SettingsGlicSubpageElement extends SettingsGlicSubpageElementBase {
   }
 
   private computeExperimentalTriggeringSubLabel_(): string {
-    return this.i18nAdvanced('glicExperimentalTriggeringSublabel').toString();
+    return this
+        .i18nAdvanced('glicExperimentalTriggeringSublabel', {
+          attrs: ['aria-label', 'aria-description'],
+        })
+        .toString();
   }
 
   private onWebActuationExpand_() {
@@ -769,8 +819,16 @@ export class SettingsGlicSubpageElement extends SettingsGlicSubpageElementBase {
     OpenWindowProxyImpl.getInstance().openUrl(this.webActuationLearnMoreUrl_);
   }
 
-  private computeWebActuationSubLabel_(): string {
-    return this.i18nAdvanced('glicWebActuationToggleSublabel').toString();
+  private computeWebActuationSubLabel_(): TrustedHTML {
+    return this.i18nAdvanced('glicWebActuationToggleSublabelV2', {
+      attrs: ['aria-label', 'aria-description', 'target'],
+    });
+  }
+
+  private computeWebActuationToggleConsider2_(): TrustedHTML {
+    return this.i18nAdvanced('glicWebActuationToggleConsider2V2', {
+      attrs: ['aria-label', 'aria-description', 'target'],
+    });
   }
 
   private computeWebActuationLearnMoreUrl_(): string {
@@ -792,6 +850,18 @@ export class SettingsGlicSubpageElement extends SettingsGlicSubpageElementBase {
       webActuationEnabled: boolean,
       isWebActuationDisabledForEnterprise: boolean): boolean {
     return !webActuationEnabled || isWebActuationDisabledForEnterprise;
+  }
+
+  private onMediaUnderstandingToggleLearnMoreClick_() {
+    // URL for "some websites" link.
+    OpenWindowProxyImpl.getInstance().openUrl(
+        'https://support.google.com/chrome?p=gic_media_questions');
+  }
+
+  protected getCookieIcon_(): string {
+    return loadTimeData.getBoolean('webuiRoundedIconsEnabled') ?
+        'privacy:cookie' :
+        'privacy:cookie-old';
   }
 }
 

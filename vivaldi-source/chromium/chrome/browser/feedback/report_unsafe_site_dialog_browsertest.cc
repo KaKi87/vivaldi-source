@@ -99,7 +99,7 @@ class ReportUnsafeSiteDialogBrowserTest : public PlatformBrowserTest {
 // is disabled by enterprise policy.
 IN_PROC_BROWSER_TEST_F(ReportUnsafeSiteDialogBrowserTest,
                        DisabledByPolicy_TryNavigate) {
-  PrefService* prefs = browser()->profile()->GetPrefs();
+  PrefService* prefs = browser()->GetProfile()->GetPrefs();
   prefs->SetBoolean(prefs::kSafeBrowsingEnabled, true);
   prefs->SetBoolean(prefs::kUserFeedbackAllowed, false);
 
@@ -110,8 +110,8 @@ IN_PROC_BROWSER_TEST_F(ReportUnsafeSiteDialogBrowserTest,
       content::PageType::PAGE_TYPE_ERROR,
       web_contents()->GetController().GetLastCommittedEntry()->GetPageType());
 
-  browser()->profile()->GetPrefs()->SetBoolean(prefs::kUserFeedbackAllowed,
-                                               true);
+  browser()->GetProfile()->GetPrefs()->SetBoolean(prefs::kUserFeedbackAllowed,
+                                                  true);
   ASSERT_TRUE(content::NavigateToURL(
       web_contents(), GURL("chrome://feedback/report-unsafe-site")));
 }
@@ -127,7 +127,7 @@ IN_PROC_BROWSER_TEST_F(ReportUnsafeSiteDialogBrowserTest,
 
   // TODO(crbug.com/478306738): Add test for when Safe Browsing is disabled.
 
-  PrefService* prefs = browser()->profile()->GetPrefs();
+  PrefService* prefs = browser()->GetProfile()->GetPrefs();
   prefs->SetBoolean(prefs::kSafeBrowsingEnabled, true);
   ASSERT_TRUE(content::NavigateToURL(web_contents(), GURL("about:blank")));
   NavigateAndCheckTitle(GURL("chrome://feedback/report-unsafe-site"),
@@ -146,7 +146,7 @@ IN_PROC_BROWSER_TEST_F(ReportUnsafeSiteDialogBrowserTest,
                        RecordsIsTabSplitHistogram_Split) {
   base::HistogramTester histogram_tester;
 
-  chrome::NewTab(browser());
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
   TabStripModel* tab_strip_model = browser()->tab_strip_model();
   EXPECT_EQ(tab_strip_model->count(), 2);
 

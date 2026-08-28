@@ -7,8 +7,8 @@
 #include "base/strings/sys_string_conversions.h"
 #include "browser/init_sparkle.h"
 #ifndef VIVALDI_SPARKLE_DISABLED
-#include "extensions/api/auto_update/auto_update_api.h"
-#include "extensions/api/auto_update/auto_update_status.h"
+#include "extensions/api/autoupdate/autoupdate_api.h"
+#include "extensions/api/autoupdate/auto_update_status.h"
 #endif
 #include "extensions/tools/vivaldi_tools.h"
 

@@ -7,6 +7,7 @@ package org.chromium.chrome.browser.logo;
 import static org.chromium.build.NullUtil.assumeNonNull;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.doesDefaultSearchEngineHaveLogo;
 
+import android.content.Context;
 import android.graphics.ImageDecoder;
 import android.graphics.drawable.AnimatedImageDrawable;
 import android.graphics.drawable.Drawable;
@@ -41,6 +42,7 @@ import org.chromium.components.search_engines.TemplateUrlService.TemplateUrlServ
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.ui.base.PageTransition;
 import org.chromium.ui.modelutil.PropertyModel;
+import org.chromium.ui.util.ColorUtils;
 
 import java.io.IOException;
 import java.lang.annotation.Retention;
@@ -85,6 +87,7 @@ public class LogoMediator implements TemplateUrlServiceObserver {
         int ANIMATED_LOGO_CLICKED = 2;
     }
 
+    private final boolean mIsNightMode;
     private final PropertyModel mLogoModel;
     private @Nullable Profile mProfile;
     private @Nullable LogoBridge mLogoBridge;
@@ -101,6 +104,7 @@ public class LogoMediator implements TemplateUrlServiceObserver {
     private @Nullable String mAnimatedLogoUrl;
     private boolean mShouldRecordLoadTime = true;
     private @Nullable String mSearchEngineKeyword;
+    private @Nullable String mRecordedImpressionUrl;
 
     private final ObserverList<LogoCoordinator.VisibilityObserver> mVisibilityObservers =
             new ObserverList<>();
@@ -108,6 +112,7 @@ public class LogoMediator implements TemplateUrlServiceObserver {
     /**
      * Creates a LogoMediator object.
      *
+     * @param context Used to check night mode.
      * @param logoClickedCallback Supplies the StartSurface's parent tab.
      * @param logoModel The model that is required to build the logo on start surface or ntp.
      * @param onLogoAvailableCallback The callback for when logo is available.
@@ -116,11 +121,13 @@ public class LogoMediator implements TemplateUrlServiceObserver {
      *     is the default search engine.
      */
     LogoMediator(
+            Context context,
             Callback<LoadUrlParams> logoClickedCallback,
             PropertyModel logoModel,
             Callback<Logo> onLogoAvailableCallback,
             @Nullable VisibilityObserver visibilityObserver,
             @Nullable Drawable defaultGoogleLogoDrawable) {
+        mIsNightMode = ColorUtils.inNightMode(context);
         mLogoModel = logoModel;
         mLogoClickedCallback = logoClickedCallback;
         mVisibilityObserver = visibilityObserver;
@@ -242,7 +249,8 @@ public class LogoMediator implements TemplateUrlServiceObserver {
     boolean isDefaultGoogleLogoShown() {
         return mIsDefaultSearchEngineGoogle
                 && mShouldShowLogo
-                && mLogoModel.get(LogoProperties.VISIBILITY);
+                && mLogoModel.get(LogoProperties.VISIBILITY)
+                && mLogoModel.get(LogoProperties.LOGO) == null;
     }
 
     /**
@@ -255,6 +263,10 @@ public class LogoMediator implements TemplateUrlServiceObserver {
         // record, don't bother loading the logo image.
         if (mHasLogoLoadedForCurrentSearchEngine || mProfile == null || !mShouldShowLogo) return;
 
+        if (mLogoBridge == null) {
+            mLogoBridge = new LogoBridge(mProfile);
+        }
+
         @Nullable Logo cachedDoodle =
                 DoodleCache.getInstance().getCachedDoodle(mSearchEngineKeyword);
         boolean isCacheHit = cachedDoodle != null;
@@ -265,7 +277,7 @@ public class LogoMediator implements TemplateUrlServiceObserver {
 
         if (isCacheHit) {
             mOnLogoClickUrl = assumeNonNull(cachedDoodle).onClickUrl;
-            mAnimatedLogoUrl = assumeNonNull(cachedDoodle).animatedLogoUrl;
+            mAnimatedLogoUrl = getAnimatedLogoUrl(cachedDoodle);
             updateModelWithLogo(cachedDoodle);
             int logoType =
                     mAnimatedLogoUrl == null
@@ -275,14 +287,19 @@ public class LogoMediator implements TemplateUrlServiceObserver {
                     LOGO_SHOWN_UMA_NAME, logoType, LogoShownId.LOGO_SHOWN_COUNT);
             RecordHistogram.recordEnumeratedHistogram(
                     LOGO_SHOWN_FROM_CACHE_UMA_NAME, logoType, LogoShownId.LOGO_SHOWN_COUNT);
+
+            // Deduplicate impression pings. While the mHasLogoLoadedForCurrentSearchEngine flag
+            // usually prevents this block from running twice, edge cases like toggling the Default
+            // Search Engine will reset the flag while keeping this Mediator alive.
+            if (cachedDoodle.logUrl != null
+                    && !cachedDoodle.logUrl.equals(mRecordedImpressionUrl)) {
+                mLogoBridge.recordImpression(cachedDoodle.logUrl);
+                mRecordedImpressionUrl = cachedDoodle.logUrl;
+            }
             return;
         }
 
         showSearchProviderInitialView();
-
-        if (mLogoBridge == null) {
-            mLogoBridge = new LogoBridge(mProfile);
-        }
 
         getSearchProviderLogo(
                 new LogoBridge.LogoObserver() {
@@ -317,6 +334,7 @@ public class LogoMediator implements TemplateUrlServiceObserver {
      */
     private void updateModelWithLogo(@Nullable Logo logo) {
         mLogoModel.set(LogoProperties.LOGO_CLICK_HANDLER, LogoMediator.this::onLogoClicked);
+        mLogoModel.set(LogoProperties.IS_NIGHT_MODE, mIsNightMode);
         mLogoModel.set(LogoProperties.LOGO, logo);
     }
 
@@ -356,8 +374,9 @@ public class LogoMediator implements TemplateUrlServiceObserver {
      * @param drawable The updated drawable for default Google logo.
      */
     void updateDefaultGoogleLogo(Drawable drawable) {
-        mDefaultGoogleLogoDrawable = drawable;
+        assert mLogoModel.get(LogoProperties.LOGO) == null;
 
+        mDefaultGoogleLogoDrawable = drawable;
         mLogoModel.set(LogoProperties.DEFAULT_GOOGLE_LOGO_DRAWABLE, mDefaultGoogleLogoDrawable);
         mLogoModel.set(LogoProperties.SHOW_DEFAULT_GOOGLE_LOGO, true);
     }
@@ -479,13 +498,31 @@ public class LogoMediator implements TemplateUrlServiceObserver {
                         }
 
                         mOnLogoClickUrl = logo != null ? logo.onClickUrl : null;
-                        mAnimatedLogoUrl = logo != null ? logo.animatedLogoUrl : null;
+                        mAnimatedLogoUrl = getAnimatedLogoUrl(logo);
+
+                        // The C++ LogoService fires this callback up to twice (once for disk cache,
+                        // once for network fetch). Deduplicate the impression pings to ensure we
+                        // only record exactly 1 impression per NTP session.
+                        if (logo != null
+                                && logo.logUrl != null
+                                && !logo.logUrl.equals(mRecordedImpressionUrl)) {
+                            mLogoBridge.recordImpression(logo.logUrl);
+                            mRecordedImpressionUrl = logo.logUrl;
+                        }
 
                         logoObserver.onLogoAvailable(logo, fromCache);
                     }
                 };
 
         mLogoBridge.getCurrentLogo(wrapperCallback);
+    }
+
+    private @Nullable String getAnimatedLogoUrl(@Nullable Logo logo) {
+        if (logo == null) return null;
+
+        return mIsNightMode && logo.darkAnimatedLogoUrl != null
+                ? logo.darkAnimatedLogoUrl
+                : logo.animatedLogoUrl;
     }
 
     // TODO(crbug.com/40881870): Remove the following ForTesting methods if possible.
@@ -508,6 +545,10 @@ public class LogoMediator implements TemplateUrlServiceObserver {
 
     void setAnimatedLogoUrlForTesting(String animatedLogoUrl) {
         mAnimatedLogoUrl = animatedLogoUrl;
+    }
+
+    @Nullable String getAnimatedLogoUrlForTesting() {
+        return mAnimatedLogoUrl;
     }
 
     void setOnLogoClickUrlForTesting(String onLogoClickUrl) {

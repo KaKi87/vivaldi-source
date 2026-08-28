@@ -36,7 +36,6 @@
 <translation id="1601560923496285236">Apply</translation>
 <translation id="1603914832182249871">(Incognito)</translation>
 <translation id="1627276047960621195">File Descriptors</translation>
-<translation id="1654713139320245449">No cast destinations found. Need any help?</translation>
 <translation id="166278006618318542">Subject Public Key Algorithm</translation>
 <translation id="1682548588986054654">New Incognito Window</translation>
 <translation id="1708338024780164500">(Inactive)</translation>
@@ -54,7 +53,6 @@
 <translation id="1901303067676059328">Select &amp;all</translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">Enter custom web address</translation>
-<translation id="1932098463447129402">Not Before</translation>
 <translation id="1936931585862840749">Use a number to indicate how many copies to print (1 to <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">&amp;Open Audio in New Tab</translation>
 <translation id="2050339315714019657">Portrait</translation>
@@ -90,7 +88,6 @@
 <translation id="253557089021624350">Keepalive count</translation>
 <translation id="2550212893339833758">Swapped memory</translation>
 <translation id="2553440850688409052">Hide This Plugin</translation>
-<translation id="2607101320794533334">Subject Public Key Info</translation>
 <translation id="26224892172169984">Do not allow any site to handle protocols</translation>
 <translation id="2653275834716714682">Text Replacement</translation>
 <translation id="265390580714150011">Field Value</translation>
@@ -98,7 +95,6 @@
 <translation id="2678063897982469759">Re-enable</translation>
 <translation id="2719936478972253983">The following cookies were blocked</translation>
 <translation id="2721037002783622288">&amp;Search <ph name="SEARCH_ENGINE" /> for image</translation>
-<translation id="2738771556149464852">Not After</translation>
 <translation id="2749881179542288782">Check Grammar with Spelling</translation>
 <translation id="2785873697295365461">File descriptors</translation>
 <translation id="2825758591930162672">Subject's Public Key</translation>
@@ -145,7 +141,6 @@
 <translation id="3387614642886316601">Use enhanced spell check</translation>
 <translation id="3390013585654699824">App details</translation>
 <translation id="345693547134384690">Open &amp;image in new tab</translation>
-<translation id="3493881266323043047">Validity</translation>
 <translation id="3511307672085573050">Copy Link Addr&amp;ess</translation>
 <translation id="354068948465830244">This can read and change site data</translation>
 <translation id="3560034655160545939">&amp;Spell check</translation>
@@ -159,7 +154,6 @@
 <translation id="3760460896538743390">Inspect &amp;Background Page</translation>
 <translation id="3786224729726357296">Delete site data and permissions for <ph name="SITE" /></translation>
 <translation id="3797900183766075808">&amp;Search <ph name="SEARCH_ENGINE" /> for “<ph name="SEARCH_TERMS" />”</translation>
-<translation id="3798449238516105146">Version</translation>
 <translation id="3810973564298564668">Manage</translation>
 <translation id="3838085852053358637">Failed to load extension</translation>
 <translation id="383891835335927981">No sites have been zoomed in or out</translation>
@@ -238,7 +232,6 @@
 <translation id="5063480226653192405">Usage</translation>
 <translation id="5116628073786783676">Sa&amp;ve Audio As...</translation>
 <translation id="5154108062446123722">Advanced settings for <ph name="PRINTING_DESTINATION" /></translation>
-<translation id="5154702632169343078">Subject</translation>
 <translation id="5171343362375269016">Swapped Memory</translation>
 <translation id="5233231016133573565">Process ID</translation>
 <translation id="5233736638227740678">&amp;Paste</translation>
@@ -278,7 +271,6 @@
 <translation id="5780973441651030252">Process priority</translation>
 <translation id="5804241973901381774">Permissions</translation>
 <translation id="5828633471261496623">Printing...</translation>
-<translation id="5851868085455377790">Issuer</translation>
 <translation id="5860491529813859533">Turn on</translation>
 <translation id="5910363049092958439">Sa&amp;ve Image As...</translation>
 <translation id="5914724413750400082">Modulus (<ph name="MODULUS_NUM_BITS" /> bits):
@@ -417,7 +409,6 @@ Keep your key file in a safe place. You will need it to create new versions of y
 <translation id="862750493060684461">CSS cache</translation>
 <translation id="8661290697478713397">Open Link in Inco&amp;gnito Window</translation>
 <translation id="8664389313780386848">&amp;View page source</translation>
-<translation id="8705331520020532516">Serial Number</translation>
 <translation id="8708000541097332489">Clear on exit</translation>
 <translation id="8714838604780058252">Background graphics</translation>
 <translation id="8725066075913043281">Try again</translation>

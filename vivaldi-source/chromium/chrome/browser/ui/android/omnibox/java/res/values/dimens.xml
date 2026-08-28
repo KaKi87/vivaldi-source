@@ -11,6 +11,8 @@ found in the LICENSE file.
     </dimen>
     <dimen name="location_bar_background_on_focus_height_increase">8dp</dimen>
     <dimen name="toolbar_identity_disc_size">24dp</dimen>
+    <dimen name="toolbar_identity_disc_size_with_ring">32dp</dimen>
+    <dimen name="ai_tier_ring_thickness_identity_disc">2dp</dimen>
     <dimen name="toolbar_url_focus_translation_x">10dp</dimen>
     <dimen name="toolbar_button_height">56dp</dimen>
     <dimen name="toolbar_button_margin_horizontal">0dp</dimen>
@@ -94,18 +96,20 @@ found in the LICENSE file.
     <dimen name="location_bar_status_extra_padding">4dp</dimen>
     <dimen name="location_bar_url_action_offset">8dp</dimen>
     <dimen name="location_bar_url_action_offset_ntp">4dp</dimen>
-    <dimen name="location_bar_status_view_left_space_width_bigger">12dp</dimen>
     <dimen name="tablet_toolbar_start_padding">4dp</dimen>
     <dimen name="incognito_indicator_lateral_margin">8dp</dimen>
     <dimen name="incognito_indicator_lateral_start_padding">8dp</dimen>
     <dimen name="incognito_indicator_lateral_end_padding">12dp</dimen>
     <dimen name="incognito_indicator_text_lateral_start_margin">4dp</dimen>
     <dimen name="location_bar_icon_starting_padding">8dp</dimen>
+    <dimen name="location_bar_standby_focus_ring_width">2dp</dimen>
 
     <!-- Omnibox suggestions -->
     <dimen name="omnibox_suggestion_header_padding_start">24dp</dimen>
+    <dimen name="omnibox_suggestion_header_padding_start_desktop">20dp</dimen>
     <dimen name="omnibox_suggestion_header_height">40dp</dimen>
     <dimen name="omnibox_suggestion_content_height">56dp</dimen>
+    <dimen name="omnibox_suggestion_content_height_desktop">40dp</dimen>
     <dimen name="omnibox_suggestion_minimum_content_height">48dp</dimen>
     <dimen name="omnibox_suggestion_minimum_content_height_multiline">
         52dp
@@ -115,7 +119,6 @@ found in the LICENSE file.
     <dimen name="omnibox_suggestion_list_divider_line_padding">12dp</dimen>
     <dimen name="omnibox_suggestion_list_padding_top">0dp</dimen>
     <dimen name="omnibox_suggestion_list_padding_bottom">8dp</dimen>
-    <dimen name="omnibox_suggestion_list_active_top_small_margin">8dp</dimen>
     <dimen name="omnibox_suggestion_list_toolbar_overlap">0dp</dimen>
     <dimen name="omnibox_suggestion_list_elevation">6dp</dimen>
     <dimen name="omnibox_suggestion_list_animation_added_vertical_offset">
@@ -156,6 +159,8 @@ found in the LICENSE file.
     <dimen name="omnibox_suggestion_side_spacing_smallest">8dp</dimen>
     <dimen name="omnibox_suggestion_dropdown_side_spacing">0dp</dimen>
     <dimen name="omnibox_min_space_above_window_bottom">0dp</dimen>
+    <dimen name="omnibox_desktop_large_decoration_icon_size">32dp</dimen>
+    <dimen name="omnibox_desktop_small_decoration_icon_size">20dp</dimen>
     <item name="omnibox_suggestion_bg_hover_overlay_fraction" type="fraction">
         8%
     </item>
@@ -170,6 +175,9 @@ found in the LICENSE file.
     <dimen name="fusebox_bottom_sheet_attachment_button_height">64dp</dimen>
     <dimen name="fusebox_button_padding">10dp</dimen>
     <dimen name="fusebox_button_corner_radius">12dp</dimen>
+    <dimen name="fusebox_popover_plus_button_bg_width">48dp</dimen>
+    <dimen name="fusebox_popover_plus_button_bg_height">36dp</dimen>
+    <dimen name="fusebox_popover_plus_button_bg_corner_radius">18dp</dimen>
     <dimen name="fusebox_button_icon_size">18dp</dimen>
     <dimen name="fusebox_attachment_bg_vertical_inset">4dp</dimen>
     <dimen name="fusebox_attachment_image_width">64dp</dimen>
@@ -218,4 +226,13 @@ found in the LICENSE file.
     <dimen name="omnibox_chip_padding_horizontal_collapsed">12dp</dimen>
     <dimen name="omnibox_chip_padding_horizontal_expanded_start">8dp</dimen>
     <dimen name="omnibox_chip_padding_horizontal_expanded_end">12dp</dimen>
+
+    <!-- Fake Search Box -->
+    <dimen name="fake_search_box_elevation">3dp</dimen>
+
+    <!-- AI Mode chip. -->
+    <dimen name="ai_chip_corner_radius">36dp</dimen>
+    <dimen name="ai_chip_vertical_inset">6dp</dimen>
+    <dimen name="ai_chip_horizontal_inset">2dp</dimen>
+    <dimen name="location_bar_desktop_popover_margin_end">7dp</dimen>
 </resources>

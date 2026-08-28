@@ -189,7 +189,7 @@ TEST_P(D3D12DescriptorHeapTests, SwitchOverViewHeap) {
     wgpu::CommandBuffer commands = encoder.Finish();
     queue.Submit(1, &commands);
 
-    EXPECT_EQ(allocator->GetShaderVisibleHeapSerialForTesting(), heapSerial + HeapVersionID(1));
+    EXPECT_EQ(allocator->GetShaderVisibleHeapSerialForTesting(), heapSerial + HeapVersionID(1u));
 }
 
 // Tests that a descriptor heap switch, which changes the current descriptor tables, in one type of
@@ -431,7 +431,7 @@ TEST_P(D3D12DescriptorHeapTests, SwitchOverViewHeapBecauseOfBindingGroup0) {
     wgpu::CommandBuffer commands = encoder.Finish();
     queue.Submit(1, &commands);
 
-    EXPECT_EQ(allocator->GetShaderVisibleHeapSerialForTesting(), heapSerial + HeapVersionID(1));
+    EXPECT_EQ(allocator->GetShaderVisibleHeapSerialForTesting(), heapSerial + HeapVersionID(1u));
 }
 
 // Verify the shader visible sampler heaps does not switch over within a single submit when samplers
@@ -563,7 +563,6 @@ TEST_P(D3D12DescriptorHeapTests, SwitchOverSamplerHeap) {
                 _ = sampler0;
                 return vec4f(0.0, 0.0, 0.0, 0.0);
             })");
-    wgpu::RenderPipeline pipeline1Sampler = device.CreateRenderPipeline(&renderPipelineDescriptor);
 
     wgpu::Sampler sampler = device.CreateSampler();
 
@@ -611,7 +610,7 @@ TEST_P(D3D12DescriptorHeapTests, SwitchOverSamplerHeap) {
     wgpu::CommandBuffer commands = encoder.Finish();
     queue.Submit(1, &commands);
 
-    EXPECT_EQ(allocator->GetShaderVisibleHeapSerialForTesting(), heapSerial + HeapVersionID(1));
+    EXPECT_EQ(allocator->GetShaderVisibleHeapSerialForTesting(), heapSerial + HeapVersionID(1u));
 }
 
 // Verify the shader visible sampler heap switches over within a single submit because bind group 0
@@ -750,7 +749,7 @@ TEST_P(D3D12DescriptorHeapTests, SwitchOverSamplerHeapBecauseOfBindingGroup0) {
     wgpu::CommandBuffer commands = encoder.Finish();
     queue.Submit(1, &commands);
 
-    EXPECT_EQ(allocator->GetShaderVisibleHeapSerialForTesting(), heapSerial + HeapVersionID(1));
+    EXPECT_EQ(allocator->GetShaderVisibleHeapSerialForTesting(), heapSerial + HeapVersionID(1u));
 }
 
 // Verify shader-visible heaps can be recycled for multiple submits.
@@ -1618,6 +1617,9 @@ class D3D12ResourceTableDescriptorHeapTests : public D3D12DescriptorHeapTests {
 
     void SetUp() override {
         D3D12DescriptorHeapTests::SetUp();
+        if (IsSkipped() || HasFatalFailure()) {
+            return;
+        }
         DAWN_TEST_UNSUPPORTED_IF(
             !SupportsFeatures({wgpu::FeatureName::ChromiumExperimentalSamplingResourceTable}));
 
@@ -1684,7 +1686,7 @@ TEST_P(D3D12ResourceTableDescriptorHeapTests, SwitchOverViewHeapGradually) {
     const HeapVersionID heapSerial = allocator->GetShaderVisibleHeapSerialForTesting();
 
     uint32_t tableSize = heapSize;
-    for (int i = 0;; ++i) {
+    for (HeapVersionID i{0u};; ++i) {
         wgpu::ResourceTable table = MakeResourceTable(tableSize - mImplicitDescriptorCount);
 
         wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
@@ -1696,7 +1698,7 @@ TEST_P(D3D12ResourceTableDescriptorHeapTests, SwitchOverViewHeapGradually) {
         wgpu::CommandBuffer commands = encoder.Finish();
         queue.Submit(1, &commands);
 
-        EXPECT_EQ(allocator->GetShaderVisibleHeapSerialForTesting(), heapSerial + HeapVersionID(i));
+        EXPECT_EQ(allocator->GetShaderVisibleHeapSerialForTesting(), heapSerial + i);
 
         // Make the table grow so that each iteration is double the previous heap size
         // to force the allocator to grow by double its current size.
@@ -1728,7 +1730,7 @@ TEST_P(D3D12ResourceTableDescriptorHeapTests, SwitchOverViewHeapLargeJumps) {
     const HeapVersionID heapSerial = allocator->GetShaderVisibleHeapSerialForTesting();
 
     uint32_t tableSize = heapSize;
-    for (int i = 0;; ++i) {
+    for (HeapVersionID i{0u};; ++i) {
         wgpu::ResourceTable table = MakeResourceTable(tableSize - mImplicitDescriptorCount);
 
         wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
@@ -1740,7 +1742,7 @@ TEST_P(D3D12ResourceTableDescriptorHeapTests, SwitchOverViewHeapLargeJumps) {
         wgpu::CommandBuffer commands = encoder.Finish();
         queue.Submit(1, &commands);
 
-        EXPECT_EQ(allocator->GetShaderVisibleHeapSerialForTesting(), heapSerial + HeapVersionID(i));
+        EXPECT_EQ(allocator->GetShaderVisibleHeapSerialForTesting(), heapSerial + i);
 
         // Make the table grow so that each iteration is quadruple the previous heap size
         // to force the allocator to grow by quadruple its current size.
@@ -1786,14 +1788,16 @@ TEST_P(D3D12ResourceTableDescriptorHeapTests, SwitchOverViewHeapLargestJump) {
     {
         wgpu::ResourceTable table = MakeResourceTable(heapSize - mImplicitDescriptorCount);
         draw(table);
-        EXPECT_EQ(allocator->GetShaderVisibleHeapSerialForTesting(), heapSerial + HeapVersionID(0));
+        EXPECT_EQ(allocator->GetShaderVisibleHeapSerialForTesting(),
+                  heapSerial + HeapVersionID(0u));
     }
     // Make largest table
     {
         wgpu::ResourceTable table =
             MakeResourceTable(kMaxResourceTableSize - mImplicitDescriptorCount);
         draw(table);
-        EXPECT_EQ(allocator->GetShaderVisibleHeapSerialForTesting(), heapSerial + HeapVersionID(1));
+        EXPECT_EQ(allocator->GetShaderVisibleHeapSerialForTesting(),
+                  heapSerial + HeapVersionID(1u));
     }
 }
 
@@ -1854,7 +1858,7 @@ TEST_P(D3D12ResourceTableDescriptorHeapTests, SwitchOverViewHeapTableAndBindGrou
     wgpu::CommandBuffer commands = encoder.Finish();
     queue.Submit(1, &commands);
 
-    EXPECT_EQ(allocator->GetShaderVisibleHeapSerialForTesting(), heapSerial + HeapVersionID(1));
+    EXPECT_EQ(allocator->GetShaderVisibleHeapSerialForTesting(), heapSerial + HeapVersionID(1u));
 }
 
 DAWN_INSTANTIATE_TEST(D3D12ResourceTableDescriptorHeapTests, D3D12Backend(), );

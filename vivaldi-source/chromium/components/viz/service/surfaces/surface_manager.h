@@ -34,6 +34,7 @@
 #include "components/viz/service/frame_sinks/frame_sink_observer.h"
 #include "components/viz/service/surfaces/surface_observer.h"
 #include "components/viz/service/surfaces/surface_reference.h"
+#include "ui/latency/latency_info.h"
 
 #if DCHECK_IS_ON()
 #include <iosfwd>
@@ -114,7 +115,8 @@ class VIZ_SERVICE_EXPORT SurfaceManager {
   // |ack.sequence_number| is only valid if called in response to a BeginFrame.
   bool SurfaceModified(const SurfaceId& surface_id,
                        const BeginFrameAck& ack,
-                       SurfaceObserver::HandleInteraction handle_interaction);
+                       SurfaceObserver::HandleInteraction handle_interaction,
+                       const std::vector<ui::LatencyInfo>& latency_info = {});
 
   // Called when a surface has an active frame for the first time.
   void FirstSurfaceActivation(const SurfaceInfo& surface_info);
@@ -225,7 +227,11 @@ class VIZ_SERVICE_EXPORT SurfaceManager {
   // surface processed calls `predicate` for each uncommitted frame from oldest
   // to newest. If predicate returns true, surface is committed. If not the
   // surface processing stops and we go to the next surface.
-  void CommitFramesInRangeRecursively(const SurfaceRange& range,
+  // |range| is passed by value because CommitFramesRecursively can
+  // synchronously activate a caller's pending frame, replacing
+  // active_frame_data_ and freeing the referenced_surfaces vector that the
+  // caller passed |range| out of.
+  void CommitFramesInRangeRecursively(SurfaceRange range,
                                       const CommitPredicate& predicate);
 
  private:
@@ -322,7 +328,7 @@ class VIZ_SERVICE_EXPORT SurfaceManager {
   base::ObserverList<
       SurfaceObserver,
       /*check_empty=*/false,
-      base::ObserverListReentrancyPolicy::kAllowReentrancyUntriaged>::Unchecked
+      base::ObserverListReentrancyPolicy::kAllowReentrancyUntriaged>
       observer_list_;
   SEQUENCE_CHECKER(sequence_checker_);
 

@@ -10,7 +10,7 @@
 #define UPDATE_UPDATE_MODEL_OBSERVER_H_
 
 #include "base/observer_list_types.h"
-#include "extensions/api/auto_update/auto_update_status.h"
+#include "extensions/api/autoupdate/auto_update_status.h"
 
 namespace update {
 

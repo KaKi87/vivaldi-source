@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <utility>
+
 #include "base/json/json_writer.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
@@ -30,9 +32,9 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/common/chrome_features.h"
-#include "chrome/common/pref_names.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/testing_profile.h"
+#include "components/optimization_guide/core/feature_registry/feature_registration.h"
 #include "components/policy/core/common/management/scoped_management_service_override_for_testing.h"
 #include "components/prefs/pref_service.h"
 #include "components/signin/public/base/consent_level.h"
@@ -47,6 +49,10 @@
 #include "services/network/test/test_url_loader_factory.h"
 #include "services/network/test/test_utils.h"
 #include "url/gurl.h"
+
+#if BUILDFLAG(IS_CHROMEOS)
+#include "components/sync/base/features.h"
+#endif
 
 namespace glic {
 
@@ -71,7 +77,13 @@ class GlicUserStatusBrowserTest : public InProcessBrowserTest {
         {{features::kGlicRollout, {}},
          {features::kGlicUserStatusCheck,
           {{features::kGlicUserStatusRequestDelay.name, "200ms"},
-           {features::kGlicUserStatusRequestDelayJitter.name, "0"}}}},
+           {features::kGlicUserStatusRequestDelayJitter.name, "0"}}}
+#if BUILDFLAG(IS_CHROMEOS)
+         ,
+         { syncer::kReplaceSyncPromosWithSignInPromos,
+           {} }
+#endif
+        },
         {/* disabled_features */});
 
     RegisterGeminiSettingsPrefs(pref_service_.registry());
@@ -100,8 +112,9 @@ class GlicUserStatusBrowserTest : public InProcessBrowserTest {
     host_resolver()->AddRule("*", "127.0.0.1");
 
     profile()->GetPrefs()->SetInteger(
-        ::prefs::kGeminiSettings,
-        static_cast<int>(glic::prefs::SettingsPolicyState::kEnabled));
+        optimization_guide::prefs::kGeminiSettings,
+        std::to_underlying(
+            optimization_guide::prefs::GeminiSettingsPolicyState::kEnabled));
 
 #if !BUILDFLAG(IS_CHROMEOS)
     // TODO(crbug.com/460830699): Evaluate whether this is necessary on
@@ -148,7 +161,7 @@ class GlicUserStatusBrowserTest : public InProcessBrowserTest {
     AccountInfo account_info = identity_test_env_->MakePrimaryAccountAvailable(
         account->email, signin::ConsentLevel::kSignin);
 
-    AccountCapabilitiesTestMutator mutator(&account_info.capabilities);
+    AccountCapabilitiesTestMutator mutator(&account_info);
     SetGlicCapability(mutator, true);
     mutator.set_is_subject_to_enterprise_features(
         !account->host_domain.empty());
@@ -171,7 +184,7 @@ class GlicUserStatusBrowserTest : public InProcessBrowserTest {
   }
 
   void SetGlicUserStatusUrlForTest() {
-    GlicKeyedServiceFactory::GetGlicKeyedService(browser()->profile())
+    GlicKeyedServiceFactory::GetGlicKeyedService(browser()->GetProfile())
         ->enabling()
         .SetGlicUserStatusUrlForTest(
             embedded_test_server()->GetURL(kGlicUserStatusRelativeTestUrl));
@@ -217,7 +230,7 @@ class GlicUserStatusBrowserTest : public InProcessBrowserTest {
   }
 
   bool IsGlicEnabled() { return GlicEnabling::IsEnabledForProfile(profile()); }
-  Profile* profile() { return browser()->profile(); }
+  Profile* profile() { return browser()->GetProfile(); }
 
   net::test_server::HttpRequest& most_recent_request() {
     return most_recent_request_.value();
@@ -322,8 +335,9 @@ IN_PROC_BROWSER_TEST_F(GlicUserStatusBrowserTest,
 
   // Setting kGeminiSettings to disabled so that no RPC would be sent.
   profile()->GetPrefs()->SetInteger(
-      ::prefs::kGeminiSettings,
-      static_cast<int>(glic::prefs::SettingsPolicyState::kDisabled));
+      optimization_guide::prefs::kGeminiSettings,
+      std::to_underlying(
+          optimization_guide::prefs::GeminiSettingsPolicyState::kDisabled));
 
   // Sign in again and wait for a while.
   SimulatePrimaryAccountChangedSignIn(&enterpriseAccount);
@@ -344,8 +358,9 @@ IN_PROC_BROWSER_TEST_F(GlicUserStatusBrowserTest,
 
   // Make the account enterprise again by setting kGeminiSettings to enabled.
   profile()->GetPrefs()->SetInteger(
-      ::prefs::kGeminiSettings,
-      static_cast<int>(glic::prefs::SettingsPolicyState::kEnabled));
+      optimization_guide::prefs::kGeminiSettings,
+      std::to_underlying(
+          optimization_guide::prefs::GeminiSettingsPolicyState::kEnabled));
 
   // Sign in again.
   SimulatePrimaryAccountChangedSignIn(&enterpriseAccount);
@@ -401,8 +416,9 @@ IN_PROC_BROWSER_TEST_F(GlicUserStatusBrowserTest,
   // Setting kGeminiSettings to disabled so that no RPC would be sent.
   request_received = false;
   profile()->GetPrefs()->SetInteger(
-      ::prefs::kGeminiSettings,
-      static_cast<int>(glic::prefs::SettingsPolicyState::kDisabled));
+      optimization_guide::prefs::kGeminiSettings,
+      std::to_underlying(
+          optimization_guide::prefs::GeminiSettingsPolicyState::kDisabled));
 
   // Verifying the absence of a request by verifying the absence for a time
   // period longer than the polling interval.
@@ -416,8 +432,9 @@ IN_PROC_BROWSER_TEST_F(GlicUserStatusBrowserTest,
 
   // Make the account enterprise again by setting kGeminiSettings to enabled.
   profile()->GetPrefs()->SetInteger(
-      ::prefs::kGeminiSettings,
-      static_cast<int>(glic::prefs::SettingsPolicyState::kEnabled));
+      optimization_guide::prefs::kGeminiSettings,
+      std::to_underlying(
+          optimization_guide::prefs::GeminiSettingsPolicyState::kEnabled));
 
   // Verify request handler is inovked.
   ASSERT_TRUE(base::test::RunUntil([&]() { return request_received; }));
@@ -499,7 +516,7 @@ IN_PROC_BROWSER_TEST_F(
   AccountInfo account_info = identity_test_env_->MakePrimaryAccountAvailable(
       enterpriseAccount.email, signin::ConsentLevel::kSignin);
   enterprise_util::SetUserAcceptedAccountManagement(profile(), true);
-  AccountCapabilitiesTestMutator mutator(&account_info.capabilities);
+  AccountCapabilitiesTestMutator mutator(&account_info);
   SetGlicCapability(mutator, true);
   identity_test_env_->UpdateAccountInfoForAccount(account_info);
   base::RunLoop().RunUntilIdle();
@@ -545,7 +562,7 @@ IN_PROC_BROWSER_TEST_F(
   AccountInfo account_info = identity_test_env_->MakePrimaryAccountAvailable(
       enterpriseAccount.email, signin::ConsentLevel::kSignin);
   enterprise_util::SetUserAcceptedAccountManagement(profile(), true);
-  AccountCapabilitiesTestMutator mutator(&account_info.capabilities);
+  AccountCapabilitiesTestMutator mutator(&account_info);
   SetGlicCapability(mutator, true);
   identity_test_env_->UpdateAccountInfoForAccount(account_info);
   EXPECT_FALSE(GetCachedStatusDict().has_value());
@@ -570,7 +587,7 @@ IN_PROC_BROWSER_TEST_F(
   // Re-apply capabilities, as they are lost when the token is restored.
   account_info = identity_manager_->FindExtendedAccountInfoByAccountId(
       account_info.account_id);
-  AccountCapabilitiesTestMutator refreshed_mutator(&account_info.capabilities);
+  AccountCapabilitiesTestMutator refreshed_mutator(&account_info);
   SetGlicCapability(refreshed_mutator, true);
   identity_test_env_->UpdateAccountInfoForAccount(account_info);
 
@@ -906,7 +923,7 @@ IN_PROC_BROWSER_TEST_F(GlicShareImageEnablementBrowserTest, LiveEligibility) {
       identity_manager->FindExtendedAccountInfoByAccountId(
           identity_manager->GetPrimaryAccountId(signin::ConsentLevel::kSignin));
   ASSERT_FALSE(primary_account.IsEmpty());
-  AccountCapabilitiesTestMutator mutator(&primary_account.capabilities);
+  AccountCapabilitiesTestMutator mutator(&primary_account);
 
   // Set the account capability to true.
   mutator.set_can_use_model_execution_features(true);

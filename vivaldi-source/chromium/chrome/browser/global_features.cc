@@ -26,17 +26,23 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/safe_browsing/application_advanced_protection_status_detector.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+#include "chrome/browser/ui/views/frame/glass_frame_service.h"
 #include "components/application_locale_storage/application_locale_storage.h"
+#include "components/browser_apis/tab_drag/sessions/tab_drag_session_manager.h"
 #include "components/on_device_translation/buildflags/buildflags.h"
 #include "components/safe_browsing/core/common/features.h"
 #include "media/base/media_switches.h"
 #include "net/net_buildflags.h"
+#include "ui/base/ui_base_features.h"
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
 // This causes a gn error on Android builds, because gn does not understand
 // buildflags, so we include it only on platforms where it is used.
 #include "chrome/browser/background/glic/glic_background_mode_manager.h"  // nogncheck
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+#include "chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_controller.h"
+#include "chrome/browser/ui/omnibox/omnibox_next_features.h"
+#include "chrome/browser/ui/tabs/tab_drag_api/desktop_tab_drag_impl/tab_drag_session_desktop_injector.h"
+#endif
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 // This causes a gn error on Android builds, because gn does not understand
@@ -76,6 +82,8 @@
 #if BUILDFLAG(ENABLE_ON_DEVICE_TRANSLATION)
 #include "chrome/browser/on_device_translation/installer_impl.h"
 #endif  // BUILDFLAG(ENABLE_ON_DEVICE_TRANSLATION)
+
+#include "chrome/browser/ui/tabs/tab_drag_api/desktop_tab_drag_impl/tab_drag_session_desktop_injector.h"
 
 namespace {
 
@@ -131,6 +139,13 @@ void GlobalFeatures::PostBrowserProcessInit() {
     synthetic_trial_manager_ =
         std::make_unique<glic::GlicSyntheticTrialManager>();
   }
+
+#if !BUILDFLAG(IS_ANDROID)
+  if (base::FeatureList::IsEnabled(omnibox::kOmniboxEverywhere)) {
+    omnibox_everywhere_controller_ =
+        std::make_unique<omnibox_everywhere::OmniboxEverywhereController>();
+  }
+#endif
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 #if BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
@@ -168,14 +183,21 @@ void GlobalFeatures::PostBrowserProcessInit() {
             UpgradeDetector::GetInstance());
   }
 #endif  // !BUILDFLAG(IS_ANDROID)
+
+#if !BUILDFLAG(IS_ANDROID)
+  tab_drag_session_manager_ = std::make_unique<tabs_api::TabDragSessionManager>(
+      std::make_unique<tabs_api::TabDragSessionDesktopInjector>());
+#endif
 }
 
 void GlobalFeatures::PostBrowserProcessInitCore() {
+#if !BUILDFLAG(IS_ANDROID)
   if (base::FeatureList::IsEnabled(infobars::kCentralizedInfoBarFramework)) {
     browser_infobar_manager_ =
         GetUserDataFactory().CreateInstance<infobars::BrowserInfoBarManager>(
             *g_browser_process, g_browser_process);
   }
+#endif
   system_permissions_platform_handle_ = CreateSystemPermissionsPlatformHandle();
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
   // TODO(crbug.com/463742800): Migrate WhatsNewRegistry (and other non-core
@@ -195,9 +217,7 @@ void GlobalFeatures::PostBrowserProcessInitCore() {
   application_locale_storage_ = std::make_unique<ApplicationLocaleStorage>();
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-  glic::GlicGlobalEnabling::Delegate glic_enabling_delegate;
-  glic_global_enabling_ =
-      std::make_unique<glic::GlicGlobalEnabling>(glic_enabling_delegate);
+  glic_global_enabling_ = std::make_unique<glic::GlicGlobalEnabling>();
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 #if BUILDFLAG(IS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
@@ -232,6 +252,16 @@ void GlobalFeatures::Init() {
   global_browser_collection_ = CreateGlobalBrowserCollection();
 }
 
+void GlobalFeatures::PreMainMessageLoopRun() {
+#if BUILDFLAG(IS_MAC)
+  if (features::IsGlassFrameEnabled()) {
+    glass_frame_service_ =
+        GetUserDataFactory().CreateInstance<GlassFrameService>(
+            *g_browser_process, *g_browser_process);
+  }
+#endif
+}
+
 void GlobalFeatures::PostMainMessageLoopRun() {
 #if !BUILDFLAG(IS_ANDROID)
   smart_restart_manager_.reset();
@@ -239,24 +269,27 @@ void GlobalFeatures::PostMainMessageLoopRun() {
   profile_launch_observer_.reset();
 #endif  // !BUILDFLAG(IS_ANDROID)
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+#if !BUILDFLAG(IS_ANDROID)
   if (glic_background_mode_manager_) {
     glic_background_mode_manager_->Shutdown();
     glic_background_mode_manager_.reset();
   }
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  omnibox_everywhere_controller_.reset();
+#endif
   if (glic_profile_manager_) {
     glic_profile_manager_->Shutdown();
     glic_profile_manager_.reset();
   }
-
   synthetic_trial_manager_.reset();
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   audio_process_ml_model_forwarder_.reset();
   optimization_guide_global_feature_.reset();
 
   application_advanced_protection_status_detector_.reset();
+  tab_drag_session_manager_.reset();
+
+  glass_frame_service_.reset();
 
 #if !defined(VIVALDI_BUILD) && (BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX))
   DefaultBrowserPromptManager::GetInstance()->CloseAllPrompts(

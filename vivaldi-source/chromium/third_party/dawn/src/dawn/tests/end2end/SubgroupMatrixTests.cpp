@@ -31,6 +31,7 @@
 #endif
 
 #include <algorithm>
+#include <array>
 #include <string>
 #include <vector>
 
@@ -42,6 +43,10 @@
 
 namespace dawn {
 namespace {
+
+constexpr bool Is8Bit(wgpu::SubgroupMatrixComponentType c) {
+    return c == wgpu::SubgroupMatrixComponentType::U8 || c == wgpu::SubgroupMatrixComponentType::I8;
+}
 
 const char* ComponentTypeToWgslType(wgpu::SubgroupMatrixComponentType c) {
     switch (c) {
@@ -92,6 +97,48 @@ uint32_t ComponentTypeToByteSize(wgpu::SubgroupMatrixComponentType c) {
     return 0;
 }
 
+std::ostream& operator<<(std::ostream& o, const wgpu::SubgroupMatrixConfig& config) {
+    o << config.M << "x" << config.N << "x" << config.K << " "
+      << ComponentTypeToWgslType(config.componentType) << " -> "
+      << ComponentTypeToWgslType(config.resultComponentType);
+    return o;
+}
+
+bool IsEqual(const wgpu::SubgroupMatrixConfig& lhs, const wgpu::SubgroupMatrixConfig& rhs) {
+    return lhs.componentType == rhs.componentType &&              //
+           lhs.resultComponentType == rhs.resultComponentType &&  //
+           lhs.M == rhs.M &&                                      //
+           lhs.N == rhs.N &&                                      //
+           lhs.K == rhs.K;
+}
+
+bool CrashesOnRX9060XT(const wgpu::SubgroupMatrixConfig& config, bool include8BitTypes) {
+    // TODO(crbug.com/525518027): These configs are crashing in the AMD driver during
+    // ID3D12Device::CreateComputePipelineState.
+    // AMD driver 32.0.31007.2036, 6/4/2026, AMD Agility SDK installer 26.10.07.02
+    // Note that these configs are not exhaustive; for example, these work:
+    // 16x16x16 f16 -> f16
+    // 16x16x16 f16 -> f32
+    // 16x16x16 i8 -> i32
+    // 16x16x16 i8 -> u32
+    // 16x16x16 u8 -> i32
+    // 16x16x16 u8 -> u32
+    using enum wgpu::SubgroupMatrixComponentType;
+    bool crashes = IsEqual(config, {I32, I32, 16, 16, 16}) ||  //
+                   IsEqual(config, {U32, U32, 16, 16, 16}) ||  //
+                   IsEqual(config, {I32, U32, 16, 16, 16}) ||  //
+                   IsEqual(config, {U32, I32, 16, 16, 16}) ||  //
+                   IsEqual(config, {F32, F32, 16, 16, 16});
+    if (include8BitTypes) {
+        crashes = crashes ||                                //
+                  IsEqual(config, {I8, I8, 16, 16, 16}) ||  //
+                  IsEqual(config, {I8, U8, 16, 16, 16}) ||  //
+                  IsEqual(config, {U8, I8, 16, 16, 16}) ||  //
+                  IsEqual(config, {U8, U8, 16, 16, 16});
+    }
+    return crashes;
+}
+
 /// A Matrix object holds the data and layout of a single matrix.
 /// Provides helper functions to get and set values in different formats and to fill the matrix with
 /// interesting values.
@@ -113,13 +160,13 @@ struct Matrix {
         // Pick values that should not cause precision issues for small matrix multiplies.
         // Rotate through an odd number of values to catch bugs with majorness and strides.
         constexpr auto kNumValues = 9;
-        constexpr float kFloatValues[kNumValues] = {
+        constexpr std::array<float, kNumValues> kFloatValues = {
             -1.0, -0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75, 1.0,
         };
-        constexpr int32_t kSIntValues[kNumValues] = {
+        constexpr std::array<int32_t, kNumValues> kSIntValues = {
             -43, -32, -21, -10, 0, 10, 21, 32, 43,
         };
-        constexpr uint32_t kUIntValues[kNumValues] = {
+        constexpr std::array<uint32_t, kNumValues> kUIntValues = {
             0, 1, 2, 3, 11, 23, 37, 71, 101,
         };
         for (uint32_t r = 0; r < rows; r++) {
@@ -309,6 +356,20 @@ TEST_P(SubgroupMatrixTest, QueryConfigsOnlyValidWithFeature) {
     }
 }
 
+// Test that if the feature is enabled, querying returns non-zero configs
+TEST_P(SubgroupMatrixTest, QueryConfigsMustReturnNonZeroConfigs) {
+    DAWN_TEST_UNSUPPORTED_IF(
+        !adapter.HasFeature(wgpu::FeatureName::ChromiumExperimentalSubgroupMatrix));
+
+    // Query the supported subgroup matrix configurations.
+    wgpu::AdapterInfo info;
+    wgpu::AdapterPropertiesSubgroupMatrixConfigs subgroupMatrixConfigs;
+    info.nextInChain = &subgroupMatrixConfigs;
+    ASSERT_EQ(adapter.GetInfo(&info), wgpu::Status::Success);
+
+    ASSERT_NE(subgroupMatrixConfigs.configCount, 0u);
+}
+
 // Test that Dawn validates the X-dimension of the workgroup size when subgroup matrices are used,
 // such that it must be a multiple of the maximum subgroup size.
 // The valid edge cases (where it is exactly the same as the maximum subgroup size) are tested in
@@ -377,6 +438,9 @@ class SubgroupMatrixArithmeticTest : public DawnTestWithParams<MatrixMatrixArith
         if (SupportsFeatures({wgpu::FeatureName::ShaderF16})) {
             features.push_back(wgpu::FeatureName::ShaderF16);
         }
+        if (SupportsFeatures({wgpu::FeatureName::Subgroups})) {
+            features.push_back(wgpu::FeatureName::Subgroups);
+        }
         return features;
     }
 };
@@ -391,6 +455,7 @@ class SubgroupMatrix_MatrixMatrixArithmeticTest : public SubgroupMatrixArithmeti
         // Generate a shader that performs a matrix multiplication that matches the config.
         std::ostringstream shader;
         shader << "enable chromium_experimental_subgroup_matrix;\n";
+        shader << "enable subgroups;\n";
         if (config.componentType == wgpu::SubgroupMatrixComponentType::F16 ||
             config.resultComponentType == wgpu::SubgroupMatrixComponentType::F16) {
             shader << "enable f16;\n";
@@ -402,6 +467,8 @@ class SubgroupMatrix_MatrixMatrixArithmeticTest : public SubgroupMatrixArithmeti
                << ";\n";
         shader << "alias ResultComponentType = "
                << ComponentTypeToWgslType(config.resultComponentType) << ";\n";
+        shader << "alias ResultArrayType = "
+               << ComponentTypeToScalarShaderType(config.resultComponentType) << ";\n";
         shader << "\n";
         shader << "alias LeftType = subgroup_matrix_left<ComponentType, K, M>;\n";
         shader << "alias RightType = subgroup_matrix_right<ComponentType, N, K>;\n";
@@ -417,16 +484,25 @@ class SubgroupMatrix_MatrixMatrixArithmeticTest : public SubgroupMatrixArithmeti
         }
         shader << ";\n";
 
+        shader << "const kResultArraySize = (M*N)";
+        if (config.resultComponentType == wgpu::SubgroupMatrixComponentType::U8 ||
+            config.resultComponentType == wgpu::SubgroupMatrixComponentType::I8) {
+            shader << "/4";
+        }
+        shader << ";\n";
+
         shader << "const kLoadOffset = K * M;\n";
         shader << "const SubgroupMaxSize = " << subgroupMaxSize << ";\n";
         shader << R"(
 @group(0) @binding(0) var<storage, read>       inputs : array<InputArrayType, kInputArraySize>;
-@group(0) @binding(1) var<storage, read_write> output : array<ResultComponentType, M*N>;
+@group(0) @binding(1) var<storage, read_write> output : array<ResultArrayType, kResultArraySize>;
 
 @compute @workgroup_size(SubgroupMaxSize)
-fn main() {
+fn main(@builtin(subgroup_id) sgid: u32) {
+if sgid != 0 {
+  return;
+}
 )";
-
         std::string loadLHS;
         std::string loadRHS;
         std::string loadAcc;
@@ -504,7 +580,7 @@ fn main() {
         // Create the output buffer and copy the accumulator to it.
         wgpu::BufferDescriptor outputDescriptor{
             .usage = wgpu::BufferUsage::CopySrc | wgpu::BufferUsage::Storage,
-            .size = config.M * config.N * resultComponentByteSize,
+            .size = static_cast<uint64_t>(config.M) * config.N * resultComponentByteSize,
             .mappedAtCreation = true,
         };
         wgpu::Buffer output = device.CreateBuffer(&outputDescriptor);
@@ -526,7 +602,7 @@ fn main() {
         // Verify the result against a reference implementation.
         Matrix expected(config.N, config.M, config.resultComponentType, columnMajor);
         GenerateReferenceMatrixMultiply(expected, inputLHS, inputRHS, acc);
-        EXPECT_BUFFER_U8_RANGE_EQ(expected.data, output, 0, expected.TotalByteSize());
+        EXPECT_BUFFER_U8_RANGE_EQ(expected.data, output, 0, expected.TotalByteSize()) << config;
     }
 };
 
@@ -549,11 +625,12 @@ TEST_P(SubgroupMatrix_MatrixMatrixArithmeticTest, MatrixMultiply) {
     for (size_t i = 0; i < subgroupMatrixConfigs.configCount; i++) {
         auto& config = subgroupMatrixConfigs.configs[i];
 
-        std::stringstream configInfo;
-        configInfo << "Testing " << config.M << "x" << config.N << "x" << config.K << " "
-                   << ComponentTypeToWgslType(config.componentType) << " -> "
-                   << ComponentTypeToWgslType(config.resultComponentType);
-        SCOPED_TRACE(configInfo.str());
+        if (IsWindows() && IsAMD() && IsD3D12()) {
+            if (CrashesOnRX9060XT(config, true)) {
+                std::cout << "Skipping config: " << config << "\n";
+                continue;
+            }
+        }
 
         TestSubgroupMatrixConfig(config, op, info.subgroupMaxSize, columnMajor);
     }
@@ -586,6 +663,7 @@ class SubgroupMatrix_MatrixScalarArithmeticTest : public SubgroupMatrixArithmeti
         // Generate a shader that performs a matrix scalar operation that matches the config.
         std::ostringstream shader;
         shader << "enable chromium_experimental_subgroup_matrix;\n";
+        shader << "enable subgroups;\n";
         if (config.componentType == wgpu::SubgroupMatrixComponentType::F16 ||
             config.resultComponentType == wgpu::SubgroupMatrixComponentType::F16) {
             shader << "enable f16;\n";
@@ -613,7 +691,10 @@ class SubgroupMatrix_MatrixScalarArithmeticTest : public SubgroupMatrixArithmeti
 @group(0) @binding(1) var<storage, read_write> output : array<ScalarShaderType, kMatrixDataSize>;
 
 @compute @workgroup_size(SubgroupMaxSize)
-fn main() {
+fn main(@builtin(subgroup_id) sgid: u32) {
+if sgid != 0 {
+  return;
+}
 )";
 
         std::string loadLHS;
@@ -686,6 +767,13 @@ fn main() {
                                   MatrixOp op,
                                   uint32_t subgroupMaxSize,
                                   bool columnMajor) {
+        // TODO(crbug.com/512455646): Fix shader to support 8-bit component type
+        if (Is8Bit(config.componentType)) {
+            std::cout << "Skipping componentType: " << ComponentTypeToWgslType(config.componentType)
+                      << "\n";
+            return;
+        }
+
         uint32_t componentByteSize = ComponentTypeToByteSize(config.componentType);
 
         // Generate a compute pipeline that performs a matrix scalar operation that matches the
@@ -710,7 +798,7 @@ fn main() {
         // Create the output buffer
         wgpu::BufferDescriptor outputDescriptor{
             .usage = wgpu::BufferUsage::CopySrc | wgpu::BufferUsage::Storage,
-            .size = config.K * config.M * componentByteSize,
+            .size = static_cast<uint64_t>(config.K) * config.M * componentByteSize,
             .mappedAtCreation = false,
         };
         wgpu::Buffer output = device.CreateBuffer(&outputDescriptor);
@@ -730,7 +818,7 @@ fn main() {
         // Verify the result against a reference implementation.
         Matrix expected(config.K, config.M, config.componentType, columnMajor);
         GenerateReferenceResult(expected, inputLHS, op);
-        EXPECT_BUFFER_U8_RANGE_EQ(expected.data, output, 0, expected.TotalByteSize());
+        EXPECT_BUFFER_U8_RANGE_EQ(expected.data, output, 0, expected.TotalByteSize()) << config;
     }
 };
 
@@ -751,11 +839,12 @@ TEST_P(SubgroupMatrix_MatrixScalarArithmeticTest, MatrixScalar) {
     for (size_t i = 0; i < subgroupMatrixConfigs.configCount; i++) {
         auto& config = subgroupMatrixConfigs.configs[i];
 
-        std::stringstream configInfo;
-        configInfo << "Testing " << config.M << "x" << config.N << "x" << config.K << " "
-                   << ComponentTypeToWgslType(config.componentType) << " -> "
-                   << ComponentTypeToWgslType(config.resultComponentType);
-        SCOPED_TRACE(configInfo.str());
+        if (IsWindows() && IsAMD() && IsD3D12()) {
+            if (CrashesOnRX9060XT(config, true)) {
+                std::cout << "Skipping config: " << config << "\n";
+                continue;
+            }
+        }
 
         TestSubgroupMatrixConfig(config, op, info.subgroupMaxSize, columnMajor);
     }
@@ -797,7 +886,8 @@ class SubgroupMatrix_MatrixStoreTest : public DawnTestWithParams<MatrixStorePara
     wgpu::ComputePipeline GetComputePipelineFromSubgroupMatrixConfig(
         const wgpu::SubgroupMatrixConfig& config,
         uint32_t subgroupMaxSize,
-        bool inputColumnMajor) {
+        bool inputColumnMajor,
+        bool majorness_template) {
         // Generate a shader that stores a subgroup matrix into a storage buffer.
         std::ostringstream shader;
         shader << "enable chromium_experimental_subgroup_matrix;\n";
@@ -814,12 +904,32 @@ class SubgroupMatrix_MatrixStoreTest : public DawnTestWithParams<MatrixStorePara
         shader << "const K = " << config.K << ";\n";
         shader << "const M = " << config.M << ";\n";
 
-        shader << "const kStoreOffset = K * M;\n";
+        shader << "const kStoreOffset = K * M";
+        if (majorness_template) {
+            // Offset in terms of ArrayType
+            if (config.componentType == wgpu::SubgroupMatrixComponentType::U8 ||
+                config.componentType == wgpu::SubgroupMatrixComponentType::I8) {
+                shader << "/4";
+            }
+        }
+        shader << ";\n";
+
+        shader << "const stride = " << (inputColumnMajor ? "M" : "K");
+        if (majorness_template) {
+            // Offset in terms of ArrayType
+            if (config.componentType == wgpu::SubgroupMatrixComponentType::U8 ||
+                config.componentType == wgpu::SubgroupMatrixComponentType::I8) {
+                shader << "/4";
+            }
+        }
+        shader << ";\n";
 
         shader << "const kInputArraySize = kStoreOffset";
-        if (config.componentType == wgpu::SubgroupMatrixComponentType::U8 ||
-            config.componentType == wgpu::SubgroupMatrixComponentType::I8) {
-            shader << "/4";
+        if (!majorness_template) {
+            if (config.componentType == wgpu::SubgroupMatrixComponentType::U8 ||
+                config.componentType == wgpu::SubgroupMatrixComponentType::I8) {
+                shader << "/4";
+            }
         }
         shader << ";\n";
 
@@ -832,21 +942,36 @@ class SubgroupMatrix_MatrixStoreTest : public DawnTestWithParams<MatrixStorePara
 fn main() {
 )";
 
-        std::string loadInput;
-        std::string storeResult;
-        if (inputColumnMajor) {
-            // When the matrix is stored in column major, the stride should be the total number of
-            // rows.
-            loadInput = "let input_matrix = subgroupMatrixLoad<InputType>(&input, 0, true, M);";
-            storeResult = "subgroupMatrixStore(&output, kStoreOffset, input_matrix, true, M);";
+        if (majorness_template) {
+            if (inputColumnMajor) {
+                shader << "let input_matrix = subgroupMatrixLoad<InputType, col_major>(&input, 0, "
+                          "stride);\n";
+                shader << "subgroupMatrixStore<col_major>(&output, kStoreOffset, input_matrix, "
+                          "stride);\n";
+            } else {
+                shader << "let input_matrix = subgroupMatrixLoad<InputType, row_major>(&input,  0, "
+                          "stride);\n";
+                shader << "subgroupMatrixStore<row_major>(&output, kStoreOffset, input_matrix, "
+                          "stride);\n";
+            }
         } else {
-            // When the matrix is stored in row major, the stride should be the total number of
-            // columns.
-            loadInput = "let input_matrix = subgroupMatrixLoad<InputType>(&input,  0, false, K);";
-            storeResult = "subgroupMatrixStore(&output, kStoreOffset, input_matrix, false, K);";
+            if (inputColumnMajor) {
+                // When the matrix is stored in column major, the stride should be the total number
+                // of rows.
+                shader << "let input_matrix = subgroupMatrixLoad<InputType>(&input, 0, true, "
+                          "stride);\n";
+                shader << "subgroupMatrixStore(&output, kStoreOffset, input_matrix, true, stride);";
+            } else {
+                // When the matrix is stored in row major, the stride should be the total number of
+                // columns.
+                shader << "let input_matrix = subgroupMatrixLoad<InputType>(&input,  0, false, "
+                          "stride);\n";
+                shader
+                    << "subgroupMatrixStore(&output, kStoreOffset, input_matrix, false, stride);\n";
+            }
         }
 
-        shader << loadInput << "\n" << storeResult << "\n\n}";
+        shader << "\n}";
 
         wgpu::ComputePipelineDescriptor csDesc;
         csDesc.compute.module = utils::CreateShaderModule(device, shader.str());
@@ -855,11 +980,12 @@ fn main() {
 
     void TestSubgroupMatrixConfig(const wgpu::SubgroupMatrixConfig& config,
                                   uint32_t subgroupMaxSize,
-                                  bool inputColumnMajor) {
+                                  bool inputColumnMajor,
+                                  bool majorness_template) {
         // In the tests we use a compute pipeline to store a subgroup matrix into a storage buffer
         // and check if the data in the buffer matches the expectation.
-        wgpu::ComputePipeline pipeline =
-            GetComputePipelineFromSubgroupMatrixConfig(config, subgroupMaxSize, inputColumnMajor);
+        wgpu::ComputePipeline pipeline = GetComputePipelineFromSubgroupMatrixConfig(
+            config, subgroupMaxSize, inputColumnMajor, majorness_template);
 
         // Create the input matrix and fill it with values.
         Matrix inputMatrix(config.K, config.M, config.componentType, inputColumnMajor);
@@ -897,9 +1023,10 @@ fn main() {
 
         // Verify the result in the output buffer.
         std::vector<uint8_t> zeroBuffer(storeOffset, static_cast<uint8_t>(0));
-        EXPECT_BUFFER_U8_RANGE_EQ(zeroBuffer.data(), output, 0, storeOffset);
+        EXPECT_BUFFER_U8_RANGE_EQ(zeroBuffer.data(), output, 0, storeOffset) << config;
         EXPECT_BUFFER_U8_RANGE_EQ(inputMatrix.data, output, storeOffset,
-                                  inputMatrix.TotalByteSize());
+                                  inputMatrix.TotalByteSize())
+            << config;
     }
 };
 
@@ -917,13 +1044,15 @@ TEST_P(SubgroupMatrix_MatrixStoreTest, MatrixStoreWithOffset) {
     for (size_t i = 0; i < subgroupMatrixConfigs.configCount; i++) {
         auto& config = subgroupMatrixConfigs.configs[i];
 
-        std::stringstream configInfo;
-        configInfo << "Testing " << config.M << "x" << config.N << "x" << config.K << " "
-                   << ComponentTypeToWgslType(config.componentType) << " -> "
-                   << ComponentTypeToWgslType(config.resultComponentType);
-        SCOPED_TRACE(configInfo.str());
+        if (IsWindows() && IsAMD() && IsD3D12()) {
+            if (CrashesOnRX9060XT(config, false)) {
+                std::cout << "Skipping config: " << config << "\n";
+                continue;
+            }
+        }
 
-        TestSubgroupMatrixConfig(config, info.subgroupMaxSize, GetParam().mInputColumnMajor);
+        TestSubgroupMatrixConfig(config, info.subgroupMaxSize, GetParam().mInputColumnMajor, false);
+        TestSubgroupMatrixConfig(config, info.subgroupMaxSize, GetParam().mInputColumnMajor, true);
     }
 }
 
@@ -1035,7 +1164,7 @@ fn main() {
         // Verify the result in the output buffer.
         Matrix expected(config.K, config.M, config.componentType, false);
         GenerateReferenceResult(expected, withArgument);
-        EXPECT_BUFFER_U8_RANGE_EQ(expected.data, output, 0, expected.TotalByteSize());
+        EXPECT_BUFFER_U8_RANGE_EQ(expected.data, output, 0, expected.TotalByteSize()) << config;
     }
 
     void GenerateReferenceResult(Matrix& expected, bool withArgument) {
@@ -1079,11 +1208,12 @@ TEST_P(SubgroupMatrix_MatrixConstructorTest, MatrixConstruct) {
     for (size_t i = 0; i < subgroupMatrixConfigs.configCount; i++) {
         auto& config = subgroupMatrixConfigs.configs[i];
 
-        std::stringstream configInfo;
-        configInfo << "Testing " << config.M << "x" << config.N << "x" << config.K << " "
-                   << ComponentTypeToWgslType(config.componentType) << " -> "
-                   << ComponentTypeToWgslType(config.resultComponentType);
-        SCOPED_TRACE(configInfo.str());
+        if (IsWindows() && IsAMD() && IsD3D12()) {
+            if (CrashesOnRX9060XT(config, false)) {
+                std::cout << "Skipping config: " << config << "\n";
+                continue;
+            }
+        }
 
         TestSubgroupMatrixConfig(config, info.subgroupMaxSize, GetParam().mWithArgument);
     }
@@ -1145,6 +1275,16 @@ TEST_P(SubgroupMatrix_TiledMatrixMultiplyTest, MatrixMultiply) {
     // TODO(crbug.com/492539239): Access violation during test teardown.
     DAWN_SUPPRESS_TEST_IF(IsWindows11() && IsAMD() && IsVulkan());
 
+    // TODO(crbug.com/525517826): On WARP 1.65535.20-preview, starts hanging for tile dim 2+
+    DAWN_SUPPRESS_TEST_IF(IsWARP() && kTileDim >= 2);
+
+    // TODO(525518027): On AMD Radeon RX 9060 XT, Windows Vulkan, getting invalid results for tile
+    // dim 32
+    DAWN_SUPPRESS_TEST_IF(IsAMD() && IsVulkan() && IsWindows() && kTileDim == 32);
+    // TODO(525518027): On AMD Radeon RX 9060 XT, Windows D3D12, hanging during
+    // CreateComputePipeline for tile dim 32
+    DAWN_SUPPRESS_TEST_IF(IsAMD() && IsD3D12() && IsWindows() && kTileDim == 32);
+
     // Query the supported subgroup matrix configurations.
     wgpu::AdapterInfo info;
     wgpu::AdapterPropertiesSubgroupMatrixConfigs subgroupMatrixConfigs;
@@ -1155,7 +1295,6 @@ TEST_P(SubgroupMatrix_TiledMatrixMultiplyTest, MatrixMultiply) {
     DAWN_TEST_UNSUPPORTED_IF(kWorkgroupSize > supportedLimits.maxComputeWorkgroupSizeX);
     DAWN_TEST_UNSUPPORTED_IF(kWorkgroupSize > supportedLimits.maxComputeInvocationsPerWorkgroup);
     DAWN_TEST_UNSUPPORTED_IF(kWorkgroupSize < info.subgroupMaxSize);
-
     // Pipeline creation may fail (gracefully) for some large tile and workgroup sizes.
     // The test will not fail in these cases, but we should make sure that the smallest cases always
     // pass so that we know the test isn't completely broken.
@@ -1166,10 +1305,15 @@ TEST_P(SubgroupMatrix_TiledMatrixMultiplyTest, MatrixMultiply) {
         auto& config = subgroupMatrixConfigs.configs[i];
         uint32_t resultComponentByteSize = ComponentTypeToByteSize(config.resultComponentType);
 
+        if (IsWindows() && IsAMD() && IsD3D12()) {
+            if (CrashesOnRX9060XT(config, true)) {
+                std::cout << "Skipping config: " << config << "\n";
+                continue;
+            }
+        }
+
         std::stringstream configInfo;
-        configInfo << "Testing " << config.M << "x" << config.N << "x" << config.K << " "
-                   << ComponentTypeToWgslType(config.componentType) << " -> "
-                   << ComponentTypeToWgslType(config.resultComponentType);
+        configInfo << "Testing " << config;
         SCOPED_TRACE(configInfo.str());
 
         const uint32_t matrix_cols = config.N * kTileDim;
@@ -1192,6 +1336,8 @@ TEST_P(SubgroupMatrix_TiledMatrixMultiplyTest, MatrixMultiply) {
         shader << "\n";
         shader << "alias InputArrayType = " << ComponentTypeToScalarShaderType(config.componentType)
                << ";\n";
+        shader << "alias ResultArrayType = "
+               << ComponentTypeToScalarShaderType(config.resultComponentType) << ";\n";
         shader << "alias LeftType = subgroup_matrix_left<ComponentType, K, M>;";
         shader << "alias RightType = subgroup_matrix_right<ComponentType, N, K>;";
         shader << "alias ResultType = subgroup_matrix_result<ResultComponentType, N, M>;";
@@ -1211,9 +1357,16 @@ TEST_P(SubgroupMatrix_TiledMatrixMultiplyTest, MatrixMultiply) {
         }
         shader << ";\n";
 
+        shader << "const kResultArraySize = (kMatrixCols*kMatrixRows)";
+        if (config.resultComponentType == wgpu::SubgroupMatrixComponentType::U8 ||
+            config.resultComponentType == wgpu::SubgroupMatrixComponentType::I8) {
+            shader << "/4";
+        }
+        shader << ";\n";
+
         shader << R"(
 @group(0) @binding(0) var<storage, read>       inputs : array<InputArrayType, kInputArraySize>;
-@group(0) @binding(1) var<storage, read_write> output : array<ResultComponentType, kMatrixCols*kMatrixRows>;
+@group(0) @binding(1) var<storage, read_write> output : array<ResultArrayType, kResultArraySize>;
 
 @compute @workgroup_size(kWorkgroupSize)
 fn main(@builtin(subgroup_id) sgid: u32,
@@ -1318,7 +1471,7 @@ fn main(@builtin(subgroup_id) sgid: u32,
         // Create the output buffer.
         wgpu::BufferDescriptor outputDescriptor{
             .usage = wgpu::BufferUsage::CopySrc | wgpu::BufferUsage::Storage,
-            .size = matrix_cols * matrix_rows * resultComponentByteSize,
+            .size = static_cast<uint64_t>(matrix_cols) * matrix_rows * resultComponentByteSize,
         };
         wgpu::Buffer output = device.CreateBuffer(&outputDescriptor);
 

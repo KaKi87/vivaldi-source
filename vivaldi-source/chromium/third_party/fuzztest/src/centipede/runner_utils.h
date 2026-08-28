@@ -71,10 +71,9 @@ bool ReadAll(int fd, char* data, size_t size);
 // written, false otherwise due to errors.
 bool WriteAll(int fd, const char* data, size_t size);
 
-extern "C" void __lsan_register_root_region(const void* p, size_t size)
-    __attribute__((weak));
-extern "C" void __lsan_unregister_root_region(const void* p, size_t size)
-    __attribute__((weak));
+// Leak sanitizer interface functions.
+extern "C" void __lsan_register_root_region(const void* p, size_t size);
+extern "C" void __lsan_unregister_root_region(const void* p, size_t size);
 
 // Wraps an object of `T` stored as a plain byte array with explicit
 // construction/destruction. Needed for runner/dispatcher related global states
@@ -107,18 +106,14 @@ class ExplicitLifetime {
     new (&space_) T(std::forward<Args>(args)...);
     // Needed otherwise lsan may lose track of the pointers inside the object as
     // it is in-place constructed from the byte array.
-    if (__lsan_register_root_region) {
-      __lsan_register_root_region(&space_, sizeof(space_));
-    }
+    __lsan_register_root_region(&space_, sizeof(space_));
   }
 
   // Destructs the actual object (without reclaiming the space). It can only be
   // called at most once after recent `Construct()`.
   void Destruct() {
     get()->~T();
-    if (__lsan_unregister_root_region) {
-      __lsan_unregister_root_region(&space_, sizeof(space_));
-    }
+    __lsan_unregister_root_region(&space_, sizeof(space_));
   }
 
   // Gets the pointer to the actual object backed by a plain byte array. Using

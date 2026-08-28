@@ -4,9 +4,9 @@
 
 #include "chrome/browser/ash/extensions/signin_screen_policy_provider.h"
 
+#include "ash/constants/ash_extension_constants.h"
 #include "base/memory/ref_counted.h"
 #include "base/strings/utf_string_conversions.h"
-#include "chrome/common/extensions/extension_constants.h"
 #include "components/version_info/version_info.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/features/feature_channel.h"
@@ -105,4 +105,21 @@ TEST_F(SigninScreenPolicyProviderTest, DenyRandomNonPolicyExtension) {
   std::u16string error;
   EXPECT_FALSE(provider_.UserMayLoad(extension.get(), &error));
   EXPECT_FALSE(error.empty());
+}
+
+TEST_F(SigninScreenPolicyProviderTest, AllowAccessibilityExtensions) {
+  // Accessibility extensions should be allowed on the sign-in screen.
+  const std::string kAccessibilityIds[] = {
+      extension_misc::kSelectToSpeakExtensionId,
+      extension_misc::kEnhancedNetworkTtsExtensionId,
+      extension_misc::kAccessibilityCommonExtensionId,
+  };
+  for (const std::string& id : kAccessibilityIds) {
+    scoped_refptr<const extensions::Extension> extension =
+        CreateTestApp(id, ManifestLocation::kComponent);
+    std::u16string error;
+    EXPECT_TRUE(provider_.UserMayLoad(extension.get(), &error))
+        << "Extension " << id << " should be allowed on sign-in screen.";
+    EXPECT_TRUE(error.empty());
+  }
 }

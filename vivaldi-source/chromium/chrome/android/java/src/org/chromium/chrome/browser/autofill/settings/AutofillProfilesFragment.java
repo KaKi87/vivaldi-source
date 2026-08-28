@@ -20,6 +20,7 @@ import androidx.preference.PreferenceScreen;
 
 import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.ResettersForTesting;
+import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
@@ -37,7 +38,7 @@ import org.chromium.chrome.browser.autofill.editors.address.AddressEditorCoordin
 import org.chromium.chrome.browser.autofill.editors.address.EditorDialogView;
 import org.chromium.chrome.browser.autofill.editors.common.EditorObserverForTest;
 import org.chromium.chrome.browser.autofill.editors.common.EditorViewBase;
-import org.chromium.chrome.browser.autofill.options.AutofillOptionsFragment.AutofillOptionsReferrer;
+import org.chromium.chrome.browser.autofill.settings.options.AutofillOptionsReferrer;
 import org.chromium.chrome.browser.customtabs.CustomTabActivity;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.payments.SettingsAutofillAndPaymentsObserver;
@@ -75,6 +76,7 @@ public class AutofillProfilesFragment extends ChromeBaseSettingsFragment
                 public void onDone(AutofillAddress address) {
                     PersonalDataManagerFactory.getForProfile(getProfile())
                             .setProfile(address.getProfile());
+                    recordAddressEditDone();
                     SettingsAutofillAndPaymentsObserver.getInstance()
                             .notifyOnAddressUpdated(address);
                     if (sObserverForTest != null) {
@@ -492,6 +494,19 @@ public class AutofillProfilesFragment extends ChromeBaseSettingsFragment
                     indexData, profile, prefFragmentName);
         }
         indexData.resolveIndex();
+    }
+
+    private void recordAddressEditDone() {
+        if (mAddressEditor == null) {
+            return;
+        }
+        int promptMode = mAddressEditor.getPromptMode();
+        if (promptMode == SaveUpdateAddressProfilePromptMode.CREATE_NEW_PROFILE
+                || promptMode == SaveUpdateAddressProfilePromptMode.SAVE_NEW_PROFILE) {
+            RecordUserAction.record("AutofillAddressesAdded");
+        } else {
+            RecordUserAction.record("AutofillAddressesEdited");
+        }
     }
 
     private static void addAddAddressButton(

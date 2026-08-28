@@ -8,6 +8,7 @@
 #import <UIKit/UIKit.h>
 
 #include <memory>
+#include <set>
 #include <vector>
 
 #import "components/contextual_search/internal/ios/composebox_context_upload_observer_bridge.h"
@@ -19,8 +20,8 @@
 #import "ios/chrome/browser/composebox/ui/composebox_input_plate_consumer.h"
 #import "ios/chrome/browser/composebox/ui/composebox_input_plate_mutator.h"
 #import "ios/chrome/browser/omnibox/ui/text_field_view_containing.h"
-#import "ios/chrome/browser/tab_picker/coordinator/tab_picker_coordinator.h"
 #import "ios/public/provider/chrome/browser/voice_search/voice_search_controller.h"
+#import "ios/web/public/web_state_id.h"
 
 @protocol BrowserCoordinatorCommands;
 @class ComposeboxAttachmentSelection;
@@ -40,6 +41,10 @@ class ProfileIOS;
 class TemplateURLService;
 class WebStateList;
 
+namespace base {
+class UnguessableToken;
+}  // namespace base
+
 namespace contextual_search {
 class ContextualSearchSessionHandle;
 }  // namespace contextual_search
@@ -57,12 +62,11 @@ class ContextualSearchSessionHandle;
 
 // Mediator for the composebox composebox.
 @interface ComposeboxInputPlateMediator
-    : NSObject <ComposeboxOmniboxClientDelegate,
+    : NSObject <ComposeboxContextUploadObserver,
                 ComposeboxInputPlateMutator,
-                ComposeboxContextUploadObserver,
-                TabPickerSelectionDelegate,
-                TextFieldViewContainingHeightDelegate,
                 ComposeboxInputStateManagerDelegate,
+                ComposeboxOmniboxClientDelegate,
+                TextFieldViewContainingHeightDelegate,
                 VoiceSearchDelegate>
 
 // The composebox input plate consumer.
@@ -70,6 +74,8 @@ class ContextualSearchSessionHandle;
 // The current real-time attachment selection.
 @property(nonatomic, readonly)
     ComposeboxAttachmentSelection* currentAttachmentSelection;
+// The current computed UI input state.
+@property(nonatomic, readonly) ComposeboxUIInputState* currentUIInputState;
 // The composebox URL loader.
 @property(nonatomic, weak) id<ComposeboxURLLoader> URLLoader;
 // The delegate for this mediator.
@@ -113,6 +119,12 @@ class ContextualSearchSessionHandle;
 // composebox mode and current number of attachments.
 - (NSUInteger)remainingNumberOfImagesAllowed;
 
+// Returns the asset IDs of all currently attached image items.
+- (NSArray<NSString*>*)attachedImageAssetIDs;
+
+// Removes the image item associated with the given `assetID`.
+- (void)removeImageWithAssetID:(NSString*)assetID;
+
 // Records that the plus menu opened with the given visible attachment buttons,
 // and maps dynamically injected Tools and Models to metrics.
 - (void)recordPlusMenuOpenedWithVisibleInternalButtons:
@@ -124,8 +136,41 @@ class ContextualSearchSessionHandle;
 // Unpacks and attaches all items within the selection wrapper.
 - (void)updateAttachments:(ComposeboxAttachmentSelection*)attachments;
 
+// Removes the shared tab with the given `serverToken`.
+- (void)removeSharedTabWithServerToken:
+    (const base::UnguessableToken&)serverToken;
+
 // Applies the focus parameters to initialize the session state.
 - (void)applyFocusParams:(ComposeboxFocusParams*)params;
+
+// Processes the picked Google Drive file metadata and triggers contextual
+// session upload.
+- (void)processDriveFileWithIdentifier:(NSString*)identifier
+                                  name:(NSString*)name
+                              mimeType:(NSString*)mimeType
+                                  icon:(UIImage*)icon;
+
+// Returns the associated IDs for all currently attached tabs.
+- (std::set<web::WebStateID>)allAttachedWebStateIDs;
+
+// Returns the associated IDs for currently attached tabs from the current web
+// state context. Tabs attached from different web states (not visible in the
+// tab picker) will be excluded.
+- (std::set<web::WebStateID>)attachedWebStateIDsInCurrentContext;
+
+// Returns the maximum number of tab attachments allowed.
+- (NSUInteger)maxTabAttachmentCount;
+
+// Attaches the selected tabs.
+- (void)attachSelectedTabsWithWebStateIDs:
+            (std::set<web::WebStateID>)selectedWebStateIDs
+                        cachedWebStateIDs:
+                            (std::set<web::WebStateID>)cachedWebStateIDs;
+
+// Processes a webpage context from a context library signal. Called on the
+// cobrowse context only.
+- (void)processContextLibraryWebpageSignalWithURL:(const GURL&)url
+                                            title:(NSString*)title;
 
 @end
 

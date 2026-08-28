@@ -36,7 +36,8 @@ class TestTabModel : public TabModel {
  public:
   explicit TestTabModel(Profile* profile,
                         chrome::android::ActivityType activity_type =
-                            chrome::android::ActivityType::kTabbed);
+                            chrome::android::ActivityType::kTabbed,
+                        TabModelType tab_model_type = TabModelType::kStandard);
   ~TestTabModel() override;
 
   // TabModel:
@@ -65,6 +66,7 @@ class TestTabModel : public TabModel {
   void SetIsActiveModel(bool is_active);
 
   TabAndroid* GetTabAt(int index) const override;
+  bool HasTab(TabAndroid* tab) const override;
   std::vector<tabs::TabHandle> GetOrderedMultiSelectedTabs() const override;
   void SetActiveIndex(int index) override;
   void ForceCloseAllTabs() override;
@@ -158,9 +160,11 @@ class OwningTestTabModel : public TabModel {
  public:
   // Creates a TabModel that starts empty. The model will automatically be added
   // to the TabModelList, and removed when it's destroyed.
-  explicit OwningTestTabModel(Profile* profile,
-                              chrome::android::ActivityType activity_type =
-                                  chrome::android::ActivityType::kTabbed);
+  explicit OwningTestTabModel(
+      Profile* profile,
+      chrome::android::ActivityType activity_type =
+          chrome::android::ActivityType::kTabbed,
+      TabModelType tab_model_type = TabModelType::kStandard);
 
   ~OwningTestTabModel() override;
 
@@ -177,6 +181,7 @@ class OwningTestTabModel : public TabModel {
   tabs::TabInterface* GetActiveTab() override;
   content::WebContents* GetWebContentsAt(int index) const override;
   TabAndroid* GetTabAt(int index) const override;
+  bool HasTab(TabAndroid* tab) const override;
   std::vector<tabs::TabHandle> GetOrderedMultiSelectedTabs() const override;
   void SetActiveIndex(int index) override;
   void ForceCloseAllTabs() override;

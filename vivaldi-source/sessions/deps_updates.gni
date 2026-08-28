@@ -2,7 +2,6 @@
 
 update_target("//chrome/browser:browser") {
   public_deps += [ "//vivaldi/sessions" ]
-  allow_circular_includes_from += [ "//vivaldi/sessions" ]
 }
 
 update_target("//chrome:dependencies") {

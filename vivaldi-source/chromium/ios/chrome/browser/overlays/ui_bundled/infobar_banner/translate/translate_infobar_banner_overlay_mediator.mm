@@ -106,8 +106,8 @@ using vivaldi::IsVivaldiRunning;
                                      [self bannerSubtitleText]]];
   [self.consumer setButtonText:[self infobarButtonText]];
 
-  UIImage* iconImage = CustomSymbolTemplateWithPointSize(
-      kTranslateSymbol, kInfobarSymbolPointSize);
+  UIImage* iconImage =
+      SymbolTemplateWithPointSize(SymbolTranslate, kInfobarSymbolPointSize);
 
   if (IsVivaldiRunning()) {
     iconImage =

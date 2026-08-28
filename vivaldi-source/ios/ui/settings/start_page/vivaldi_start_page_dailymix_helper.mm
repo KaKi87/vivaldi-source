@@ -17,7 +17,7 @@ NSString* const kDailyMixCreditProviderLink = @"providerLink";
 
 namespace {
 NSString* const kDailyMixMetadataUrl =
-    @"https://downloads.vivaldi.com/background/image.json";
+    @"https://downloads.vivaldi.com/background/image-mobile.json";
 
 // Flag to prevent concurrent refresh operations.
 BOOL isRefreshing = NO;

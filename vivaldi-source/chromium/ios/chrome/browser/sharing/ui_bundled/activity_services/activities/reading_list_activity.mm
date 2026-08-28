@@ -63,8 +63,7 @@ NSString* const kReadingListActivityType =
   if (vivaldi::IsVivaldiRunning())
     return [UIImage imageNamed:vOverflowAddReadingList]; // End Vivaldi
 
-  return DefaultSymbolWithPointSize(kReadLaterActionSymbol,
-                                    kSymbolActionPointSize);
+  return SymbolWithPointSize(SymbolReadLaterAction, kSymbolActionPointSize);
 }
 
 - (BOOL)canPerformWithActivityItems:(NSArray*)activityItems {

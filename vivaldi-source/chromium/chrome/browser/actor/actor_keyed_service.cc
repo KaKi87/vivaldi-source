@@ -7,6 +7,7 @@
 #include <optional>
 #include <utility>
 
+#include "base/command_line.h"
 #include "base/containers/span.h"
 #include "base/feature_list.h"
 #include "base/metrics/histogram_functions.h"
@@ -14,12 +15,15 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/trace_event/trace_event.h"
 #include "base/types/pass_key.h"
+#include "build/build_config.h"
+#include "build/buildflag.h"
 #include "chrome/browser/actor/actor_keyed_service_factory.h"
 #include "chrome/browser/actor/actor_metrics.h"
 #include "chrome/browser/actor/actor_proto_conversion.h"
 #include "chrome/browser/actor/actor_tab_data.h"
 #include "chrome/browser/actor/actor_task.h"
 #include "chrome/browser/actor/actor_task_metadata.h"
+#include "chrome/browser/actor/actor_util.h"
 #include "chrome/browser/actor/enterprise_policy_checker.h"
 #include "chrome/browser/actor/execution_engine.h"
 #include "chrome/browser/actor/tab_observation_strategy.h"
@@ -30,7 +34,9 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search/search.h"
 #include "chrome/browser/tab_list/tab_list_interface.h"
+#include "chrome/browser/tab_list/tab_removed_reason.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/common/actor.mojom.h"
@@ -41,11 +47,14 @@
 #include "components/actor/core/journal_details_builder.h"
 #include "components/actor/core/task_id.h"
 #include "components/actor/public/mojom/actor_types.mojom.h"
+#include "components/optimization_guide/proto/features/common_quality_data.pb.h"
+#include "components/origin_gating/core/actor_container_config_slot.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/download_item_utils.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
+#include "content/public/common/content_switches.h"
 #include "third_party/abseil-cpp/absl/strings/str_format.h"
 #include "ui/base/window_open_disposition.h"
 
@@ -153,6 +162,7 @@ ActorKeyedService* ActorKeyedService::Get(content::BrowserContext* context) {
 
 void ActorKeyedService::SetActorUiStateManagerForTesting(
     std::unique_ptr<ui::ActorUiStateManagerInterface> ausm) {
+  CHECK(ausm);
   actor_ui_state_manager_ = std::move(ausm);
 }
 
@@ -357,10 +367,14 @@ TaskId ActorKeyedService::CreateTaskWithOptions(
     const TaskSourceInfo& source_info,
     const EnterprisePolicyChecker* policy_checker,
     webui::mojom::TaskOptionsPtr options,
-    base::WeakPtr<ActorTaskDelegate> delegate) {
+    base::WeakPtr<ActorTaskDelegate> delegate//,
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)          // Vivaldi keep disabled
+    std::optional<glic::mojom::InvocationSource> initial_invocation_source
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+) {
   return CreateTaskImpl(ui::NewUiEventDispatcher(GetActorUiStateManager()),
                         source_info, policy_checker, std::move(options),
-                        std::move(delegate));
+                        std::move(delegate) /*, initial_invocation_source */);
 }
 
 TaskId ActorKeyedService::CreateTaskForTesting(
@@ -368,10 +382,14 @@ TaskId ActorKeyedService::CreateTaskForTesting(
     const TaskSourceInfo& source_info,
     const EnterprisePolicyChecker* policy_checker,
     webui::mojom::TaskOptionsPtr options,
-    base::WeakPtr<ActorTaskDelegate> delegate) {
+    base::WeakPtr<ActorTaskDelegate> delegate //,
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    std::optional<glic::mojom::InvocationSource> initial_invocation_source
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+) {
   return CreateTaskImpl(std::move(ui_event_dispatcher), source_info,
-                        policy_checker, std::move(options),
-                        std::move(delegate));
+                        policy_checker, std::move(options), std::move(delegate) /*,
+                        initial_invocation_source */);
 }
 
 TaskId ActorKeyedService::CreateTaskImpl(
@@ -379,7 +397,11 @@ TaskId ActorKeyedService::CreateTaskImpl(
     const TaskSourceInfo& source_info,
     const EnterprisePolicyChecker* policy_checker,
     webui::mojom::TaskOptionsPtr options,
-    base::WeakPtr<ActorTaskDelegate> delegate) {
+    base::WeakPtr<ActorTaskDelegate> delegate //,
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    std::optional<glic::mojom::InvocationSource> initial_invocation_source
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+) {
   TRACE_EVENT0("actor", "ActorKeyedService::CreateTask");
   GetJournal().Log(GURL(), TaskId(), "ActorKeyedService::CreateTask", {});
 
@@ -387,9 +409,14 @@ TaskId ActorKeyedService::CreateTaskImpl(
   auto actor_task = std::make_unique<ActorTask>(
       base::PassKey<ActorKeyedService>(), *this, task_id,
       std::move(ui_event_dispatcher), std::move(options), source_info,
-      policy_checker, std::move(delegate));
+      policy_checker, std::move(delegate) /*, initial_invocation_source */);
 
   active_tasks_[task_id] = std::move(actor_task);
+
+#if !BUILDFLAG(IS_ANDROID)
+  actor_ui_state_manager_->LazyInitTabTracker();
+#endif
+
   NotifyTaskStateChanged(*active_tasks_[task_id]);
   return task_id;
 }
@@ -491,10 +518,21 @@ void ActorKeyedService::RequestTabObservation(
 
               if (fetch_result.screenshot_result.has_value()) {
                 auto& data = fetch_result.screenshot_result->screenshot_data;
+                std::optional<std::vector<uint8_t>> iframe_data = std::nullopt;
+                if (fetch_result.annotated_page_content_result->proto
+                        .gemini_in_chrome_page_metadata()
+                        .screenshot_info()
+                        .iframe_info_size() > 0) {
+                  iframe_data = actor::GetScreenshotWithIframeBoundingBoxes(
+                      data, fetch_result.screenshot_result->mime_type,
+                      fetch_result.annotated_page_content_result->proto
+                          .gemini_in_chrome_page_metadata()
+                          .screenshot_info());
+                }
                 pending_journal_entry->GetJournal().LogScreenshot(
                     last_committed_url, pending_journal_entry->GetTaskId(),
                     fetch_result.screenshot_result->mime_type,
-                    base::as_byte_span(data));
+                    base::as_byte_span(data), iframe_data);
               }
 
               if (tab) {
@@ -574,8 +612,26 @@ void ActorKeyedService::PerformActions(
 
   task->GetExecutionEngine().AddWritableMainframeOrigins(
       task_metadata.added_writable_mainframe_origins());
-  task->GetExecutionEngine().actor_container_config().Assign(
-      task_metadata.agent_container_config());
+  if (task_metadata.agent_container_config().has_value()) {
+    JournalDetailsBuilder builder;
+    if (!task->GetExecutionEngine()
+             .origin_gating_checker()
+             .actor_container_config_slot()
+             .has_value()) {
+      origin_gating::ActorContainerConfig config = ConvertAgentContainerConfig(
+          task_metadata.agent_container_config().value());
+      builder.Add("status", "assigned")
+          .Add("active config", config.ToDebugValue());
+      task->GetExecutionEngine()
+          .origin_gating_checker()
+          .actor_container_config_slot()
+          .Assign(std::move(config));
+    } else {
+      builder.Add("status", "ignored config");
+    }
+    GetJournal().Log(GURL(), task_id, "ActorContainerConfigSlot::Assign",
+                     std::move(builder).Build());
+  }
 
   task->Act(
       std::move(actions),
@@ -677,5 +733,41 @@ void ActorKeyedService::OnDownloadCreated(content::DownloadManager* manager,
     }
   }
 }
+
+#if BUILDFLAG(IS_ANDROID)
+void ActorKeyedService::AddObserver(BackgroundActuationObserver* observer) {
+  observers_.AddObserver(observer);
+}
+
+void ActorKeyedService::RemoveObserver(BackgroundActuationObserver* observer) {
+  observers_.RemoveObserver(observer);
+}
+
+void ActorKeyedService::NotifyBackgroundTabReady(
+    tabs::TabInterface* tab,
+    const std::string& glic_trigger_message_id) {
+  for (auto& observer : observers_) {
+    observer.OnBackgroundTabPrepared(tab, glic_trigger_message_id);
+  }
+}
+
+void ActorKeyedService::NotifyBackgroundSetupFailed(
+    const std::string& glic_trigger_message_id) {
+  for (auto& observer : observers_) {
+    observer.OnBackgroundSetupFailed(glic_trigger_message_id);
+  }
+}
+
+base::CallbackListSubscription
+ActorKeyedService::AddForegroundServiceStartedCallback(
+    EnsureForegroundServiceStartedCallback callback) {
+  return ensure_foreground_service_started_callbacks_.Add(std::move(callback));
+}
+
+void ActorKeyedService::EnsureForegroundServiceStarted(
+    const std::string& glic_trigger_message_id) {
+  ensure_foreground_service_started_callbacks_.Notify(glic_trigger_message_id);
+}
+#endif
 
 }  // namespace actor

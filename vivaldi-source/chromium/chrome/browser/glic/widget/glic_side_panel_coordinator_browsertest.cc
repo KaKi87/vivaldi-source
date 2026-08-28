@@ -98,7 +98,7 @@ class GlicSidePanelCoordinatorTest : public InProcessBrowserTest {
     registry()->Register(std::move(lens_entry));
   }
 
-  Profile* profile() { return browser()->profile(); }
+  Profile* profile() { return browser()->GetProfile(); }
 
   GlicEnabling* enabling() {
     return &GlicKeyedServiceFactory::GetGlicKeyedService(profile())->enabling();
@@ -266,6 +266,28 @@ IN_PROC_BROWSER_TEST_F(GlicSidePanelCoordinatorStateTest, ShowAndClose) {
   EXPECT_FALSE(coordinator().IsShowing());
 }
 
+IN_PROC_BROWSER_TEST_F(GlicSidePanelCoordinatorStateTest, OpenTriggerTest) {
+  auto* entry = registry()->GetEntryForKey(
+      SidePanelEntry::Key(SidePanelEntry::Id::kGlic));
+  ASSERT_TRUE(entry);
+
+  // 1. Test general/default show. Should have kGlicOpened as the trigger.
+  coordinator().Show();
+  EXPECT_EQ(future_.Take(), GlicSidePanelCoordinator::State::kShown);
+  EXPECT_EQ(entry->last_open_trigger(), SidePanelOpenTrigger::kGlicOpened);
+
+  // Close the panel.
+  coordinator().Close();
+  EXPECT_EQ(future_.Take(), GlicSidePanelCoordinator::State::kClosed);
+
+  // 2. Test explicit trigger in options.
+  GlicSidePanelCoordinator::ShowOptions options;
+  options.open_trigger = SidePanelOpenTrigger::kToolbarButton;
+  coordinator().Show(options);
+  EXPECT_EQ(future_.Take(), GlicSidePanelCoordinator::State::kShown);
+  EXPECT_EQ(entry->last_open_trigger(), SidePanelOpenTrigger::kToolbarButton);
+}
+
 IN_PROC_BROWSER_TEST_F(GlicSidePanelCoordinatorStateTest, CloseSuppressed) {
   // Initial state should be kClosed.
   EXPECT_EQ(coordinator().state(), GlicSidePanelCoordinator::State::kClosed);
@@ -302,6 +324,11 @@ IN_PROC_BROWSER_TEST_F(GlicSidePanelCoordinatorStateTest, Backgrounded) {
   EXPECT_EQ(future_.Take(), GlicSidePanelCoordinator::State::kShown);
   EXPECT_EQ(initial_tab_coordinator.state(),
             GlicSidePanelCoordinator::State::kShown);
+
+  auto* entry = registry()->GetEntryForKey(
+      SidePanelEntry::Key(SidePanelEntry::Id::kGlic));
+  ASSERT_TRUE(entry);
+  EXPECT_EQ(entry->last_open_trigger(), SidePanelOpenTrigger::kTabChanged);
 }
 
 IN_PROC_BROWSER_TEST_F(GlicSidePanelCoordinatorStateTest, ShowCloseShowRace) {
@@ -392,7 +419,7 @@ IN_PROC_BROWSER_TEST_F(GlicSidePanelCoordinatorRoundedCornersTest,
                        RoundedCornersOnTabSwitch) {
   // 1. Set dummy contents so CreateView can set up containing view.
   coordinator().SetContentsView(
-      std::make_unique<views::WebView>(browser()->profile()));
+      std::make_unique<views::WebView>(browser()->GetProfile()));
   coordinator().Show();
   EXPECT_EQ(future_.Take(), GlicSidePanelCoordinator::State::kShown);
 
@@ -404,17 +431,16 @@ IN_PROC_BROWSER_TEST_F(GlicSidePanelCoordinatorRoundedCornersTest,
   // to a view added deep in the hierarchy without OnChildViewAdded.
   std::unique_ptr<content::WebContents> test_web_contents =
       content::WebContents::Create(
-          content::WebContents::CreateParams(browser()->profile()));
-  auto web_view_owner = std::make_unique<views::WebView>(browser()->profile());
+          content::WebContents::CreateParams(browser()->GetProfile()));
+  auto web_view_owner =
+      std::make_unique<views::WebView>(browser()->GetProfile());
   web_view_owner->SetWebContents(test_web_contents.get());
 
   coordinator().SetContentsView(std::move(web_view_owner));
 
   views::WebView* web_view = FindWebView(content_parent);
   ASSERT_TRUE(web_view);
-  ui::Layer* layer = web_view->holder()->GetUILayer();
-  ASSERT_TRUE(layer);
-  EXPECT_FALSE(layer->rounded_corner_radii().IsEmpty());
+  EXPECT_FALSE(web_view->holder()->GetNativeViewCornerRadii().IsEmpty());
 
   // 3. Add a new tab and switch to it.
   chrome::AddTabAt(browser(), GURL("about:blank"), -1, true);
@@ -425,9 +451,7 @@ IN_PROC_BROWSER_TEST_F(GlicSidePanelCoordinatorRoundedCornersTest,
   EXPECT_EQ(future_.Take(), GlicSidePanelCoordinator::State::kShown);
 
   // Verify rounded corners are still there
-  ui::Layer* layer_after = web_view->holder()->GetUILayer();
-  ASSERT_TRUE(layer_after);
-  EXPECT_FALSE(layer_after->rounded_corner_radii().IsEmpty());
+  EXPECT_FALSE(web_view->holder()->GetNativeViewCornerRadii().IsEmpty());
 }
 
 }  // namespace

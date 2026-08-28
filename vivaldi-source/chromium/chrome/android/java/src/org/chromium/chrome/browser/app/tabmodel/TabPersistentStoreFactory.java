@@ -11,6 +11,7 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.app.tabwindow.TabWindowManagerSingleton;
 import org.chromium.chrome.browser.crypto.CipherFactory;
+import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tabmodel.AccumulatingTabCreator;
 import org.chromium.chrome.browser.tabmodel.PersistentStoreMigrationManager;
 import org.chromium.chrome.browser.tabmodel.PersistentStoreMigrationManager.StoreType;
@@ -128,6 +129,7 @@ public class TabPersistentStoreFactory {
      * @param isNonOtrOnly Whether the shadow store should only handle non-OTR data. If true,
      *     incognito tab state will not be restored and may be destroyed if a TabStateStore is
      *     returned.
+     * @param isFromRecreating Whether the current activity was recreated.
      */
     public static @Nullable TabPersistentStore buildShadowStore(
             @Nullable PersistentStoreMigrationManager migrationManager,
@@ -140,7 +142,8 @@ public class TabPersistentStoreFactory {
             String windowTag,
             CipherFactory cipherFactory,
             String orchestratorTag,
-            boolean isNonOtrOnly) {
+            boolean isNonOtrOnly,
+            boolean isFromRecreating) {
         TabCreatorManager shadowTabCreatorManager =
                 incognito -> incognito ? incognitoShadowTabCreator : regularShadowTabCreator;
 
@@ -173,7 +176,7 @@ public class TabPersistentStoreFactory {
                             ModelTrackingOrchestrator::new,
                             ActiveTabCache::new,
                             /* isAuthoritative= */ false,
-                            /* isFromRecreating= */ false);
+                            isFromRecreating);
             buildShadowTabStateStoreCatchupTracker(authoritativeStore, tabStateStore);
             shadowTabPersistentStore = tabStateStore;
         } else if (shadowStoreType == StoreType.LEGACY) {
@@ -202,12 +205,16 @@ public class TabPersistentStoreFactory {
                 recordingTabCreatorManager.getRecorder(/* incognito= */ false);
         assert recordingTabCreator != null;
 
+        Profile profile = selector.getProfile(/* offTheRecord= */ false);
+        assert profile != null;
         new ShadowTabStoreValidator(
+                profile,
                 authoritativeStore,
                 shadowTabPersistentStore,
                 recordingTabCreator,
                 regularShadowTabCreator,
                 migrationManager,
+                windowTag,
                 orchestratorTag);
 
         migrationManager.onShadowStoreCreated(shadowStoreType);

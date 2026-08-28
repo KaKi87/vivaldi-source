@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "ash/constants/ash_features.h"
+#include "ash/constants/ash_policy_pref_names.h"
 #include "ash/constants/ash_pref_names.h"
 #include "base/byte_size.h"
 #include "base/check.h"
@@ -68,7 +69,6 @@
 #include "chrome/browser/crash_upload_list/crash_upload_list.h"
 #include "chrome/browser/policy/profile_policy_connector.h"
 #include "chrome/browser/ui/webui/ash/settings/pages/storage/device_storage_util.h"
-#include "chrome/common/pref_names.h"
 #include "chromeos/ash/components/audio/cras_audio_handler.h"
 #include "chromeos/ash/components/channel/channel_info.h"
 #include "chromeos/ash/components/dbus/attestation/attestation_client.h"
@@ -1773,7 +1773,7 @@ DeviceStatusCollector::DeviceStatusCollector(
   pref_change_registrar_ = std::make_unique<PrefChangeRegistrar>();
   pref_change_registrar_->Init(&local_state_.get());
   pref_change_registrar_->Add(
-      prefs::kReportingUsers,
+      ash::prefs::kReportingUsers,
       base::BindRepeating(&DeviceStatusCollector::ReportingUsersChanged,
                           weak_factory_.GetWeakPtr()));
 
@@ -2016,9 +2016,8 @@ void DeviceStatusCollector::SampleMemoryUsage() {
     return;
   }
 
-  MemoryUsage usage = {
-      base::SysInfo::AmountOfAvailablePhysicalMemory().AsDeprecatedByteCount(),
-      base::Time::Now()};
+  MemoryUsage usage = {base::SysInfo::AmountOfAvailablePhysicalMemory(),
+                       base::Time::Now()};
   memory_usage_.push_back(usage);
 
   if (memory_usage_.size() > kMaxResourceUsageSamples) {
@@ -2251,7 +2250,7 @@ void DeviceStatusCollector::OnProbeDataFetched(
 
 void DeviceStatusCollector::ReportingUsersChanged() {
   std::vector<std::string> reporting_users;
-  for (auto& value : local_state_->GetList(prefs::kReportingUsers)) {
+  for (auto& value : local_state_->GetList(ash::prefs::kReportingUsers)) {
     if (value.is_string()) {
       reporting_users.push_back(value.GetString());
     }
@@ -2959,7 +2958,7 @@ bool DeviceStatusCollector::GetSessionStatusForUser(
   bool anything_reported_user = false;
 
   const bool report_android_status =
-      profile->GetPrefs()->GetBoolean(prefs::kReportArcStatusEnabled);
+      profile->GetPrefs()->GetBoolean(ash::prefs::kReportArcStatusEnabled);
   if (report_android_status) {
     anything_reported_user |= GetAndroidStatus(status, state);
   }

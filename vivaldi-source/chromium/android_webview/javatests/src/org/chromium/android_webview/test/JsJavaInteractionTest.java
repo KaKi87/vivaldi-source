@@ -29,7 +29,6 @@ import org.chromium.android_webview.WebMessageListener;
 import org.chromium.android_webview.test.TestAwContentsClient.OnReceivedTitleHelper;
 import org.chromium.android_webview.test.util.CommonResources;
 import org.chromium.base.ThreadUtils;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.content_public.browser.MessagePayload;
@@ -940,7 +939,6 @@ public class JsJavaInteractionTest extends AwParameterizedTest {
     @Test
     @MediumTest
     @Feature({"AndroidWebView", "JsJavaInteraction"})
-    @DisabledTest(message = "The test was very flaky, see https://crbug.com/383517164")
     public void testJsObjectRemoveOnMessage() throws Throwable {
         addWebMessageListenerOnUiThread(mAwContents, JS_OBJECT_NAME, new String[] {"*"}, mListener);
 
@@ -2204,8 +2202,7 @@ public class JsJavaInteractionTest extends AwParameterizedTest {
     }
 
     private static ScriptHandler addDocumentStartJavaScriptOnUiThread(
-            final AwContents awContents, final String script, final String[] allowedOriginRules)
-            throws Exception {
+            final AwContents awContents, final String script, final String[] allowedOriginRules) {
         AwActivityTestRule.checkJavaScriptEnabled(awContents);
         return ThreadUtils.runOnUiThreadBlocking(
                 () -> awContents.addDocumentStartJavaScript(script, allowedOriginRules));
@@ -2215,14 +2212,13 @@ public class JsJavaInteractionTest extends AwParameterizedTest {
             final AwContents awContents,
             final String jsObjectName,
             final String[] allowedOriginRules,
-            final WebMessageListener listener)
-            throws Exception {
+            final WebMessageListener listener) {
         TestWebMessageListener.addWebMessageListenerOnUiThread(
                 awContents, jsObjectName, allowedOriginRules, listener);
     }
 
     private static void removeWebMessageListenerOnUiThread(
-            final AwContents awContents, final String jsObjectName) throws Exception {
+            final AwContents awContents, final String jsObjectName) {
         TestWebMessageListener.removeWebMessageListenerOnUiThread(awContents, jsObjectName);
     }
 
@@ -2290,8 +2286,7 @@ public class JsJavaInteractionTest extends AwParameterizedTest {
             final String script,
             @DocumentInjectionTime.EnumType int injectionEvent,
             final String[] allowedOriginRules,
-            final String worldName)
-            throws Exception {
+            final String worldName) {
         AwActivityTestRule.checkJavaScriptEnabled(awContents);
         return ThreadUtils.runOnUiThreadBlocking(
                 () -> {
@@ -2305,8 +2300,7 @@ public class JsJavaInteractionTest extends AwParameterizedTest {
             final String script,
             @DocumentInjectionTime.EnumType int injectionEvent,
             final String[] allowedOriginRules,
-            final String worldName)
-            throws Exception {
+            final String worldName) {
         AwActivityTestRule.checkJavaScriptEnabled(awContents);
         return ThreadUtils.runOnUiThreadBlocking(
                 () -> {

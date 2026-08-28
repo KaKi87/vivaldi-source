@@ -14,8 +14,7 @@
    * 
    * You should have received a copy of the GNU General Public License
    * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
-   */
-  const $$1 = Proxy;
+   */const $$1 = Proxy;
 
   const {apply: a, bind: b, call: c} = Function;
   const apply$2 = c.bind(a);
@@ -27,7 +26,6 @@
       return bind(c, target[name]);
     }
   };
-
   const caller = target => new $$1(target, callerHandler);
 
   const handler$2 = {
@@ -35,7 +33,6 @@
       return bind(target[name], target);
     }
   };
-
   const bound = target => new $$1(target, handler$2);
 
   const {
@@ -70,14 +67,24 @@
 
   const secure = target => new $$1(target, handler$1);
 
-  const libEnvironment = typeof environment !== "undefined" ? environment :
-                                                                     {};
+  if (typeof currentEnvironment !== "undefined" &&
+      currentEnvironment.initial &&
+      typeof environment !== "undefined")
+    currentEnvironment = environment;
+
+  const getLibEnvironment = () => {
+    if (typeof currentEnvironment !== "undefined")
+      return currentEnvironment;
+    if (typeof environment !== "undefined")
+      return environment;
+    return {};
+  };
 
   if (typeof globalThis === "undefined")
     window.globalThis = window;
 
   const {apply: apply$1, ownKeys} = bound(Reflect);
-
+  const libEnvironment = getLibEnvironment();
   const worldEnvDefined = "world" in libEnvironment;
   const isIsolatedWorld = worldEnvDefined && libEnvironment.world === "ISOLATED";
   const isMainWorld = worldEnvDefined && libEnvironment.world === "MAIN";
@@ -101,7 +108,7 @@
 
   const invokes = bound(globalThis);
   const classes = isExtensionContext$2 ? globalThis : secure(globalThis);
-  const {Map: Map$7, RegExp: RegExp$1, Set: Set$1, WeakMap: WeakMap$4, WeakSet: WeakSet$a} = classes;
+  const {Map: Map$7, RegExp: RegExp$1, Set: Set$5, WeakMap: WeakMap$5, WeakSet: WeakSet$b} = classes;
 
   const augment = (source, target, method = null) => {
     const known = ownKeys(target);
@@ -138,13 +145,13 @@
   };
 
   const variables$2 = freeze({
-    frozen: new WeakMap$4(),
-    hidden: new WeakSet$a(),
+    frozen: new WeakMap$5(),
+    hidden: new WeakSet$b(),
     iframePropertiesToAbort: {
-      read: new Set$1(),
-      write: new Set$1()
+      read: new Set$5(),
+      write: new Set$5()
     },
-    abortedIframes: new WeakMap$4()
+    abortedIframes: new WeakMap$5()
   });
 
   const startsCapitalized = new RegExp$1("^[A-Z]");
@@ -169,10 +176,10 @@
     ["Math", copyIfExtension(Math)],
     ["Number", isExtensionContext$2 ? Number : primitive("Number")],
     ["RegExp", RegExp$1],
-    ["Set", Set$1],
+    ["Set", Set$5],
     ["String", isExtensionContext$2 ? String : primitive("String")],
-    ["WeakMap", WeakMap$4],
-    ["WeakSet", WeakSet$a],
+    ["WeakMap", WeakMap$5],
+    ["WeakSet", WeakSet$b],
 
     ["MouseEvent", MouseEvent]
   ]), {
@@ -222,7 +229,7 @@
     };
   }
 
-  const {Map: Map$6, WeakMap: WeakMap$3, WeakSet: WeakSet$9, setTimeout: setTimeout$3} = env;
+  const {Map: Map$6, WeakMap: WeakMap$4, WeakSet: WeakSet$a, setTimeout: setTimeout$3} = env;
 
   let cleanup = true;
   let cleanUpCallback = map => {
@@ -231,8 +238,8 @@
   };
 
   var transformer = transformOnce.bind({
-    WeakMap: WeakMap$3,
-    WeakSet: WeakSet$9,
+    WeakMap: WeakMap$4,
+    WeakSet: WeakSet$a,
 
     WeakValue: class extends Map$6 {
       set(key, value) {
@@ -247,12 +254,7 @@
 
   const {concat, includes, join, reduce, unshift} = caller([]);
 
-  const globals = secure(globalThis);
-
-  const {
-    Map: Map$5,
-    WeakMap: WeakMap$2
-  } = globals;
+  const {Map: Map$5, WeakMap: WeakMap$3} = secure(globalThis);
 
   const map = new Map$5;
   const descriptors = target => {
@@ -298,7 +300,7 @@
         return true;
       }
     };
-    return target => new $$1(target, handler);
+    return target => new Proxy(target, handler);
   };
 
   const {
@@ -306,13 +308,13 @@
     Array: Array$4,
     Number: Number$1,
     String: String$1,
-    Object: Object$3
+    Object: Object$4
   } = env;
 
   const {isArray} = Array$4;
-  const {getOwnPropertyDescriptor, setPrototypeOf: setPrototypeOf$1} = Object$3;
+  const {getOwnPropertyDescriptor, setPrototypeOf: setPrototypeOf$1} = Object$4;
 
-  const {toString} = Object$3.prototype;
+  const {toString} = Object$4.prototype;
   const {slice} = String$1.prototype;
   const getBrand = value => call(slice, call(toString, value), 8, -1);
 
@@ -390,25 +392,99 @@
       }
     });
 
+  let {Array: Array$3, document: document$2, Math: Math$5, RegExp} = $(window);
+
+  function regexEscape(string) {
+    return $(string).replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+  }
+
+  function toRegExp(pattern) {
+    let {length} = pattern;
+
+    if (length > 1 && pattern[0] === "/") {
+      let isCaseSensitive = pattern[length - 1] === "/";
+
+      if (isCaseSensitive || (length > 2 && $(pattern).endsWith("/i"))) {
+        let args = [$(pattern).slice(1, isCaseSensitive ? -1 : -2)];
+        if (!isCaseSensitive)
+          args.push("i");
+
+        return new RegExp(...args);
+      }
+    }
+
+    return new RegExp(regexEscape(pattern));
+  }
+
+  function sendDetectionEvent(type, specifier) {
+    const env = getLibEnvironment();
+    if (typeof env.sendDetectionEvent !== "function")
+      return;
+    try {
+      env.sendDetectionEvent(type, document$2.location.hostname, specifier);
+    }
+    catch (e) {
+
+    }
+  }
+
+  function sendSnippetHitEvent(filter) {
+    const env = getLibEnvironment();
+    if (typeof env.sendSnippetHitEvent !== "function")
+      return;
+    try {
+      env.sendSnippetHitEvent(filter, document$2.location.hostname);
+    }
+    catch (e) {
+
+    }
+  }
+
+  function formatArguments(args) {
+    return $(Array$3.from(args)).map(arg => `'${arg}'`).join(" ");
+  }
+
+  function toHex(number, length = 2) {
+    let hex = $(number).toString(16);
+
+    if (hex.length < length)
+      hex = $("0").repeat(length - hex.length) + hex;
+
+    return hex;
+  }
+
+  function uint8ArrayToHex(uint8Array) {
+    return uint8Array.reduce((hex, byte) => hex + toHex(byte), "");
+  }
+
   let debugging = false;
+
+  let filter = null;
 
   function debug() {
     return debugging;
   }
 
-  function setDebug() {
+  function debugFilter() {
+    return filter;
+  }
+
+  function setDebug(pattern) {
     debugging = true;
+    if (pattern)
+      filter = toRegExp(pattern);
   }
 
   let {
     console: console$2,
     document: document$1,
-    getComputedStyle: getComputedStyle$6,
+    getComputedStyle: getComputedStyle$7,
     isExtensionContext,
     variables: variables$1,
-    Array: Array$3,
-    MutationObserver: MutationObserver$a,
-    Object: Object$2,
+    Array: Array$2,
+    MutationObserver: MutationObserver$e,
+    Object: Object$3,
+    DOMMatrix,
     XPathEvaluator,
     XPathExpression,
     XPathResult
@@ -593,7 +669,7 @@
     return $(element).childNodes;
   }
 
-  const {assign, setPrototypeOf} = Object$2;
+  const {assign, setPrototypeOf} = Object$3;
 
   class $XPathExpression extends XPathExpression {
     evaluate(...args) {
@@ -624,6 +700,7 @@
     let {style} = $(element);
     let $style = $(style, "CSSStyleDeclaration");
     let properties = $([]);
+    const libEnvironment = getLibEnvironment();
     let {debugCSSProperties} = libEnvironment;
 
     for (let [key, value] of (debugCSSProperties || [["display", "none"]])) {
@@ -631,7 +708,7 @@
       properties.push([key, $style.getPropertyValue(key)]);
     }
 
-    new MutationObserver$a(() => {
+    new MutationObserver$e(() => {
       for (let [key, value] of properties) {
         let propertyValue = $style.getPropertyValue(key);
         let propertyPriority = $style.getPropertyPriority(key);
@@ -681,7 +758,7 @@
         return elements;
       };
     }
-    return () => Array$3.from($$(selector));
+    return () => Array$2.from($$(selector));
   }
 
   function hideIfMatches(match, selector, searchSelector, onHideCallback) {
@@ -700,7 +777,7 @@
       }
     };
     return assign(
-      new MutationObserver$a(callback),
+      new MutationObserver$e(callback),
       {
         race(win) {
           won = win;
@@ -738,12 +815,12 @@
     }
 
     return isVisible(
-      parent, getComputedStyle$6(parent), closest, shadowRootParents
+      parent, getComputedStyle$7(parent), closest, shadowRootParents
     );
   }
 
   function getComputedCSSText(element) {
-    let style = getComputedStyle$6(element);
+    let style = getComputedStyle$7(element);
     let {cssText} = style;
 
     if (cssText)
@@ -755,45 +832,150 @@
     return $(cssText).trim();
   }
 
-  let {Array: Array$2, Math: Math$5, RegExp} = $(window);
-
-  function regexEscape(string) {
-    return $(string).replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+  function getTransformMatrix(element, pseudo = null) {
+    const style = getComputedStyle$7(element, pseudo);
+    let transform = style.transform;
+    return (transform === "none") ? new DOMMatrix() : new DOMMatrix(transform);
   }
 
-  function toRegExp(pattern) {
-    let {length} = pattern;
+  let fontVisibilityCanvas = null;
+  let fontVisibilityCtx = null;
 
-    if (length > 1 && pattern[0] === "/") {
-      let isCaseSensitive = pattern[length - 1] === "/";
+  function isFontVisible(element, style, overrideText = null) {
+    try {
+      let text = overrideText || element.innerText;
+      if (!text)
+        return false;
 
-      if (isCaseSensitive || (length > 2 && $(pattern).endsWith("/i"))) {
-        let args = [$(pattern).slice(1, isCaseSensitive ? -1 : -2)];
-        if (!isCaseSensitive)
-          args.push("i");
+      text = text.trim();
+      if (!fontVisibilityCanvas || !fontVisibilityCtx) {
+        fontVisibilityCanvas = document$1.createElement("canvas");
+        fontVisibilityCtx = fontVisibilityCanvas.getContext("2d", {
+          alpha: true,
+          willReadFrequently: true
+        });
+      }
+      let fontString = style.font || [
+        style.fontStyle,
+        style.fontVariant,
+        style.fontWeight,
+        style.fontSize,
+        style.fontFamily
+      ].join(" ");
+      fontVisibilityCtx.font = fontString;
+      const metrics = fontVisibilityCtx.measureText(text);
 
-        return new RegExp(...args);
+      if (metrics.width <= 0)
+        return false;
+
+      fontVisibilityCanvas.width =
+        Math.min(metrics.width, 800);
+      fontVisibilityCanvas.height =
+        Math.max(1, parseInt(style.fontSize, 10) * 1.5 || 20);
+
+      fontVisibilityCtx.font = fontString;
+      fontVisibilityCtx.fillStyle = "#000";
+      fontVisibilityCtx.textBaseline = "top";
+      fontVisibilityCtx.fillText(text, 0, 0);
+
+      const data = fontVisibilityCtx.getImageData(0, 0, fontVisibilityCanvas.width, fontVisibilityCanvas.height).data;
+
+      for (let i = 3; i < data.length; i += 4) {
+
+        if (data[i] > 0)
+          return true;
+      }
+
+      return false;
+    }
+    catch (error) {
+      if (debug())
+        console$2.log("Font visibility check failed:", element, error.message);
+
+      return true;
+    }
+  }
+
+  function isTextVisible(element,
+                                style,
+                                attributesMap,
+                                {bgColorCheck = true,
+                                 pseudoElemCheck = false,
+                                 fontCheck = true} = {}) {
+    if (!style)
+      style = getComputedStyle$7(element);
+    style = $(style);
+    for (const [key, value] of attributesMap) {
+      let valueAsRegex = toRegExp(value);
+      if (valueAsRegex.test(style.getPropertyValue(key)))
+        return false;
+    }
+    const color = style.getPropertyValue("color");
+    if (bgColorCheck && style.getPropertyValue("background-color") === color)
+      return false;
+
+    if (!pseudoElemCheck) {
+      const firstLineStyle = getComputedStyle$7(element, "::first-line");
+      if (firstLineStyle) {
+        return isTextVisible(element,
+                             firstLineStyle,
+                             attributesMap,
+                             {bgColorCheck,
+                              pseudoElemCheck: true,
+                              fontCheck});
       }
     }
 
-    return new RegExp(regexEscape(pattern));
+    if (fontCheck && !isFontVisible(element, style))
+      return false;
+
+    const textShadow = style.getPropertyValue("text-shadow");
+    if (color.includes("rgba(0, 0, 0, 0)") &&
+        (textShadow === "none" ||
+        textShadow.includes("rgba(0, 0, 0, 0)"))
+    )
+      return false;
+    return true;
   }
 
-  function formatArguments(args) {
-    return $(Array$2.from(args)).map(arg => `'${arg}'`).join(" ");
-  }
+  function isContained(childNode, parentNode, {
+    boxMargin = 2,
+    ignorePadding = false
+  } = {}) {
+    let child = $(childNode).getBoundingClientRect();
+    if (ignorePadding) {
+      const style = getComputedStyle$7(childNode);
+      const paddingTop = parseFloat(style.paddingTop) || 0;
+      const paddingRight = parseFloat(style.paddingRight) || 0;
+      const paddingBottom = parseFloat(style.paddingBottom) || 0;
+      const paddingLeft = parseFloat(style.paddingLeft) || 0;
 
-  function toHex(number, length = 2) {
-    let hex = $(number).toString(16);
+      child = {
+        left: child.left + paddingLeft,
+        right: child.right - paddingRight,
+        top: child.top + paddingTop,
+        bottom: child.bottom - paddingBottom
+      };
+    }
 
-    if (hex.length < length)
-      hex = $("0").repeat(length - hex.length) + hex;
+    const parent = $(parentNode).getBoundingClientRect();
+    const stretchedParent = {
+      left: parent.left - boxMargin,
+      right: parent.right + boxMargin,
+      top: parent.top - boxMargin,
+      bottom: parent.bottom + boxMargin
+    };
 
-    return hex;
-  }
-
-  function uint8ArrayToHex(uint8Array) {
-    return uint8Array.reduce((hex, byte) => hex + toHex(byte), "");
+    return (
+      (stretchedParent.left <= child.left &&
+          child.left <= stretchedParent.right &&
+        stretchedParent.top <= child.top &&
+          child.top <= stretchedParent.bottom) &&
+      (stretchedParent.top <= child.bottom &&
+          child.bottom <= stretchedParent.bottom &&
+        stretchedParent.left <= child.right &&
+          child.right <= stretchedParent.right)
+    );
   }
 
   let {Math: Math$4, setInterval: setInterval$1, performance} = $(window);
@@ -885,6 +1067,15 @@
       }
 
       $(args).unshift(...logArgs);
+
+      const activeFilter = debugFilter();
+      if (activeFilter) {
+        const matches = $(args).some(
+          arg => $(activeFilter).test(arg)
+        );
+        if (!matches)
+          return;
+      }
     }
     mark();
     console$1.log(...args);
@@ -895,7 +1086,7 @@
     return bind(debug() ? log : noop, null, name);
   }
 
-  let {Array: Array$1, Error: Error$3, Map: Map$4, parseInt: parseInt$2} = $(window);
+  let {Array: Array$1, Error: Error$7, Map: Map$4, parseInt: parseInt$3} = $(window);
 
   let stack = null;
   let won = null;
@@ -904,7 +1095,7 @@
     switch (action) {
       case "start":
         stack = {
-          winners: parseInt$2(winners, 10) || 1,
+          winners: parseInt$3(winners, 10) || 1,
           participants: new Map$4()
         };
         won = new Array$1();
@@ -918,7 +1109,7 @@
         won = null;
         break;
       default:
-        throw new Error$3(`Invalid action: ${action}`);
+        throw new Error$7(`Invalid action: ${action}`);
     }
   }
 
@@ -956,6 +1147,424 @@
     }
   }
 
+  let {Error: Error$6, MutationObserver: MutationObserver$d, Set: Set$4} = $(window);
+
+  const elementQSA$1 = Element.prototype.querySelectorAll;
+
+  const elementLoadHandlers = new Set$4();
+  let sharedElementMo = null;
+
+  const candidatesBuffer = $([]);
+
+  function fillCandidates(records) {
+    candidatesBuffer.length = 0;
+    for (let r = 0; r < records.length; r++) {
+      const record = records[r];
+      const type = record.type;
+      if (type === "attributes") {
+        const el = record.target;
+        if (el.src || el.href)
+          candidatesBuffer.push(el);
+      }
+      else {
+        const nodes = record.addedNodes;
+        const len = nodes.length;
+        for (let i = 0; i < len; i++) {
+          const node = nodes[i];
+          if (node.nodeType !== 1)
+            continue;
+
+          if (node.src || node.href)
+            candidatesBuffer.push(node);
+          if (node.childElementCount > 0) {
+            for (const el of call(elementQSA$1, node, "[src],[href]"))
+              candidatesBuffer.push(el);
+          }
+        }
+      }
+    }
+  }
+
+  function addElementHandler(handler) {
+    elementLoadHandlers.add(handler);
+    if (!sharedElementMo) {
+      sharedElementMo = new MutationObserver$d(records => {
+        fillCandidates(records);
+        for (const h of elementLoadHandlers)
+          h(candidatesBuffer);
+      });
+      sharedElementMo.observe(document, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["src", "href"]
+      });
+    }
+  }
+
+  function removeElementHandler(handler) {
+    elementLoadHandlers.delete(handler);
+    if (elementLoadHandlers.size === 0 && sharedElementMo) {
+      sharedElementMo.disconnect();
+      sharedElementMo = null;
+    }
+  }
+
+  function logIfElementLoads(urlPattern, type,
+                                    tag = null, specifier = null) {
+    if (!urlPattern)
+      throw new Error$6("[log-if-element-loads snippet]: Missing URL pattern.");
+    if (!type)
+      throw new Error$6("[log-if-element-loads snippet]: Missing type.");
+
+    const formattedArguments = formatArguments(arguments);
+    const debugLog = getDebugger("log-if-element-loads");
+    const {mark, end} = profile("log-if-element-loads");
+
+    const re = toRegExp(urlPattern);
+    const tagUpper = tag ? tag.toUpperCase() : null;
+
+    const selector = tag ? `${tag}[src],${tag}[href]` : "[src],[href]";
+
+    const urlOf = el => el.src || el.href || null;
+    const matchesTag = el => tagUpper === null || el.nodeName === tagUpper;
+
+    let callback;
+    const win = raceWinner("log-if-element-loads", () => {
+      removeElementHandler(callback);
+    });
+
+    let matched = false;
+    callback = elements => {
+      mark();
+      const toCheck = elements !== null ? elements : $$(selector);
+
+      let matchedEl = null;
+      for (let i = 0; i < toCheck.length; i++) {
+        const el = toCheck[i];
+        if (!matchesTag(el))
+          continue;
+        const url = urlOf(el);
+        if (url && re.test(url)) {
+          matchedEl = el;
+          matched = true;
+          break;
+        }
+      }
+
+      if (matched) {
+        const url = specifier !== null ? specifier : urlOf(matchedEl);
+        sendDetectionEvent(type, url);
+        debugLog("success", "Matched element:", matchedEl, formattedArguments);
+        win();
+        removeElementHandler(callback);
+      }
+      end();
+    };
+
+    callback(null);
+    if (matched)
+      return;
+
+    addElementHandler(callback);
+  }
+
+  function logIfAnchorHrefMatches(urlPattern, type, specifier = null) {
+    logIfElementLoads(urlPattern, type, "a", specifier);
+  }
+
+  let {Error: Error$5, MutationObserver: MutationObserver$c} = $(window);
+
+  function logIfSelectorExists(selector, type, specifier = null) {
+    if (!selector)
+      throw new Error$5("[log-if-selector-exists snippet]: Missing selector.");
+    if (!type)
+      throw new Error$5("[log-if-selector-exists snippet]: Missing type.");
+
+    const formattedArguments = formatArguments(arguments);
+    const debugLog = getDebugger("log-if-selector-exists");
+    const {mark, end} = profile("log-if-selector-exists");
+    let exists;
+    if (selector.startsWith("xpath(") && selector.endsWith(")")) {
+      let queryAll;
+      try {
+        queryAll = initQueryAll(selector);
+      }
+      catch (error) {
+        throw new Error$5("[log-if-selector-exists snippet]: " +
+                        "Invalid XPath selector: " + error.message);
+      }
+      exists = () => queryAll().length > 0;
+    }
+    else {
+      exists = () => $$(selector).length > 0;
+    }
+
+    let mo;
+    const win = raceWinner("log-if-selector-exists", () => {
+      mo.disconnect();
+    });
+
+    let matched = false;
+    const callback = () => {
+      mark();
+      if (exists()) {
+        sendDetectionEvent(type, specifier);
+        debugLog("success", "Matched selector:", selector, formattedArguments);
+        win();
+        mo.disconnect();
+        matched = true;
+      }
+      end();
+    };
+
+    mo = new MutationObserver$c(callback);
+
+    callback();
+    if (matched)
+      return;
+
+    mo.observe(document, {childList: true, subtree: true});
+  }
+
+  function logIfScriptLoads(urlPattern, type, specifier = null) {
+    logIfElementLoads(urlPattern, type, "script", specifier);
+  }
+
+  let {Error: Error$4, MutationObserver: MutationObserver$b, getComputedStyle: getComputedStyle$6, Set: Set$3} = $(window);
+
+  const computedStyleHandlers = new Set$3();
+  let sharedComputedStyleMo = null;
+
+  const addedElementsBuffer = $([]);
+
+  function fillAddedElements(records) {
+    addedElementsBuffer.length = 0;
+    for (let r = 0; r < records.length; r++) {
+      const record = records[r];
+      const nodes = record.addedNodes;
+      const len = nodes.length;
+      for (let i = 0; i < len; i++) {
+        const node = nodes[i];
+        if (node.nodeType === 1)
+          addedElementsBuffer.push(node);
+      }
+    }
+  }
+
+  function addComputedStyleHandler(handler) {
+    computedStyleHandlers.add(handler);
+    if (!sharedComputedStyleMo) {
+      sharedComputedStyleMo = new MutationObserver$b(records => {
+        fillAddedElements(records);
+        for (const h of computedStyleHandlers)
+          h(addedElementsBuffer);
+      });
+      sharedComputedStyleMo.observe(document, {
+        childList: true,
+        subtree: true
+      });
+    }
+  }
+
+  function removeComputedStyleHandler(handler) {
+    computedStyleHandlers.delete(handler);
+    if (computedStyleHandlers.size === 0 && sharedComputedStyleMo) {
+      sharedComputedStyleMo.disconnect();
+      sharedComputedStyleMo = null;
+    }
+  }
+
+  function logIfComputedStyleMatches(type, specifier, ...pairs) {
+    if (!type)
+      throw new Error$4("[log-if-computed-style-matches snippet]: Missing type.");
+    if (pairs.length === 0 || pairs.length % 2 !== 0)
+      throw new Error$4("[log-if-computed-style-matches snippet]: Uneven pairs.");
+
+    const formattedArguments = formatArguments(arguments);
+    const debugLog = getDebugger("log-if-computed-style-matches");
+    const {mark, end} = profile("log-if-computed-style-matches");
+
+    const conditions = $([]);
+    for (let i = 0; i < pairs.length; i += 2)
+      conditions.push({property: pairs[i], value: pairs[i + 1]});
+
+    const resolvedSpecifier = specifier === "null" ? null : specifier;
+
+    const matchesAllConditions = el => {
+      try {
+        const style = getComputedStyle$6(el);
+        return conditions.every(({property, value}) =>
+          style[property] === value);
+      }
+      catch (e) {
+        return false;
+      }
+    };
+
+    let callback;
+    const win = raceWinner("log-if-computed-style-matches", () => {
+      removeComputedStyleHandler(callback);
+    });
+
+    let matched = false;
+    callback = elements => {
+      mark();
+      const toCheck = elements !== null ? elements : $$("*");
+      let matchedEl = null;
+      for (let i = 0; i < toCheck.length; i++) {
+        const el = toCheck[i];
+        if (matchesAllConditions(el)) {
+          matchedEl = el;
+          matched = true;
+          break;
+        }
+      }
+      if (matched) {
+        sendDetectionEvent(type, resolvedSpecifier);
+        debugLog(
+          "success",
+          "Matched computed style:",
+          matchedEl,
+          formattedArguments
+        );
+        win();
+        removeComputedStyleHandler(callback);
+      }
+      end();
+    };
+
+    callback(null);
+    if (matched)
+      return;
+
+    addComputedStyleHandler(callback);
+  }
+
+  function logIfIframeLoads(urlPattern, type, specifier = null) {
+    logIfElementLoads(urlPattern, type, "iframe", specifier);
+  }
+
+  let {Error: Error$3, MutationObserver: MutationObserver$a, Set: Set$2} = $(window);
+
+  const elementQSA = Element.prototype.querySelectorAll;
+
+  const inlineFingerprintHandlers = new Set$2();
+  let sharedInlineMo = null;
+
+  const inlineScriptsBuffer = $([]);
+
+  function fillInlineScripts(records) {
+    inlineScriptsBuffer.length = 0;
+    for (let r = 0; r < records.length; r++) {
+      const record = records[r];
+      const nodes = record.addedNodes;
+      const len = nodes.length;
+      for (let i = 0; i < len; i++) {
+        const node = nodes[i];
+        const nodeName = node.nodeName;
+        if (nodeName === "SCRIPT") {
+          if (!node.src)
+            inlineScriptsBuffer.push(node);
+        }
+        else if (node.nodeType === 1 && node.childElementCount > 0) {
+          const found = call(elementQSA, node, "script:not([src])");
+          for (let j = 0; j < found.length; j++)
+            inlineScriptsBuffer.push(found[j]);
+        }
+      }
+    }
+  }
+
+  function addInlineHandler(handler) {
+    inlineFingerprintHandlers.add(handler);
+    if (!sharedInlineMo) {
+      sharedInlineMo = new MutationObserver$a(records => {
+        fillInlineScripts(records);
+        for (const h of inlineFingerprintHandlers)
+          h(inlineScriptsBuffer);
+      });
+      sharedInlineMo.observe(document, {childList: true, subtree: true});
+    }
+  }
+
+  function removeInlineHandler(handler) {
+    inlineFingerprintHandlers.delete(handler);
+    if (inlineFingerprintHandlers.size === 0 && sharedInlineMo) {
+      sharedInlineMo.disconnect();
+      sharedInlineMo = null;
+    }
+  }
+
+  function logIfInlineScriptContainsFingerprint(
+    textPattern, type, specifier = null
+  ) {
+    if (!textPattern) {
+      throw new Error$3(
+        "[log-if-inline-script-contains-fingerprint snippet]: " +
+        "Missing text pattern."
+      );
+    }
+    if (!type) {
+      throw new Error$3(
+        "[log-if-inline-script-contains-fingerprint snippet]: " +
+        "Missing type."
+      );
+    }
+
+    if (textPattern.length < 8)
+      return;
+
+    const formattedArguments = formatArguments(arguments);
+    const debugLog =
+      getDebugger("log-if-inline-script-contains-fingerprint");
+    const {mark, end} =
+      profile("log-if-inline-script-contains-fingerprint");
+
+    const spec =
+      specifier !== null ? specifier : textPattern.slice(0, 5);
+
+    let callback;
+    const win = raceWinner(
+      "log-if-inline-script-contains-fingerprint",
+      () => {
+        removeInlineHandler(callback);
+      }
+    );
+
+    let matched = false;
+    callback = scripts => {
+      mark();
+      const toCheck =
+        scripts !== null ? scripts : $$("script:not([src])");
+      for (let i = 0; i < toCheck.length; i++) {
+        if (toCheck[i].textContent.includes(textPattern)) {
+          matched = true;
+          break;
+        }
+      }
+      if (matched) {
+        sendDetectionEvent(type, spec);
+        debugLog(
+          "success",
+          "Matched inline script content",
+          formattedArguments
+        );
+        win();
+        removeInlineHandler(callback);
+      }
+      end();
+    };
+
+    callback(null);
+    if (matched)
+      return;
+
+    addInlineHandler(callback);
+  }
+
+  const hitFilters$8 = new Set();
+
   function hideIfContains(search, selector = "*", searchSelector = null) {
     const formattedArguments = formatArguments(arguments);
     const debugLog = getDebugger("hide-if-contains");
@@ -967,6 +1576,12 @@
                node,
                "\nFILTER: hide-if-contains",
                formattedArguments);
+      const filter =
+        "hide-if-contains " + formattedArguments;
+      if (!hitFilters$8.has(filter)) {
+        hitFilters$8.add(filter);
+        sendSnippetHitEvent(filter);
+      }
       end();
     };
     let re = toRegExp(search);
@@ -999,6 +1614,9 @@
 
   const accessor = target => new $$1(target, handler);
 
+  const {Function: Function$1, Object: Object$2, WeakMap: WeakMap$2} = $(window);
+  new WeakMap$2();
+
   let {
     parseFloat: parseFloat$4,
     variables,
@@ -1010,7 +1628,7 @@
     Map: Map$3,
     Object: Object$1,
     ReferenceError,
-    Set,
+    Set: Set$1,
     WeakMap: WeakMap$1
   } = $(window);
 
@@ -1099,7 +1717,8 @@
     return details.result;
   }
 
-  let {MutationObserver: MutationObserver$9, WeakSet: WeakSet$8, getComputedStyle: getComputedStyle$5} = $(window);
+  let {MutationObserver: MutationObserver$9, WeakSet: WeakSet$9, getComputedStyle: getComputedStyle$5} = $(window);
+  const hitFilters$7 = new Set();
 
   function hideIfContainsAndMatchesStyle(search,
                                                 selector = "*",
@@ -1113,8 +1732,8 @@
     const formattedArguments = formatArguments(arguments);
     const debugLog = getDebugger("hide-if-contains-and-matches-style");
     const {mark, end} = profile("hide-if-contains-and-matches-style");
-    const hiddenMap = new WeakSet$8();
-    const logMap = debug() && new WeakSet$8();
+    const hiddenMap = new WeakSet$9();
+    const logMap = debug() && new WeakSet$9();
     if (searchSelector == null)
       searchSelector = selector;
 
@@ -1149,6 +1768,13 @@
                          element,
                          "\nFILTER: hide-if-contains-and-matches-style",
                          formattedArguments);
+                const filter =
+                  "hide-if-contains-and-matches-style " +
+                  formattedArguments;
+                if (!hitFilters$7.has(filter)) {
+                  hitFilters$7.add(filter);
+                  sendSnippetHitEvent(filter);
+                }
               }
               else {
                 if (!logMap || logMap.has(closest))
@@ -1193,6 +1819,7 @@
     MutationObserver: MutationObserver$8,
     Uint8Array
   } = $(window);
+  const hitFilters$6 = new Set();
 
   function hideIfContainsImage(search, selector, searchSelector) {
     if (searchSelector == null)
@@ -1221,6 +1848,13 @@
                          closest,
                          "\nFILTER: hide-if-contains-image",
                          formattedArguments);
+                const filter =
+                  "hide-if-contains-image " +
+                  formattedArguments;
+                if (!hitFilters$6.has(filter)) {
+                  hitFilters$6.add(filter);
+                  sendSnippetHitEvent(filter);
+                }
               }
             }
           });
@@ -1238,8 +1872,271 @@
     callback();
   }
 
-  const {parseFloat: parseFloat$3, Math: Math$3, MutationObserver: MutationObserver$7, WeakSet: WeakSet$7} = $(window);
-  const {min} = Math$3;
+  let {
+    getComputedStyle: getComputedStyle$3,
+    MutationObserver: MutationObserver$7,
+    WeakSet: WeakSet$8,
+    DOMParser,
+    Math: Math$3,
+    Map: Map$2
+  } = $(window);
+  const hitFilters$5 = new Set();
+
+  function hideIfSvgContains(
+    search,
+    selector,
+    searchSelector,
+    ...attributes
+  ) {
+    if (searchSelector == null)
+      searchSelector = selector;
+
+    const textSearchRegExp = toRegExp(search);
+    const formattedArguments = formatArguments(arguments);
+    const hiddenMap = new WeakSet$8();
+    const debugLog = getDebugger("hide-if-svg-contains");
+    const {mark, end} = profile("hide-if-svg-contains");
+    const defaultOptionalParameters = new Map$2([
+      ["-position-threshold", "500"],
+      ["-disable-contained-check", "false"],
+      ["-wait-until", ""],
+      ["-opacity-alpha-threshold", "0.1"],
+      ["-font-size-threshold", "1"]
+    ]);
+    let entries = $([]);
+    for (let attr of attributes) {
+      attr = $(attr);
+      let markerIndex = attr.indexOf(":");
+      if (markerIndex < 0)
+        continue;
+
+      let key = attr.slice(0, markerIndex).trim();
+      let value = attr.slice(markerIndex + 1).trim();
+
+      if (key && value) {
+        if (defaultOptionalParameters.has(key))
+          defaultOptionalParameters.set(key, value);
+        else
+          entries.push([key, value]);
+      }
+    }
+
+    let defaultCSSEntries = $([
+      ["display", "none"],
+      ["visibility", "hidden"],
+      ["opacity", "0"],
+      ["fill", "none"],
+      ["font-size", "0"]
+    ]);
+    let attributesMap = new Map$2(defaultCSSEntries.concat(entries));
+
+    const positionThresh =
+      parseFloat(defaultOptionalParameters.get("-position-threshold")) || 0;
+    const disableContainedCheck =
+      (defaultOptionalParameters.get("-disable-contained-check") === "true");
+    const opacityAlphaThreshold =
+      parseFloat(defaultOptionalParameters.get("-opacity-alpha-threshold")) || 0;
+    const fontSizeThreshold =
+      parseFloat(defaultOptionalParameters.get("-font-size-threshold")) || 0;
+
+    const svgFetchCache = new Map$2();
+
+    const mainLogic = async() => {
+
+      let host;
+      let callback = async() => {
+        mark();
+        for (const {element, rootParents} of $$(searchSelector, true)) {
+          if (!host)
+            host = createIsolatedHost();
+          if (hiddenMap.has(element))
+            continue;
+          let isMatchAndVisible = false;
+          try {
+            const backgroundImage = $(getComputedStyle$3(element).backgroundImage);
+            const urlMatch = backgroundImage.match(/url\("?(.+?)"?\)/);
+            if (!urlMatch)
+              continue;
+            const url = urlMatch[1];
+
+            let svgFetchPromise = svgFetchCache.get(url);
+            if (!svgFetchPromise) {
+              svgFetchPromise = fetchContent(url, {as: "text"});
+              svgFetchCache.set(url, svgFetchPromise);
+            }
+            const svgContent = await svgFetchPromise;
+            if (hiddenMap.has(element))
+              continue;
+
+            const parser = new DOMParser();
+            const svgDoc = parser.parseFromString(svgContent, "image/svg+xml");
+            if (svgDoc.querySelector("parsererror")) {
+              debugLog(
+                "warn",
+                "Skipping malformed SVG:",
+                url,
+                "for element:",
+                element);
+              continue;
+            }
+
+            host.svgContainer.innerHTML = "";
+            host.svgContainer.appendChild(svgDoc.documentElement);
+
+            const textElements =
+              host.svgContainer.querySelectorAll("text, tspan");
+            for (const textEl of textElements) {
+              if (
+                isElementVisibleAndTextMatchesInSvg(
+                  textEl,
+                  textSearchRegExp
+                )) {
+                isMatchAndVisible = true;
+                debugLog(
+                  "info",
+                  "Condition met: Text found visible in SVG of element",
+                  element);
+                break;
+              }
+            }
+          }
+          catch (error) {
+            debugLog(
+              "warn",
+              "An error occurred while processing element:",
+              element,
+              error);
+            continue;
+          }
+          if (isMatchAndVisible && !hiddenMap.has(element)) {
+            const closestToHide = $closest($(element), selector, rootParents);
+            if (closestToHide) {
+              win();
+              hideElement(closestToHide);
+              hiddenMap.add(element);
+              debugLog("success",
+                       "Matched: ",
+                       closestToHide,
+                       "\nFILTER: hide-if-svg-contains",
+                       formattedArguments);
+              const filter =
+                "hide-if-svg-contains " +
+                formattedArguments;
+              if (!hitFilters$5.has(filter)) {
+                hitFilters$5.add(filter);
+                sendSnippetHitEvent(filter);
+              }
+            }
+          }
+        }
+        end();
+      };
+
+      let mo = new MutationObserver$7(callback);
+      let win = raceWinner(
+        "hide-if-svg-contains",
+        () => {
+          mo.disconnect();
+
+          host.cleanup();
+        }
+      );
+      mo.observe(document, {childList: true, subtree: true});
+      callback();
+    };
+    const waitUntil = defaultOptionalParameters.get("-wait-until");
+    waitUntilEvent(debugLog, mainLogic, waitUntil);
+
+    function isElementVisibleAndTextMatchesInSvg(
+      element,
+      searchRegExp
+    ) {
+      if (!searchRegExp.test(element.textContent))
+        return false;
+      const styles = getComputedStyle$3(element);
+      const elementCoordinates = element.getBoundingClientRect();
+      const parentCoordinates = element.ownerSVGElement.getBoundingClientRect();
+      const rgbaRegex = /\b(rgba?|hsla?|hwb)\b/;
+
+      for (const [key, value] of attributesMap) {
+        const styleValue = styles[key];
+        const floatStyleValue = parseFloat(styleValue);
+        switch (key) {
+          case "color":
+          case "fill": {
+            if (styleValue && rgbaRegex.test(styleValue) &&
+            opacityAlphaThreshold != 0) {
+              const alphaStr = styleValue.split(",")[3] ||
+              styleValue.split("/")[1];
+              const alphaValue = alphaStr ? parseFloat(alphaStr) : 1.0;
+              if (!isNaN(alphaValue) && alphaValue <= opacityAlphaThreshold)
+                return false;
+            }
+            else if (styleValue && toRegExp(value).test(styleValue)) {
+              return false;
+            }
+            break;
+          }
+          case "opacity": {
+            if (!isNaN(floatStyleValue) && opacityAlphaThreshold > 0) {
+              if (floatStyleValue <= opacityAlphaThreshold)
+                return false;
+            }
+            break;
+          }
+          case "font-size": {
+            if (!isNaN(floatStyleValue) && fontSizeThreshold > 0) {
+              if (floatStyleValue <= fontSizeThreshold)
+                return false;
+            }
+            break;
+          }
+
+          default: {
+            if (styleValue && toRegExp(value).test(styleValue))
+              return false;
+            break;
+          }
+        }
+      }
+      if (!disableContainedCheck && positionThresh > 0) {
+        const finalX = elementCoordinates.x - parentCoordinates.x;
+        const finalY = elementCoordinates.y - parentCoordinates.y;
+
+        if (Math$3.abs(finalX) > positionThresh ||
+        Math$3.abs(finalY) > positionThresh)
+          return false;
+      }
+      return true;
+    }
+
+    function createIsolatedHost() {
+      debugLog(
+        "info",
+        "Creating Isolated element to host SVGs"
+      );
+      const shadowRootHost = document.createElement("div");
+      shadowRootHost.style.cssText = "position: absolute; " +
+      "top: -9999px; left: -9999px; " +
+      "border: none; " +
+      "pointer-events: none;";
+      document.body.appendChild(shadowRootHost);
+      const attachedShadowRoot = shadowRootHost.attachShadow({mode: "closed"});
+      attachedShadowRoot.innerHTML = `
+        <div id="container" style="{ all: initial; }">
+        </div>
+      `;
+      let svgContainer = attachedShadowRoot.querySelector("#container");
+      return {
+        svgContainer,
+        cleanup: () => shadowRootHost.remove()
+      };
+    }
+  }
+
+  const {parseFloat: parseFloat$3, Math: Math$2, MutationObserver: MutationObserver$6, WeakSet: WeakSet$7} = $(window);
+  const {min} = Math$2;
+  const hitFilters$4 = new Set();
 
   const ld = (a, b) => {
     const len1 = a.length + 1;
@@ -1301,14 +2198,21 @@
           const distance = ld(find, $([...str]).sort()) - ignoreChars;
           if (distance <= 0) {
             const closest = $closest($(element), selector, rootParents);
-            debugLog("success",
-                     "Found similar text: " + $search,
-                     closest,
-                     "\nFILTER: hide-if-contains-similar-text",
-                     formattedArguments);
             if (closest) {
               win();
               hideElement(closest);
+              debugLog("success",
+                       "Found similar text: " + $search,
+                       closest,
+                       "\nFILTER: hide-if-contains-similar-text",
+                       formattedArguments);
+              const filter =
+                "hide-if-contains-similar-text " +
+                formattedArguments;
+              if (!hitFilters$4.has(filter)) {
+                hitFilters$4.add(filter);
+                sendSnippetHitEvent(filter);
+              }
               break;
             }
           }
@@ -1317,7 +2221,7 @@
       end();
     };
 
-    let mo = new MutationObserver$7(callback);
+    let mo = new MutationObserver$6(callback);
     let win = raceWinner(
       "hide-if-contains-similar-text",
       () => mo.disconnect()
@@ -1326,7 +2230,8 @@
     callback();
   }
 
-  let {getComputedStyle: getComputedStyle$3, Map: Map$2, WeakSet: WeakSet$6, parseFloat: parseFloat$2, DOMMatrix, Math: Math$2} = $(window);
+  let {getComputedStyle: getComputedStyle$2, Map: Map$1, WeakSet: WeakSet$6, parseFloat: parseFloat$2, Math: Math$1} = $(window);
+  const hitFilters$3 = new Set();
 
   const {ELEMENT_NODE: ELEMENT_NODE$2, TEXT_NODE} = Node;
 
@@ -1335,89 +2240,50 @@
                                             ...attributes) {
     const {mark, end} = profile("hide-if-contains-visible-text");
     const formattedArguments = formatArguments(arguments);
+    const debugLog = getDebugger("hide-if-contains-visible-text");
     let entries = $([]);
-    const optionalParameters = new Map$2([
+    const optionalParams = new Map$1([
       ["-snippet-box-margin", "2"],
       ["-disable-bg-color-check", "false"],
       ["-check-is-contained", "false"],
       ["-pseudo-box-margin", "2"],
-      ["-ignore-padding", "false"]
+      ["-ignore-padding", "false"],
+      ["-disable-font-check", "false"],
+      ["-wait-until", ""]
     ]);
-
-    for (let attr of attributes) {
-      attr = $(attr);
-      let markerIndex = attr.indexOf(":");
-      if (markerIndex < 0)
-        continue;
-
-      let key = attr.slice(0, markerIndex).trim().toString();
-      let value = attr.slice(markerIndex + 1).trim().toString();
-
-      if (key && value) {
-        if (optionalParameters.has(key))
-          optionalParameters.set(key, value);
-        else
-          entries.push([key, value]);
-      }
-    }
-
     let defaultEntries = $([
       ["opacity", "0"],
       ["font-size", "0px"],
 
       ["color", "rgba(0, 0, 0, 0)"]
     ]);
-
-    let attributesMap = new Map$2(defaultEntries.concat(entries));
-
-    function isTextVisible(element,
-                           style,
-                           {bgColorCheck = true, pseudoElemCheck = false} = {}) {
-      if (!style)
-        style = getComputedStyle$3(element);
-      style = $(style);
-      for (const [key, value] of attributesMap) {
-        let valueAsRegex = toRegExp(value);
-        if (valueAsRegex.test(style.getPropertyValue(key)))
-          return false;
+    for (let attr of attributes) {
+      attr = $(attr);
+      let markerIndex = attr.indexOf(":");
+      if (markerIndex < 0)
+        continue;
+      let key = attr.slice(0, markerIndex).trim().toString();
+      let value = attr.slice(markerIndex + 1).trim().toString();
+      if (key && value) {
+        if (optionalParams.has(key))
+          optionalParams.set(key, value);
+        else
+          entries.push([key, value]);
       }
-      const color = style.getPropertyValue("color");
-      if (bgColorCheck && style.getPropertyValue("background-color") === color)
-        return false;
-
-      if (!pseudoElemCheck) {
-        const firstLineStyle = getComputedStyle$3(element, "::first-line");
-        if (firstLineStyle) {
-          return isTextVisible(element,
-                               firstLineStyle,
-                               {bgColorCheck, pseudoElemCheck: true});
-        }
-      }
-
-      const textShadow = style.getPropertyValue("text-shadow");
-      if (color.includes("rgba(0, 0, 0, 0)") &&
-          (textShadow === "none" ||
-          textShadow.includes("rgba(0, 0, 0, 0)"))
-      )
-        return false;
-      return true;
     }
-
-    function getTransformMatrix(element, pseudo = null) {
-      const style = getComputedStyle$3(element, pseudo);
-      let transform = style.transform;
-
-      if (transform === "none")
-        transform = "matrix(1, 0, 0, 1, 0, 0)";
-      return new DOMMatrix(transform);
-    }
+    let attributesMap = new Map$1(defaultEntries.concat(entries));
 
     function getPseudoContent(element, pseudo, parentMatrix,
-                              {bgColorCheck = true, translateThresh = 2} = {}) {
-      let style = getComputedStyle$3(element, pseudo);
+                              {bgColorCheck = true,
+                               transThresh = 2,
+                               fontCheck = true} = {}) {
+      let style = getComputedStyle$2(element, pseudo);
 
       if (!isVisible(element, style) ||
-       !isTextVisible(element, style, {bgColorCheck}))
+       !isTextVisible(element,
+                      style,
+                      attributesMap,
+                      {bgColorCheck, fontCheck: false}))
         return "";
 
       let {content} = $(style);
@@ -1427,15 +2293,15 @@
         const domMatrix = getTransformMatrix(element, pseudo);
         const resultMatrix = parentMatrix.multiply(domMatrix);
 
-        const angle = Math$2.atan2(resultMatrix.b, resultMatrix.a);
-        const angleDegrees = angle * (180 / Math$2.PI);
-        const rotated = Math$2.abs(angleDegrees) > 5;
+        const angle = Math$1.atan2(resultMatrix.b, resultMatrix.a);
+        const angleDegrees = angle * (180 / Math$1.PI);
+        const rotated = Math$1.abs(angleDegrees) > 5;
 
         if (rotated)
           return "";
 
-        const translated = Math$2.abs(resultMatrix.e) > translateThresh ||
-                           Math$2.abs(resultMatrix.f) > translateThresh;
+        const translated = Math$1.abs(resultMatrix.e) > transThresh ||
+                           Math$1.abs(resultMatrix.f) > transThresh;
         if (translated)
           return "";
 
@@ -1449,51 +2315,16 @@
           (_, name) => $(element).getAttribute(name) || ""
         );
 
-        return content.replace(
+        const finalText = content.replace(
           /\x01(\d+)/g,
           (_, index) => strings[index]);
+
+        if (fontCheck && finalText && !isFontVisible(element, style, finalText))
+          return "";
+
+        return finalText;
       }
       return "";
-    }
-
-    function isContained(childNode, parentNode, {
-      boxMargin = 2,
-      ignorePadding = false
-    } = {}) {
-      let child = $(childNode).getBoundingClientRect();
-      if (ignorePadding) {
-        const style = getComputedStyle$3(childNode);
-        const paddingTop = parseFloat$2(style.paddingTop) || 0;
-        const paddingRight = parseFloat$2(style.paddingRight) || 0;
-        const paddingBottom = parseFloat$2(style.paddingBottom) || 0;
-        const paddingLeft = parseFloat$2(style.paddingLeft) || 0;
-
-        child = {
-          left: child.left + paddingLeft,
-          right: child.right - paddingRight,
-          top: child.top + paddingTop,
-          bottom: child.bottom - paddingBottom
-        };
-      }
-
-      const parent = $(parentNode).getBoundingClientRect();
-      const stretchedParent = {
-        left: parent.left - boxMargin,
-        right: parent.right + boxMargin,
-        top: parent.top - boxMargin,
-        bottom: parent.bottom + boxMargin
-      };
-
-      return (
-        (stretchedParent.left <= child.left &&
-           child.left <= stretchedParent.right &&
-          stretchedParent.top <= child.top &&
-           child.top <= stretchedParent.bottom) &&
-        (stretchedParent.top <= child.bottom &&
-           child.bottom <= stretchedParent.bottom &&
-          stretchedParent.left <= child.right &&
-           child.right <= stretchedParent.right)
-      );
     }
 
     function getVisibleContent(element,
@@ -1507,11 +2338,12 @@
                                  boxMargin = 2,
                                  bgColorCheck,
                                  checkIsContained,
-                                 translateThresh
+                                 fontCheck,
+                                 transThresh
                                } = {}) {
       let checkClosest = !style;
       if (checkClosest)
-        style = getComputedStyle$3(element);
+        style = getComputedStyle$2(element);
 
       if (!isVisible(element, style, checkClosest && closest, shadowRootParents))
         return "";
@@ -1533,13 +2365,15 @@
       let text = getPseudoContent(element,
                                   ":before",
                                   domMatrix,
-                                  {bgColorCheck, translateThresh});
+                                  {bgColorCheck,
+                                   transThresh,
+                                   fontCheck});
       for (let node of $childNodes($(element))) {
         switch ($(node).nodeType) {
           case ELEMENT_NODE$2:
             text += getVisibleContent(node,
                                       element,
-                                      getComputedStyle$3(node),
+                                      getComputedStyle$2(node),
                                       parentOverflowNode,
                                       originalElement,
                                       shadowRootParents,
@@ -1548,7 +2382,8 @@
                                         boxMargin,
                                         bgColorCheck,
                                         checkIsContained,
-                                        translateThresh
+                                        transThresh,
+                                        fontCheck
                                       }
             );
             break;
@@ -1558,10 +2393,16 @@
               if (isContained(element, parentOverflowNode, {
                 boxMargin,
                 ignorePadding
-              }) && isTextVisible(element, style, {bgColorCheck}))
+              }) && isTextVisible(element,
+                                  style,
+                                  attributesMap,
+                                  {bgColorCheck, fontCheck}))
                 text += $(node).nodeValue;
             }
-            else if (isTextVisible(element, style, {bgColorCheck})) {
+            else if (isTextVisible(element,
+                                   style,
+                                   attributesMap,
+                                   {bgColorCheck, fontCheck})) {
               if (checkIsContained && !isContained(element, originalElement, {
                 boxMargin,
                 ignorePadding
@@ -1575,65 +2416,74 @@
       text += getPseudoContent(element,
                                ":after",
                                domMatrix,
-                               {bgColorCheck, translateThresh});
+                               {bgColorCheck,
+                                transThresh,
+                                fontCheck});
       return text;
     }
 
-    const boxMarginStr = optionalParameters.get("-snippet-box-margin");
-    const boxMargin = parseFloat$2(boxMarginStr) || 0;
+    const boxMargin = parseFloat$2(optionalParams.get("-snippet-box-margin")) || 0;
+    const bgColorCheck = optionalParams.get("-disable-bg-color-check") !== "true";
+    const fontCheck = optionalParams.get("-disable-font-check") !== "true";
+    const checkIsContained = optionalParams.get("-check-is-contained") === "true";
+    const ignorePadding = optionalParams.get("-ignore-padding") === "true";
+    const transThresh = parseFloat$2(optionalParams.get("-pseudo-box-margin")) || 0;
 
-    const bgColorCheckStr = optionalParameters.get("-disable-bg-color-check");
-    const bgColorCheck = !(bgColorCheckStr === "true");
-
-    const checkIsContainedStr = optionalParameters.get("-check-is-contained");
-    const checkIsContained = (checkIsContainedStr === "true");
-
-    const ignorePaddingStr = optionalParameters.get("-ignore-padding");
-    const ignorePadding = (ignorePaddingStr === "true");
-
-    const translateThreshStr = optionalParameters.get("-pseudo-box-margin");
-    const translateThresh = parseFloat$2(translateThreshStr) || 0;
-
-    let re = toRegExp(search);
+    let searchRegex = toRegExp(search);
     let seen = new WeakSet$6();
 
-    const mo = hideIfMatches(
-      (element, closest, rootParents) => {
-        mark();
-        if (seen.has(element))
-          return false;
+    const mainLogic = async() => {
+      const mo = hideIfMatches(
+        (element, closest, rootParents) => {
+          mark();
+          if (seen.has(element))
+            return false;
 
-        seen.add(element);
-        let text = getVisibleContent(
-          element, closest, null, null, element, rootParents, null, {
-            boxMargin,
-            bgColorCheck,
-            checkIsContained,
-            translateThresh
+          seen.add(element);
+          let text = getVisibleContent(
+            element, closest, null, null, element, rootParents, null, {
+              boxMargin,
+              bgColorCheck,
+              checkIsContained,
+              transThresh,
+              fontCheck
+            }
+          );
+          let result = searchRegex.test(text);
+          if (text.length) {
+            if (result) {
+              debugLog("success", result, searchRegex, text, "\nFILTER: hide-if-contains-visible-text", formattedArguments);
+              const filter =
+                "hide-if-contains-visible-text " +
+                formattedArguments;
+              if (!hitFilters$3.has(filter)) {
+                hitFilters$3.add(filter);
+                sendSnippetHitEvent(filter);
+              }
+            }
+            else {
+              debugLog("info", result, searchRegex, text);
+            }
           }
-        );
-        let result = re.test(text);
-        if (debug() && text.length) {
-          result ?
-
-          log("success", result, re, text, "\nFILTER: hide-if-contains-visible-text", formattedArguments) :
-          log("info", result, re, text);
+          end();
+          return result;
+        },
+        selector,
+        searchSelector
+      );
+      mo.race(raceWinner(
+        "hide-if-contains-visible-text",
+        () => {
+          mo.disconnect();
         }
-        end();
-        return result;
-      },
-      selector,
-      searchSelector
-    );
-    mo.race(raceWinner(
-      "hide-if-contains-visible-text",
-      () => {
-        mo.disconnect();
-      }
-    ));
+      ));
+    };
+    const waitUntil = optionalParams.get("-wait-until");
+    waitUntilEvent(debugLog, mainLogic, waitUntil);
   }
 
-  let {MutationObserver: MutationObserver$6, WeakSet: WeakSet$5, getComputedStyle: getComputedStyle$2} = $(window);
+  let {MutationObserver: MutationObserver$5, WeakSet: WeakSet$5, getComputedStyle: getComputedStyle$1} = $(window);
+  const hitFilters$2 = new Set();
 
   function hideIfHasAndMatchesStyle(search,
                                            selector = "*",
@@ -1680,6 +2530,13 @@
                        element,
                        "\nFILTER: hide-if-has-and-matches-style",
                        formattedArguments);
+              const filter =
+                "hide-if-has-and-matches-style " +
+                formattedArguments;
+              if (!hitFilters$2.has(filter)) {
+                hitFilters$2.add(filter);
+                sendSnippetHitEvent(filter);
+              }
             }
             else {
               if (!logMap || logMap.has(closest))
@@ -1688,7 +2545,7 @@
                        "In this element the searchStyle matched" +
                        "but style didn't:\n",
                        closest,
-                       getComputedStyle$2(closest),
+                       getComputedStyle$1(closest),
                        ...arguments);
               logMap.add(closest);
             }
@@ -1699,7 +2556,7 @@
             debugLog("info",
                      "In this element the searchStyle didn't match:\n",
                      element,
-                     getComputedStyle$2(element),
+                     getComputedStyle$1(element),
                      ...arguments);
             logMap.add(element);
           }
@@ -1707,7 +2564,7 @@
         end();
       };
 
-      const mo = new MutationObserver$6(callback);
+      const mo = new MutationObserver$5(callback);
       const win = raceWinner(
         "hide-if-has-and-matches-style",
         () => mo.disconnect()
@@ -1718,7 +2575,7 @@
     waitUntilEvent(debugLog, mainLogic, waitUntil);
   }
 
-  let {getComputedStyle: getComputedStyle$1, MutationObserver: MutationObserver$5, WeakSet: WeakSet$4} = $(window);
+  let {getComputedStyle, MutationObserver: MutationObserver$4, WeakSet: WeakSet$4} = $(window);
 
   function hideIfLabelledBy(search, selector, searchSelector = null) {
     const {mark, end} = profile("hide-if-labelled-by");
@@ -1735,7 +2592,7 @@
                       element :
                       $closest($(element), searchSelector, rootParents);
         if (!closest ||
-            !isVisible(element, getComputedStyle$1(element), closest))
+            !isVisible(element, getComputedStyle(element), closest))
           continue;
 
         let attr = $(element).getAttribute("aria-labelledby");
@@ -1774,7 +2631,7 @@
       end();
     };
 
-    let mo = new MutationObserver$5(callback);
+    let mo = new MutationObserver$4(callback);
     let win = raceWinner(
       "hide-if-labelled-by",
       () => mo.disconnect()
@@ -1783,7 +2640,8 @@
     callback();
   }
 
-  let {MutationObserver: MutationObserver$4, WeakSet: WeakSet$3} = $(window);
+  let {MutationObserver: MutationObserver$3, WeakSet: WeakSet$3} = $(window);
+  const hitFilters$1 = new Set();
 
   const {ELEMENT_NODE: ELEMENT_NODE$1} = Node;
 
@@ -1809,6 +2667,13 @@
                    node,
                    "\nFILTER: hide-if-matches-xpath",
                    formattedArguments);
+          const filter =
+            "hide-if-matches-xpath " +
+            formattedArguments;
+          if (!hitFilters$1.has(filter)) {
+            hitFilters$1.add(filter);
+            sendSnippetHitEvent(filter);
+          }
         };
 
         const callback = () => {
@@ -1836,7 +2701,7 @@
           });
           end();
         };
-        const mo = new MutationObserver$4(callback);
+        const mo = new MutationObserver$3(callback);
         const win = raceWinner(
           "hide-if-matches-xpath",
           () => mo.disconnect()
@@ -1860,7 +2725,7 @@
           if (count > 0)
             scopeMutationObserver.disconnect();
         };
-        scopeMutationObserver = new MutationObserver$4(findMutationScopeNodes);
+        scopeMutationObserver = new MutationObserver$3(findMutationScopeNodes);
         scopeMutationObserver.observe(
           document, {characterData: true, childList: true, subtree: true}
         );
@@ -1875,7 +2740,8 @@
     waitUntilEvent(debugLog, mainLogic, waitUntil);
   }
 
-  let {MutationObserver: MutationObserver$3, WeakSet: WeakSet$2} = $(window);
+  let {MutationObserver: MutationObserver$2, WeakSet: WeakSet$2} = $(window);
+  const hitFilters = new Set();
 
   const {ELEMENT_NODE} = Node;
 
@@ -1915,10 +2781,17 @@
                    node,
                    "\nFILTER: hide-if-matches-computed-xpath",
                    formattedArguments);
+          const filter =
+            "hide-if-matches-computed-xpath " +
+            formattedArguments;
+          if (!hitFilters.has(filter)) {
+            hitFilters.add(filter);
+            sendSnippetHitEvent(filter);
+          }
         });
         end();
       };
-      const mo = new MutationObserver$3(callback);
+      const mo = new MutationObserver$2(callback);
       const win = raceWinner(
         "hide-if-matches-computed-xpath",
         () => mo.disconnect()
@@ -1957,7 +2830,7 @@
           });
         };
 
-        searchMO = new MutationObserver$3(findMutationSearchNodes);
+        searchMO = new MutationObserver$2(findMutationSearchNodes);
         searchMO.observe(
           document, {characterData: true, childList: true, subtree: true}
         );
@@ -1969,184 +2842,7 @@
   }
 
   let {
-    getComputedStyle,
-    MutationObserver: MutationObserver$2,
-    DOMParser,
-    Math: Math$1,
-    Node: Node$1,
-    Map: Map$1
-  } = $(window);
-
-  function hideIfSvgContains(
-    search,
-    selector,
-    searchSelector,
-    ...attributes
-  ) {
-    if (searchSelector == null)
-      searchSelector = selector;
-
-    const textSearchRegExp = toRegExp(search);
-    let entries = $([]);
-    const formattedArguments = formatArguments(arguments);
-    const debugLog = getDebugger("hide-if-svg-contains");
-    const {mark, end} = profile("hide-if-svg-contains");
-    const defaultOptionalParameters = new Map$1([
-      ["-position-threshold", "500"],
-      ["-disable-contained-check", "false"]
-    ]);
-    for (let attr of attributes) {
-      attr = $(attr);
-      let markerIndex = attr.indexOf(":");
-      if (markerIndex < 0)
-        continue;
-
-      let key = attr.slice(0, markerIndex).trim().toString();
-      let value = attr.slice(markerIndex + 1).trim().toString();
-
-      if (key && value) {
-        if (defaultOptionalParameters.has(key))
-          defaultOptionalParameters.set(key, value);
-        else
-          entries.push([key, value]);
-      }
-    }
-    let defaultCSSEntries = $([
-      ["display", "none"],
-      ["visibility", "hidden"],
-      ["opacity", "0"],
-      ["fill", "none"],
-      ["color", "rgba(0, 0, 0, 0)"],
-      ["font-size", "0"]
-    ]);
-    let attributesMap = new Map$1(defaultCSSEntries.concat(entries));
-
-    let callback = async() => {
-      mark();
-      for (const {element, rootParents} of $$(searchSelector, true)) {
-        let isMatchAndVisible = false;
-
-        try {
-          const backgroundImage = $(getComputedStyle(element).backgroundImage);
-          const urlMatch = backgroundImage.match(/url\("?(.+?)"?\)/);
-          if (!urlMatch)
-            continue;
-          const url = urlMatch[1];
-          const svgContent = await fetchContent(url, {as: "text"});
-          const parser = new DOMParser();
-          const svgDoc = parser.parseFromString(svgContent, "image/svg+xml");
-          if (svgDoc.querySelector("parsererror")) {
-            debugLog(
-              "warn", "Failed to parse SVG content for element:", element
-            );
-            continue;
-          }
-          const textElements = svgDoc.querySelectorAll("text, tspan");
-          for (const textEl of textElements) {
-            if (
-              isElementVisibleAndTextMatchesInSvg(
-                textEl,
-                textSearchRegExp
-              )) {
-              isMatchAndVisible = true;
-              debugLog(
-                "Condition met: Text found visible in SVG of element", element
-              );
-              break;
-            }
-          }
-        }
-        catch (error) {
-          debugLog(
-            "warn", "An error occurred while processing element:", element, error
-          );
-          continue;
-        }
-
-        if (isMatchAndVisible) {
-          const closestToHide = $closest($(element), selector, rootParents);
-          if (closestToHide) {
-            win();
-            hideElement(closestToHide);
-            debugLog("success",
-                     "Matched: ",
-                     closestToHide,
-                     "\nFILTER: hide-if-svg-contains",
-                     formattedArguments);
-          }
-        }
-      }
-      end();
-    };
-
-    let mo = new MutationObserver$2(callback);
-    let win = raceWinner(
-      "hide-if-svg-contains",
-      () => mo.disconnect()
-    );
-    mo.observe(document, {childList: true, subtree: true});
-    callback();
-
-    function isElementVisibleAndTextMatchesInSvg(
-      element,
-      searchRegExp
-    ) {
-      if (!searchRegExp.test(element.textContent))
-        return false;
-
-      const {ELEMENT_NODE} = Node$1;
-      const positionThresh =
-        parseFloat(defaultOptionalParameters.get("-position-threshold")) || 0;
-      const disableContainedCheck =
-        (defaultOptionalParameters.get("-disable-contained-check") === "true");
-
-      let currentElement = element;
-      while (currentElement && currentElement.nodeType === ELEMENT_NODE) {
-        let style = getComputedStyle(currentElement);
-        style = $(style);
-        for (const [key, value] of attributesMap) {
-          if (value !== null) {
-            const valueAsRegex = toRegExp(value);
-            const styleValue = style.getPropertyValue(key) ||
-              currentElement.getAttribute(key);
-            if (valueAsRegex.test(styleValue))
-              return false;
-          }
-        }
-        if (!disableContainedCheck) {
-          const x = parseFloat(currentElement.getAttribute("x")) || 0;
-          const y = parseFloat(currentElement.getAttribute("y")) || 0;
-          const dx = parseFloat(currentElement.getAttribute("dx")) || 0;
-          const dy = parseFloat(currentElement.getAttribute("dy")) || 0;
-          const transformAttr = currentElement.getAttribute("transform");
-          let transformX = 0;
-          let transformY = 0;
-          if (transformAttr) {
-            const transformRegex = /translate\((-?\d*\.?\d+)\s+(-?\d*\.?\d+)\)/;
-            const transformMatches = transformAttr.match(transformRegex);
-
-            if (transformMatches && transformMatches.length === 3) {
-              transformX = parseFloat(transformMatches[1]);
-              transformY = parseFloat(transformMatches[2]);
-            }
-          }
-          const finalX = x + dx + transformX;
-          const finalY = y + dy + transformY;
-
-          if (Math$1.abs(finalX) > positionThresh ||
-          Math$1.abs(finalY) > positionThresh)
-            return false;
-        }
-
-        currentElement = currentElement.parentElement;
-      }
-
-      return true;
-    }
-  }
-
-  let {
-    parseInt: parseInt$1,
+    parseInt: parseInt$2,
     setTimeout: setTimeout$1,
     Error: Error$1,
     MouseEvent: MouseEvent$1,
@@ -2275,6 +2971,11 @@
                  `n\nFILTER: simulate-mouse-event ${formattedArguments}`
         );
       }
+
+      if (!hitEventSent.has(node)) {
+        hitEventSent.add(node);
+        sendSnippetHitEvent("simulate-mouse-event " + formattedArguments);
+      }
     }
     let allFound = false;
 
@@ -2282,6 +2983,7 @@
     last.trigger = true;
 
     let dispatchedNodes = new WeakSet$1();
+    let hitEventSent = new WeakSet$1();
 
     let observer = new MutationObserver$1(findNodesAndDispatchEvents);
     observer.observe(document, {childList: true, subtree: true});
@@ -2295,7 +2997,7 @@
       if (allFound) {
         for (const parsedRule of parsedArgs) {
           const queryAndApply = initQueryAndApply(parsedRule.selector);
-          const delayInMiliseconds = parseInt$1(parsedRule.delay, 10);
+          const delayInMiliseconds = parseInt$2(parsedRule.delay, 10);
           if (parsedRule.trigger) {
             queryAndApply(node => {
               if (!dispatchedNodes.has(node)) {
@@ -2322,7 +3024,7 @@
     }
   }
 
-  let {isNaN, MutationObserver, parseInt, parseFloat: parseFloat$1, setTimeout} = $(window);
+  let {isNaN: isNaN$1, MutationObserver, parseInt: parseInt$1, parseFloat: parseFloat$1, setTimeout} = $(window);
 
   function skipVideo(playerSelector, xpathCondition, ...attributes) {
     const formattedArguments = formatArguments(arguments);
@@ -2351,10 +3053,10 @@
     }
 
     const maxAttemptsStr = optionalParameters.get("-max-attempts");
-    const maxAttemptsNum = parseInt(maxAttemptsStr || 10, 10);
+    const maxAttemptsNum = parseInt$1(maxAttemptsStr || 10, 10);
 
     const retryMsStr = optionalParameters.get("-retry-ms");
-    const retryMsNum = parseInt(retryMsStr || 10, 10);
+    const retryMsNum = parseInt$1(retryMsStr || 10, 10);
 
     const runOnceStr = optionalParameters.get("-run-once");
     const runOnceFlag = (runOnceStr === "true");
@@ -2363,7 +3065,7 @@
     const skipToNum = parseFloat$1(skipToStr || -0.1);
 
     const startFromStr = optionalParameters.get("-start-from");
-    const startFrom = parseInt(startFromStr || 0, 10);
+    const startFrom = parseInt$1(startFromStr || 0, 10);
 
     const waitUntil = optionalParameters.get("-wait-until");
 
@@ -2397,7 +3099,7 @@
           const videos = $$(playerSelector);
           let foundValidVideo = false;
           for (const video of videos) {
-            if (!video || isNaN(video.duration) || isNaN(video.currentTime))
+            if (!video || isNaN$1(video.duration) || isNaN$1(video.currentTime))
               continue;
             foundValidVideo = true;
             const videoNearEnd = (video.duration - video.currentTime) < 0.5;
@@ -2405,8 +3107,10 @@
                 !(stopOnVideoEndFlag && videoNearEnd)) {
               if (muteVideo) {
                 video.muted = true;
-                if (!nodeAlreadySeen)
+                if (!nodeAlreadySeen) {
                   debugLog("success", "Muted video...");
+                  sendSnippetHitEvent("skip-video " + formattedArguments);
+                }
               }
               if (startFrom <= video.currentTime * 1000) {
 
@@ -2420,6 +3124,7 @@
                            "s.",
                            "\nFILTER: skip-video",
                            formattedArguments);
+                  sendSnippetHitEvent("skip-video " + formattedArguments);
                   seenMap.add(node);
                   lastSkippedVideoDuration = video.duration;
                 }
@@ -2455,20 +3160,28 @@
   }
 
   const snippets = {
-    log,
-    race,
     "debug": setDebug,
-    "profile": setProfile,
-    "hide-if-matches-xpath": hideIfMatchesXPath,
-    "hide-if-matches-computed-xpath": hideIfMatchesComputedXPath,
     "hide-if-contains": hideIfContains,
+    "hide-if-contains-and-matches-style": hideIfContainsAndMatchesStyle,
+    "hide-if-contains-image": hideIfContainsImage,
     "hide-if-contains-similar-text": hideIfContainsSimilarText,
     "hide-if-contains-visible-text": hideIfContainsVisibleText,
-    "hide-if-contains-and-matches-style": hideIfContainsAndMatchesStyle,
     "hide-if-has-and-matches-style": hideIfHasAndMatchesStyle,
     "hide-if-labelled-by": hideIfLabelledBy,
-    "hide-if-contains-image": hideIfContainsImage,
+    "hide-if-matches-computed-xpath": hideIfMatchesComputedXPath,
+    "hide-if-matches-xpath": hideIfMatchesXPath,
     "hide-if-svg-contains": hideIfSvgContains,
+    log,
+    "log-if-anchor-href-matches": logIfAnchorHrefMatches,
+    "log-if-computed-style-matches": logIfComputedStyleMatches,
+    "log-if-element-loads": logIfElementLoads,
+    "log-if-iframe-loads": logIfIframeLoads,
+    "log-if-inline-script-contains-fingerprint":
+      logIfInlineScriptContainsFingerprint,
+    "log-if-script-loads": logIfScriptLoads,
+    "log-if-selector-exists": logIfSelectorExists,
+    "profile": setProfile,
+    race,
     "simulate-mouse-event": simulateMouseEvent,
     "skip-video": skipVideo
   };

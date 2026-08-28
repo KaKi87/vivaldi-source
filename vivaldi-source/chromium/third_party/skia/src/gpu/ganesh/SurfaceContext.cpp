@@ -12,6 +12,7 @@
 #include "include/core/SkData.h"
 #include "include/core/SkImageInfo.h"
 #include "include/core/SkMatrix.h"
+#include "include/core/SkPoint.h"
 #include "include/core/SkSamplingOptions.h"
 #include "include/core/SkSurface.h"
 #include "include/gpu/GpuTypes.h"
@@ -19,16 +20,15 @@
 #include "include/gpu/ganesh/GrDirectContext.h"
 #include "include/gpu/ganesh/GrRecordingContext.h"
 #include "include/gpu/ganesh/GrTypes.h"
-#include "include/private/base/SingleOwner.h"
-#include "include/private/base/SkAlign.h"
-#include "include/private/base/SkAssert.h"
-#include "include/private/base/SkPoint_impl.h"
-#include "include/private/base/SkTemplates.h"
-#include "include/private/base/SkTo.h"
+#include "include/private/SingleOwner.h"
+#include "include/private/SkAlign.h"
+#include "include/private/SkAssert.h"
+#include "include/private/SkTemplates.h"
+#include "include/private/SkTo.h"
 #include "include/private/gpu/ganesh/GrTypesPriv.h"
-#include "src/base/SkSafeMath.h"
 #include "src/core/SkColorSpaceXformSteps.h"
 #include "src/core/SkMipmap.h"
+#include "src/core/SkSafeMath.h"
 #include "src/core/SkTraceEvent.h"
 #include "src/core/SkYUVMath.h"
 #include "src/gpu/AsyncReadTypes.h"
@@ -292,7 +292,12 @@ bool SurfaceContext::readPixels(GrDirectContext* dContext, GrPixmap dst, SkIPoin
         pt.fY = flip ? srcSurface->height() - pt.fY - dst.height() : pt.fY;
     }
 
-    dContext->priv().flushSurface(srcProxy.get());
+    bool hasPendingTasks =
+            dContext->priv().drawingManager()->getLastRenderTask(srcProxy.get()) != nullptr;
+    GrSemaphoresSubmitted flushResult = dContext->priv().flushSurface(srcProxy.get());
+    if (flushResult == GrSemaphoresSubmitted::kNo && hasPendingTasks) {
+        return false;
+    }
     dContext->submit();
     if (!dContext->priv().getGpu()->readPixels(srcSurface,
                                                SkIRect::MakePtSize(pt, dst.dimensions()),
@@ -580,6 +585,22 @@ bool SurfaceContext::internalWritePixels(GrDirectContext* dContext,
     }
     pt.fY = flip ? dstSurface->height() - pt.fY - src[0].height() : pt.fY;
 
+    auto flushSurfaceAndCheckSuccess = [dContext](GrSurfaceProxy* dstProxy, bool expectsTasks) {
+        const bool hasPendingTasks =
+                dContext->priv().drawingManager()->getLastRenderTask(dstProxy) != nullptr;
+        SkASSERT(!expectsTasks || hasPendingTasks);
+        GrSemaphoresSubmitted flushResult = dContext->priv().flushSurface(dstProxy);
+        return flushResult == GrSemaphoresSubmitted::kYes || !hasPendingTasks;
+    };
+
+    // On platforms that prefer flushes over VRAM use (i.e., ANGLE) we're better off forcing a
+    // complete flush here.
+    if (!caps->preferVRAMUseOverFlushes()) {
+        if (!flushSurfaceAndCheckSuccess(dstProxy, /*expectsTasks=*/false)) {
+            return false;
+        }
+    }
+
     if (!dContext->priv().drawingManager()->newWritePixelsTask(
                 sk_ref_sp(dstProxy),
                 SkIRect::MakePtSize(pt, src[0].dimensions()),
@@ -595,7 +616,9 @@ bool SurfaceContext::internalWritePixels(GrDirectContext* dContext,
     if (!ownAllStorage) {
         // If any pixmap doesn't own its pixels then we must flush so that the pixels are pushed to
         // the GPU before we return.
-        dContext->priv().flushSurface(dstProxy);
+        if (!flushSurfaceAndCheckSuccess(dstProxy, /*expectsTasks=*/true)) {
+            return false;
+        }
     }
     return true;
 }
@@ -1433,9 +1456,11 @@ SurfaceContext::PixelTransferResult SurfaceContext::transferPixels(GrColorType d
 
     SkSafeMath safe;
     size_t bytesPerPixel = GrColorTypeBytesPerPixel(supportedRead.fColorType);
+    SkASSERT(bytesPerPixel > 0);
     size_t rowBytes = safe.mul(bytesPerPixel, rect.width());
     size_t maxTransAlignment = this->caps()->transferBufferRowBytesAlignment();
-    rowBytes = safe.alignUp(rowBytes, maxTransAlignment);
+    size_t alignment = safe.lcm(bytesPerPixel, maxTransAlignment);
+    rowBytes = safe.alignUpNonPow2(rowBytes, alignment);
     size_t size = safe.mul(rowBytes, rect.height());
     if (!safe.ok()) {
         return {};

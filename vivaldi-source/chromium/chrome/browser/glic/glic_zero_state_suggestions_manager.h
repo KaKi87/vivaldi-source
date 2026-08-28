@@ -11,12 +11,13 @@
 #include <vector>
 
 #include "base/functional/callback_forward.h"
+#include "base/memory/raw_ptr.h"
 #include "chrome/browser/glic/host/context/glic_tab_data.h"
 
 namespace glic {
 class CachingZeroStateSuggestionsManager;
 class ContextualCueingService;
-class GlicSharingManager;
+class GlicSharingManagerInternal;
 class GlicInstanceImpl;
 class Host;
 
@@ -24,7 +25,7 @@ class Host;
 class GlicZeroStateSuggestionsManager {
  public:
   GlicZeroStateSuggestionsManager(
-      GlicSharingManager* sharing_manager,
+      GlicSharingManagerInternal* sharing_manager,
       GlicInstanceImpl* glic_instance,
       ContextualCueingService* contextual_cueing_service);
   virtual ~GlicZeroStateSuggestionsManager();
@@ -61,7 +62,7 @@ class GlicZeroStateSuggestionsManager {
 
  private:
   bool WasAutoOpenedForPdf();
-  void FilterTabs(std::vector<content::WebContents*>& tabs);
+  void FilterTabs(std::vector<raw_ptr<content::WebContents>>& tabs);
 
   // A helper function to route GetZeroStateSuggestionsForFocusedTabCallback
   // callbacks.
@@ -81,7 +82,7 @@ class GlicZeroStateSuggestionsManager {
   Host& host();
 
   // Owned by the glic_keyed_service.
-  raw_ptr<GlicSharingManager> sharing_manager_;
+  raw_ptr<GlicSharingManagerInternal> sharing_manager_;
   raw_ptr<GlicInstanceImpl> glic_instance_;
   raw_ptr<Host> host_;
 

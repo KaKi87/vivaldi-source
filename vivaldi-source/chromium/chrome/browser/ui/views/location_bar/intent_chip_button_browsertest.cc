@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/ui/views/location_bar/intent_chip_button.h"
 
 #include <memory>
 #include <utility>
@@ -63,34 +62,30 @@
 class IntentChipButtonBrowserTest
     : public web_app::WebAppNavigationBrowserTest,
       public testing::WithParamInterface<
-          std::tuple<apps::test::LinkCapturingFeatureVersion, bool>>,
+          apps::test::LinkCapturingFeatureVersion>,
       public IntentChipButtonTestBase {
  public:
   IntentChipButtonBrowserTest() {
     std::vector<base::test::FeatureRefAndParams> features_to_enable =
-        apps::test::GetFeaturesToEnableLinkCapturingUX(
-            std::get<apps::test::LinkCapturingFeatureVersion>(GetParam()));
+        apps::test::GetFeaturesToEnableLinkCapturingUX(GetParam());
 
-    features_to_enable.push_back(
-        {::features::kPageActionsMigration,
-         {{::features::kPageActionsMigrationIntentPicker.name,
-           IsMigrationEnabled() ? "true" : "false"}}});
+    features_to_enable.push_back({::features::kPageActionsMigration, {}});
 
     scoped_feature_list_.InitWithFeaturesAndParameters(features_to_enable, {});
   }
 
   bool LinkCapturingEnabledByDefault() const {
-#if BUILDFLAG(IS_CHROMEOS)
-    return false;
-#else
-    return std::get<0>(GetParam()) ==
-           apps::test::LinkCapturingFeatureVersion::kV2DefaultOn;
-#endif  // BUILDFLAG(IS_CHROMEOS)
+    return GetParam() == apps::test::LinkCapturingFeatureVersion::kV2DefaultOn;
   }
 
   void SetUpOnMainThread() override {
     web_app::WebAppNavigationBrowserTest::SetUpOnMainThread();
     InstallTestWebApp();
+    if (!LinkCapturingEnabledByDefault()) {
+      CHECK_EQ(
+          apps::test::EnableLinkCapturingByUser(profile(), test_web_app_id()),
+          base::ok());
+    }
   }
 
   void TearDownOnMainThread() override {
@@ -132,7 +127,6 @@ class IntentChipButtonBrowserTest
     NavigateAndWaitForIconUpdate(url);
   }
 
-  bool IsMigrationEnabled() const { return std::get<bool>(GetParam()); }
   // Clicks the intent chip, and optionally waits for a browser app window to
   // appear if `wait_for_browser` is true. If waiting is specified, the new
   // browser window is returned; if waiting is not specified, null is returned.
@@ -172,6 +166,11 @@ class IntentChipButtonBrowserTest
         web_app::test::InstallWebApp(profile(), std::move(web_app_info));
     DCHECK(!overlapping_app_id_.empty());
     apps::AppReadinessWaiter(profile(), overlapping_app_id_).Await();
+    if (!LinkCapturingEnabledByDefault()) {
+      CHECK_EQ(
+          apps::test::EnableLinkCapturingByUser(profile(), overlapping_app_id_),
+          base::ok());
+    }
   }
 
  protected:
@@ -182,7 +181,7 @@ class IntentChipButtonBrowserTest
 };
 
 IN_PROC_BROWSER_TEST_P(IntentChipButtonBrowserTest,
-                       NavigationToInScopeLinkShowsIntentChip) {
+                       NavigationToInScopeLinkShowsIntentChipAndLaunchesApp) {
   const GURL in_scope_url =
       embedded_https_test_server().GetURL(GetAppUrlHost(), GetInScopeUrlPath());
   EXPECT_TRUE(DoAndWaitForIntentPickerIconUpdate([this, in_scope_url] {
@@ -191,23 +190,14 @@ IN_PROC_BROWSER_TEST_P(IntentChipButtonBrowserTest,
   EXPECT_TRUE(WaitForPageActionButtonVisible(browser()));
   EXPECT_TRUE(GetIntentChip(browser())->GetVisible());
 
-// If a single app is installed, then clicking on the intent chip button
-// opens the intent picker view on ChromeOS, and directly launches the
-// app on other desktop platforms.
-#if BUILDFLAG(IS_CHROMEOS)
-  views::NamedWidgetShownWaiter waiter(views::test::AnyWidgetTestPasskey{},
-                                       "IntentPickerBubbleView");
-  ClickIntentChip(/*wait_for_browser=*/false);
-
-  waiter.WaitIfNeededAndGet();
-  ASSERT_TRUE(IntentPickerBubbleView::intent_picker_bubble());
-#else
+  // If a single app is installed, then clicking on the intent chip button
+  // directly launches the app on all platforms, if the app is set to be the
+  // preferred app for capturing links.
   base::UserActionTester user_action_tester;
   Browser* app_browser = ClickIntentChip(/*wait_for_browser=*/true);
   ASSERT_EQ(1, user_action_tester.GetActionCount("IntentPickerIconClicked"));
   ASSERT_TRUE(app_browser);
   ASSERT_TRUE(app_browser->is_type_app());
-#endif  // BUILDFLAG(IS_CHROMEOS)
 }
 
 IN_PROC_BROWSER_TEST_P(IntentChipButtonBrowserTest,
@@ -220,9 +210,6 @@ IN_PROC_BROWSER_TEST_P(IntentChipButtonBrowserTest,
 
 IN_PROC_BROWSER_TEST_P(IntentChipButtonBrowserTest,
                        ShowsIntentChipExpandedForPreferredApp) {
-  EXPECT_EQ(apps::test::EnableLinkCapturingByUser(profile(), test_web_app_id()),
-            base::ok());
-
   const GURL in_scope_url =
       embedded_https_test_server().GetURL(GetAppUrlHost(), GetInScopeUrlPath());
   const GURL out_of_scope_url = embedded_https_test_server().GetURL(
@@ -279,14 +266,8 @@ IN_PROC_BROWSER_TEST_P(IntentChipButtonBrowserTest, OpensAppForPreferredApp) {
 INSTANTIATE_TEST_SUITE_P(
     ,
     IntentChipButtonBrowserTest,
-    testing::Combine(
-#if BUILDFLAG(IS_CHROMEOS)
-        testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff),
-#else
-        testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff,
-                        apps::test::LinkCapturingFeatureVersion::kV2DefaultOn),
-#endif  // BUILDFLAG(IS_CHROMEOS)
-        testing::Bool()),
+    testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff,
+                    apps::test::LinkCapturingFeatureVersion::kV2DefaultOn),
     [](const auto& param_info) {
       return IntentChipButtonTestBase::GenerateIntentChipTestName(param_info);
     });
@@ -294,18 +275,14 @@ INSTANTIATE_TEST_SUITE_P(
 class IntentChipButtonBrowserUiTest
     : public UiBrowserTest,
       public testing::WithParamInterface<
-          std::tuple<apps::test::LinkCapturingFeatureVersion, bool>>,
+          apps::test::LinkCapturingFeatureVersion>,
       public IntentChipButtonTestBase {
  public:
   IntentChipButtonBrowserUiTest() {
     std::vector<base::test::FeatureRefAndParams> features_to_enable =
-        apps::test::GetFeaturesToEnableLinkCapturingUX(
-            std::get<apps::test::LinkCapturingFeatureVersion>(GetParam()));
+        apps::test::GetFeaturesToEnableLinkCapturingUX(GetParam());
 
-    features_to_enable.push_back(
-        {::features::kPageActionsMigration,
-         {{::features::kPageActionsMigrationIntentPicker.name,
-           IsMigrationEnabled() ? "true" : "false"}}});
+    features_to_enable.push_back({::features::kPageActionsMigration, {}});
 
     scoped_feature_list_.InitWithFeaturesAndParameters(features_to_enable, {});
   }
@@ -352,7 +329,6 @@ class IntentChipButtonBrowserUiTest
   }
 
   void WaitForUserDismissal() override {}
-  bool IsMigrationEnabled() const { return std::get<bool>(GetParam()); }
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
@@ -369,14 +345,7 @@ IN_PROC_BROWSER_TEST_P(IntentChipButtonBrowserUiTest, InvokeUi_default) {
 INSTANTIATE_TEST_SUITE_P(
     ,
     IntentChipButtonBrowserUiTest,
-    testing::Combine(
-#if BUILDFLAG(IS_CHROMEOS)
-        testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff)
-#else
-        testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOn)
-#endif  // BUILDFLAG(IS_CHROMEOS)
-            ,
-        testing::Bool()),
+    testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOn),
     [](const auto& param_info) {
       return IntentChipButtonTestBase::GenerateIntentChipTestName(param_info);
     });

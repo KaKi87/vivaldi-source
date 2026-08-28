@@ -6,10 +6,7 @@
 
 // MSRTTTest: Tests of EXT_multisampled_render_to_texture extension
 
-#ifdef UNSAFE_BUFFERS_BUILD
-#    pragma allow_unsafe_buffers
-#endif
-
+#include "common/unsafe_buffers.h"
 #include "test_utils/ANGLETest.h"
 #include "test_utils/gl_raii.h"
 
@@ -98,7 +95,7 @@ class MSRTTTest : public ANGLETest<MultisampledRenderToTextureTestParams>
 
         for (unsigned int index = 0; index < 8; index++)
         {
-            if (bufferEnabled[index])
+            if (ANGLE_UNSAFE_TODO(bufferEnabled[index]))
             {
                 fs << "    gl_FragData[" << index << "] = " << essl1_shaders::ColorUniform()
                    << ";\n";
@@ -655,9 +652,9 @@ void MSRTTTest::colorAttachmentMultisampleDrawTestCommon(bool useRenderbuffer)
                                    mTestSampleCount, &texture, &renderbuffer);
     EXPECT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
 
-    // Set viewport and clear to black
+    // Set viewport and clear to blue
     glViewport(0, 0, kSize, kSize);
-    glClearColor(0.0, 0.0, 0.0, 1.0);
+    glClearColor(0.0, 0.0, 1.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
 
     // Set up Green square program
@@ -674,7 +671,7 @@ void MSRTTTest::colorAttachmentMultisampleDrawTestCommon(bool useRenderbuffer)
     glDrawArrays(GL_TRIANGLES, 0, 6);
     ASSERT_GL_NO_ERROR();
 
-    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::black);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::blue);
     EXPECT_PIXEL_COLOR_EQ(kSize / 2, kSize / 2, GLColor::green);
 
     // Set up Red square program
@@ -690,7 +687,7 @@ void MSRTTTest::colorAttachmentMultisampleDrawTestCommon(bool useRenderbuffer)
     glDrawArrays(GL_TRIANGLES, 0, 6);
     ASSERT_GL_NO_ERROR();
 
-    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::black);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::blue);
     EXPECT_PIXEL_COLOR_EQ(kSize / 2, kSize / 2, GLColor::red);
 
     glDisableVertexAttribArray(0);
@@ -3545,7 +3542,7 @@ TEST_P(MSRTTES3Test, FramebufferCompletenessMixedMultisamplingMode)
 
         GLRenderbuffer colorRenderbuffer;
         glBindRenderbuffer(GL_RENDERBUFFER, colorRenderbuffer);
-        if (attachmentCombinations[i].attach1 == 0)
+        if (ANGLE_UNSAFE_TODO(attachmentCombinations[i]).attach1 == 0)
         {
             // Regular multisampling
             glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples, GL_RGBA4, 64, 64);
@@ -3556,17 +3553,18 @@ TEST_P(MSRTTES3Test, FramebufferCompletenessMixedMultisamplingMode)
             glRenderbufferStorageMultisampleEXT(GL_RENDERBUFFER, samples, GL_RGBA4, 64, 64);
         }
         ASSERT_GL_NO_ERROR();
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, attachmentCombinations[i].attach1Point,
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+                                  ANGLE_UNSAFE_TODO(attachmentCombinations[i]).attach1Point,
                                   GL_RENDERBUFFER, colorRenderbuffer);
         EXPECT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
 
         // Depth/stencil renderbuffer, potentially with a different sample count.
         GLRenderbuffer dsRenderbuffer;
         glBindRenderbuffer(GL_RENDERBUFFER, dsRenderbuffer);
-        if (attachmentCombinations[i].attach2 == 0)
+        if (ANGLE_UNSAFE_TODO(attachmentCombinations[i]).attach2 == 0)
         {
             // Regular multisampling mode
-            if (attachmentCombinations[i].attach2Point == GL_DEPTH_ATTACHMENT)
+            if (ANGLE_UNSAFE_TODO(attachmentCombinations[i]).attach2Point == GL_DEPTH_ATTACHMENT)
             {
                 // GL_DEPTH_ATTACHMENT
                 glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples, GL_DEPTH_COMPONENT16, 64,
@@ -3582,7 +3580,7 @@ TEST_P(MSRTTES3Test, FramebufferCompletenessMixedMultisamplingMode)
         else
         {
             // Multisampled render to texture mode
-            if (attachmentCombinations[i].attach2Point == GL_DEPTH_ATTACHMENT)
+            if (ANGLE_UNSAFE_TODO(attachmentCombinations[i]).attach2Point == GL_DEPTH_ATTACHMENT)
             {
                 // GL_DEPTH_ATTACHMENT
                 glRenderbufferStorageMultisampleEXT(GL_RENDERBUFFER, samples, GL_DEPTH_COMPONENT16,
@@ -3596,7 +3594,8 @@ TEST_P(MSRTTES3Test, FramebufferCompletenessMixedMultisamplingMode)
             }
         }
         ASSERT_GL_NO_ERROR();
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, attachmentCombinations[i].attach2Point,
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+                                  ANGLE_UNSAFE_TODO(attachmentCombinations[i]).attach2Point,
                                   GL_RENDERBUFFER, dsRenderbuffer);
         EXPECT_GLENUM_EQ(GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE,
                          glCheckFramebufferStatus(GL_FRAMEBUFFER));
@@ -4057,26 +4056,26 @@ void MSRTTES31Test::drawCopyThenBlendAllAttachmentsMixed(bool useRenderbuffer)
     std::stringstream fsStr[2];
     for (unsigned int index = 0; index < 2; ++index)
     {
-        fsStr[index] << R"(#version 300 es
+        ANGLE_UNSAFE_TODO(fsStr[index]) << R"(#version 300 es
 precision highp float;
 )";
 
         for (GLint drawBuffer = 0; drawBuffer < maxDrawBuffers; ++drawBuffer)
         {
-            fsStr[index] << kDecl[drawBuffer] << "\n";
+            ANGLE_UNSAFE_TODO(fsStr[index] << kDecl[drawBuffer] << "\n");
         }
 
-        fsStr[index] << R"(void main()
+        ANGLE_UNSAFE_TODO(fsStr[index]) << R"(void main()
 {
 )";
 
         const char *const *assign = index == 0 ? kAssign1 : kAssign2;
         for (GLint drawBuffer = 0; drawBuffer < maxDrawBuffers; ++drawBuffer)
         {
-            fsStr[index] << assign[drawBuffer] << "\n";
+            ANGLE_UNSAFE_TODO(fsStr[index] << assign[drawBuffer] << "\n");
         }
 
-        fsStr[index] << "}\n";
+        ANGLE_UNSAFE_TODO(fsStr[index]) << "}\n";
     }
 
     constexpr GLsizei kSize = 64;
@@ -4091,9 +4090,9 @@ precision highp float;
     GLRenderbuffer renderbufferMS[kImplMaxDrawBuffers];
     for (GLint drawBuffer = 0; drawBuffer < maxDrawBuffers; ++drawBuffer)
     {
-        createAndAttachColorAttachment(useRenderbuffer, kSize, GL_COLOR_ATTACHMENT0 + drawBuffer,
-                                       &kGLType[drawBuffer], sampleCount, &textureMS[drawBuffer],
-                                       &renderbufferMS[drawBuffer]);
+        ANGLE_UNSAFE_TODO(createAndAttachColorAttachment(
+            useRenderbuffer, kSize, GL_COLOR_ATTACHMENT0 + drawBuffer, &kGLType[drawBuffer],
+            sampleCount, &textureMS[drawBuffer], &renderbufferMS[drawBuffer]));
     }
     EXPECT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
 
@@ -4498,6 +4497,273 @@ TEST_P(MSRTTES3Test, RenderToTextureMidRenderPassDepthClear)
     ASSERT_GL_NO_ERROR();
 }
 
+// Test depth-only rendering
+TEST_P(MSRTTES3Test, RenderToTextureDepthOnly)
+{
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_EXT_multisampled_render_to_texture"));
+
+    constexpr GLsizei kSize = 6;
+
+    // Create multisampled framebuffer with only depth attachments.
+    GLRenderbuffer depthStencilMS;
+    glBindRenderbuffer(GL_RENDERBUFFER, depthStencilMS);
+    glRenderbufferStorageMultisampleEXT(GL_RENDERBUFFER, 4, GL_DEPTH24_STENCIL8, kSize, kSize);
+
+    GLFramebuffer fboMS;
+    glBindFramebuffer(GL_FRAMEBUFFER, fboMS);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthStencilMS);
+    ASSERT_GL_NO_ERROR();
+
+    // Render to depth
+    glClearDepthf(0.0);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_ALWAYS);
+    glDepthMask(GL_TRUE);
+    ANGLE_GL_PROGRAM(redProgram, essl1_shaders::vs::Simple(), essl1_shaders::fs::Red());
+    // depthValue = 1/2 * 0.5f + 1/2 = 0.75f
+    drawQuad(redProgram, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // Blit depth to verify it
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo);
+
+    GLTexture color;
+    glBindTexture(GL_TEXTURE_2D, color);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kSize, kSize, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color, 0);
+
+    GLRenderbuffer depthStencil;
+    glBindRenderbuffer(GL_RENDERBUFFER, depthStencil);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, kSize, kSize);
+    glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER,
+                              depthStencil);
+    ASSERT_GL_NO_ERROR();
+    EXPECT_GL_FRAMEBUFFER_COMPLETE(GL_DRAW_FRAMEBUFFER);
+
+    glBlitFramebuffer(0, 0, kSize, kSize, 0, 0, kSize, kSize, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+
+    // Verify depth
+    ANGLE_GL_PROGRAM(blueProgram, essl1_shaders::vs::Simple(), essl1_shaders::fs::Blue());
+    glDepthFunc(GL_LESS);
+    drawQuad(redProgram, essl1_shaders::PositionAttrib(), 0.49);
+    drawQuad(blueProgram, essl1_shaders::PositionAttrib(), 0.51);
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+    ASSERT_GL_NO_ERROR();
+}
+
+// Test stencil-only rendering
+TEST_P(MSRTTES3Test, RenderToTextureStencilOnly)
+{
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_EXT_multisampled_render_to_texture"));
+
+    constexpr GLsizei kSize = 6;
+
+    // Create multisampled framebuffer with only stencil attachments.
+    GLRenderbuffer depthStencilMS;
+    glBindRenderbuffer(GL_RENDERBUFFER, depthStencilMS);
+    glRenderbufferStorageMultisampleEXT(GL_RENDERBUFFER, 4, GL_DEPTH24_STENCIL8, kSize, kSize);
+
+    GLFramebuffer fboMS;
+    glBindFramebuffer(GL_FRAMEBUFFER, fboMS);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER,
+                              depthStencilMS);
+    ASSERT_GL_NO_ERROR();
+
+    // Render to stencil
+    glClearStencil(0x55);
+    glClear(GL_STENCIL_BUFFER_BIT);
+    glEnable(GL_STENCIL_TEST);
+    glStencilFunc(GL_ALWAYS, 0xA4, 0xFF);
+    glStencilOp(GL_REPLACE, GL_REPLACE, GL_REPLACE);
+    glStencilMask(0xFF);
+    ANGLE_GL_PROGRAM(redProgram, essl1_shaders::vs::Simple(), essl1_shaders::fs::Red());
+    drawQuad(redProgram, essl1_shaders::PositionAttrib(), 0.5f);
+    ASSERT_GL_NO_ERROR();
+
+    // Blit stencil to verify it
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo);
+
+    GLTexture color;
+    glBindTexture(GL_TEXTURE_2D, color);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kSize, kSize, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color, 0);
+
+    GLRenderbuffer depthStencil;
+    glBindRenderbuffer(GL_RENDERBUFFER, depthStencil);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, kSize, kSize);
+    glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER,
+                              depthStencil);
+    ASSERT_GL_NO_ERROR();
+    EXPECT_GL_FRAMEBUFFER_COMPLETE(GL_DRAW_FRAMEBUFFER);
+
+    glBlitFramebuffer(0, 0, kSize, kSize, 0, 0, kSize, kSize, GL_STENCIL_BUFFER_BIT, GL_NEAREST);
+
+    // Verify stencil
+    ANGLE_GL_PROGRAM(blueProgram, essl1_shaders::vs::Simple(), essl1_shaders::fs::Blue());
+    glStencilFunc(GL_EQUAL, 0xA4, 0xFF);
+    drawQuad(blueProgram, essl1_shaders::PositionAttrib(), 0.5);
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::blue);
+    ASSERT_GL_NO_ERROR();
+}
+
+// Test that MSRTT rendering to cubemap faces work.
+TEST_P(MSRTTES3Test, CubeMap)
+{
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_EXT_multisampled_render_to_texture"));
+
+    constexpr char kFS[] = R"(#version 300 es
+#extension GL_OES_sample_variables : enable
+precision mediump float;
+out vec4 color;
+void main()
+{
+    switch (gl_SampleID % 4)
+    {
+    case 0:
+        color = vec4(1.0, 0.9, 0.8, 0.7);
+        break;
+    case 1:
+        color = vec4(0.0, 0.1, 0.2, 0.3);
+        break;
+    case 2:
+        color = vec4(0.5, 0.25, 0.75, 1.0);
+        break;
+    case 3:
+        color = vec4(0.4, 0.6, 0.2, 0.8);
+        break;
+    }
+})";
+    ANGLE_GL_PROGRAM(program, essl3_shaders::vs::Simple(), kFS);
+
+    constexpr GLsizei kSize = 6;
+
+    // Create multisampled framebuffer to draw into, with both color and depth attachments.
+    GLTexture color;
+    glBindTexture(GL_TEXTURE_CUBE_MAP, color);
+    for (GLenum face = 0; face < 6; face++)
+    {
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, 0, GL_RGBA, kSize, kSize, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, nullptr);
+        ASSERT_GL_NO_ERROR();
+    }
+
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    for (GLenum face = 0; face < 6; face++)
+    {
+        glFramebufferTexture2DMultisampleEXT(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                             GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, color, 0, 4);
+        ASSERT_GL_NO_ERROR();
+        EXPECT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+
+        glClear(GL_COLOR_BUFFER_BIT);
+        drawQuad(program, essl3_shaders::PositionAttrib(), 0.5f);
+
+        // The result should be the average of the four colors written by the shader.
+        EXPECT_PIXEL_COLOR_NEAR(0, 0, GLColor(121, 118, 124, 178), 1);
+    }
+    ASSERT_GL_NO_ERROR();
+}
+
+// Test that MSRTT rendering to multiple cubemap attachments works.
+TEST_P(MSRTTES3Test, CubeMapMultipleAttachments)
+{
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_EXT_multisampled_render_to_texture2"));
+
+    constexpr char kFS[] = R"(#version 300 es
+#extension GL_OES_sample_variables : enable
+precision mediump float;
+layout(location = 0) out vec4 color0;
+layout(location = 1) out vec4 color1;
+void main()
+{
+    switch (gl_SampleID % 4)
+    {
+    case 0:
+        color0 = vec4(1.0, 0.9, 0.8, 0.7);
+        color1 = vec4(0.7, 1.0, 0.9, 0.8);
+        break;
+    case 1:
+        color0 = vec4(0.0, 0.1, 0.2, 0.3);
+        color1 = vec4(0.3, 0.0, 0.1, 0.2);
+        break;
+    case 2:
+        color0 = vec4(0.5, 0.25, 0.75, 1.0);
+        color1 = vec4(1.0, 0.5, 0.25, 0.75);
+        break;
+    case 3:
+        color0 = vec4(0.4, 0.6, 0.2, 0.8);
+        color1 = vec4(0.8, 0.4, 0.6, 0.2);
+        break;
+    }
+})";
+    ANGLE_GL_PROGRAM(program, essl3_shaders::vs::Simple(), kFS);
+
+    constexpr GLsizei kSize = 6;
+
+    // Create multisampled framebuffer to draw into.
+    GLTexture color;
+    glBindTexture(GL_TEXTURE_CUBE_MAP, color);
+    for (GLenum face = 0; face < 6; face++)
+    {
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, 0, GL_RGBA, kSize, kSize, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, nullptr);
+        ASSERT_GL_NO_ERROR();
+    }
+
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    for (GLenum faceOffset = 0; faceOffset < 6; faceOffset += 2)
+    {
+        glFramebufferTexture2DMultisampleEXT(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                             GL_TEXTURE_CUBE_MAP_POSITIVE_X + faceOffset, color, 0,
+                                             4);
+        glFramebufferTexture2DMultisampleEXT(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1,
+                                             GL_TEXTURE_CUBE_MAP_POSITIVE_X + 1 + faceOffset, color,
+                                             0, 4);
+        ASSERT_GL_NO_ERROR();
+        EXPECT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+
+        GLenum drawBuffers[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+        glDrawBuffers(2, drawBuffers);
+
+        constexpr float kClearRed[]  = {1.0f, 0.0f, 0.0f, 1.0f};
+        constexpr float kClearBlue[] = {0.0f, 0.0f, 1.0f, 1.0f};
+        glClearBufferfv(GL_COLOR, 0, kClearRed);
+        glClearBufferfv(GL_COLOR, 1, kClearBlue);
+        // Force immediate clear so that the attachments are unresolved if MSRTT is emulated.
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
+        EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+        glReadBuffer(GL_COLOR_ATTACHMENT1);
+        EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::blue);
+
+        // Draw to top left corner only
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(0, 0, kSize / 2, kSize / 2);
+        drawQuad(program, essl3_shaders::PositionAttrib(), 0.5f);
+        glDisable(GL_SCISSOR_TEST);
+
+        // The result should be the average of the four colors written by the shader.
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
+        ASSERT_GL_NO_ERROR();
+        EXPECT_PIXEL_COLOR_NEAR(0, 0, GLColor(121, 118, 124, 178), 1);
+        EXPECT_PIXEL_COLOR_NEAR(kSize - 1, kSize - 1, GLColor::red, 1);
+
+        glReadBuffer(GL_COLOR_ATTACHMENT1);
+        ASSERT_GL_NO_ERROR();
+        EXPECT_PIXEL_COLOR_NEAR(0, 0, GLColor(178, 121, 118, 124), 1);
+        EXPECT_PIXEL_COLOR_NEAR(kSize - 1, kSize - 1, GLColor::blue, 1);
+    }
+    ASSERT_GL_NO_ERROR();
+}
+
 class MSRTTSRGBES3Test : public MSRTTES3Test
 {};
 
@@ -4717,6 +4983,360 @@ TEST_P(MSRTTES3Test, UnresolveWithAndWithoutStencil)
     EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::white);
 }
 
+// Test that drawing with the color attachment disabled works.
+TEST_P(MSRTTES3Test, DrawDisabled)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_multisampled_render_to_texture"));
+
+    const bool hasAtomicCounters = getClientMajorVersion() == 3 && getClientMinorVersion() >= 1;
+    constexpr char kFS[]         = R"(#version 310 es
+precision mediump float;
+uniform vec4 c;
+layout(binding = 0) uniform atomic_uint ac;
+out vec4 color;
+
+void main()
+{
+    atomicCounterIncrement(ac);
+    color = c;
+})";
+
+    ANGLE_GL_PROGRAM(program,
+                     hasAtomicCounters ? essl31_shaders::vs::Simple() : essl1_shaders::vs::Simple(),
+                     hasAtomicCounters ? kFS : essl1_shaders::fs::UniformColor());
+    glUseProgram(program);
+    GLint colorLocation =
+        glGetUniformLocation(program, hasAtomicCounters ? "c" : essl1_shaders::ColorUniform());
+    ASSERT_NE(-1, colorLocation);
+
+    GLRenderbuffer color;
+    glBindRenderbuffer(GL_RENDERBUFFER, color);
+    glRenderbufferStorageMultisampleEXT(GL_RENDERBUFFER, mTestSampleCount, GL_RGBA8, 1, 1);
+
+    GLFramebuffer FBO;
+    glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, color);
+    EXPECT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+
+    glClearColor(0, 0, 1, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    GLBuffer ac;
+    constexpr GLuint kInitialData = 20;
+    if (hasAtomicCounters)
+    {
+        glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, ac);
+        glBufferData(GL_ATOMIC_COUNTER_BUFFER, sizeof(kInitialData), &kInitialData, GL_STATIC_DRAW);
+        glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, 0, ac);
+    }
+
+    // Draw once to create a render pass, then close it.
+    constexpr GLenum kDisable = GL_NONE;
+    glDrawBuffers(1, &kDisable);
+
+    glUniform4fv(colorLocation, 1, GLColor::red.toNormalizedVector().data());
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0);
+    // Attachment should remain blue (the clear color)
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::blue);
+
+    if (hasAtomicCounters)
+    {
+        // Verify that draw actually happened by looking at the atomic counter.
+        glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT);
+        const GLuint value = *static_cast<const GLuint *>(
+            glMapBufferRange(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(GLuint), GL_MAP_READ_BIT));
+        glUnmapBuffer(GL_ATOMIC_COUNTER_BUFFER);
+
+        EXPECT_EQ(value, kInitialData + 1);
+    }
+
+    ASSERT_GL_NO_ERROR();
+}
+
+// Test that drawing with the color attachment disabled after drawing with it enabled works.
+TEST_P(MSRTTES3Test, DrawThenDrawDisabled)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_multisampled_render_to_texture"));
+
+    const bool hasAtomicCounters = getClientMajorVersion() == 3 && getClientMinorVersion() >= 1;
+    constexpr char kFS[]         = R"(#version 310 es
+precision mediump float;
+uniform vec4 c;
+layout(binding = 0) uniform atomic_uint ac;
+out vec4 color;
+
+void main()
+{
+    atomicCounterIncrement(ac);
+    color = c;
+})";
+
+    ANGLE_GL_PROGRAM(program,
+                     hasAtomicCounters ? essl31_shaders::vs::Simple() : essl1_shaders::vs::Simple(),
+                     hasAtomicCounters ? kFS : essl1_shaders::fs::UniformColor());
+    glUseProgram(program);
+    GLint colorLocation =
+        glGetUniformLocation(program, hasAtomicCounters ? "c" : essl1_shaders::ColorUniform());
+    ASSERT_NE(-1, colorLocation);
+
+    GLRenderbuffer color;
+    glBindRenderbuffer(GL_RENDERBUFFER, color);
+    glRenderbufferStorageMultisampleEXT(GL_RENDERBUFFER, mTestSampleCount, GL_RGBA8, 1, 1);
+
+    GLFramebuffer FBO;
+    glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, color);
+    EXPECT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+
+    GLBuffer ac;
+    constexpr GLuint kInitialData = 20;
+    if (hasAtomicCounters)
+    {
+        glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, ac);
+        glBufferData(GL_ATOMIC_COUNTER_BUFFER, sizeof(kInitialData), &kInitialData, GL_STATIC_DRAW);
+        glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, 0, ac);
+    }
+
+    // Draw once to create a render pass, then close it.
+    glUniform4fv(colorLocation, 1, GLColor::red.toNormalizedVector().data());
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+
+    if (hasAtomicCounters)
+    {
+        glMemoryBarrier(GL_ATOMIC_COUNTER_BARRIER_BIT);
+    }
+
+    // Disable the draw buffer and draw again.
+    constexpr GLenum kDisable = GL_NONE;
+    glDrawBuffers(1, &kDisable);
+
+    glUniform4fv(colorLocation, 1, GLColor::green.toNormalizedVector().data());
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0);
+
+    // Attachment should still be red.
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+
+    if (hasAtomicCounters)
+    {
+        // Verify that both draws actually happened by looking at the atomic counter.
+        glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT);
+        const GLuint value = *static_cast<const GLuint *>(
+            glMapBufferRange(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(GLuint), GL_MAP_READ_BIT));
+        glUnmapBuffer(GL_ATOMIC_COUNTER_BUFFER);
+
+        EXPECT_EQ(value, kInitialData + 2);
+    }
+
+    ASSERT_GL_NO_ERROR();
+}
+
+// Test that drawing with the color attachment disabled then drawing with it enabled works.
+TEST_P(MSRTTES3Test, DrawDisabledThenDraw)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_multisampled_render_to_texture"));
+
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::UniformColor());
+    glUseProgram(program);
+    GLint colorLocation = glGetUniformLocation(program, essl1_shaders::ColorUniform());
+    ASSERT_NE(-1, colorLocation);
+
+    GLRenderbuffer color;
+    glBindRenderbuffer(GL_RENDERBUFFER, color);
+    glRenderbufferStorageMultisampleEXT(GL_RENDERBUFFER, mTestSampleCount, GL_RGBA8, 1, 1);
+
+    GLFramebuffer FBO;
+    glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, color);
+    EXPECT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+
+    // Draw once with color attachment 0 disabled.
+    constexpr GLenum kDisable = GL_NONE;
+    glDrawBuffers(1, &kDisable);
+
+    glUniform4fv(colorLocation, 1, GLColor::red.toNormalizedVector().data());
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0);
+
+    // Enable the draw buffer and draw again.
+    constexpr GLenum kEnable = GL_COLOR_ATTACHMENT0;
+    glDrawBuffers(1, &kEnable);
+
+    glUniform4fv(colorLocation, 1, GLColor::green.toNormalizedVector().data());
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0);
+
+    // Verify results
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
+
+    ASSERT_GL_NO_ERROR();
+}
+
+// Test that framebuffer fetch works with GL_EXT_multisampled_render_to_texture.
+TEST_P(MSRTTES3Test, FramebufferFetchBasic)
+{
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_EXT_multisampled_render_to_texture"));
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_EXT_shader_framebuffer_fetch"));
+
+    // Set up FBO with multisampled render to texture color attachment
+    GLTexture texture;
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 16, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2DMultisampleEXT(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                                         texture, 0, 4);
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+
+    // Clear color to red
+    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Program with framebuffer fetch.
+    // It reads the current color and adds green to it.
+    // Red (1,0,0,1) + Green (0,1,0,0) = Yellow (1,1,0,1).
+    const char kFS[] = R"(#version 300 es
+#extension GL_EXT_shader_framebuffer_fetch : require
+layout(location = 0) inout highp vec4 color;
+void main()
+{
+    color.g += 1.0;
+})";
+
+    ANGLE_GL_PROGRAM(program, essl3_shaders::vs::Simple(), kFS);
+    glUseProgram(program);
+
+    // Draw quad to trigger framebuffer fetch
+    drawQuad(program, essl3_shaders::PositionAttrib(), 0.0f);
+    ASSERT_GL_NO_ERROR();
+
+    // Verify result (should be yellow)
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::yellow);
+}
+
+// Test that framebuffer fetch works with GL_EXT_multisampled_render_to_texture.
+// This variant exercises multisample data being on tile instead of memory when
+// framebuffer fetch happens.
+TEST_P(MSRTTES3Test, FramebufferFetchOnTile)
+{
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_EXT_multisampled_render_to_texture"));
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_EXT_shader_framebuffer_fetch"));
+
+    // Set up FBO with multisampled render to texture color attachment
+    GLTexture texture;
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 16, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2DMultisampleEXT(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                                         texture, 0, 4);
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+
+    // Clear with red
+    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Draw blue
+    ANGLE_GL_PROGRAM(blueProgram, essl3_shaders::vs::Simple(), essl3_shaders::fs::Blue());
+    drawQuad(blueProgram, essl3_shaders::PositionAttrib(), 0.0f);
+    ASSERT_GL_NO_ERROR();
+
+    // Now draw again with a fetch of the blue, add green to get cyan
+    // Blue (0,0,1,1) + Green (0,1,0,0) = Cyan (0,1,1,1).
+    const char kFS[] = R"(#version 300 es
+#extension GL_EXT_shader_framebuffer_fetch : require
+layout(location = 0) inout highp vec4 color;
+void main()
+{
+    color.g += 1.0;
+})";
+
+    ANGLE_GL_PROGRAM(program, essl3_shaders::vs::Simple(), kFS);
+    glUseProgram(program);
+
+    drawQuad(program, essl3_shaders::PositionAttrib(), 0.0f);
+    ASSERT_GL_NO_ERROR();
+
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::cyan);
+}
+
+// Test that framebuffer fetch works with GL_EXT_multisampled_render_to_texture.
+// This variant draws different colors based on gl_SampleID, then performs second
+// draw that non-linearly transforms what it reads using square. If the driver
+// breaks the render pass and resolves before the second draw call, the result will
+// be different than if it truly reads the MSAA data from the previous draw.
+TEST_P(MSRTTES3Test, FramebufferFetchSampleID)
+{
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_EXT_multisampled_render_to_texture"));
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_EXT_shader_framebuffer_fetch"));
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_OES_sample_variables"));
+
+    // Set up FBO with multisampled render to texture color attachment
+    GLTexture texture;
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 16, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    // Explicitly request 4 samples to make sample distribution predictable.
+    glFramebufferTexture2DMultisampleEXT(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                                         texture, 0, 4);
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+
+    // Clear with white
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Draw 1: Output depends on gl_SampleID.
+    // Sample 0, 2: 0.0 red
+    // Sample 1, 3: 1.0 red
+    // Resolved color should be 0.5 red.
+    const char kFS1[] = R"(#version 300 es
+#extension GL_OES_sample_variables : require
+out highp vec4 color;
+void main()
+{
+    if (gl_SampleID % 2 == 0)
+        color = vec4(0.0, 0.0, 0.0, 1.0);
+    else
+        color = vec4(1.0, 0.0, 0.0, 1.0);
+})";
+
+    ANGLE_GL_PROGRAM(program1, essl3_shaders::vs::Simple(), kFS1);
+    drawQuad(program1, essl3_shaders::PositionAttrib(), 0.0f);
+    ASSERT_GL_NO_ERROR();
+
+    // Draw 2: Reads the color and applies a non-linear transform (square).
+    // If truly multisampled:
+    // Sample 0: 0.0^2 = 0.0
+    // Sample 1: 1.0^2 = 1.0
+    // Resolved color = 0.5.
+    // If resolved before Draw 2:
+    // Sample 0, 1 read 0.5 -> 0.5^2 = 0.25.
+    // Resolved color = 0.25.
+    const char kFS2[] = R"(#version 300 es
+#extension GL_EXT_shader_framebuffer_fetch : require
+layout(location = 0) inout highp vec4 color;
+void main()
+{
+    highp vec4 tempColor = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    // Move the color to green channel to avoid getting stale results
+    tempColor.g = color.r * color.r;
+    color = tempColor;
+})";
+
+    ANGLE_GL_PROGRAM(program2, essl3_shaders::vs::Simple(), kFS2);
+    drawQuad(program2, essl3_shaders::PositionAttrib(), 0.0f);
+    ASSERT_GL_NO_ERROR();
+
+    // Verify result (should be 0.5, i.e., ~127 or 128)
+    // If it was resolved early, it would be 0.25 (i.e. ~64).
+    // We expect it NOT to be resolved early, so value should be near 127.
+    // We use a small error margin.
+    // Note Draw 2 moved the color to green channel
+    EXPECT_PIXEL_NEAR(0, 0, 0, 127, 0, 255, 10);
+}
+
 ANGLE_INSTANTIATE_TEST_COMBINE_1(
     MSRTTTest,
     PrintToStringParamName,
@@ -4750,7 +5370,9 @@ ANGLE_INSTANTIATE_TEST_COMBINE_1(
         .disable(Feature::SupportsExtendedDynamicState2),
     ES3_VULKAN().disable(Feature::SupportsExtendedDynamicState2),
     ES3_VULKAN().disable(Feature::SupportsSPIRV14),
-    ES3_VULKAN_SWIFTSHADER().enable(Feature::EnableMultisampledRenderToTexture));
+    ES3_VULKAN().disable(Feature::SupportsShaderStencilExport),
+    ES3_VULKAN_SWIFTSHADER().enable(Feature::EnableMultisampledRenderToTexture),
+    ES31_VULKAN_SWIFTSHADER().enable(Feature::EnableMultisampledRenderToTexture));
 
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(MSRTTSRGBES3Test);
 ANGLE_INSTANTIATE_TEST_COMBINE_1(

@@ -8,14 +8,14 @@ import {
   CONSOLE_TAB_SELECTOR,
   focusConsolePrompt,
   getCurrentConsoleMessages,
-  Level
+  Level,
 } from '../helpers/console-helpers.js';
 import {openSoftContextMenuAndClickOnItem} from '../helpers/context-menu-helpers.js';
 import {
   clickNthChildOfSelectedElementNode,
   focusElementsTree,
   waitForCSSPropertyValue,
-  waitForElementsStyleSection
+  waitForElementsStyleSection,
 } from '../helpers/elements-helpers.js';
 import {setIgnoreListPattern} from '../helpers/settings-helpers.js';
 import {
@@ -37,7 +37,7 @@ import {
   STEP_INTO_BUTTON,
   STEP_OUT_BUTTON,
   STEP_OVER_BUTTON,
-  waitForStackTopMatch
+  waitForStackTopMatch,
 } from '../helpers/sources-helpers.js';
 import type {DevToolsPage} from '../shared/frontend-helper.js';
 
@@ -428,8 +428,8 @@ describe('The Sources Tab', function() {
     await devToolsPage.waitFor('.infobar-warning');
     await devToolsPage.waitFor('.infobar-info');
     const infobarTexts = await devToolsPage.getVisibleTextContents(INFOBAR_TEXT);
-    assert.deepEqual(
-        infobarTexts, ['This script is on the debugger\'s ignore list', 'Source map skipped for this file']);
+    assert.deepEqual(infobarTexts,
+                     ['This script is on the debugger’s ignore list', 'Source map skipped for this file']);
   });
 
   it('shows Source map error infobar after failing to attach', async ({devToolsPage, inspectedPage}) => {

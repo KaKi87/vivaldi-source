@@ -12,13 +12,13 @@
 #include <cstring>
 #include <numeric>
 #include <random>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
 #include "ynnpack/base/arch.h"  // IWYU pragma: keep
 #include "ynnpack/base/bfloat16.h"
+#include "ynnpack/base/fp8.h"
 #include "ynnpack/base/half.h"
 #include "ynnpack/base/test/fuzz_test.h"
 #include "ynnpack/base/test/random.h"
@@ -100,6 +100,19 @@ void Reference(Tensor<AT> a, Tensor<BT> b, Tensor<CT> c) {
   }
 }
 
+void Reference(Tensor<half> a, Tensor<half> b, Tensor<float> c) {
+  Reference(a.convert<float>(), b.convert<float>(), c);
+}
+void Reference(Tensor<bfloat16> a, Tensor<bfloat16> b, Tensor<float> c) {
+  Reference(a.convert<float>(), b.convert<float>(), c);
+}
+void Reference(Tensor<fp8_e4m3> a, Tensor<fp8_e4m3> b, Tensor<float> c) {
+  Reference(a.convert<float>(), b.convert<float>(), c);
+}
+void Reference(Tensor<fp8_e5m2> a, Tensor<fp8_e5m2> b, Tensor<float> c) {
+  Reference(a.convert<float>(), b.convert<float>(), c);
+}
+
 // If the output type is bf16 or fp16, we want to compute the result in fp32,
 // and convert to the output type after.
 template <typename AT, typename BT>
@@ -119,16 +132,8 @@ void Reference(Tensor<AT> a, Tensor<BT> b, Tensor<half> c) {
 }
 
 template <typename T>
-T get_dot_tolerance(size_t num_k_elements, float max_abs_value,
-                    uint32_t dot_flags) {
-  double eps;
-  if (std::is_same_v<T, float> &&
-      (dot_flags & YNN_NODE_FLAG_F32_DOT_TO_BF16_X3)) {
-    const double eps_bf16 = type_info<bfloat16>::epsilon();
-    eps = eps_bf16 * eps_bf16 * 2.0f;
-  } else {
-    eps = type_info<T>::epsilon();
-  }
+T get_dot_tolerance(size_t num_k_elements, float max_abs_value) {
+  double eps = type_info<T>::epsilon();
   // Account for the initial value too.
   num_k_elements += 1;
   return eps * num_k_elements * max_abs_value * max_abs_value * 2.0;
@@ -144,6 +149,51 @@ Tensor<T> slice_batches(Tensor<T> tensor, std::vector<size_t> at) {
   strides.erase(strides.begin(), strides.begin() + at.size());
   tensor.set_shape(shape, strides);
   return tensor;
+}
+
+template <typename A, typename B, typename C>
+void VerifyDotResults(Tensor<A> a, Tensor<B> b, Tensor<C> c, Tensor<C> expected,
+                      const std::vector<size_t>& batch_dims,
+                      const std::vector<size_t>& a_shape,
+                      const std::vector<size_t>& b_shape, size_t num_k_dims,
+                      float max_abs_value) {
+  // Explicitly broadcast any implicit broadcast dimensions.
+  const size_t target_rank_a = batch_dims.size() + 1 + num_k_dims;
+  if (a.rank() < target_rank_a) {
+    const size_t a_broadcast_dims = target_rank_a - a.rank();
+    a = a.expand_dims(iota(0, a_broadcast_dims));
+  }
+  const size_t target_rank_b = batch_dims.size() + num_k_dims + 1;
+  if (b.rank() < target_rank_b) {
+    const size_t b_broadcast_dims = target_rank_b - b.rank();
+    b = b.expand_dims(iota(0, b_broadcast_dims));
+  }
+  broadcast_extent_1(a);
+  broadcast_extent_1(b);
+
+  for (const auto& i : EnumerateIndices(batch_dims)) {
+    Reference(slice_batches(a, i), slice_batches(b, i),
+              slice_batches(expected, i));
+  }
+  size_t num_k_elements = 1;
+  for (size_t i = 0; i < num_k_dims; ++i) {
+    num_k_elements *= b.extent(batch_dims.size() + i);
+  }
+  for (const auto& i : EnumerateIndices(expected.shape())) {
+    if (is_integral<C>::value) {
+      ASSERT_EQ(c(i), expected(i))
+          << "i=" << index_to_string(i) << " num_k_dims=" << num_k_dims
+          << " a_shape=" << index_to_string(a_shape)
+          << " b_shape=" << index_to_string(b_shape);
+    } else {
+      const auto tolerance =
+          get_dot_tolerance<C>(num_k_elements, max_abs_value);
+      ASSERT_NEAR(c(i), expected(i), tolerance)
+          << "i=" << index_to_string(i) << " num_k_dims=" << num_k_dims
+          << " a_shape=" << index_to_string(a_shape)
+          << " b_shape=" << index_to_string(b_shape);
+    }
+  }
 }
 
 template <typename A, typename B, typename C>
@@ -187,10 +237,6 @@ void TestStaticB(A, B, C) {
     if (random_bool(rng)) {
       subgraph_flags |= YNN_FLAG_CONSISTENT_ARITHMETIC;
     }
-    uint32_t dot_flags = 0;
-    if (random_bool(rng)) {
-      dot_flags |= YNN_NODE_FLAG_F32_DOT_TO_BF16_X3;
-    }
     std::vector<size_t> batch_template_shape =
         random_shape(rng, output_rank - 1, 0, 9);
     std::vector<size_t> a_template_shape = batch_template_shape;
@@ -220,7 +266,7 @@ void TestStaticB(A, B, C) {
       subgraph.AddInput(type_of<C>(), output_rank, c_id);
     }
 
-    subgraph.AddDot(num_k_dims, a_id, b_id, c_id, output_id, dot_flags);
+    subgraph.AddDot(num_k_dims, a_id, b_id, c_id, output_id);
 
     Runtime runtime(subgraph.GetSubgraph(),
                     random_bool(rng) ? &scheduler : nullptr);
@@ -270,33 +316,8 @@ void TestStaticB(A, B, C) {
       runtime.SetupExternalTensor(c.data(), output_id).InvokeRuntime();
       ASSERT_EQ(runtime.Status(), ynn_status_success);
 
-      Tensor<B> broadcasted_b = b;
-      while (broadcasted_b.rank() < a.rank()) {
-        broadcasted_b = broadcasted_b.expand_dims({0});
-      }
-      for (const auto& i : EnumerateIndices(batch_dims)) {
-        Reference(slice_batches(a, i), slice_batches(broadcasted_b, i),
-                  slice_batches(expected, i));
-      }
-      size_t num_k_elements = 1;
-      for (size_t i = 0; i < num_k_dims; ++i) {
-        num_k_elements *= b_shape[i];
-      }
-      for (const auto& i : EnumerateIndices(c_shape)) {
-        if (is_integral<C>::value) {
-          ASSERT_EQ(c(i), expected(i))
-              << "i=" << index_to_string(i) << " num_k_dims=" << num_k_dims
-              << " a_shape=" << index_to_string(a_shape)
-              << " b_shape=" << index_to_string(b_shape);
-        } else {
-          const auto tolerance =
-              get_dot_tolerance<C>(num_k_elements, max_abs_value, dot_flags);
-          ASSERT_NEAR(c(i), expected(i), tolerance)
-              << "i=" << index_to_string(i) << " num_k_dims=" << num_k_dims
-              << " a_shape=" << index_to_string(a_shape)
-              << " b_shape=" << index_to_string(b_shape);
-        }
-      }
+      VerifyDotResults(a, b, c, expected, batch_dims, a_shape, b_shape,
+                       num_k_dims, max_abs_value);
     }
   }
 }
@@ -374,10 +395,6 @@ void TestDynamicB(A, B, C) {
     if (random_bool(rng)) {
       subgraph_flags |= YNN_FLAG_CONSISTENT_ARITHMETIC;
     }
-    uint32_t dot_flags = 0;
-    if (random_bool(rng)) {
-      dot_flags |= YNN_NODE_FLAG_F32_DOT_TO_BF16_X3;
-    }
     SubgraphBuilder subgraph(4, subgraph_flags);
     const uint32_t a_id = 0;
     const uint32_t b_id = 1;
@@ -419,7 +436,7 @@ void TestDynamicB(A, B, C) {
       subgraph.AddInput(type_of<C>(), output_rank, c_id);
     }
 
-    subgraph.AddDot(num_k_dims, a_id, b_tr_id, c_id, output_id, dot_flags);
+    subgraph.AddDot(num_k_dims, a_id, b_tr_id, c_id, output_id);
 
     Runtime runtime(subgraph.GetSubgraph(),
                     random_bool(rng) ? &scheduler : nullptr);
@@ -476,35 +493,8 @@ void TestDynamicB(A, B, C) {
       runtime.SetupExternalTensor(c.data(), output_id).InvokeRuntime();
       ASSERT_EQ(runtime.Status(), ynn_status_success);
 
-      // Put broadcast dimensions back for the reference computation.
-      a = a.expand_dims(iota(0, a_broadcast_dims));
-      b = b.expand_dims(iota(0, b_broadcast_dims));
-      broadcast_extent_1(a);
-      broadcast_extent_1(b);
-
-      for (const auto& i : EnumerateIndices(shapes.batch_dims)) {
-        Reference(slice_batches(a, i), slice_batches(b, i),
-                  slice_batches(expected, i));
-      }
-      size_t num_k_elements = 1;
-      for (size_t i = 0; i < num_k_dims; ++i) {
-        num_k_elements *= shapes.dot_dims[i + 1];
-      }
-      for (const auto& i : EnumerateIndices(shapes.c)) {
-        if (is_integral<C>::value) {
-          ASSERT_EQ(c(i), expected(i))
-              << "i=" << index_to_string(i) << " num_k_dims=" << num_k_dims
-              << " shapes.a=" << index_to_string(shapes.a)
-              << " shapes.b=" << index_to_string(shapes.b);
-        } else {
-          const auto tolerance =
-              get_dot_tolerance<C>(num_k_elements, max_abs_value, dot_flags);
-          ASSERT_NEAR(c(i), expected(i), tolerance)
-              << "i=" << index_to_string(i) << " num_k_dims=" << num_k_dims
-              << " shapes.a=" << index_to_string(shapes.a)
-              << " shapes.b=" << index_to_string(shapes.b);
-        }
-      }
+      VerifyDotResults(a, b, c, expected, shapes.batch_dims, shapes.a, shapes.b,
+                       num_k_dims, max_abs_value);
     }
   }
 }
@@ -562,10 +552,6 @@ void TestStaticShapeDynamicB(A, B, C) {
     if (random_bool(rng)) {
       subgraph_flags |= YNN_FLAG_CONSISTENT_ARITHMETIC;
     }
-    uint32_t dot_flags = 0;
-    if (random_bool(rng)) {
-      dot_flags |= YNN_NODE_FLAG_F32_DOT_TO_BF16_X3;
-    }
     SubgraphBuilder subgraph(4, subgraph_flags);
     const uint32_t a_id = 0;
     const uint32_t b_id = 1;
@@ -596,7 +582,7 @@ void TestStaticShapeDynamicB(A, B, C) {
       subgraph.AddTranspose(b_perm, b_id, b_tr_id);
     }
 
-    subgraph.AddDot(num_k_dims, a_id, b_tr_id, c_id, output_id, dot_flags);
+    subgraph.AddDot(num_k_dims, a_id, b_tr_id, c_id, output_id);
 
     Runtime runtime(subgraph.GetSubgraph(),
                     random_bool(rng) ? &scheduler : nullptr);
@@ -636,35 +622,8 @@ void TestStaticShapeDynamicB(A, B, C) {
         b = b.transpose(b_perm).deep_copy();
       }
 
-      // Put broadcast dimensions back for the reference computation.
-      a = a.expand_dims(iota(0, a_broadcast_dims));
-      b = b.expand_dims(iota(0, b_broadcast_dims));
-      broadcast_extent_1(a);
-      broadcast_extent_1(b);
-
-      for (const auto& i : EnumerateIndices(shapes.batch_dims)) {
-        Reference(slice_batches(a, i), slice_batches(b, i),
-                  slice_batches(expected, i));
-      }
-      size_t num_k_elements = 1;
-      for (size_t i = 0; i < num_k_dims; ++i) {
-        num_k_elements *= shapes.dot_dims[i + 1];
-      }
-      for (const auto& i : EnumerateIndices(shapes.c)) {
-        if (is_integral<C>::value) {
-          ASSERT_EQ(c(i), expected(i))
-              << "i=" << index_to_string(i) << " num_k_dims=" << num_k_dims
-              << " shapes.a=" << index_to_string(shapes.a)
-              << " shapes.b=" << index_to_string(shapes.b);
-        } else {
-          const auto tolerance =
-              get_dot_tolerance<C>(num_k_elements, max_abs_value, dot_flags);
-          ASSERT_NEAR(c(i), expected(i), tolerance)
-              << "i=" << index_to_string(i) << " num_k_dims=" << num_k_dims
-              << " shapes.a=" << index_to_string(shapes.a)
-              << " shapes.b=" << index_to_string(shapes.b);
-        }
-      }
+      VerifyDotResults(a, b, c, expected, shapes.batch_dims, shapes.a, shapes.b,
+                       num_k_dims, max_abs_value);
     }
   }
 }

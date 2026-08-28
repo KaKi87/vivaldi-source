@@ -14,16 +14,16 @@ class GURL;
 
 namespace vivaldi {
 
-// Starts proxying WebTransport handshake if the extensions want to listen it
+// Starts proxying RequestFilter handshake if the extensions want to listen it
 // by overriding `handshake_client`.
-void StartWebRequestProxyingWebTransport(
+void StartRequestFilterProxyingWebTransport(
     content::RenderProcessHost& render_process_host,
     int frame_routing_id,
     const GURL& url,
     const url::Origin& initiator_origin,
     mojo::PendingRemote<network::mojom::WebTransportHandshakeClient>
         handshake_client,
-    int64_t request_id,
+    uint64_t request_id,
     RequestFilterManager::RequestHandler* request_handler,
     RequestFilterManager::ProxySet& proxies,
     content::ContentBrowserClient::WillCreateWebTransportCallback callback);

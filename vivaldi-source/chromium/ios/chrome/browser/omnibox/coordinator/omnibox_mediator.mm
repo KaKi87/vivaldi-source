@@ -72,8 +72,8 @@ using base::UserMetricsAction;
   PrefBackedBoolean* _searchEngineNicknameEnabled;
 }
 #else
-@interface OmniboxMediator () <SearchEngineObserving,
-                               PlaceholderServiceObserving>
+@interface OmniboxMediator () <PlaceholderServiceObserving,
+                               SearchEngineObserving>
 #endif // End Vivaldi
 
 // Is Browser incognito.

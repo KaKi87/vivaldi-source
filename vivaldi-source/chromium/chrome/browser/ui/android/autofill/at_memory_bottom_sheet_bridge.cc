@@ -14,7 +14,10 @@
 #include "base/strings/string_util.h"
 #include "chrome/browser/android/resource_mapper.h"
 #include "chrome/browser/autofill/android/at_memory_bottom_sheet_delegate.h"
+#include "chrome/browser/personal_context/first_run/personal_context_first_run_service_factory.h"
+#include "chrome/browser/profiles/profile.h"
 #include "components/autofill/core/browser/ui/autofill_resource_utils.h"
+#include "components/personal_context/first_run/personal_context_first_run_service.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/android/window_android.h"
 
@@ -29,7 +32,8 @@ namespace {
 // - `labels[0]` (joined with spaces) -> `sublabel`
 // - `icon` -> `iconId` (mapped via ResourceMapper)
 // - `type` -> `suggestionType`
-// TODO(crbug.com/502801668): Add support for `payload` and `children`.
+// - `children` -> `children`
+// TODO(crbug.com/536821036): Add support for `payload` and pass name of the type there.
 base::android::ScopedJavaLocalRef<jobject> CreateJavaSuggestion(
     JNIEnv* env,
     const Suggestion& suggestion) {
@@ -39,27 +43,47 @@ base::android::ScopedJavaLocalRef<jobject> CreateJavaSuggestion(
         base::ToVector(suggestion.labels[0], &Suggestion::Text::value), u" ");
   }
 
+  std::u16string secondary_label;
+  if (std::holds_alternative<Suggestion::AtMemoryPayload>(suggestion.payload)) {
+    secondary_label =
+        std::get<Suggestion::AtMemoryPayload>(suggestion.payload).type_name;
+  }
+
   int android_icon_id = 0;
   if (suggestion.icon != Suggestion::Icon::kNoIcon) {
     android_icon_id =
         ResourceMapper::MapToJavaDrawableId(GetIconResourceID(suggestion.icon));
   }
 
+  std::vector<base::android::ScopedJavaLocalRef<jobject>> children =
+      base::ToVector(suggestion.children, [env](const Suggestion& child) {
+        return CreateJavaSuggestion(env, child);
+      });
+
   return Java_AtMemoryBottomSheetBridge_createAutofillSuggestion(
-      env,
-      base::android::ConvertUTF16ToJavaString(env, suggestion.main_text.value),
-      base::android::ConvertUTF16ToJavaString(env, sub_label), android_icon_id,
-      std::to_underlying(suggestion.type));
+      env, suggestion.main_text.value, secondary_label, sub_label,
+      android_icon_id, std::to_underlying(suggestion.type), children,
+      suggestion.IsAcceptable(), suggestion.HasDeactivatedStyle());
 }
 
 }  // namespace
 
 AtMemoryBottomSheetBridge::AtMemoryBottomSheetBridge(
-    ui::WindowAndroid* window_android) {
+    ui::WindowAndroid* window_android,
+    Profile* profile) {
   CHECK(window_android);
+  CHECK(profile);
+  // AtMemoryBottomSheetBridge creates Java bottom sheet UI which depends on
+  // `PersonalContextFirstRunService` to determine whether to show a notice
+  // to the user.
+  //
+  // If AtMemory bottom sheet is shown, then `PersonalContextFirstRunService`
+  // must exist for that profile.
+  CHECK(PersonalContextFirstRunServiceFactory::GetForProfile(profile));
+
   java_object_ = Java_AtMemoryBottomSheetBridge_create(
       base::android::AttachCurrentThread(), reinterpret_cast<intptr_t>(this),
-      window_android->GetJavaObject());
+      window_android->GetJavaObject(), profile);
 }
 
 AtMemoryBottomSheetBridge::~AtMemoryBottomSheetBridge() {
@@ -93,11 +117,66 @@ void AtMemoryBottomSheetBridge::RequestShowContent(
                                       std::move(java_suggestions));
 }
 
+void AtMemoryBottomSheetBridge::Hide() {
+  if (java_object_) {
+    Java_AtMemoryBottomSheetBridge_hide(base::android::AttachCurrentThread(),
+                                        java_object_);
+  }
+}
+
 void AtMemoryBottomSheetBridge::OnDismissed(JNIEnv* env) {
   if (delegate_) {
     delegate_->OnDismissed();
   }
   ResetDelegate();
+}
+
+void AtMemoryBottomSheetBridge::OnQuerySubmitted(JNIEnv* env,
+                                                 const std::u16string& query) {
+  if (delegate_) {
+    delegate_->OnQuerySubmitted(query);
+  }
+}
+
+void AtMemoryBottomSheetBridge::OnQueryTextChanged(
+    JNIEnv* env,
+    const std::u16string& query) {
+  if (delegate_) {
+    delegate_->OnQueryTextChanged(query);
+  }
+}
+
+void AtMemoryBottomSheetBridge::OnSuggestionDismissed(JNIEnv* env,
+                                                      int position) {
+  if (delegate_) {
+    delegate_->OnSuggestionDismissed(position);
+  }
+}
+
+void AtMemoryBottomSheetBridge::OnSuggestionSelected(JNIEnv* env,
+                                                     int position) {
+  if (delegate_) {
+    delegate_->OnSuggestionSelected(position);
+  }
+}
+
+void AtMemoryBottomSheetBridge::OnChildSuggestionsShown(JNIEnv* env,
+                                                        int parent_position) {
+  if (delegate_) {
+    delegate_->OnChildSuggestionsShown(parent_position);
+  }
+}
+
+void AtMemoryBottomSheetBridge::OnChildSuggestionSelected(JNIEnv* env,
+                                                          int parent_position,
+                                                          int child_position) {
+  if (delegate_) {
+    delegate_->OnChildSuggestionSelected(parent_position, child_position);
+  }
+}
+
+bool AtMemoryBottomSheetBridge::IsSearching(JNIEnv* env) {
+  return delegate_ && delegate_->IsSearching();
 }
 
 void AtMemoryBottomSheetBridge::ResetDelegate() {

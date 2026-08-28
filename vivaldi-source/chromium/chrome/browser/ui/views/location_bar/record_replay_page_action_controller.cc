@@ -4,24 +4,20 @@
 
 #include "chrome/browser/ui/views/location_bar/record_replay_page_action_controller.h"
 
-#include "base/memory/ptr_util.h"
-#include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/page_action/page_action_controller.h"
 #include "chrome/browser/ui/record_replay/save_recording_bubble_controller_impl.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/page_action/page_action_container_view.h"
-#include "chrome/browser/ui/views/page_action/page_action_view.h"
 #include "chrome/browser/ui/views/record_replay/replay_recording_bubble_view.h"
 #include "chrome/browser/ui/views/record_replay/save_recording_bubble_view.h"
 #include "components/record_replay/core/browser/record_replay_client.h"
 #include "components/record_replay/core/browser/record_replay_manager.h"
-#include "components/record_replay/core/browser/task_store.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
 #include "third_party/skia/include/core/SkColor.h"
@@ -45,9 +41,8 @@ views::BubbleAnchor GetAnchorForBubble(tabs::TabInterface& tab) {
   if (!browser_view) {
     return views::BubbleAnchor();
   }
-  return views::BubbleAnchor(browser_view->GetLocationBarView()
-                                 ->page_action_container()
-                                 ->GetPageActionView(kActionRecordReplay));
+  return browser_view->toolbar_button_provider()->GetPageActionBubbleAnchor(
+      kActionRecordReplay);
 }
 
 }  // namespace

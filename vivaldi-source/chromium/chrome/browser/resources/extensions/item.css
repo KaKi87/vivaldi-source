@@ -207,3 +207,7 @@ cr-tooltip {
   height: 0;
   overflow: hidden;
 }
+
+.last-round-of-mv2 {
+  color: var(--warning-text-color);
+}

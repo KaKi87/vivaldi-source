@@ -31,6 +31,7 @@ class InterpretedFrame;
 class JavaScriptFrame;
 class JSGeneratorObject;
 class StackFrame;
+class ProtectedFixedArray;
 
 // Step actions.
 enum StepAction : int8_t {
@@ -503,6 +504,8 @@ class V8_EXPORT_PRIVATE Debug {
   uint64_t IsolateId() const { return isolate_id_; }
   void SetIsolateId(uint64_t id) { isolate_id_ = id; }
 
+  bool IsTemporaryObject(DirectHandle<HeapObject> object) const;
+
  private:
   explicit Debug(Isolate* isolate);
   ~Debug();
@@ -728,7 +731,8 @@ class V8_EXPORT_PRIVATE Debug {
   friend class LiveEdit;
   friend class SuppressDebug;
 
-  friend DirectHandle<FixedArray> GetDebuggedFunctions();  // In test-debug.cc
+  friend DirectHandle<ProtectedFixedArray>
+  GetDebuggedFunctions();                            // In test-debug.cc
   friend void CheckDebuggerUnloaded();               // In test-debug.cc
 };
 

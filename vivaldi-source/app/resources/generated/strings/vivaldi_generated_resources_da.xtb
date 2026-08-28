@@ -39,7 +39,6 @@
 <translation id="1601560923496285236">Anvend</translation>
 <translation id="1603914832182249871">(Inkognito)</translation>
 <translation id="1627276047960621195">Filbeskrivelser</translation>
-<translation id="1654713139320245449">Ingen cast-enheder fundet. Brug for hjælp?</translation>
 <translation id="166278006618318542">Algoritme for emnets offentlige nøgle</translation>
 <translation id="1682548588986054654">Nyt inkognitovindue</translation>
 <translation id="1708338024780164500">(Inaktiv)</translation>
@@ -60,7 +59,6 @@
 <translation id="1906488504371069394">Find flere udvidelser og temaer i <ph name="BEGIN_LINK" />Chrome Webshop<ph name="END_LINK" /></translation>
 <translation id="1921584744613111023"><ph name="DPI" /> dpi</translation>
 <translation id="1925021887439448749">Indtast brugerdefineret webadresse</translation>
-<translation id="1932098463447129402">Ikke før</translation>
 <translation id="1936157145127842922">Søg i mappe</translation>
 <translation id="1936931585862840749">Brug et tal til at angive, hvor mange kopier der skal udskrives (1 til <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">&amp;Åbn lyd i ny fane</translation>
@@ -102,7 +100,6 @@
 <translation id="253557089021624350">Antal keepalive</translation>
 <translation id="2550212893339833758">Ombyttet hukommelse</translation>
 <translation id="2553440850688409052">Skjul dette plugin</translation>
-<translation id="2607101320794533334">Info om emnets offentlige nøgle</translation>
 <translation id="261305050785128654">Lad websteder vide, hvilke sprog du taler. De vil vise indhold på disse sprog, når muligt.</translation>
 <translation id="26224892172169984">Tillad ingen websites at håndtere protokoller</translation>
 <translation id="2653275834716714682">Teksterstatning</translation>
@@ -112,7 +109,6 @@
 <translation id="2719936478972253983">Følgende cookies blev blokeret</translation>
 <translation id="2721037002783622288">&amp;Søg efter billedet på <ph name="SEARCH_ENGINE" /></translation>
 <translation id="2722547199758472013">ID: <ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">Ikke efter</translation>
 <translation id="2749881179542288782">Kontrollér grammatik med stavning</translation>
 <translation id="2785873697295365461">Filbeskrivelser</translation>
 <translation id="2825758591930162672">Emnets offentlige nøgle</translation>
@@ -163,7 +159,6 @@
 <translation id="3387614642886316601">Brug forbedret stavekontrol</translation>
 <translation id="3390013585654699824">App-detaljer</translation>
 <translation id="345693547134384690">Åbn &amp;billede i ny fane</translation>
-<translation id="3493881266323043047">Gyldighed</translation>
 <translation id="3511307672085573050">Kopiér linkadr&amp;esse</translation>
 <translation id="354068948465830244">Denne kan læse og ændre websitedata</translation>
 <translation id="3555812735919707620">Fjern udvidelse</translation>
@@ -179,7 +174,6 @@
 <translation id="3760460896538743390">Inspicer &amp;baggrundsside</translation>
 <translation id="3786224729726357296">Slet websitedata og tilladelser for <ph name="SITE" /></translation>
 <translation id="3797900183766075808">&amp;Søg på <ph name="SEARCH_ENGINE" /> efter “<ph name="SEARCH_TERMS" />”</translation>
-<translation id="3798449238516105146">Version</translation>
 <translation id="3810973564298564668">Administrer</translation>
 <translation id="3838085852053358637">Kunne ikke indlæse udvidelse</translation>
 <translation id="383891835335927981">Ingen websites er blevet zoomet ind eller ud</translation>
@@ -215,6 +209,7 @@
 <translation id="4170314459383239649">Ryd ved lukning</translation>
 <translation id="4200983522494130825">Ny &amp;fane</translation>
 <translation id="4225397296022057997">På alle websites</translation>
+<translation id="4242245038391716252">Downloadet af udvidelse: &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="4256316378292851214">Ge&amp;m video som...</translation>
 <translation id="4270393598798225102">Version <ph name="NUMBER" /></translation>
 <translation id="4278390842282768270">Tilladt</translation>
@@ -265,12 +260,10 @@
 <translation id="5063480226653192405">Forbrug</translation>
 <translation id="5116628073786783676">Ge&amp;m lyd som...</translation>
 <translation id="5154108062446123722">Avancerede indstillinger for <ph name="PRINTING_DESTINATION" /></translation>
-<translation id="5154702632169343078">Emne</translation>
 <translation id="5170568018924773124">Søg i mappe</translation>
 <translation id="5171343362375269016">Ombyttet hukommelse</translation>
 <translation id="5233231016133573565">Proces-ID</translation>
 <translation id="5233736638227740678">&amp;Indsæt</translation>
-<translation id="5244466461749935369">Behold indtil videre</translation>
 <translation id="5256861893479663409">På alle websites</translation>
 <translation id="5260334392110301220">Smarte citationstegn</translation>
 <translation id="5269977353971873915">Udskrift mislykkedes</translation>
@@ -309,7 +302,6 @@
 <translation id="5780973441651030252">Procesprioritet</translation>
 <translation id="5804241973901381774">Tilladelser</translation>
 <translation id="5828633471261496623">Udskriver...</translation>
-<translation id="5851868085455377790">Udsteder</translation>
 <translation id="5860491529813859533">Aktivér</translation>
 <translation id="5910363049092958439">Ge&amp;m billede som...</translation>
 <translation id="5914724413750400082">Modulus (<ph name="MODULUS_NUM_BITS" /> bit):
@@ -382,6 +374,7 @@
 <translation id="7144856456372460176">&amp;Installer <ph name="APP" />...</translation>
 <translation id="7175353351958621980">Indlæst fra:</translation>
 <translation id="7186088072322679094">Behold i værktøjslinje</translation>
+<translation id="7234025455364623479">Du kan bruge gemte adgangskoder på enhver enhed. De er gemt i <ph name="VIVALDI_PASSWORD_MANAGER" /> for <ph name="EMAIL" />.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />x<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Kontrollér stavning under indtastning</translation>
 <translation id="7359680654975233185">Kan ikke caste fane</translation>
@@ -457,11 +450,11 @@ Opbevar din nøglefil et sikkert sted. Du skal bruge den til at oprette nye vers
 <translation id="862750493060684461">CSS-cache</translation>
 <translation id="8661290697478713397">Åbn link i inko&amp;gnitovindue</translation>
 <translation id="8664389313780386848">&amp;Vis kildekode</translation>
-<translation id="8705331520020532516">Serienummer</translation>
 <translation id="8708000541097332489">Ryd ved lukning</translation>
 <translation id="8714838604780058252">Baggrundsgrafik</translation>
 <translation id="8725066075913043281">Prøv igen</translation>
 <translation id="8770406935328356739">Udvidelsesrodmappe</translation>
+<translation id="8773535891252326047">Link kopieret til fremhævning</translation>
 <translation id="8774934320277480003">Margen i toppen</translation>
 <translation id="8798099450830957504">Standard</translation>
 <translation id="8808478386290700967">Webshop</translation>

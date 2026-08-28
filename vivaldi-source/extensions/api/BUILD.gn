@@ -85,15 +85,17 @@ static_library("apis") {
     "//chrome/browser/ui/zoom",
     "//chrome/common:actor_webui_mojom",
     "//chrome/common:buildflags",
-    "//chrome/common/apps/platform_apps",
     "//chrome/common/extensions/api",
     "//components/autofill/content/common/mojom",
     "//components/autofill/core/common",
     "//components/bookmarks/browser",
+    "//components/browser_apis/browser_controls:mojom_data_model_shared_cpp_sources",
+    "//components/browser_apis/ui_controllers/toolbar:extensions_bar_data_model_mojom",
+    "//components/browser_apis/ui_controllers/toolbar:icon_handle_mojom",
+    "//components/browser_apis/ui_controllers/toolbar:mojom_data_model",
     "//components/browser_sync",
     "//components/infobars/core",
     "//components/javascript_dialogs",
-    "//components/keep_alive_registry",
     "//components/keyed_service/content",
     "//components/language/core/browser",
     "//components/media_router/common/mojom:media_router",
@@ -108,7 +110,6 @@ static_library("apis") {
     "//components/sync",
     "//components/sync_device_info",
     "//components/version_info",
-    "//components/web_modal",
     "//components/webapps/common:mojo_bindings",
     "//components/zoom",
 
@@ -168,12 +169,6 @@ static_library("apis") {
     deps += [ "//vivaldi/thirdparty/brave/common:url_cleaning" ]
   }
 
-  allow_circular_includes_from = [
-    # "//chrome/browser/extensions",
-    "//vivaldi/extensions/helper:app_helper",
-    "//vivaldi/extensions/tools",
-  ]
-
   # Needed for media support detection in vivaldi.utilities
   if (is_win) {
     libs = [ "mfplat.lib" ]
@@ -190,8 +185,8 @@ static_library("apis") {
     "access_keys/access_keys_api.h",
     "bookmark_context_menu/bookmark_context_menu_api.cc",
     "bookmark_context_menu/bookmark_context_menu_api.h",
-    "bookmarks/bookmarks_private_api.cc",
-    "bookmarks/bookmarks_private_api.h",
+    "bookmarks_private/bookmarks_private_api.cc",
+    "bookmarks_private/bookmarks_private_api.h",
     "calendar/calendar_api.cc",
     "calendar/calendar_api.h",
     "contacts/contacts_api.cc",
@@ -200,28 +195,24 @@ static_library("apis") {
     "content_blocking/content_blocking_api.h",
     "context_menu/context_menu_api.cc",
     "context_menu/context_menu_api.h",
-    "devtools/devtools_private_api.cc",
-    "devtools/devtools_private_api.h",
+    "devtools_private/devtools_private_api.cc",
+    "devtools_private/devtools_private_api.h",
     "direct_match/direct_match_api.cc",
     "direct_match/direct_match_api.h",
-    "doh/doh_functions.cc",
-    "doh/doh_functions.h",
+    "doh_functions/doh_functions_api.cc",
+    "doh_functions/doh_functions_api.h",
     "editcommand/editcommand_api.cc",
     "editcommand/editcommand_api.h",
     "extension_action_utils/extension_action_utils_api.cc",
     "extension_action_utils/extension_action_utils_api.h",
-    "guest_view/vivaldi_guest_view_utils.cpp",
-    "guest_view/vivaldi_guest_view_utils.h",
-    "guest_view/web_view_private_api.cpp",
-    "guest_view/web_view_private_api.h",
-    "history/history_private_api.cc",
-    "history/history_private_api.h",
+    "history_private/history_private_api.cc",
+    "history_private/history_private_api.h",
     "import_data/import_data_api.cc",
     "import_data/import_data_api.h",
     "infobars/infobars_api.cc",
     "infobars/infobars_api.h",
-    "mail/mail_private_api.cc",
-    "mail/mail_private_api.h",
+    "mail_private/mail_private_api.cc",
+    "mail_private/mail_private_api.h",
     "menu_content/menu_content_api.cc",
     "menu_content/menu_content_api.h",
     "menubar/menubar_api.cc",
@@ -230,8 +221,8 @@ static_library("apis") {
     "menubar_menu/menubar_menu_api.h",
     "notes/notes_api.cc",
     "notes/notes_api.h",
-    "omnibox/omnibox_private_api.cc",
-    "omnibox/omnibox_private_api.h",
+    "omnibox_private/omnibox_private_api.cc",
+    "omnibox_private/omnibox_private_api.h",
     "page_actions/page_actions_api.cc",
     "page_actions/page_actions_api.h",
     "pip_private/pip_private_api.cc",
@@ -240,62 +231,66 @@ static_library("apis") {
     "prefs/prefs_api.h",
     "protonvpn/protonvpn_api.cc",
     "protonvpn/protonvpn_api.h",
-    "reading_list/reading_list_api.cc",
-    "reading_list/reading_list_api.h",
-    "runtime/runtime_api.cpp",
-    "runtime/runtime_api.h",
+    "reading_list_private/reading_list_private_api.cc",
+    "reading_list_private/reading_list_private_api.h",
+    "runtime_private/runtime_private_api.cpp",
+    "runtime_private/runtime_private_api.h",
     "savedpasswords/password_list_sorter.cc",
     "savedpasswords/password_list_sorter.h",
     "savedpasswords/savedpasswords_api.cc",
     "savedpasswords/savedpasswords_api.h",
     "search_engines/search_engines_api.cc",
     "search_engines/search_engines_api.h",
-    "sessions/vivaldi_sessions_api.cc",
-    "sessions/vivaldi_sessions_api.h",
     "settings/settings_api.cc",
     "settings/settings_api.h",
     "site_permissions/site_permissions_api.cc",
     "site_permissions/site_permissions_api.h",
     "sync/sync_api.cc",
     "sync/sync_api.h",
-    "tabs/tabs_motion_helper.cc",
-    "tabs/tabs_motion_helper.h",
-    "tabs/tabs_private_api.cc",
-    "tabs/tabs_private_api.h",
-    "theme/theme_private_api.cc",
-    "theme/theme_private_api.h",
+    "tabs_private/tabs_motion_helper.cc",
+    "tabs_private/tabs_motion_helper.h",
+    "tabs_private/tabs_private_api.cc",
+    "tabs_private/tabs_private_api.h",
+    "theme_private/theme_private_api.cc",
+    "theme_private/theme_private_api.h",
     "thumbnails/thumbnails_api.cc",
     "thumbnails/thumbnails_api.h",
     "translate_history/translate_history_api.cc",
     "translate_history/translate_history_api.h",
     "vivaldi_account/vivaldi_account_api.cc",
     "vivaldi_account/vivaldi_account_api.h",
+    "vivaldi_sessions/vivaldi_sessions_api.cc",
+    "vivaldi_sessions/vivaldi_sessions_api.h",
     "vivaldi_utilities/drag_download_items.h",
     "vivaldi_utilities/vivaldi_utilities_api.cc",
     "vivaldi_utilities/vivaldi_utilities_api.h",
-    "window/window_private_api.cc",
-    "window/window_private_api.h",
+    "web_view_private/vivaldi_guest_view_utils.cpp",
+    "web_view_private/vivaldi_guest_view_utils.h",
+    "web_view_private/web_view_private_api.cpp",
+    "web_view_private/web_view_private_api.h",
+    "window_private/window_private_api.cc",
+    "window_private/window_private_api.h",
     "zoom/zoom_api.cc",
     "zoom/zoom_api.h",
   ]
 
   if (!vivaldi_disable_sparkle) {
     sources += [
-      "auto_update/auto_update_api.cc",
-      "auto_update/auto_update_api.h",
-      "auto_update/auto_update_status.h",
+      "autoupdate/autoupdate_api.cc",
+      "autoupdate/autoupdate_api.h",
+      "autoupdate/autoupdate_status.h",
     ]
     if (is_mac) {
-      sources += [ "auto_update/auto_update_api_mac.mm" ]
+      sources += [ "autoupdate/auto_update_api_mac.mm" ]
     }
     if (is_win) {
-      sources += [ "auto_update/auto_update_api_win.cc" ]
+      sources += [ "autoupdate/auto_update_api_win.cc" ]
     }
     if (is_linux) {
       sources += [
-        "auto_update/auto_update_api_linux.cc",
-        "auto_update/linux_update_checker.cc",
-        "auto_update/linux_update_checker.h",
+        "autoupdate/auto_update_api_linux.cc",
+        "autoupdate/linux_update_checker.cc",
+        "autoupdate/linux_update_checker.h",
       ]
     }
   }
@@ -305,7 +300,7 @@ static_library("apis") {
       "vivaldi_utilities/launch_bar_gnome_support.cc",
       "vivaldi_utilities/launch_bar_gnome_support.h",
       "vivaldi_utilities/vivaldi_utilities_api_linux.cc",
-      "window/window_private_api_linux.cc",
+      "window_private/window_private_api_linux.cc",
     ]
 
     if (use_gio) {
@@ -316,7 +311,7 @@ static_library("apis") {
     sources += [
       "vivaldi_utilities/drag_download_items_mac.mm",
       "vivaldi_utilities/vivaldi_utilities_api_mac.mm",
-      "window/window_private_api_mac.mm",
+      "window_private/window_private_api_mac.mm",
     ]
 
     # For auto_update_api.cc:
@@ -329,14 +324,37 @@ static_library("apis") {
   if (is_win) {
     sources += [
       "vivaldi_utilities/vivaldi_utilities_api_win.cc",
-      "window/window_private_api_win.cc",
+      "window_private/window_private_api_win.cc",
     ]
   }
   if (use_aura) {
     sources += [ "vivaldi_utilities/drag_download_items_aura.cc" ]
   }
+
+  # PWA API depends on web_applications which is desktop-only
+  if (!is_android) {
+    deps += [
+      "//chrome/browser/web_applications",
+      "//components/webapps/browser",
+    ]
+    sources += [
+      "pwa/pwa_api.cc",
+      "pwa/pwa_api.h",
+    ]
+  }
   configs += [
     ":api_keys",
     "//vivaldi/gn/config:release_kind",
+  ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [ "mail_private/mail_private_api_test.cc" ]
+  deps = [
+    ":apis",
+    "//base",
+    "//testing/gmock",
+    "//testing/gtest",
   ]
 }

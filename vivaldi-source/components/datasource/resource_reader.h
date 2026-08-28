@@ -43,7 +43,7 @@ class ResourceReader {
 
   bool IsValid() const { return mapped_file_.IsValid(); }
 
-  const uint8_t* data() const { return mapped_file_.data(); }
+  const uint8_t* data() const { return mapped_file_.bytes().data(); }
   size_t size() const { return mapped_file_.length(); }
 
   base::span<const uint8_t> bytes() const { return mapped_file_.bytes(); }

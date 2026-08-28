@@ -7,13 +7,12 @@
 #include "components/update_client/crx_update_item.h"
 
 #ifndef VIVALDI_SPARKLE_DISABLED
-#include "extensions/api/auto_update/auto_update_api.h"
+#include "extensions/api/autoupdate/autoupdate_api.h"
 #endif
 
 #if !BUILDFLAG(IS_LINUX)
 #include "app/vivaldi_resources.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "components/infobars/content/content_infobar_manager.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/vivaldi_infobar_delegate.h"

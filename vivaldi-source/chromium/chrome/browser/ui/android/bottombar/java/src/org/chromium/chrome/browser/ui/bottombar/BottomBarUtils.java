@@ -4,8 +4,11 @@
 
 package org.chromium.chrome.browser.ui.bottombar;
 
+import static org.chromium.build.NullUtil.assertNonNull;
+
 import android.content.Context;
 import android.content.res.ColorStateList;
+import android.graphics.drawable.RippleDrawable;
 
 import androidx.annotation.ColorInt;
 
@@ -32,6 +35,11 @@ public class BottomBarUtils {
             Context context, @BrandedColorScheme int brandedColorScheme) {
         boolean isIncognito = brandedColorScheme == BrandedColorScheme.INCOGNITO;
         return IncognitoColors.getColorSurfaceContainerHigh(context, isIncognito);
+    }
+
+    /** Gets the height of the bottom bar. */
+    public static int getBottomBarHeight(Context context) {
+        return context.getResources().getDimensionPixelSize(R.dimen.bottom_bar_height);
     }
 
     /**
@@ -63,5 +71,54 @@ public class BottomBarUtils {
             Context context, @BrandedColorScheme int brandedColorScheme) {
         boolean isIncognito = brandedColorScheme == BrandedColorScheme.INCOGNITO;
         return IncognitoColors.getColorSurfaceBright(context, isIncognito);
+    }
+
+    /**
+     * Creates a hoverable ripple drawable.
+     *
+     * @param context The context used to resolve resources.
+     * @param brandedColorScheme The branded color scheme.
+     * @return The mutated RippleDrawable.
+     */
+    public static RippleDrawable createHoverableRipple(
+            Context context, @BrandedColorScheme int brandedColorScheme) {
+        boolean isIncognito = brandedColorScheme == BrandedColorScheme.INCOGNITO;
+        int rippleResId =
+                isIncognito
+                        ? R.drawable.default_icon_background_baseline
+                        : R.drawable.default_icon_background;
+        RippleDrawable ripple =
+                (RippleDrawable) assertNonNull(context.getDrawable(rippleResId)).mutate();
+        ripple.setColor(
+                ColorStateList.valueOf(getRippleColorNoBackground(context, brandedColorScheme)));
+        return ripple;
+    }
+
+    /**
+     * Returns the ripple color for bottom bar elements with no background.
+     *
+     * @param context The context used to resolve the color.
+     * @param brandedColorScheme The branded color scheme for the bottom bar.
+     * @return The ripple color int.
+     */
+    public static @ColorInt int getRippleColorNoBackground(
+            Context context, @BrandedColorScheme int brandedColorScheme) {
+        boolean isIncognito = brandedColorScheme == BrandedColorScheme.INCOGNITO;
+        int onSurface = IncognitoColors.getColorOnSurface(context, isIncognito);
+        return ColorUtils.setAlphaComponentWithFloat(onSurface, 0.10f);
+    }
+
+    /**
+     * Returns the ripple color for bottom bar elements with a background.
+     *
+     * @param context The context used to resolve the color.
+     * @param brandedColorScheme The branded color scheme for the bottom bar.
+     * @return The ripple color int.
+     */
+    public static @ColorInt int getRippleColorBackground(
+            Context context, @BrandedColorScheme int brandedColorScheme) {
+        boolean isIncognito = brandedColorScheme == BrandedColorScheme.INCOGNITO;
+        int onSurface = IncognitoColors.getColorOnSurface(context, isIncognito);
+        return ColorUtils.setAlphaComponentWithFloat(onSurface, 0.08f);
     }
 }

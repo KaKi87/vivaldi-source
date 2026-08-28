@@ -302,7 +302,7 @@ void VivaldiNativeWidgetMac::DispatchFullscreenMenubarChangedEvent(bool shown) {
       extensions::vivaldi::window_private::
           OnFullscreenMenubarVisibilityChanged::Create(
               browser->session_id().id(), shown),
-      browser->profile());
+      browser->GetProfile());
 }
 
 void VivaldiNativeWidgetMac::PopulateCreateWindowParams(
@@ -402,7 +402,7 @@ void VivaldiNativeWidgetMac::OnWindowDidChangeScreen(bool hasNotch) {
       extensions::vivaldi::window_private::OnWindowDidChangeScreens::kEventName,
       extensions::vivaldi::window_private::OnWindowDidChangeScreens::Create(
           browser->session_id().id(), hasNotch),
-      browser->profile());
+      browser->GetProfile());
 }
 
 // The method in the parent class always returns false

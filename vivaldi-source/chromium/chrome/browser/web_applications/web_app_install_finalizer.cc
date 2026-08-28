@@ -28,13 +28,13 @@
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/web_applications/commands/web_app_uninstall_command.h"
-#include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_integrity_block_data.h"
 #include "chrome/browser/web_applications/jobs/finalize_install_job.h"
 #include "chrome/browser/web_applications/jobs/finalize_update_job.h"
 #include "chrome/browser/web_applications/jobs/uninstall/remove_install_source_job.h"
 #include "chrome/browser/web_applications/jobs/uninstall/remove_install_url_job.h"
 #include "chrome/browser/web_applications/jobs/uninstall/remove_web_app_job.h"
 #include "chrome/browser/web_applications/model/app_installed_by.h"
+#include "chrome/browser/web_applications/model/integrity_block_data.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom.h"
 #include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
 #include "chrome/browser/web_applications/os_integration/web_app_shortcuts_menu.h"
@@ -92,6 +92,14 @@ void WebAppInstallFinalizer::FinalizeInstall(
     const WebAppInstallInfo& web_app_info,
     const FinalizeJobOptions& options,
     InstallFinalizedCallback callback) {
+  FinalizeInstall(web_app_info, options, nullptr, std::move(callback));
+}
+
+void WebAppInstallFinalizer::FinalizeInstall(
+    const WebAppInstallInfo& web_app_info,
+    const FinalizeJobOptions& options,
+    std::unique_ptr<FinalizerDelegate> finalizer_delegate,
+    InstallFinalizedCallback callback) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   // TODO(crbug.com/40693380): Implement a before-start queue in
   // WebAppInstallManager and replace this runtime error in
@@ -104,7 +112,8 @@ void WebAppInstallFinalizer::FinalizeInstall(
 
   std::unique_ptr<FinalizeInstallJob> web_app_install_job =
       std::make_unique<FinalizeInstallJob>(*profile_, nullptr, nullptr,
-                                           std::move(web_app_info), options);
+                                           std::move(web_app_info), options,
+                                           std::move(finalizer_delegate));
   FinalizeInstallJob* job_ptr = web_app_install_job.get();
   install_jobs_.insert(std::move(web_app_install_job));
   job_ptr->Start(base::BindOnce(&WebAppInstallFinalizer::OnInstallJobFinished,
@@ -134,16 +143,33 @@ void WebAppInstallFinalizer::OnInstallUpdateJobFinished(
 void WebAppInstallFinalizer::FinalizeUpdate(
     const WebAppInstallInfo& web_app_info,
     InstallFinalizedCallback callback) {
-  FinalizeUpdate(nullptr, web_app_info, std::move(callback));
+  FinalizeUpdate(nullptr, web_app_info, nullptr, std::move(callback));
+}
+
+void WebAppInstallFinalizer::FinalizeUpdate(
+    const WebAppInstallInfo& web_app_info,
+    std::unique_ptr<FinalizerDelegate> finalizer_delegate,
+    InstallFinalizedCallback callback) {
+  FinalizeUpdate(nullptr, web_app_info, std::move(finalizer_delegate),
+                 std::move(callback));
 }
 
 void WebAppInstallFinalizer::FinalizeUpdate(
     WithAppResources* lock,
     const WebAppInstallInfo& web_app_info,
     InstallFinalizedCallback callback) {
+  FinalizeUpdate(lock, web_app_info, nullptr, std::move(callback));
+}
+
+void WebAppInstallFinalizer::FinalizeUpdate(
+    WithAppResources* lock,
+    const WebAppInstallInfo& web_app_info,
+    std::unique_ptr<FinalizerDelegate> finalizer_delegate,
+    InstallFinalizedCallback callback) {
   std::unique_ptr<FinalizeUpdateJob> web_app_install_update_job =
       std::make_unique<FinalizeUpdateJob>(nullptr, lock, *provider_,
-                                          web_app_info);
+                                          web_app_info,
+                                          std::move(finalizer_delegate));
   FinalizeUpdateJob* job_ptr = web_app_install_update_job.get();
   install_update_jobs_.insert(std::move(web_app_install_update_job));
   job_ptr->Start(

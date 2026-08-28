@@ -126,6 +126,14 @@ void OpenSLESOutputStream::Start(AudioSourceCallback* callback) {
   uint32_t position_in_ms = 0;
   LOG_ON_FAILURE_AND_RETURN((*player_)->GetPosition(player_, &position_in_ms));
   delay_calculator_.SetBaseTimestamp(base::Milliseconds(position_in_ms));
+#if defined(OEM_MERCEDES_BUILD)
+  // Vivaldi AUTO-349: the callback subtracts the hardware latency from the
+  // position (large on Mercedes since VAB-7653), so subtract it from the base
+  // too. Otherwise the base can be larger than the target and the audio code
+  // crashes.
+  delay_calculator_.SetBaseTimestamp(
+      AdjustPositionForHardwareLatency(position_in_ms));
+#endif
   delay_calculator_.AddFrames(audio_bus_->frames());
 
   started_ = true;

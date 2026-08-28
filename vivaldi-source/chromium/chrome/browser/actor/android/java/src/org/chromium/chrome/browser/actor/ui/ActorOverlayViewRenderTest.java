@@ -48,7 +48,6 @@ import org.chromium.chrome.browser.ui.side_ui.SideUiObserver;
 import org.chromium.chrome.browser.ui.side_ui.SideUiStateProvider;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.util.ChromeRenderTestRule;
-import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandlerRegistry;
 import org.chromium.ui.test.util.BlankUiTestActivity;
 
@@ -66,7 +65,8 @@ public class ActorOverlayViewRenderTest {
     public ChromeRenderTestRule mRenderTestRule =
             ChromeRenderTestRule.Builder.withPublicCorpus()
                     .setBugComponent(ChromeRenderTestRule.Component.UI_BROWSER_GLIC)
-                    .setRevision(4)
+                    .setRevision(6)
+                    .setDescription("Custom blue glow shadow for take over button")
                     .build();
 
     @Mock private TabModelSelector mTabModelSelector;
@@ -75,7 +75,6 @@ public class ActorOverlayViewRenderTest {
     @Mock private LayoutManager mLayoutManager;
     @Mock private Profile mProfile;
     @Mock private ActorKeyedService mActorKeyedService;
-    @Mock private BottomSheetController mBottomSheetController;
     @Mock private SideUiStateProvider mSideUiStateProvider;
     private TestBrowserControlsVisibilityManager mBrowserControlsVisibilityManager;
 
@@ -109,8 +108,6 @@ public class ActorOverlayViewRenderTest {
                     mProfileSupplier = ObservableSuppliers.createMonotonic();
                     mProfileSupplier.set(mProfile);
                     ActorKeyedServiceFactory.setForTesting(mActorKeyedService);
-                    when(mBottomSheetController.getSheetState())
-                            .thenReturn(BottomSheetController.SheetState.HIDDEN);
 
                     mParentView = new FrameLayout(mActivity);
                     mActivity.setContentView(mParentView);
@@ -129,7 +126,6 @@ public class ActorOverlayViewRenderTest {
                                     mBackPressHandlerRegistry,
                                     mLayoutManagerSupplier,
                                     mProfileSupplier,
-                                    mBottomSheetController,
                                     mSideUiStateProvider);
                 });
     }
@@ -186,7 +182,7 @@ public class ActorOverlayViewRenderTest {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mCoordinator.getMediator().setOverlayVisible(true);
-                    mCoordinator.getView().setHovered(true);
+                    mParentView.findViewById(R.id.actor_overlay).setHovered(true);
                 });
 
         CriteriaHelper.pollUiThread(

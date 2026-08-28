@@ -57,6 +57,7 @@ import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.util.TokenHolder;
 
 // Vivaldi
+import org.chromium.base.DeviceInfo;
 import org.chromium.chrome.browser.ChromeApplicationImpl;
 import org.vivaldi.browser.common.VivaldiUtils;
 
@@ -227,6 +228,11 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
                 new BrowserStateBrowserControlsVisibilityDelegate(
                         mHtmlApiHandler.getPersistentFullscreenModeSupplier());
         mBrowserVisibilityDelegate.addSyncObserverAndPostIfNonNull(this::onConstraintsChanged);
+        // Vivaldi AUTO-344: Lock controls shown on automotive (no scroll-away).
+        // Fullscreen still overrides this token and hides them.
+        if (DeviceInfo.isAutomotive()) {
+            mBrowserVisibilityDelegate.showControlsPersistent();
+        }
     }
 
     /**
@@ -569,9 +575,6 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
                 && mTopControlsMinHeight == topControlsMinHeight) {
             return;
         }
-
-        if (ChromeApplicationImpl.isVivaldi() && !VivaldiUtils.isTopToolbarOn())
-            return;
 
         try (TraceEvent e = TraceEvent.scoped("BrowserControlsManager.setTopControlsHeight")) {
             final int oldTopHeight = mTopControlsHeight;
@@ -1259,7 +1262,7 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
         }
         mControlsAnimator = ValueAnimator.ofInt(startOffset, 0);
         mControlsAnimator.setDuration(
-                (long) Math.abs(hiddenRatio * CONTROLS_ANIMATION_DURATION_MS));
+                (long) Math.abs(hiddenRatio * controlsAnimationDurationMs())); // Vivaldi
         mControlsAnimator.addListener(
                 new AnimatorListenerAdapter() {
                     @Override
@@ -1331,7 +1334,7 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
 
         mControlsAnimator = ValueAnimator.ofFloat(0.f, 1.f);
         mControlsAnimator.setDuration(
-                (long) Math.abs((1.f - hiddenRatio) * CONTROLS_ANIMATION_DURATION_MS));
+                (long) Math.abs((1.f - hiddenRatio) * controlsAnimationDurationMs())); // Vivaldi
         mControlsAnimator.addListener(
                 new AnimatorListenerAdapter() {
                     @Override
@@ -1456,7 +1459,7 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
                             (int) topControlsMinHeightOffset,
                             (int) bottomControlsMinHeightOffset);
                 });
-        mControlsAnimator.setDuration(CONTROLS_ANIMATION_DURATION_MS);
+        mControlsAnimator.setDuration(controlsAnimationDurationMs()); // Vivaldi
         mControlsAnimator.addListener(
                 new AnimatorListenerAdapter() {
                     @Override
@@ -1596,5 +1599,12 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
     /** Vivaldi */
     public boolean isContentViewScrolling() {
         return mContentViewScrolling;
+    }
+
+    /** Vivaldi AUTO-344
+     *  No control animation on automotive. Slide in/out janks on low-core units.
+     */
+    private int controlsAnimationDurationMs() {
+        return DeviceInfo.isAutomotive() ? 0 : CONTROLS_ANIMATION_DURATION_MS;
     }
 }

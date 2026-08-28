@@ -15,7 +15,11 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/test/bind.h"
 #include "chrome/browser/ui/web_applications/web_app_run_on_os_login_notification.h"
+#include "chrome/browser/web_applications/web_app.h"
+#include "chrome/browser/web_applications/web_app_command_scheduler.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
+#include "chrome/browser/web_applications/web_app_provider.h"
+#include "chrome/browser/web_applications/web_app_registrar.h"
 #include "components/services/app_service/public/cpp/app_launch_util.h"
 #include "components/webapps/browser/install_result_code.h"
 #include "components/webapps/browser/uninstall_result_code.h"
@@ -216,6 +220,17 @@ void FakeWebAppUiManager::TriggerInstallDialogForBackgroundInstall(
   NOTIMPLEMENTED();
 }
 
+void FakeWebAppUiManager::TriggerInstallDialogForManifestInstall(
+    content::WebContents* initiating_web_contents,
+    base::WeakPtr<content::Page> initiating_page,
+    std::unique_ptr<webapps::MlInstallOperationTracker> tracker,
+    blink::mojom::ManifestPtr manifest,
+    const GURL& manifest_url,
+    const GURL& requesting_page_url,
+    InstallCallback callback) {
+  NOTIMPLEMENTED();
+}
+
 void FakeWebAppUiManager::TriggerLaunchDialogForBackgroundInstall(
     content::WebContents* initiating_web_contents,
     const webapps::AppId& app_id,
@@ -250,6 +265,27 @@ void FakeWebAppUiManager::PresentUserUninstallDialog(
     UninstallScheduledCallback scheduled_callback) {
   std::move(scheduled_callback).Run(/*uninstall_scheduled=*/true);
   std::move(callback).Run(webapps::UninstallResultCode::kAppRemoved);
+}
+
+void FakeWebAppUiManager::SetProvider(WebAppProvider* provider) {
+  provider_ = provider;
+}
+
+void FakeWebAppUiManager::UninstallAppSilentlyForMigration(
+    const webapps::AppId& app_id) {
+  if (provider_) {
+    const WebApp* app = provider_->registrar_unsafe().GetAppById(app_id);
+    if (!app) {
+      return;
+    }
+    WebAppManagementTypes sources = app->GetSources();
+    for (WebAppManagement::Type source : sources) {
+      provider_->scheduler().RemoveInstallManagementMaybeUninstall(
+          app_id, source,
+          webapps::WebappUninstallSource::kUninstallAndReplaceMigration,
+          base::DoNothing());
+    }
+  }
 }
 
 void FakeWebAppUiManager::ShowProfileErrorDialogForCorruptDB() {

@@ -31,6 +31,11 @@ package(default_visibility = DEFAULT_VISIBILITY)
 
 licenses(["notice"])
 
+exports_files([
+    "crash_deduplication.h",
+    "crash_deduplication.cc",
+])
+
 ################################################################################
 #                                  Binaries
 ################################################################################
@@ -44,8 +49,8 @@ cc_binary(
         ":centipede_interface",
         ":config_file",
         ":environment_flags",
+        ":stop",
         "@abseil-cpp//absl/base:nullability",
-        "@abseil-cpp//absl/log:flags",
     ],
 )
 
@@ -217,6 +222,7 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:hash",
@@ -898,6 +904,7 @@ cc_library(
         ":crash_summary",
         ":environment",
         ":runner_result",
+        ":stop",
         ":workdir",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
@@ -905,12 +912,30 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/time:clock_interface",
+        "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:crashing_input_filename",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:hash",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:remote_file",
         "@com_google_fuzztest//common:status_macros",
+    ],
+)
+
+cc_library(
+    name = "crash_deduplication_test_util",
+    testonly = 1,
+    srcs = ["crash_deduplication_test_util.cc"],
+    hdrs = ["crash_deduplication_test_util.h"],
+    deps = [
+        ":centipede_callbacks",
+        ":environment",
+        ":runner_result",
+        ":stop",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/types:span",
+        "@com_google_fuzztest//common:defs",
     ],
 )
 
@@ -971,6 +996,36 @@ cc_library(
         ":shared_memory_blob_sequence",
         "@abseil-cpp//absl/base:nullability",
         "@com_google_fuzztest//common:defs",
+    ],
+)
+
+cc_library(
+    name = "engine_worker",
+    srcs = [
+        "engine_worker.cc",
+        "runner_utils.cc",
+        "runner_utils.h",
+    ],
+    hdrs = ["engine_worker_abi.h"],
+    deps = [
+        ":engine_abi",
+        ":execution_metadata",
+        ":feature",
+        ":runner_request",
+        ":runner_result",
+        ":shared_memory_blob_sequence",
+        "@abseil-cpp//absl/base:nullability",
+        "@com_google_fuzztest//common:defs",
+    ],
+)
+
+cc_library(
+    name = "engine_controller_with_subprocess",
+    srcs = ["engine_controller_with_subprocess.cc"],
+    hdrs = ["engine_controller_abi.h"],
+    deps = [
+        "@com_google_fuzztest//centipede:engine_abi",
+        "@com_google_fuzztest//fuzztest/internal:escaping",
     ],
 )
 
@@ -1043,6 +1098,7 @@ RUNNER_DEPS = [
     ":knobs",
     ":mutation_data",
     ":rolling_hash",
+    ":engine_abi",
     ":runner_cmp_trace",
     ":runner_fork_server",
     ":runner_request",
@@ -1200,6 +1256,7 @@ cc_library(
     deps = [
         ":callstack",
         ":dispatcher_flag_helper",
+        ":engine_abi",
         ":execution_metadata",
         ":feature",
         ":foreach_nonzero",
@@ -1248,6 +1305,7 @@ cc_library(
         ":feature",
         ":mutation_data",
         ":runner_result",
+        ":stop",
         ":util",
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:defs",
@@ -1294,6 +1352,7 @@ cc_test(
         ":centipede_callbacks",
         ":environment",
         ":runner_result",
+        ":stop",
         "@abseil-cpp//absl/types:span",
         "@com_google_fuzztest//common:defs",
         "@googletest//:gtest_main",
@@ -1359,6 +1418,7 @@ cc_test(
         ":thread_pool",
         ":util",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/time",
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:hash",
         "@com_google_fuzztest//common:logging",
@@ -1469,6 +1529,7 @@ cc_test(
         ":environment",
         ":minimize_crash",
         ":runner_result",
+        ":stop",
         ":util",
         ":workdir",
         "@abseil-cpp//absl/base:nullability",
@@ -1883,17 +1944,18 @@ cc_test(
     deps = [
         ":centipede_callbacks",
         ":crash_deduplication",
+        ":crash_deduplication_test_util",
         ":crash_summary",
         ":environment",
-        ":runner_result",
+        ":stop",
         ":util",
         ":workdir",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
-        "@abseil-cpp//absl/types:span",
-        "@com_google_fuzztest//common:defs",
-        "@com_google_fuzztest//common:hash",
+        "@abseil-cpp//absl/time:clock_interface",
+        "@abseil-cpp//absl/time:simulated_clock",
         "@com_google_fuzztest//common:temp_dir",
         "@googletest//:gtest_main",
     ],
@@ -1918,6 +1980,7 @@ cc_test(
     timeout = "long",
     srcs = ["centipede_test.cc"],
     data = [
+        "@com_google_fuzztest//centipede",
         "@com_google_fuzztest//centipede/testing:abort_fuzz_target",
         "@com_google_fuzztest//centipede/testing:async_failing_target",
         "@com_google_fuzztest//centipede/testing:expensive_startup_fuzz_target",
@@ -1925,6 +1988,7 @@ cc_test(
         "@com_google_fuzztest//centipede/testing:fuzz_target_with_custom_mutator",
         "@com_google_fuzztest//centipede/testing:hanging_fuzz_target",
         "@com_google_fuzztest//centipede/testing:seeded_fuzz_target",
+        "@com_google_fuzztest//centipede/testing:test_binary_for_engine_testing",
         "@com_google_fuzztest//centipede/testing:test_fuzz_target",
         "@com_google_fuzztest//centipede/testing:test_input_filter",
     ],

@@ -13,4 +13,7 @@
 <translation id="7100573672995171864">Dostosuj i kontroluj przeglądarkę Vivaldi</translation>
 <translation id="7642161109152167169">Po włączeniu, Vivaldi oszczędza baterię, ograniczając aktywność w tle i efekty wizualne, takie jak płynne przewijanie czy liczbę klatek na sekundę plików wideo. <ph name="BEGIN_LINK" />Dowiedz się więcej<ph name="END_LINK" /></translation>
 <translation id="8031581238030785388">Aplikacje Vivaldi</translation>
+<translation id="8532558197615073846">{NUM_EXTENSIONS, plural,
+        =1 {To rozszerzenie zostało wyłączone, ponieważ nie jest już obsługiwane przez Chromium. Możesz teraz ponownie je włączyć, ale pamiętaj, że wkrótce może ono zostać usunięte. Spróbuj poszukać alternatywnego rozszerzenia w Chrome Web Store.}
+        other {Te rozszerzenia zostały wyłączone, ponieważ nie są już obsługiwane przez Chromium. Możesz teraz ponownie je włączyć, ale pamiętaj, że wkrótce mogą ono zostać usunięte. Spróbuj poszukać alternatywnych rozszerzeń w Chrome Web Store.}}</translation>
 </translationbundle>

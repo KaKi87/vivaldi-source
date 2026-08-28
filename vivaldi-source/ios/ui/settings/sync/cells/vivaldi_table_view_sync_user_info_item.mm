@@ -4,7 +4,6 @@
 
 #import "ios/chrome/browser/shared/ui/symbols/symbol_helpers.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbol_names.h"
-#import "ios/chrome/browser/shared/ui/table_view/legacy_chrome_table_view_styler.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/image_util.h"
 #import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
@@ -45,9 +44,8 @@ const UIFontTextStyle sessionTextStyle = UIFontTextStyleFootnote;
   return self;
 }
 
-- (void)configureHeaderFooterView:(VivaldiTableViewSyncUserInfoView*)header
-                       withStyler:(ChromeTableViewStyler*)styler {
-  [super configureHeaderFooterView:header withStyler:styler];
+- (void)configureHeaderFooterView:(VivaldiTableViewSyncUserInfoView*)header {
+  [super configureHeaderFooterView:header];
 
   // Add extra space before the name to optically align the user name with
   // session/device name pill.

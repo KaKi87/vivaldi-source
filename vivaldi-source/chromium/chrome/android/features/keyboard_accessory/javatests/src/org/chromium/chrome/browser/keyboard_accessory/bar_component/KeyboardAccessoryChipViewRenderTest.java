@@ -65,6 +65,7 @@ import org.chromium.ui.test.util.BlankUiTestActivity;
 import org.chromium.ui.test.util.NightModeTestUtils;
 import org.chromium.ui.test.util.RenderTestRule;
 import org.chromium.ui.test.util.RenderTestRule.Component;
+import org.chromium.ui.widget.LoadingView;
 import org.chromium.url.GURL;
 
 import java.util.ArrayList;
@@ -81,7 +82,6 @@ import java.util.List;
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @EnableFeatures({
     ChromeFeatureList.ANDROID_ELEGANT_TEXT_HEIGHT,
-    ChromeFeatureList.AUTOFILL_ENABLE_SUPPORT_FOR_HOME_AND_WORK,
 })
 public class KeyboardAccessoryChipViewRenderTest {
 
@@ -123,6 +123,9 @@ public class KeyboardAccessoryChipViewRenderTest {
 
     @Before
     public void setUp() throws Exception {
+        // Disabling animations is necessary to avoid running into issues with
+        // delayed hiding of loading views.
+        LoadingView.setDisableAnimationForTest(true);
         mActivityTestRule.launchActivity(/* startIntent= */ null);
         Activity activity = mActivityTestRule.getActivity();
         activity.setTheme(R.style.Theme_BrowserUI_DayNight);
@@ -187,7 +190,9 @@ public class KeyboardAccessoryChipViewRenderTest {
                                     .setSubLabel("hsimpson@gmail.com")
                                     .setSuggestionType(SuggestionType.ADDRESS_ENTRY)
                                     .build();
-                    mContentView.addView(createDeactivatedChipFromSuggestion(suggestion));
+                    mContentView.addView(
+                            createChipViewFromSuggestion(
+                                    suggestion, ActionBarItem.ViewState.DEACTIVATED));
                 });
         mRenderTestRule.render(mContentView, "keyboard_accessory_deactivated_suggestion");
     }
@@ -264,6 +269,14 @@ public class KeyboardAccessoryChipViewRenderTest {
                         .setIconId(R.drawable.ic_history_24dp)
                         .build();
 
+        AutofillSuggestion loadingSuggestion =
+                new AutofillSuggestion.Builder()
+                        .setLabel("Homer Simpson")
+                        .setSubLabel("hsimpson@gmail.com")
+                        .setSuggestionType(SuggestionType.ADDRESS_ENTRY)
+                        .setIsLoading(true)
+                        .build();
+
         return List.of(
                 addressSuggestion,
                 loyaltyCardSuggestion,
@@ -272,31 +285,15 @@ public class KeyboardAccessoryChipViewRenderTest {
                 creditCardSuggestion,
                 offerSuggestion,
                 otpSuggestion,
-                passwordHistorySuggestion);
+                passwordHistorySuggestion,
+                loadingSuggestion);
     }
 
     // KeyboardAccessoryViewBinder.create() returns a raw BarItemViewHolder.
     @SuppressWarnings("unchecked")
-    private ChipView createChipViewFromSuggestion(AutofillSuggestion suggestion) {
-        Action action = new Action(AUTOFILL_SUGGESTION, unused -> {});
-        BarItemViewHolder<AutofillBarItem, ChipView> viewHolder =
-                KeyboardAccessoryViewBinder.create(
-                        mKeyboardAccessoryView,
-                        mUiConfiguration,
-                        mContentView,
-                        AutofillBarItem.getBarItemType(suggestion, mMockProfile));
-        ChipView chipView = (ChipView) viewHolder.itemView;
-        viewHolder.bind(new AutofillBarItem(suggestion, action, mMockProfile), chipView);
-        chipView.setLayoutParams(
-                new ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        return chipView;
-    }
-
-    // KeyboardAccessoryViewBinder.create() returns a raw BarItemViewHolder.
-    @SuppressWarnings("unchecked")
-    private ChipView createDeactivatedChipFromSuggestion(AutofillSuggestion suggestion) {
-        Action action = new Action(AUTOFILL_SUGGESTION, unused -> {});
+    private ChipView createChipViewFromSuggestion(
+            AutofillSuggestion suggestion, @ActionBarItem.ViewState int viewState) {
+        Action action = new Action(AUTOFILL_SUGGESTION, _ -> {});
         BarItemViewHolder<AutofillBarItem, ChipView> viewHolder =
                 KeyboardAccessoryViewBinder.create(
                         mKeyboardAccessoryView,
@@ -305,7 +302,7 @@ public class KeyboardAccessoryChipViewRenderTest {
                         AutofillBarItem.getBarItemType(suggestion, mMockProfile));
         ChipView chipView = (ChipView) viewHolder.itemView;
         AutofillBarItem item = new AutofillBarItem(suggestion, action, mMockProfile);
-        item.setViewState(ActionBarItem.ViewState.DEACTIVATED);
+        item.setViewState(viewState);
         viewHolder.bind(item, chipView);
         chipView.setLayoutParams(
                 new ViewGroup.LayoutParams(
@@ -316,7 +313,7 @@ public class KeyboardAccessoryChipViewRenderTest {
     // KeyboardAccessoryViewBinder.create() returns a raw BarItemViewHolder.
     @SuppressWarnings("unchecked")
     private ChipView createCredmanEntry() {
-        Action credmanAction = new Action(CREDMAN_CONDITIONAL_UI_REENTRY, unused -> {});
+        Action credmanAction = new Action(CREDMAN_CONDITIONAL_UI_REENTRY, _ -> {});
         BarItemViewHolder<BarItem, ChipView> viewHolder =
                 KeyboardAccessoryViewBinder.create(
                         mKeyboardAccessoryView,
@@ -336,7 +333,7 @@ public class KeyboardAccessoryChipViewRenderTest {
     // KeyboardAccessoryViewBinder.create() returns a raw BarItemViewHolder.
     @SuppressWarnings("unchecked")
     private View createGeneratePassword() {
-        Action generatePasswordAction = new Action(GENERATE_PASSWORD_AUTOMATIC, unused -> {});
+        Action generatePasswordAction = new Action(GENERATE_PASSWORD_AUTOMATIC, _ -> {});
         // TODO: crbug.com/385172647 - Use generics parameters once 2 line chips are rolled out.
         BarItemViewHolder viewHolder =
                 KeyboardAccessoryViewBinder.create(
@@ -378,7 +375,7 @@ public class KeyboardAccessoryChipViewRenderTest {
     private List<View> createKeyboardAccessoryItemsToRender() {
         List<View> items = new ArrayList<>();
         for (AutofillSuggestion suggestion : createSuggestionsToRender()) {
-            items.add(createChipViewFromSuggestion(suggestion));
+            items.add(createChipViewFromSuggestion(suggestion, ActionBarItem.ViewState.ENABLED));
         }
         items.add(createCredmanEntry());
         items.add(createGeneratePassword());

@@ -61,6 +61,11 @@ public class HomeButton extends ListMenuButton implements ThemeColorProvider.Tin
         super.setVisibility(mHasSpaceToShow ? mVisibility : GONE);
     }
 
+    /** Returns whether there is enough space for the button to be shown. */
+    public boolean hasSpaceToShow() {
+        return mHasSpaceToShow;
+    }
+
     /**
      * Sets whether there is enough space for the button to be shown.
      *

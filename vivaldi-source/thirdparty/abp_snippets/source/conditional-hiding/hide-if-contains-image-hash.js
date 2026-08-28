@@ -14,7 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 
 import {raceWinner} from "../introspection/race.js";
@@ -35,10 +34,11 @@ let {
 } = $(window);
 
 /**
- * Hides any HTML element or one of its ancestors matching a CSS selector if
- * the perceptual hash of the image src or background image of the element
- * matches the given perceptual hash.
- * @alias module:content/snippets.hide-if-contains-image-hash
+ * @ignore
+ * @description Hides any HTML element or one of its ancestors matching
+ * a CSS selector if the perceptual hash of the image src or background
+ * image of the element matches the given perceptual hash.
+ * @memberof module:snippets/conditional-hiding
  *
  * @param {string} hashes List of comma seperated  perceptual hashes of the
  *  images that should be blocked, see also `maxDistance`.
@@ -179,7 +179,8 @@ export function hideIfContainsImageHash(hashes,
 
 
 /**
- * Calculates and returns the perceptual hash of the supplied image.
+ * @description Calculates and returns the perceptual hash of
+ * the supplied image.
  *
  * The following lines are based off the blockhash-js library which is
  * licensed under the MIT licence
@@ -394,7 +395,7 @@ function hashImage(imageData, blockBits) {
 }
 
 /**
- * Calculate the hamming distance for two hashes in hex format
+ * @description Calculate the hamming distance for two hashes in hex format
  *
  * The following lines are based off the blockhash-js library which is
  * licensed under the MIT licence

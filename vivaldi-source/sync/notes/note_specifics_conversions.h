@@ -89,6 +89,19 @@ bool HasExpectedNoteGuid(const sync_pb::NotesSpecifics& specifics,
                          const syncer::ClientTagHash& client_tag_hash,
                          const std::string& originator_cache_guid,
                          const std::string& originator_client_item_id);
+
+// Gets the note UUID corresponding to a permanent folder identified by
+// |server_defined_unique_tag| or an invalid UUID if the tag is unknown.
+// |server_defined_unique_tag| must not be empty.
+base::Uuid GetPermanentFolderUuidForServerDefinedUniqueTag(
+    const std::string& server_defined_unique_tag);
+
+// Returns the client tag hash for the given remote update. It parses the
+// client tag hash in the update or infers it from originator information or
+// permanent node server-defined unique tags.
+syncer::ClientTagHash GetOrInferClientTagHashInUpdate(
+    const syncer::EntityData& update_entity);
+
 }  // namespace sync_notes
 
 #endif  // SYNC_NOTES_NOTE_SPECIFICS_CONVERSIONS_H_

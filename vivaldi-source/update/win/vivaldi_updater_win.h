@@ -12,7 +12,7 @@
 #include "base/functional/callback_forward.h"
 #include "base/memory/weak_ptr.h"
 
-#include "extensions/api/auto_update/auto_update_status.h"
+#include "extensions/api/autoupdate/auto_update_status.h"
 #include "update/vivaldi_update_backend_notifier.h"
 
 #include "update_notifier/thirdparty/winsparkle/src/download.h"

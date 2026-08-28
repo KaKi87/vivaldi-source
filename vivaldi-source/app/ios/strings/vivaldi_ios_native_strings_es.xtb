@@ -219,6 +219,7 @@ bloqueado</translation>
 <translation id="3638687955382971136">Ampliar texto</translation>
 <translation id="3646647753063635401">Sincroniza todos los datos y activa automáticamente la sincronización de nuevos tipos de datos</translation>
 <translation id="3682791711395736890">Ver la versión de escritorio del sitio</translation>
+<translation id="3685766651529450469">Copiar enlace saneado</translation>
 <translation id="3689125468279190285">Mostrar botón de inicio</translation>
 <translation id="3694122362646626770">Sitios web</translation>
 <translation id="3699026013955941879">El código ha caducado. Solicita un nuevo código de verificación.</translation>
@@ -354,6 +355,7 @@ bloqueado</translation>
 <translation id="495421405224926623">He leído y acepto las condiciones de servicio y la política de privacidad</translation>
 <translation id="497942794017668482">Bloqueo de anuncios y rastreadores activo</translation>
 <translation id="4983968022327077496">Tu organización exige que navegues en modo privado. Las pestañas no se guardarán. <ph name="BEGIN_LINK" />Leer más<ph name="END_LINK" /></translation>
+<translation id="4991261712398289852">Dos niveles</translation>
 <translation id="4993477362660748586">Sincronización</translation>
 <translation id="500392125908657603">Opciones del campo de direcciones</translation>
 <translation id="5037761343305489956">Copiado a una nota</translation>
@@ -384,7 +386,7 @@ bloqueado</translation>
 <translation id="5398772614898833570">Anuncios bloqueados</translation>
 <translation id="5415265829033764921">Permitir que las reglas de bloqueo bloqueen ciertas páginas web.</translation>
 <translation id="5421638721143596928">Error al descifrar tus credenciales. Por favor, vuelve a iniciar sesión.</translation>
-<translation id="5439599923922718668">Visitadas frecuentemente</translation>
+<translation id="5439599923922718668">Visitados con frecuencia</translation>
 <translation id="5439835075346716808">El registro ha sido bloqueado temporalmente desde esta IP. Por favor, reinténtalo más tarde.</translation>
 <translation id="5475116651001049780">Ocultar versión móvil</translation>
 <translation id="5486261815000869482">Confirmar contraseña</translation>
@@ -425,7 +427,7 @@ bloqueado</translation>
 <translation id="5957613098218939406">Más opciones</translation>
 <translation id="6005497458542935062">Retirar de la carpeta</translation>
 <translation id="603230602684548091">Selecciona el idioma de origen</translation>
-<translation id="6040304352785030331">Quiero usar extensiones en mi navegador</translation>
+<translation id="6040304352785030331">Quiero usar extensiones/complementos del navegador</translation>
 <translation id="6042308850641462728">Más</translation>
 <translation id="6048889899469181614">Sync no está funcionando en este momento.
  Abre los ajustes para solucionarlo.</translation>

@@ -28,7 +28,7 @@
 
 #ifdef VIVALDI_BUILD
 #include "extensions/api/extension_action_utils/vivaldi_extension_host.h"
-#include "extensions/api/guest_view/vivaldi_web_view_guest_top.inc"
+#include "extensions/api/web_view_private/vivaldi_web_view_guest_top.inc"
 #include "third_party/blink/public/common/security/security_style.h"
 #endif // VIVALDI_BUILD
 
@@ -297,8 +297,7 @@ class WebViewGuest : public guest_view::GuestView<WebViewGuest> {
       base::OnceCallback<void(content::NavigationHandle&)>
           navigation_handle_callback) final;
   void WebContentsCreated(content::WebContents* source_contents,
-                          int opener_render_process_id,
-                          int opener_render_frame_id,
+                          const content::GlobalRenderFrameHostId& opener_id,
                           const std::string& frame_name,
                           const GURL& target_url,
                           content::WebContents* new_contents) final;
@@ -494,7 +493,7 @@ class WebViewGuest : public guest_view::GuestView<WebViewGuest> {
   base::WeakPtr<CreateWindowThrottle> create_window_throttle_;
 
 #ifdef VIVALDI_BUILD
-#include "extensions/api/guest_view/vivaldi_web_view_guest_class.inc"
+#include "extensions/api/web_view_private/vivaldi_web_view_guest_class.inc"
 #endif // VIVALDI_BUILD
 
   // This is used to ensure pending tasks will not fire after this object is

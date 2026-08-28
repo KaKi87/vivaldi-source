@@ -39,8 +39,10 @@
 #include "ui/strings/grit/ui_strings.h"
 
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "ui/infobar_container_web_proxy.h"
+
+#include "app/vivaldi_apptools.h"
 
 namespace {
 using TabRole = ::TabSharingInfoBarDelegate::TabRole;
@@ -216,18 +218,21 @@ infobars::InfoBar* TabSharingInfoBarDelegate::Create(
   CHECK(ui);
 
   // Vivaldi
-  Browser* const browser = chrome::FindBrowserWithTab(web_contents);
-  if (browser && browser->is_vivaldi()) {
-    std::unique_ptr<::vivaldi::ConfirmInfoBarWebProxy> infobarproxy =
-        std::make_unique<vivaldi::ConfirmInfoBarWebProxy>(
-            base::WrapUnique(new TabSharingInfoBarDelegate(
-                web_contents, role, share_this_tab_instead_button_state,
-                captured_surface_control_active, ui, capture_type)),
-            shared_tab_name, capturer_name);
+  if (vivaldi::IsVivaldiRunning()) {
+    BrowserWindowInterface* const browser =
+        GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(web_contents);
+    if (browser && browser->is_vivaldi()) {
+      std::unique_ptr<::vivaldi::ConfirmInfoBarWebProxy> infobarproxy =
+          std::make_unique<vivaldi::ConfirmInfoBarWebProxy>(
+              base::WrapUnique(new TabSharingInfoBarDelegate(
+                  web_contents, role, share_this_tab_instead_button_state,
+                  captured_surface_control_active, ui, capture_type)),
+              shared_tab_name, capturer_name);
 
-    return old_infobar ? infobar_manager->ReplaceInfoBar(old_infobar,
-                                                         std::move(infobarproxy))
-                       : infobar_manager->AddInfoBar(std::move(infobarproxy));
+      return old_infobar ? infobar_manager->ReplaceInfoBar(old_infobar,
+                                                           std::move(infobarproxy))
+                         : infobar_manager->AddInfoBar(std::move(infobarproxy));
+    }
   }  // End Vivaldi
 
   std::unique_ptr<infobars::InfoBar> new_infobar = CreateTabSharingInfoBar(

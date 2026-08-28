@@ -75,6 +75,12 @@ class HeightTransitionHandler {
      */
     private boolean mTabStripVisible;
 
+    /**
+     * The tab strip was suppressed by {@link suppressTabStrip()}. The method is called when the tab
+     * strip needs hiding in favor of other UI such as vertical tab.
+     */
+    private boolean mTabStripSuppressed;
+
     /** Tracks the last width seen for the tab strip. */
     private int mTabStripWidth;
 
@@ -99,6 +105,7 @@ class HeightTransitionHandler {
      *     TabStripTransitionDelegate}.
      * @param tabStripTransitionHandler The {@link TabStripTransitionHandler} instance to facilitate
      *     tab strip visibility transitions.
+     * @param suppressTabStripAtStart if {@code true}, suppress tab strip when Chrome starts.
      */
     HeightTransitionHandler(
             ControlContainer controlContainer,
@@ -107,7 +114,8 @@ class HeightTransitionHandler {
             Handler handler,
             TabObscuringHandler tabObscuringHandler,
             OneshotSupplier<TabStripTransitionDelegate> tabStripTransitionDelegateSupplier,
-            TabStripTransitionHandler tabStripTransitionHandler) {
+            TabStripTransitionHandler tabStripTransitionHandler,
+            boolean suppressTabStripAtStart) {
         mControlContainer = controlContainer;
         mTabStripHeightFromResource = tabStripHeightFromResource;
         mCallbackController = callbackController;
@@ -115,8 +123,15 @@ class HeightTransitionHandler {
         mTabStripTransitionDelegateSupplier = tabStripTransitionDelegateSupplier;
         mTabStripTransitionHandler = tabStripTransitionHandler;
 
-        mTabStripHeight = tabStripHeightFromResource;
+        mTabStripSuppressed = suppressTabStripAtStart;
+        mTabStripHeight = suppressTabStripAtStart ? 0 : tabStripHeightFromResource;
         mTabStripVisible = mTabStripHeight > 0;
+        if (suppressTabStripAtStart) {
+            int minHeight =
+                    mControlContainer.getToolbarHeight()
+                            + mControlContainer.getToolbarHairlineHeight();
+            controlContainerView().setMinimumHeight(minHeight);
+        }
         mDeferTransitionTokenHolder =
                 new TokenHolder(mCallbackController.makeCancelable(this::onTokenUpdate));
 
@@ -172,6 +187,14 @@ class HeightTransitionHandler {
         }
     }
 
+    /** Called when the tab strip is suppressed in favor of other UI such as vertical tab. */
+    void suppressTabStrip(boolean suppress) {
+        if (mTabStripSuppressed == suppress) return;
+
+        mTabStripSuppressed = suppress;
+        requestTransition();
+    }
+
     /** Return the current tab strip height. */
     int getTabStripHeight() {
         return mTabStripHeight;
@@ -213,7 +236,8 @@ class HeightTransitionHandler {
         // Do not allow callback to pass through when object is destroyed.
         if (mIsDestroyed) return;
 
-        boolean showTabStrip = mTabStripWidth >= mTabStripTransitionThreshold;
+        boolean showTabStrip =
+                (mTabStripWidth >= mTabStripTransitionThreshold) && !mTabStripSuppressed;
         if (showTabStrip == mTabStripVisible && !mForceUpdateHeight) {
             // Do not transition if visibility does not change, unless we want to continue the
             // transition to update the tab strip top padding.
@@ -223,8 +247,9 @@ class HeightTransitionHandler {
         // Update the min size for the control container. This is needed one-layout-before browser
         // controls start changing its height, as it assumed a fixed size control container during
         // transition. See b/324178484.
+        int tabStripHeight = showTabStrip ? calculateTabStripHeight() : 0;
         int maxHeight =
-                calculateTabStripHeight()
+                tabStripHeight
                         + mControlContainer.getToolbarHeight()
                         + mControlContainer.getToolbarHairlineHeight();
         controlContainerView().setMinimumHeight(maxHeight);
@@ -318,14 +343,17 @@ class HeightTransitionHandler {
 
         mTabStripVisible = showTabStrip;
         int newHeight =
-                (mUpdateStripVisibility && showTabStrip)
-                                || (!mUpdateStripVisibility && mForceUpdateHeight)
+                !mTabStripSuppressed
+                                && ((mUpdateStripVisibility && showTabStrip)
+                                        || (!mUpdateStripVisibility && mForceUpdateHeight))
                         ? calculateTabStripHeight()
                         : 0;
 
         mTabStripTransitionHandler.onTransitionRequested(
                 newHeight,
+                mTopPadding,
                 mUpdateStripVisibility,
+                mTabStripSuppressed,
                 () -> {
                     // Acknowledge and record the new height when transition start signal.
                     // This difference in timing is necessary, since the mTabStripHeight is used

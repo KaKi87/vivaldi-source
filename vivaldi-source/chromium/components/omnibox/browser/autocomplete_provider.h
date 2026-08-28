@@ -157,7 +157,7 @@ class AutocompleteProvider
     : public base::RefCountedThreadSafe<AutocompleteProvider> {
  public:
   // Different AutocompleteProvider implementations.
-  enum Type {
+  enum Type : uint64_t {
     TYPE_BOOKMARK = 1 << 0,
     TYPE_BUILTIN = 1 << 1,
     TYPE_HISTORY_QUICK = 1 << 2,
@@ -190,7 +190,8 @@ class AutocompleteProvider
     // Vivaldi
     TYPE_BOOKMARK_NICKNAME = 1 << 29,
     TYPE_DIRECT_MATCH = 1 << 30,
-    TYPE_RECENT_TYPED_HISTORY = 1 << 31,
+    TYPE_RECENT_TYPED_HISTORY = 1ULL << 31,
+    TYPE_VIVALDI_CALCULATOR = 1ULL << 32,
 
     // When adding a value here, also update:
     // - omnibox_event.proto

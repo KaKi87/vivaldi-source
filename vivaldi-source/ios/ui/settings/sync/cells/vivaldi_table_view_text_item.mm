@@ -3,7 +3,6 @@
 #import "ios/ui/settings/sync/cells/vivaldi_table_view_text_item.h"
 
 #import "base/apple/foundation_util.h"
-#import "ios/chrome/browser/shared/ui/table_view/legacy_chrome_table_view_styler.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/table_view/table_view_cells_constants.h"
 
@@ -20,9 +19,8 @@
   return self;
 }
 
-- (void)configureCell:(LegacyTableViewCell*)tableCell
-           withStyler:(ChromeTableViewStyler*)styler {
-  [super configureCell:tableCell withStyler:styler];
+- (void)configureCell:(LegacyTableViewCell*)tableCell {
+  [super configureCell:tableCell];
   VivaldiTableViewTextCell* cell =
       base::apple::ObjCCastStrict<VivaldiTableViewTextCell>(tableCell);
   cell.isAccessibilityElement = YES;
@@ -39,12 +37,9 @@
 
   // Decide cell.textLabel.textColor in order:
   //   1. this.textColor;
-  //   2. styler.cellTitleColor;
-  //   3. [UIColor colorNamed:kTextPrimaryColor].
+  //   2. [UIColor colorNamed:kTextPrimaryColor].
   if (self.textColor) {
     cell.textLabel.textColor = self.textColor;
-  } else if (styler.cellTitleColor) {
-    cell.textLabel.textColor = styler.cellTitleColor;
   } else {
     cell.textLabel.textColor = [UIColor colorNamed:kTextPrimaryColor];
   }

@@ -146,5 +146,8 @@
   "app/resources/browser_resources/vivaldi_browser_resources.grd": {
     "includes": [93800],
     "structures": [93900],
-  }
+  },
+  "app/resources/android_tab_ui/vivaldi_android_tab_ui_strings.grd": {
+    "messages": [94000],
+  },
 }

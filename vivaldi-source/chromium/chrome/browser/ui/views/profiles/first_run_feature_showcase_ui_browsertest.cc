@@ -10,6 +10,11 @@
 #include "chrome/browser/enterprise/browser_management/management_service_factory.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/test/test_browser_ui.h"
+#include "chrome/browser/ui/views/profiles/feature_showcase/default_browser_step_eligibility_checker.h"
+#include "chrome/browser/ui/views/profiles/feature_showcase/feature_showcase_constants.h"
+#include "chrome/browser/ui/views/profiles/feature_showcase/google_lens_step_eligibility_checker.h"
+#include "chrome/browser/ui/views/profiles/feature_showcase/password_manager_feature_showcase_eligibility_checker.h"
+#include "chrome/browser/ui/views/profiles/feature_showcase/themes_and_customization_step_eligibility_checker.h"
 #include "chrome/browser/ui/views/profiles/first_run_flow_controller.h"
 #include "chrome/browser/ui/views/profiles/profile_management_step_controller.h"
 #include "chrome/browser/ui/views/profiles/profile_picker_view_test_utils.h"
@@ -29,6 +34,7 @@ namespace {
 struct FeatureShowcaseTestParam {
   PixelTestParam pixel_test_param;
   std::string step;
+  bool sound_enabled = false;
 };
 
 const std::vector<FeatureShowcaseTestParam>& GetTestParams() {
@@ -36,16 +42,31 @@ const std::vector<FeatureShowcaseTestParam>& GetTestParams() {
       kParams([] {
         const PixelTestParam kBaseTestParams[] = {
             {.test_suffix = "LightTheme", .window_size = gfx::Size(1024, 768)},
+            {.test_suffix = "DarkTheme",
+             .use_dark_theme = true,
+             .window_size = gfx::Size(1024, 768)},
+            {.test_suffix = "RtlLanguage",
+             .use_right_to_left_language = true,
+             .window_size = gfx::Size(1024, 768)},
+            {.test_suffix = "SmallWindow", .window_size = gfx::Size(740, 550)},
         };
 
         const std::string kSteps[] = {
-            "example",
+            kFeatureShowcaseDefaultBrowserStepIdentifier,
+            kFeatureShowcaseGoogleLensStepIdentifier,
+            kFeatureShowcaseGeminiStepIdentifier,
+            kFeatureShowcasePasswordManagerStepIdentifier,
+            kFeatureShowcaseThemesAndCustomizationStepIdentifier,
         };
 
         std::vector<FeatureShowcaseTestParam> params;
         for (const auto& pixel_test_param : kBaseTestParams) {
           for (const auto& step : kSteps) {
-            params.push_back({pixel_test_param, step});
+            for (bool sound_enabled : {true, false}) {
+              params.push_back({.pixel_test_param = pixel_test_param,
+                                .step = step,
+                                .sound_enabled = sound_enabled});
+            }
           }
         }
         return params;
@@ -61,11 +82,11 @@ class FirstRunFeatureShowcasePixelTest
  public:
   FirstRunFeatureShowcasePixelTest()
       : ProfilesPixelTestBaseT<UiBrowserTest>(GetParam().pixel_test_param) {
-    scoped_feature_list_.InitWithFeatures(
-        {switches::kFirstRunDesktopRefresh,
-         switches::kFirstRunDesktopChoiceScreenRefresh,
-         switches::kFirstRunDesktopRevamp},
-        {});
+    scoped_feature_list_.InitWithFeatureStates(
+        {{switches::kFirstRunDesktopRefresh, true},
+         {switches::kFirstRunDesktopRevampSound, GetParam().sound_enabled},
+         {switches::kFirstRunDesktopChoiceScreenRefresh, true},
+         {switches::kFirstRunDesktopRevamp, true}});
   }
 
   ~FirstRunFeatureShowcasePixelTest() override {
@@ -83,27 +104,30 @@ class FirstRunFeatureShowcasePixelTest
   }
 
   void ShowUi(const std::string& name) override {
-    gfx::ScopedAnimationDurationScaleMode disable_animation(
-        gfx::ScopedAnimationDurationScaleMode::ZERO_DURATION);
     policy::ScopedManagementServiceOverrideForTesting browser_management(
         policy::ManagementServiceFactory::GetForPlatform(),
         policy::EnterpriseManagementAuthority::NONE);
 
     profile_picker_view_ = new ProfileManagementStepTestView(
-        ProfilePicker::Params::ForFirstRun(browser()->profile()->GetPath(),
+        ProfilePicker::Params::ForFirstRun(browser()->GetProfile()->GetPath(),
                                            base::DoNothing()),
         ProfileManagementFlowController::Step::kFeatureShowcase,
         /*step_controller_factory=*/
         base::BindRepeating(
             [](Profile* profile, ProfilePickerWebContentsHost* host)
                 -> std::unique_ptr<ProfileManagementStepController> {
-              return CreateFeatureShowcaseStep(host, profile,
-                                               base::DoNothing());
+              return CreateFeatureShowcaseStep(host, profile);
             },
-            browser()->profile()));
+            browser()->GetProfile()));
 
     profile_picker_view_->views::View::AddObserver(this);
     profile_picker_view_->ShowAndWait(GetParam().pixel_test_param.window_size);
+
+    // Wait for all cr-lotties to initialize to prevent flakiness.
+    CHECK_EQ(
+        content::EvalJs(profile_picker_view_->GetPickerContents(),
+                        GetWaitForAnimationsScript("feature-showcase-app")),
+        true);
   }
 
   bool VerifyUi() override {
@@ -143,9 +167,12 @@ class FirstRunFeatureShowcasePixelTest
 
   raw_ptr<ProfileManagementStepTestView> profile_picker_view_ = nullptr;
   base::test::ScopedFeatureList scoped_feature_list_;
+  gfx::ScopedAnimationDurationScaleMode disable_animations_{
+      gfx::ScopedAnimationDurationScaleMode::ZERO_DURATION};
 };
 
-IN_PROC_BROWSER_TEST_P(FirstRunFeatureShowcasePixelTest, InvokeUi_default) {
+IN_PROC_BROWSER_TEST_P(FirstRunFeatureShowcasePixelTest,
+                       InvokeUi_default) {
   ShowAndVerifyUi();
 }
 
@@ -154,5 +181,19 @@ INSTANTIATE_TEST_SUITE_P(
     FirstRunFeatureShowcasePixelTest,
     testing::ValuesIn(GetTestParams()),
     [](const testing::TestParamInfo<FeatureShowcaseTestParam>& info) {
-      return info.param.pixel_test_param.test_suffix + "_" + info.param.step;
+      std::string step_name = info.param.step;
+      if (step_name == kFeatureShowcaseDefaultBrowserStepIdentifier) {
+        step_name = "DefaultBrowser";
+      } else if (step_name == kFeatureShowcaseGoogleLensStepIdentifier) {
+        step_name = "GoogleLens";
+      } else if (step_name == kFeatureShowcaseGeminiStepIdentifier) {
+        step_name = "Gemini";
+      } else if (step_name == kFeatureShowcasePasswordManagerStepIdentifier) {
+        step_name = "PasswordManager";
+      } else if (step_name ==
+                 kFeatureShowcaseThemesAndCustomizationStepIdentifier) {
+        step_name = "ThemesAndCustomization";
+      }
+      return base::StrCat({info.param.pixel_test_param.test_suffix, step_name,
+                           info.param.sound_enabled ? "" : "SoundDisabled"});
     });

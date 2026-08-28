@@ -2,14 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "ui/views/controls/webview/web_dialog_view.h"
-
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/location.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/test/run_until.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
@@ -27,6 +26,7 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_utils.h"
 #include "ui/base/mojom/ui_base_types.mojom-shared.h"
+#include "ui/views/controls/webview/web_dialog_view.h"
 #include "ui/views/view_tracker.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_observer.h"
@@ -102,7 +102,7 @@ void WebDialogBrowserTest::SetUpOnMainThread() {
   delegate_ = delegate;
 
   auto view = std::make_unique<views::WebDialogView>(
-      browser()->profile(), delegate,
+      browser()->GetProfile(), delegate,
       std::make_unique<ChromeWebContentsHandler>());
   view->SetOwnedByWidget(views::WidgetDelegate::OwnedByWidgetPassKey());
   gfx::NativeView parent_view =
@@ -113,6 +113,7 @@ void WebDialogBrowserTest::SetUpOnMainThread() {
   auto* widget =
       views::Widget::CreateWindowWithParent(std::move(view), parent_view);
   widget->Show();
+  ASSERT_TRUE(base::test::RunUntil([&]() { return widget->IsVisible(); }));
 }
 
 void WebDialogBrowserTest::SimulateEscapeKey() {
@@ -151,7 +152,7 @@ IN_PROC_BROWSER_TEST_F(WebDialogBrowserTest, MAYBE_SizeWindow) {
 
   auto check_bounds = [&](const gfx::Rect& set, const gfx::Rect& actual) {
     if (centered_in_window) {
-      gfx::Rect expected = browser()->window()->GetBounds();
+      gfx::Rect expected = browser()->GetWindow()->GetBounds();
       expected.ClampToCenteredSize(set.size());
       EXPECT_EQ(expected, actual);
     } else {
@@ -282,7 +283,7 @@ IN_PROC_BROWSER_TEST_F(WebDialogBrowserTest, CloseParentWindow) {
   // Close the parent window. Tear down may happen asynchronously.
   EXPECT_FALSE(web_dialog_delegate_destroyed_);
   EXPECT_FALSE(was_view_deleted());
-  browser()->window()->Close();
+  browser()->GetWindow()->Close();
   base::RunLoop().RunUntilIdle();
   EXPECT_TRUE(web_dialog_delegate_destroyed_);
   EXPECT_TRUE(was_view_deleted());
@@ -321,7 +322,7 @@ IN_PROC_BROWSER_TEST_F(WebDialogBrowserTest, CloseDialogOnEscapeDisabled) {
 
 // Test that key event is translated to a text input properly.
 // TODO(crbug.com/500602996): Enable the test.
-#if BUILDFLAG(IS_MAC)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 #define MAYBE_TextInputViaKeyEvent DISABLED_TextInputViaKeyEvent
 #else
 #define MAYBE_TextInputViaKeyEvent TextInputViaKeyEvent

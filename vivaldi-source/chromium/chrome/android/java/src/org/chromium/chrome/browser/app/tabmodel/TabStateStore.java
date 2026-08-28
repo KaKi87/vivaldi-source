@@ -26,6 +26,7 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabId;
 import org.chromium.chrome.browser.tab.TabStateAttributes;
 import org.chromium.chrome.browser.tab.TabStateAttributes.DirtinessState;
+import org.chromium.chrome.browser.tab.TabStateAttributesRegistry;
 import org.chromium.chrome.browser.tab.TabStateStorageService;
 import org.chromium.chrome.browser.tab.TabStateStorageServiceFactory;
 import org.chromium.chrome.browser.tab.WebContentsState;
@@ -510,6 +511,12 @@ public class TabStateStore implements TabPersistentStore {
         return StoreType.TAB_STATE_STORE;
     }
 
+    @Override
+    public int getRegularFallbackTabCount() {
+        // TabStateStore doesn't create fallback tabs without a TabState.
+        return 0;
+    }
+
     /** Called when the authoritative store has finished loading state for the window. */
     public void onAuthoritativeStateLoaded() {
         assert !mIsAuthoritative;
@@ -518,7 +525,7 @@ public class TabStateStore implements TabPersistentStore {
     }
 
     private void onTabStateDirtinessChanged(Tab tab, @DirtinessState int dirtiness) {
-        if (dirtiness != DirtinessState.CLEAN) {
+        if (dirtiness == DirtinessState.DIRTY) {
             saveTab(tab);
         }
     }
@@ -526,7 +533,8 @@ public class TabStateStore implements TabPersistentStore {
     private void saveTabIfNotClean(@Nullable Tab tab) {
         if (tab == null) return;
 
-        TabStateAttributes attributes = TabStateAttributes.from(tab);
+        TabStateAttributes attributes =
+                TabStateAttributesRegistry.getAttributesFor(tab, TabStateStore.class);
         assumeNonNull(attributes);
         if (attributes.getDirtinessState() != DirtinessState.CLEAN) {
             saveTab(tab);
@@ -552,7 +560,8 @@ public class TabStateStore implements TabPersistentStore {
         boolean isTabOtr = tab.isOffTheRecord();
         assertOtrOperationSafe(isTabOtr);
 
-        TabStateAttributes attributes = TabStateAttributes.from(tab);
+        TabStateAttributes attributes =
+                TabStateAttributesRegistry.getAttributesFor(tab, TabStateStore.class);
         assumeNonNull(attributes);
         // Save every clean tab on registration if we are not authoritative, we are catching up.
         if (attributes.addObserver(mAttributesObserver) != DirtinessState.CLEAN
@@ -564,7 +573,8 @@ public class TabStateStore implements TabPersistentStore {
 
     private void onTabUnregistered(Tab tab) {
         if (!tab.isDestroyed()) {
-            assumeNonNull(TabStateAttributes.from(tab)).removeObserver(mAttributesObserver);
+            assumeNonNull(TabStateAttributesRegistry.getAttributesFor(tab, TabStateStore.class))
+                    .removeObserver(mAttributesObserver);
         }
         // TODO(https://crbug.com/430996004): If closing, delete the tab record.
         updateTabCountForModel(tab.isOffTheRecord());

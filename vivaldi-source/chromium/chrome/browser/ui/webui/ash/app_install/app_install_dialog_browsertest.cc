@@ -93,8 +93,8 @@ IN_PROC_BROWSER_TEST_F(AppInstallDialogBrowserTest, InstallApp) {
   base::test::TestFuture<bool> dialog_accepted_future;
 
   dialog_handle->ShowApp(
-      browser()->profile(),
-      /*parent=*/browser()->window()->GetNativeWindow(),
+      browser()->GetProfile(),
+      /*parent=*/browser()->GetWindow()->GetNativeWindow(),
       apps::PackageId(apps::PackageType::kWeb, app_url.spec()),
       /*app_name=*/"Test app",
       /*app_url=*/app_url,
@@ -158,16 +158,16 @@ IN_PROC_BROWSER_TEST_F(AppInstallDialogBrowserTest, AlreadyInstalled) {
 
   SetUpAlmanacPayload(kAppUrl);
 
-  web_app::test::InstallDummyWebApp(browser()->profile(), "Test app",
+  web_app::test::InstallDummyWebApp(browser()->GetProfile(), "Test app",
                                     GURL(kAppUrl));
-  apps::AppReadinessWaiter(browser()->profile(), app_id).Await();
+  apps::AppReadinessWaiter(browser()->GetProfile(), app_id).Await();
 
   content::TestNavigationObserver navigation_observer_dialog(
       (GURL(ash::kChromeUIAppInstallDialogURL)));
   navigation_observer_dialog.StartWatchingNewWebContents();
 
   auto* proxy =
-      apps::AppServiceProxyFactory::GetForProfile(browser()->profile());
+      apps::AppServiceProxyFactory::GetForProfile(browser()->GetProfile());
   proxy->AppInstallService().InstallApp(
       apps::AppInstallSurface::kAppInstallUriUnknown,
       apps::PackageId(apps::PackageType::kWeb, kAppUrl),
@@ -204,8 +204,8 @@ IN_PROC_BROWSER_TEST_F(AppInstallDialogBrowserTest, FailedInstall) {
   // TODO(b/331310950): Add a test that sends a retry callback.
   constexpr char kAppUrl[] = "https://example.org/";
   dialog_handle->ShowApp(
-      browser()->profile(),
-      /*parent=*/browser()->window()->GetNativeWindow(),
+      browser()->GetProfile(),
+      /*parent=*/browser()->GetWindow()->GetNativeWindow(),
       apps::PackageId(apps::PackageType::kWeb, kAppUrl),
       /*app_name=*/"Test app",
       /*app_url=*/GURL(kAppUrl),
@@ -250,7 +250,7 @@ IN_PROC_BROWSER_TEST_F(AppInstallDialogBrowserTest, NoAppError) {
   app_install_server()->SetUpResponseCode(package_id, net::HTTP_NOT_FOUND);
 
   auto* proxy =
-      apps::AppServiceProxyFactory::GetForProfile(browser()->profile());
+      apps::AppServiceProxyFactory::GetForProfile(browser()->GetProfile());
   proxy->AppInstallService().InstallApp(
       apps::AppInstallSurface::kAppInstallUriUnknown, package_id,
       /*anchor_window=*/std::nullopt,
@@ -275,7 +275,7 @@ IN_PROC_BROWSER_TEST_F(AppInstallDialogBrowserTest, ConnectionError) {
                                           net::HTTP_INTERNAL_SERVER_ERROR);
 
   auto* proxy =
-      apps::AppServiceProxyFactory::GetForProfile(browser()->profile());
+      apps::AppServiceProxyFactory::GetForProfile(browser()->GetProfile());
   proxy->AppInstallService().InstallApp(
       apps::AppInstallSurface::kAppInstallUriUnknown, package_id,
       /*anchor_window=*/std::nullopt,
@@ -288,6 +288,51 @@ IN_PROC_BROWSER_TEST_F(AppInstallDialogBrowserTest, ConnectionError) {
 
   EXPECT_EQ(GetDialogTitle(web_contents), "Can't install app");
   EXPECT_EQ(GetDialogActionButton(web_contents), "Try again");
+}
+
+// Regression test for crbug.com/497513818.
+IN_PROC_BROWSER_TEST_F(AppInstallDialogBrowserTest,
+                       CrossWebUINavigationTriggersTypeConfusion) {
+  // 1. Open the AppInstallDialog (browser-side; in the real attack the user
+  //    would have triggered this via an app-install flow).
+  base::WeakPtr<ash::app_install::AppInstallDialog> dialog =
+      ash::app_install::AppInstallDialog::CreateDialog();
+
+  // Showing the no-app error path is the simplest way to get the dialog up
+  // without external dependencies.
+  dialog->ShowNoAppError(/*parent=*/nullptr);
+
+  // Wait for the dialog WebUI to load.
+  ash::SystemWebDialogDelegate* delegate =
+      ash::SystemWebDialogDelegate::FindInstance(
+          ash::kChromeUIAppInstallDialogURL);
+  ASSERT_TRUE(delegate);
+  content::WebUI* webui = delegate->GetWebUIForTest();
+  ASSERT_TRUE(webui);
+  content::WebContents* web_contents = webui->GetWebContents();
+  ASSERT_TRUE(web_contents);
+  ASSERT_TRUE(content::WaitForLoadStop(web_contents));
+
+  // 2. Simulate the compromised renderer: same-tab navigate the dialog
+  //    WebContents to a different WebDialogUI host. This is exactly what
+  //    window.location.href = "chrome://cloud-upload/" would do from
+  //    inside the chrome://app-install-dialog renderer.
+  EXPECT_DEATH_IF_SUPPORTED(
+      {
+        content::TestNavigationObserver nav_observer(web_contents);
+        ASSERT_TRUE(content::ExecJs(
+            web_contents, "window.location.href = 'chrome://cloud-upload/';"));
+        nav_observer.Wait();
+      },
+      "");
+
+  // 3. When CloudUploadUI's render frame is created,
+  //    WebDialogUI::HandleRenderFrameCreated fetches the original
+  //    AppInstallDialog delegate from WebContents UserData and calls its
+  //    OnDialogShown(), which static_casts the CloudUploadUI controller
+  //    to AppInstallDialogUI* and calls SetDialogArgs() — writing a large
+  //    std::optional<AppInstallDialogArgs> over CloudUploadUI's members.
+  base::RunLoop().RunUntilIdle();
 }
 
 }  // namespace ash::app_install

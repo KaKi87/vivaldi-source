@@ -107,11 +107,17 @@ TEST(fusion_lut, single_node_simple) {
   RunFuseCompare<int8_t, int8_t>(
       builder, {input_id}, {input_data}, {TensorShape({input_data.size()})},
       output_id, 256, [&](const ynn_subgraph& subgraph) {
-        ASSERT_THAT(subgraph, AllOf(HasValidNodeCount(1),
+        ASSERT_THAT(subgraph, AllOf(HasValidNodeCount(2),
                                     HasValidValueIds(input_id, output_id)));
-        EXPECT_THAT(
-            ProducerOf(output_id, subgraph),
-            AllOf(IsLut(), InputsAre(input_id, IsValidValueIn(subgraph))));
+        const ynn_node& lut_node = ProducerOf(output_id, subgraph);
+        EXPECT_THAT(lut_node, IsLut(subgraph));
+
+        uint32_t gather_index_id = lut_node.inputs[1];
+        EXPECT_THAT(lut_node,
+                    InputsAre(IsValidValueIn(subgraph), gather_index_id));
+
+        const ynn_node& copy_node = ProducerOf(gather_index_id, subgraph);
+        EXPECT_THAT(copy_node, AllOf(IsCopy(), InputsAre(input_id)));
       });
 }
 
@@ -154,11 +160,20 @@ TEST(fusion_lut, single_node) {
       d_id, 256, [&](const ynn_subgraph& subgraph) {
         // YNNPACK inserts dequantize/quantize ops to implement the quantization
         // in this test.
-        ASSERT_THAT(subgraph, AllOf(HasValidNodeCount(9),
+        ASSERT_THAT(subgraph, AllOf(HasValidNodeCount(10),
                                     HasValidValueIds(a_id, b_id, c_id, d_id)));
         EXPECT_THAT(ProducerOf(x_id, subgraph), IsUnary(ynn_unary_convert));
-        EXPECT_THAT(ProducerOf(y_id, subgraph),
-                    AllOf(IsLut(), InputsAre(x_id, IsValidValueIn(subgraph))));
+
+        const ynn_node& lut_node = ProducerOf(y_id, subgraph);
+        EXPECT_THAT(lut_node, IsLut(subgraph));
+
+        uint32_t gather_index_id = lut_node.inputs[1];
+        EXPECT_THAT(lut_node,
+                    InputsAre(IsValidValueIn(subgraph), gather_index_id));
+
+        const ynn_node& copy_node = ProducerOf(gather_index_id, subgraph);
+        EXPECT_THAT(copy_node, AllOf(IsCopy(), InputsAre(x_id)));
+
         EXPECT_THAT(ProducerOf(d_id, subgraph), IsUnary(ynn_unary_convert));
       });
 }
@@ -193,8 +208,9 @@ TEST(fusion_lut, multiple_unary_chain) {
       256, [&](const ynn_subgraph& subgraph) {
         ASSERT_THAT(subgraph,
                     AllOf(HasValidNodeCount(1), HasValidValueIds(x_id, y_id)));
-        EXPECT_THAT(ProducerOf(y_id, subgraph),
-                    AllOf(IsLut(), InputsAre(x_id, IsValidValueIn(subgraph))));
+        EXPECT_THAT(
+            ProducerOf(y_id, subgraph),
+            AllOf(IsLut(subgraph), InputsAre(IsValidValueIn(subgraph), x_id)));
       });
 }
 
@@ -260,8 +276,9 @@ TEST(fusion_lut, elu_chain) {
         ASSERT_THAT(subgraph,
                     AllOf(HasValidNodeCount(1), HasValidValueIds(x_id, y_id)));
         // LUT inputs: First is index (x), second is table (generated const).
-        EXPECT_THAT(ProducerOf(y_id, subgraph),
-                    AllOf(IsLut(), InputsAre(x_id, IsValidValueIn(subgraph))));
+        EXPECT_THAT(
+            ProducerOf(y_id, subgraph),
+            AllOf(IsLut(subgraph), InputsAre(IsValidValueIn(subgraph), x_id)));
       });
 }
 
@@ -291,12 +308,26 @@ TEST(fusion_lut, branching_2_luts) {
 
   FuseAndCheck(builder, [&](const ynn_subgraph& subgraph) {
     ASSERT_THAT(subgraph,
-                AllOf(HasValidNodeCount(2), HasValidValueIds(x_id, y_id, z_id),
+                AllOf(HasValidNodeCount(4), HasValidValueIds(x_id, y_id, z_id),
                       Not(HasValidValueId(t_id))));
-    EXPECT_THAT(ProducerOf(y_id, subgraph),
-                AllOf(IsLut(), InputsAre(x_id, IsValidValueIn(subgraph))));
-    EXPECT_THAT(ProducerOf(z_id, subgraph),
-                AllOf(IsLut(), InputsAre(x_id, IsValidValueIn(subgraph))));
+
+    const ynn_node& lut_y = ProducerOf(y_id, subgraph);
+    const ynn_node& lut_z = ProducerOf(z_id, subgraph);
+    EXPECT_THAT(lut_y, IsLut(subgraph));
+    EXPECT_THAT(lut_z, IsLut(subgraph));
+
+    uint32_t gather_index_y = lut_y.inputs[1];
+    uint32_t gather_index_z = lut_z.inputs[1];
+    EXPECT_NE(gather_index_y,
+              gather_index_z);  // Verify they do NOT share the same index yet!
+
+    EXPECT_THAT(lut_y, InputsAre(IsValidValueIn(subgraph), gather_index_y));
+    EXPECT_THAT(lut_z, InputsAre(IsValidValueIn(subgraph), gather_index_z));
+
+    const ynn_node& copy_node_y = ProducerOf(gather_index_y, subgraph);
+    const ynn_node& copy_node_z = ProducerOf(gather_index_z, subgraph);
+    EXPECT_THAT(copy_node_y, AllOf(IsCopy(), InputsAre(x_id)));
+    EXPECT_THAT(copy_node_z, AllOf(IsCopy(), InputsAre(x_id)));
   });
 }
 
@@ -321,7 +352,7 @@ TEST(fusion_lut, input_type_unsupported) {
                                 HasValidValueIds(x_id, a_id, y_id)));
     EXPECT_THAT(ProducerOf(a_id, subgraph), IsUnary(ynn_unary_exp));
     EXPECT_THAT(ProducerOf(y_id, subgraph),
-                AllOf(Not(IsLut()), IsUnary(ynn_unary_convert)));
+                AllOf(Not(IsLut(subgraph)), IsUnary(ynn_unary_convert)));
   });
 }
 
@@ -357,8 +388,9 @@ TEST(fusion_lut, binary_scalar_constant) {
       256, [&](const ynn_subgraph& subgraph) {
         ASSERT_THAT(subgraph,
                     AllOf(HasValidNodeCount(1), HasValidValueIds(x_id, y_id)));
-        EXPECT_THAT(ProducerOf(y_id, subgraph),
-                    AllOf(IsLut(), InputsAre(x_id, IsValidValueIn(subgraph))));
+        EXPECT_THAT(
+            ProducerOf(y_id, subgraph),
+            AllOf(IsLut(subgraph), InputsAre(IsValidValueIn(subgraph), x_id)));
       });
 }
 
@@ -397,7 +429,7 @@ TEST(fusion_lut, binary_nonscalar_constant_unsupported) {
       256, [&](const ynn_subgraph& subgraph) {
         ASSERT_THAT(subgraph, HasValidValueIds(x_id, y_id, b_id));
         EXPECT_THAT(ProducerOf(y_id, subgraph),
-                    AllOf(Not(IsLut()), IsUnary(ynn_unary_convert)));
+                    AllOf(Not(IsLut(subgraph)), IsUnary(ynn_unary_convert)));
         EXPECT_THAT(ProducerOf(b_id, subgraph), IsBinary(ynn_binary_add));
       });
 }

@@ -24,7 +24,9 @@
 #include "base/types/expected_macros.h"
 #include "build/android_buildflags.h"
 #include "build/build_config.h"
+#include "chrome/browser/glic/common/local_hotkey_manager.h"
 #include "chrome/browser/glic/host/glic.mojom-shared.h"
+#include "chrome/browser/glic/host/guest_util.h"
 #include "chrome/browser/glic/public/features.h"
 #include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/glic/public/glic_instance.h"
@@ -32,33 +34,49 @@
 #include "chrome/browser/glic/public/glic_side_panel_coordinator.h"
 #include "chrome/browser/glic/service/glic_instance_coordinator_impl.h"
 #include "chrome/browser/glic/service/glic_instance_impl.h"
+#include "chrome/browser/glic/service/glic_ui_embedder.h"
 #include "chrome/browser/glic/test_support/glic_test_environment.h"
 #include "chrome/browser/glic/test_support/glic_test_tab_added_waiter.h"
 #include "chrome/browser/glic/test_support/glic_test_util.h"
 #include "chrome/browser/glic/test_support/test_result.h"
 #include "chrome/browser/tab_list/tab_list_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/side_panel/side_panel_ui.h"
+#include "chrome/browser/ui/side_panel/side_panel_ui_provider.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/platform_browser_test.h"
 #include "components/feature_engagement/test/scoped_iph_feature_list.h"
 #include "components/tabs/public/tab_interface.h"
+#include "content/public/browser/host_zoom_map.h"
 #include "content/public/test/browser_test_utils.h"
+#include "content/public/test/test_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
+#include "third_party/blink/public/common/page/page_zoom.h"
+#include "ui/base/accelerators/accelerator.h"
 #include "ui/base/base_window.h"
+#include "ui/base/test/ui_controls.h"
 #include "ui/gfx/geometry/point_conversions.h"
 #include "url/gurl.h"
 
 #if BUILDFLAG(IS_ANDROID)
-#include "base/android/android_info.h"
 #include "base/android/device_info.h"
 #include "chrome/browser/flags/android/chrome_feature_list.h"
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
+#include "ui/android/accelerator_manager_android.h"
+#include "ui/android/window_android.h"
+#else
+#include "ui/views/focus/focus_manager.h"
+#include "ui/views/widget/widget.h"
 #endif
 
 #if defined(TOOLKIT_VIEWS)
 #include "chrome/browser/ui/views/side_panel/side_panel_coordinator.h"
 #include "ui/views/test/mock_activation_controller.h"
+#endif
+
+#if BUILDFLAG(IS_CHROMEOS)
+#include "components/sync/base/features.h"
 #endif
 
 namespace glic {
@@ -84,35 +102,66 @@ namespace glic {
 // Runs `get_value` until it returns `expected_value`. Returns a
 // TestResult<> indicating success or failure.
 // Note, `type_identity_t` ensures T's type is inferred from `expected_value`.
+template <typename T, typename Compare>
+[[nodiscard]] TestResult<> RunUntilComparisonPasses(
+    base::FunctionRef<std::type_identity_t<T>()> get_value,
+    const T& expected_value,
+    Compare compare,
+    std::string_view op_name,
+    std::string_view message = std::string_view()) {
+  using ValueType = std::remove_reference_t<T>;
+  if (compare(get_value(), expected_value)) {
+    return base::ok();
+  }
+  std::vector<ValueType> ignored_values;
+  if (base::test::RunUntil(
+          [get_value, expected_value, &ignored_values, compare]() {
+            ValueType value = get_value();
+            if (compare(value, expected_value)) {
+              return true;
+            }
+            if (ignored_values.empty() || ignored_values.back() != value) {
+              ignored_values.push_back(value);
+            }
+            return false;
+          })) {
+    return base::ok();
+  }
+  std::stringstream ss;
+  ss << message << " Expected " << op_name << " "
+     << base::ToString(expected_value) << ", saw values: {";
+  for (const auto& value : ignored_values) {
+    ss << base::ToString(value) << ", ";
+  }
+  ss << "}";
+  return base::unexpected(ss.str());
+}
+
 template <typename T>
 [[nodiscard]] TestResult<> RunUntilEqual(
     base::FunctionRef<std::type_identity_t<T>()> get_value,
     const T& expected_value,
     std::string_view message = std::string_view()) {
-  using ValueType = std::remove_reference_t<T>;
-  if (get_value() == expected_value) {
-    return base::ok();
-  }
-  std::vector<ValueType> ignored_values;
-  if (base::test::RunUntil([get_value, expected_value, &ignored_values]() {
-        ValueType value = get_value();
-        if (value == expected_value) {
-          return true;
-        }
-        if (ignored_values.empty() || ignored_values.back() != value) {
-          ignored_values.push_back(value);
-        }
-        return false;
-      })) {
-    return base::ok();
-  }
-  std::stringstream ss;
-  ss << message << " Expected: " << expected_value << ", saw values: {";
-  for (const auto& value : ignored_values) {
-    ss << value << ", ";
-  }
-  ss << "}";
-  return base::unexpected(ss.str());
+  return RunUntilComparisonPasses<T>(get_value, expected_value,
+                                     std::equal_to<T>(), "==", message);
+}
+
+template <typename T>
+[[nodiscard]] TestResult<> RunUntilGreaterThan(
+    base::FunctionRef<std::type_identity_t<T>()> get_value,
+    const T& threshold,
+    std::string_view message = std::string_view()) {
+  return RunUntilComparisonPasses<T>(get_value, threshold, std::greater<T>(),
+                                     ">", message);
+}
+
+template <typename T>
+[[nodiscard]] TestResult<> RunUntilLessThan(
+    base::FunctionRef<std::type_identity_t<T>()> get_value,
+    const T& threshold,
+    std::string_view message = std::string_view()) {
+  return RunUntilComparisonPasses<T>(get_value, threshold, std::less<T>(), "<",
+                                     message);
 }
 
 template <typename Trigger>
@@ -146,8 +195,10 @@ class GlicBrowserTestMixin : public T {
       : T(std::forward<Args>(args)...) {
     std::vector<base::test::FeatureRefAndParams> enabled_features = {
         {features::kGlicMultiInstance, {}},
+#if BUILDFLAG(IS_CHROMEOS)
+        {syncer::kReplaceSyncPromosWithSignInPromos, {}},
+#endif
 #if BUILDFLAG(IS_ANDROID)
-        {chrome::android::kBrowserWindowInterfaceMobile, {}},
         {chrome::android::kTabBottomSheet, {}},
 #endif
     // TODO(crbug.com/516793173): Remove this compile-time check once C++
@@ -155,9 +206,11 @@ class GlicBrowserTestMixin : public T {
     // Java.
 #if BUILDFLAG(IS_DESKTOP_ANDROID)
         {chrome::android::kEnableAndroidSidePanel, {}},
+        {chrome::android::kEnableAndroidSidePanelLogs, {}},
         {features::kGlicAndroidSidePanel, {}},
 #endif
     };
+
     glic_test_environment_.SetGlicPagePath(
         "/glic/browser_tests/minimal_client.html");
     scoped_feature_list_.InitWithFeaturesAndParameters(enabled_features, {});
@@ -178,15 +231,19 @@ class GlicBrowserTestMixin : public T {
     // builds.
     command_line->AppendSwitch(switches::kForceDesktopAndroid);
 #endif
+#if BUILDFLAG(IS_ANDROID)
+    // Disable the first-run experience (FRE) so that when we launch a new
+    // ChromeTabbedActivity in tests, it shows the browser window instead of the
+    // FRE onboarding screens.
+    command_line->AppendSwitch("disable-fre");
+    command_line->AppendSwitch("disable-startup-promos-for-testing");
+#endif
   }
 
   void SetUp() override {
-#if BUILDFLAG(IS_ANDROID)
-    if (base::android::android_info::sdk_int() <
-        base::android::android_info::SDK_VERSION_S) {
-      GTEST_SKIP() << "Glic requires Android S+ to run";
+    if (!glic::GlicEnabling::IsOsVersionSupported()) {
+      GTEST_SKIP() << "OS version not supported by Glic";
     }
-#endif
     T::SetUp();
   }
 
@@ -196,9 +253,14 @@ class GlicBrowserTestMixin : public T {
     activation_controller_ =
         std::make_unique<views::test::MockActivationController>();
 #endif
-#if defined(TOOLKIT_VIEWS)
-    SidePanelCoordinator::From(GetBrowser())->DisableAnimationsForTesting();
-#endif
+
+    // Disable side panel animations on supported platforms.
+    if (IsSidePanelEnabled()) {
+      SidePanelUI* side_panel_ui = SidePanelUIProvider::From(GetBrowser());
+      CHECK(side_panel_ui);
+      side_panel_ui->SetNoDelaysForTesting(true);
+      side_panel_ui->DisableAnimationsForTesting();
+    }
 
     CHECK(glic_test_environment_.SetupEmbeddedTestServers(
         T::embedded_test_server(), &T::embedded_https_test_server()));
@@ -215,6 +277,10 @@ class GlicBrowserTestMixin : public T {
     activation_controller_.reset();
 #endif
     T::TearDownOnMainThread();
+    // Ensure all pending UI thread tasks (such as Mojo disconnects or Android
+    // JNI cleanup tasks) have finished running before the test fixture is
+    // destroyed (which destroys ScopedFeatureList).
+    base::RunLoop().RunUntilIdle();
   }
 
   // Toggles the Glic UI.
@@ -231,6 +297,20 @@ class GlicBrowserTestMixin : public T {
   [[nodiscard]] TestResult<GlicInstanceImpl*> OpenGlicForActiveTab() {
     ToggleGlicForActiveTab(/*prevent_close=*/true);
     return WaitForGlicOpen(T::GetTabListInterface()->GetActiveTab());
+  }
+
+  [[nodiscard]] TestResult<> WaitForInstanceDeletion(
+      base::WeakPtr<GlicInstanceImpl> instance) {
+    return RunUntilEqual<GlicInstanceImpl*>([&]() { return instance.get(); },
+                                            nullptr);
+  }
+
+  [[nodiscard]] TestResult<> WaitForInstanceAwakened(
+      GlicInstance* instance = nullptr) {
+    auto* instance_impl = GetInstanceImpl(instance);
+    return RunUntilEqual<bool>(
+        [&]() { return instance_impl->IsHibernated(); }, false,
+        "WaitForInstanceAwakened: instance did not wake up");
   }
 
   void RegisterConversation(GlicInstance* instance,
@@ -254,6 +334,15 @@ class GlicBrowserTestMixin : public T {
     if (!instance->conversation_id().has_value()) {
       RegisterConversation(instance, conversation_id);
     }
+    instance->OnUserInputSubmitted(mojom::WebClientMode::kText);
+  }
+
+  // Keeps a blank instance alive on close without registering a conversation.
+  void PreventBlankDeletionOnClose(GlicInstanceImpl* instance = nullptr) {
+    if (!instance) {
+      instance = GetOnlyGlicInstance();
+    }
+    CHECK(instance);
     instance->OnUserInputSubmitted(mojom::WebClientMode::kText);
   }
 
@@ -348,10 +437,45 @@ class GlicBrowserTestMixin : public T {
   TestResult<> CloseGlicForTabAndWait(tabs::TabInterface* tab) {
     GlicInstanceImpl* instance = GetInstanceForTab(tab);
     if (!instance) {
-      return base::unexpected("No Glic instance found for tab to close");
+      return base::ok();
     }
-    instance->Close(tab);
-    return WaitForGlicClose(instance);
+    base::WeakPtr<GlicInstanceImpl> weak_instance = instance->GetWeakPtr();
+    instance->Close(SidePanelEmbedderKey(tab), CloseOptions());
+    RETURN_IF_ERROR(
+        WaitForSidePanelState(tab, GlicSidePanelCoordinator::State::kClosed));
+
+    return WaitForWebUiContentsVisibility(weak_instance.get(),
+                                          content::Visibility::HIDDEN);
+  }
+
+  [[nodiscard]] TestResult<> FocusGlic(GlicInstanceImpl* instance) {
+    GlicUiEmbedder* embedder = instance->GetActiveEmbedder();
+    if (!embedder) {
+      return base::unexpected("GlicInstance has no active embedder");
+    }
+    embedder->Focus();
+    bool success = base::test::RunUntil([&]() {
+      return instance->GetActiveEmbedder() &&
+             instance->GetActiveEmbedder()->HasFocus();
+    });
+    if (!success) {
+      return base::unexpected("Timed out waiting for Glic to gain focus");
+    }
+    return base::ok();
+  }
+
+  double GetZoomLevel(GlicInstanceImpl* instance) {
+    content::WebContents* webui_contents = instance->host().webui_contents();
+    if (!webui_contents) {
+      return 1.0;
+    }
+    content::WebContents* guest_contents =
+        GetGlicGuestWebContents(webui_contents);
+    if (!guest_contents) {
+      return 1.0;
+    }
+    double zoom_level = content::HostZoomMap::GetZoomLevel(guest_contents);
+    return blink::ZoomLevelToZoomFactor(zoom_level);
   }
 
   [[nodiscard]] TestResult<GlicInstanceImpl*> WaitForGlicInstanceBoundToTab(
@@ -448,6 +572,7 @@ class GlicBrowserTestMixin : public T {
         tab_model->CreateTab(nullptr, std::move(web_contents), -1,
                              TabModel::TabLaunchType::FROM_CHROME_UI, false);
     tab_model->ActivateTab(new_tab->GetHandle());
+    CHECK(content::WaitForLoadStop(new_tab->GetContents()));
     return new_tab;
 #else
     return CreateAndActivateTab(url);
@@ -599,11 +724,9 @@ class GlicBrowserTestMixin : public T {
 
   GURL GetGuestURL() { return glic_test_environment_.GetGuestURL(); }
 
-  void SetGlicFreUrlOverride(const GURL& url) {
-    glic_test_environment_.SetGlicFreUrlOverride(url);
-  }
 
-  [[nodiscard]] TestResult<void> WaitForGlicClient(GlicInstance* instance) {
+  [[nodiscard]] TestResult<void> WaitForGlicClient(
+      GlicInstance* instance = nullptr) {
     auto* instance_impl = GetInstanceImpl(instance);
     return RunUntilEqual(
         [&]() { return instance_impl->host().IsWebClientConnected(); }, true,
@@ -642,6 +765,49 @@ class GlicBrowserTestMixin : public T {
       instance = GetOnlyGlicInstance();
     }
     return static_cast<GlicInstanceImpl*>(instance);
+  }
+
+  ui::Accelerator GetAccelerator(LocalHotkeyManager::Command command) {
+    if (command == LocalHotkeyManager::Command::kFocusToggle ||
+        command == LocalHotkeyManager::Command::kCaptureRegion ||
+        command == LocalHotkeyManager::Command::kPanelToggle) {
+      return LocalHotkeyManager::GetDefaultAccelerator(command);
+    }
+    auto static_accels = LocalHotkeyManager::GetStaticAccelerators(command);
+    CHECK(!static_accels.empty());
+    return static_accels[0];
+  }
+
+  void TriggerHotkey(ui::Accelerator accelerator) {
+#if BUILDFLAG(IS_ANDROID)
+    gfx::NativeWindow window = GetBrowser()->GetWindow()->GetNativeWindow();
+    int accelerator_state = ui_controls::kNoAccelerator;
+    if (accelerator.IsCtrlDown()) {
+      accelerator_state |= ui_controls::kControl;
+    }
+    if (accelerator.IsShiftDown()) {
+      accelerator_state |= ui_controls::kShift;
+    }
+    if (accelerator.IsAltDown()) {
+      accelerator_state |= ui_controls::kAlt;
+    }
+    if (accelerator.IsCmdDown()) {
+      accelerator_state |= ui_controls::kCommand;
+    }
+    ui_controls::SendKeyEvents(window, accelerator.key_code(),
+                               ui_controls::kKeyPress, accelerator_state);
+#else
+    views::Widget* widget = views::Widget::GetWidgetForNativeWindow(
+        GetBrowser()->GetWindow()->GetNativeWindow());
+    CHECK(widget);
+    views::FocusManager* focus_manager = widget->GetFocusManager();
+    CHECK(focus_manager);
+    focus_manager->ProcessAccelerator(accelerator);
+#endif
+  }
+
+  void TriggerHotkey(LocalHotkeyManager::Command command) {
+    TriggerHotkey(GetAccelerator(command));
   }
 
  private:

@@ -10,12 +10,15 @@
 
 #include "ash/constants/webui_url_constants.h"
 #include "ash/webui/settings/public/constants/routes.mojom.h"
+#include "base/check_deref.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/apps/link_capturing/link_capturing_feature_test_support.h"
+#include "chrome/browser/ash/browser_delegate/browser_controller.h"
+#include "chrome/browser/ash/browser_delegate/browser_delegate.h"
 #include "chrome/browser/ash/system_web_apps/system_web_app_manager.h"
 #include "chrome/browser/chromeos/arc/arc_web_contents_data.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
@@ -30,6 +33,7 @@
 #include "chrome/test/base/ui_test_utils.h"
 #include "chromeos/ash/components/system_web_apps/system_web_app_type.h"
 #include "chromeos/ash/experiences/arc/intent_helper/intent_constants.h"
+#include "chromeos/ash/experiences/system_web_apps/types/system_web_app_delegate.h"
 #include "components/services/app_service/public/cpp/share_target.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
@@ -46,8 +50,10 @@ using arc::mojom::ChromePage;
 size_t GetNumberOfSettingsWindows() {
   auto settings_browsers =
       ui_test_utils::FindMatchingBrowsers([](BrowserWindowInterface* browser) {
-        return ash::IsBrowserForSystemWebApp(browser,
-                                             ash::SystemWebAppType::SETTINGS);
+        return ash::IsBrowserForSystemWebApp(
+            CHECK_DEREF(
+                ash::BrowserController::GetInstance()->GetDelegate(browser)),
+            ash::SystemWebAppType::SETTINGS);
       });
   return settings_browsers.size();
 }
@@ -60,24 +66,21 @@ BrowserWindowInterface* GetLastActiveBrowser() {
 using ArcOpenUrlDelegateImplBrowserTest = InProcessBrowserTest;
 
 class ArcOpenUrlDelegateImplWebAppBrowserTest
-    : public web_app::WebAppNavigationBrowserTest,
-      public testing::WithParamInterface<
-          apps::test::LinkCapturingFeatureVersion> {
+    : public web_app::WebAppNavigationBrowserTest {
  public:
   ArcOpenUrlDelegateImplWebAppBrowserTest() {
     features_list_.InitWithFeaturesAndParameters(
-        apps::test::GetFeaturesToEnableLinkCapturingUX(GetParam()), {});
+        apps::test::GetFeaturesToEnableLinkCapturingUX(
+            apps::test::LinkCapturingFeatureVersion::kV2DefaultOn),
+        {});
   }
 
  private:
   base::test::ScopedFeatureList features_list_;
 };
 
-IN_PROC_BROWSER_TEST_P(ArcOpenUrlDelegateImplWebAppBrowserTest, OpenWebApp) {
+IN_PROC_BROWSER_TEST_F(ArcOpenUrlDelegateImplWebAppBrowserTest, OpenWebApp) {
   InstallTestWebApp();
-  // Enabling link capturing to ensure it doesn't interfere.
-  ASSERT_EQ(apps::test::EnableLinkCapturingByUser(profile(), test_web_app_id()),
-            base::ok());
   const GURL app_url = embedded_https_test_server().GetURL(GetAppUrlHost(), GetAppUrlPath());
   const char* key =
       arc::ArcWebContentsData::ArcWebContentsData::kArcTransitionFlag;
@@ -116,7 +119,7 @@ IN_PROC_BROWSER_TEST_P(ArcOpenUrlDelegateImplWebAppBrowserTest, OpenWebApp) {
   }
 }
 
-IN_PROC_BROWSER_TEST_P(ArcOpenUrlDelegateImplWebAppBrowserTest,
+IN_PROC_BROWSER_TEST_F(ArcOpenUrlDelegateImplWebAppBrowserTest,
                        OpenAppWithIntent) {
   const GURL app_url = embedded_https_test_server().GetURL(GetAppUrlHost(), GetAppUrlPath());
 
@@ -135,9 +138,6 @@ IN_PROC_BROWSER_TEST_P(ArcOpenUrlDelegateImplWebAppBrowserTest,
   web_app_info->share_target = share_target;
   std::string id =
       web_app::test::InstallWebApp(profile(), std::move(web_app_info));
-  // Enabling link capturing to ensure it doesn't interfere.
-  ASSERT_EQ(apps::test::EnableLinkCapturingByUser(profile(), id), base::ok());
-
   const char* arc_transition_key =
       arc::ArcWebContentsData::ArcWebContentsData::kArcTransitionFlag;
 
@@ -210,20 +210,12 @@ IN_PROC_BROWSER_TEST_P(ArcOpenUrlDelegateImplWebAppBrowserTest,
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    ,
-    ArcOpenUrlDelegateImplWebAppBrowserTest,
-    testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff,
-                    apps::test::LinkCapturingFeatureVersion::
-                        kV2DefaultOffCaptureExistingFrames),
-    apps::test::LinkCapturingVersionToString);
-
 void TestOpenSettingFromArc(Browser* browser,
                             ChromePage page,
                             const GURL& expected_url,
                             bool expected_setting_window) {
   // Install the Settings App.
-  ash::SystemWebAppManager::GetForTest(browser->profile())
+  ash::SystemWebAppManager::GetForTest(browser->GetProfile())
       ->InstallSystemAppsForTesting();
 
   ui_test_utils::BrowserCreatedObserver browser_created_observer;
@@ -398,7 +390,7 @@ void TestAllAboutPages() {
 
 IN_PROC_BROWSER_TEST_F(ArcOpenUrlDelegateImplBrowserTest, TestOpenChromePage) {
   // Install the Settings App.
-  ash::SystemWebAppManager::GetForTest(browser()->profile())
+  ash::SystemWebAppManager::GetForTest(browser()->GetProfile())
       ->InstallSystemAppsForTesting();
 
   TestAllOSSettingPages(GURL(ash::kChromeUIOSSettingsURL));

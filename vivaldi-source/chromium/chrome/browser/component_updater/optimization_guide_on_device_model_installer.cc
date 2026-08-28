@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-#include "base/byte_count.h"
+#include "base/byte_size.h"
 #include "base/callback_list.h"
 #include "base/containers/span.h"
 #include "base/feature_list.h"
@@ -31,6 +31,7 @@
 #include "base/task/thread_pool.h"
 #include "base/values.h"
 #include "base/version.h"
+#include "build/branding_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "components/component_updater/component_updater_paths.h"
 #include "components/component_updater/component_updater_service.h"
@@ -57,18 +58,6 @@ constexpr uint8_t kPublicKeySHA256[32] = {
     0x00, 0x26, 0x43, 0x86, 0x03, 0x36, 0xa6, 0x38, 0x86, 0x63};
 static_assert(std::size(kPublicKeySHA256) == crypto::kSHA256Length);
 
-// Extension id is eidcjfoningnkhpoelgpjemmhmopkeoi.
-constexpr char kClassifierModelManifestName[] =
-    "Optimization Guide On Device Taxonomy Model";
-constexpr base::FilePath::CharType kClassifierModelInstallationRelativePath[] =
-    FILE_PATH_LITERAL("OptGuideOnDeviceClassifierModel");
-constexpr uint8_t kClassifierModelPublicKeySHA256[32] = {
-    0x48, 0x32, 0x95, 0xed, 0x8d, 0x6d, 0xa7, 0xfe, 0x4b, 0x6f, 0x94,
-    0xcc, 0x7c, 0xef, 0xa4, 0xe8, 0xa3, 0x79, 0xd7, 0xe5, 0x79, 0x5f,
-    0x53, 0x64, 0xef, 0xe7, 0x7b, 0xe1, 0x52, 0x44, 0x5b, 0x37};
-static_assert(std::size(kClassifierModelPublicKeySHA256) ==
-              crypto::kSHA256Length);
-
 // Extension id is ceofaddefefcbblgcgnibnonglccbfja.
 constexpr char kOptimizationGuideModelsManifestName[] =
     "Optimization Guide On DeviceModels Manifest";
@@ -79,6 +68,14 @@ constexpr uint8_t kManifestPublicKeySHA256[32] = {
     0xed, 0x6b, 0x22, 0x15, 0x90, 0x9a, 0x44, 0xf0, 0x88, 0xdc, 0x19,
     0xfa, 0x5d, 0xd4, 0x55, 0xf7, 0x95, 0x88, 0xff, 0xfd, 0x8a};
 static_assert(std::size(kManifestPublicKeySHA256) == crypto::kSHA256Length);
+
+BASE_FEATURE(kModelManifestChannelFeature,
+             "ModelManifestChannel",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE_PARAM(std::string,
+                   kModelManifestChannel,
+                   &kModelManifestChannelFeature,
+                   "");
 
 bool IsModelAlreadyInstalled(ComponentUpdateService* cus,
                              const std::string& extension_id,
@@ -116,7 +113,7 @@ base::FilePath GetComponentInstallDirectory() {
 
 void GetComponentFreeDiskSpace(
     const base::FilePath& path,
-    base::OnceCallback<void(std::optional<base::ByteCount>)> callback) {
+    base::OnceCallback<void(std::optional<base::ByteSize>)> callback) {
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE,
       {base::MayBlock(),
@@ -125,30 +122,31 @@ void GetComponentFreeDiskSpace(
            ? base::TaskPriority::USER_VISIBLE
            : base::TaskPriority::BEST_EFFORT},
       base::BindOnce(
-          [](const base::FilePath& path) -> std::optional<base::ByteCount> {
-            std::optional<int64_t> amount_of_free_disk_space =
-                base::SysInfo::AmountOfFreeDiskSpace(path);
-            if (!amount_of_free_disk_space) {
+          [](const base::FilePath& path) -> std::optional<base::ByteSize> {
+            std::optional<base::SysInfo::DiskSpaceInfo> disk_space =
+                base::SysInfo::AmountOfDiskSpace(path);
+            if (!disk_space) {
               return std::nullopt;
             }
-            return base::ByteCount(*amount_of_free_disk_space);
+            return disk_space->available;
           },
           path),
       std::move(callback));
 }
 
-// Legacy installer policy for the base and classifier models.
-class OnDeviceModelInstallerPolicy
+// Legacy Installer policy for the On-Device Base Model.
+class OptimizationGuideOnDeviceBaseModelInstallerPolicy final
     : public OptimizationGuideOnDeviceModelInstallerPolicy {
  public:
   // `state_manager` has the lifetime till all profiles are closed. It could
   // slightly vary from lifetime of `this` which runs in separate task runner,
   // and could get destroyed slightly later than `state_manager`.
-  explicit OnDeviceModelInstallerPolicy(
+  explicit OptimizationGuideOnDeviceBaseModelInstallerPolicy(
       base::WeakPtr<optimization_guide::OnDeviceModelComponentStateManager>
-          state_manager)
-      : state_manager_(state_manager) {}
-  ~OnDeviceModelInstallerPolicy() override = default;
+          state_manager,
+      optimization_guide::OnDeviceModelRegistrationAttributes attributes)
+      : state_manager_(state_manager), attributes_(std::move(attributes)) {}
+  ~OptimizationGuideOnDeviceBaseModelInstallerPolicy() override = default;
 
   void OnCustomUninstall() final {
     content::GetUIThreadTaskRunner({})->PostTask(
@@ -171,24 +169,6 @@ class OnDeviceModelInstallerPolicy
       state_manager_->SetReady(version, install_dir, manifest);
     }
   }
-
- protected:
-  // The on-device state manager should be accessed in the UI thread.
-  base::WeakPtr<optimization_guide::OnDeviceModelComponentStateManager>
-      state_manager_;
-};
-
-// Legacy Installer policy for the On-Device Base Model.
-class OptimizationGuideOnDeviceBaseModelInstallerPolicy final
-    : public OnDeviceModelInstallerPolicy {
- public:
-  explicit OptimizationGuideOnDeviceBaseModelInstallerPolicy(
-      base::WeakPtr<optimization_guide::OnDeviceModelComponentStateManager>
-          state_manager,
-      optimization_guide::OnDeviceModelRegistrationAttributes attributes)
-      : OnDeviceModelInstallerPolicy(state_manager),
-        attributes_(std::move(attributes)) {}
-  ~OptimizationGuideOnDeviceBaseModelInstallerPolicy() override = default;
 
   base::FilePath GetRelativeInstallDir() const override {
     return base::FilePath(kInstallationRelativePath);
@@ -224,40 +204,16 @@ class OptimizationGuideOnDeviceBaseModelInstallerPolicy final
   }
 
  private:
+  // The on-device state manager should be accessed in the UI thread.
+  base::WeakPtr<optimization_guide::OnDeviceModelComponentStateManager>
+      state_manager_;
   const optimization_guide::OnDeviceModelRegistrationAttributes attributes_;
-};
-
-// Legacy Installer policy for the On-Device Classifier Model.
-class OptimizationGuideOnDeviceClassifierModelInstallerPolicy final
-    : public OnDeviceModelInstallerPolicy {
- public:
-  explicit OptimizationGuideOnDeviceClassifierModelInstallerPolicy(
-      base::WeakPtr<optimization_guide::OnDeviceModelComponentStateManager>
-          state_manager)
-      : OnDeviceModelInstallerPolicy(state_manager) {}
-  ~OptimizationGuideOnDeviceClassifierModelInstallerPolicy() override = default;
-
-  base::FilePath GetRelativeInstallDir() const override {
-    return base::FilePath(kClassifierModelInstallationRelativePath);
-  }
-
-  void GetHash(std::vector<uint8_t>* hash) const override {
-    hash->assign(std::begin(kClassifierModelPublicKeySHA256),
-                 std::end(kClassifierModelPublicKeySHA256));
-  }
-  std::string GetName() const override { return kClassifierModelManifestName; }
-
-  static const std::string GetExtensionId() {
-    return crx_file::id_util::GenerateIdFromHash(
-        kClassifierModelPublicKeySHA256);
-  }
 };
 
 class OnDeviceModelComponentStateManagerDelegate final
     : public optimization_guide::OnDeviceModelComponentStateManager::Delegate {
  public:
-  explicit OnDeviceModelComponentStateManagerDelegate(OnDeviceModelType type)
-      : type_(type) {}
+  OnDeviceModelComponentStateManagerDelegate() = default;
   ~OnDeviceModelComponentStateManagerDelegate() override = default;
 
   base::FilePath GetInstallDirectory() override {
@@ -265,9 +221,17 @@ class OnDeviceModelComponentStateManagerDelegate final
   }
 
   void GetFreeDiskSpace(const base::FilePath& path,
-                        base::OnceCallback<void(std::optional<base::ByteCount>)>
+                        base::OnceCallback<void(std::optional<base::ByteSize>)>
                             callback) override {
+#if BUILDFLAG(CHROME_FOR_TESTING)
+    // No need for free disk space check in CfT, so invoke the callback
+    // asynchronously so that large size on device components are updated after
+    // all other components.
+    content::GetUIThreadTaskRunner({})->PostTask(
+        FROM_HERE, base::BindOnce(std::move(callback), base::ByteSize::Max()));
+#else
     GetComponentFreeDiskSpace(path, std::move(callback));
+#endif
   }
 
   void RegisterInstaller(
@@ -308,7 +272,7 @@ class OnDeviceModelComponentStateManagerDelegate final
 
   void RequestUpdate(bool is_background) override {
     OnDemandUpdater::Priority priority = OnDemandUpdater::Priority::FOREGROUND;
-    if (type_ == OnDeviceModelType::kBaseModel && is_background) {
+    if (is_background) {
       priority = OnDemandUpdater::Priority::BACKGROUND;
     }
     OptimizationGuideOnDeviceBaseModelInstallerPolicy::UpdateOnDemand(
@@ -316,14 +280,8 @@ class OnDeviceModelComponentStateManagerDelegate final
   }
 
   std::string GetComponentId() override {
-    switch (type_) {
-      case OnDeviceModelType::kClassifierModel:
-        return OptimizationGuideOnDeviceClassifierModelInstallerPolicy::
-            GetExtensionId();
-      case OnDeviceModelType::kBaseModel:
-        return OptimizationGuideOnDeviceBaseModelInstallerPolicy::
-            GetOnDeviceModelExtensionId();
-    }
+    return OptimizationGuideOnDeviceBaseModelInstallerPolicy::
+        GetOnDeviceModelExtensionId();
   }
 
  private:
@@ -331,19 +289,9 @@ class OnDeviceModelComponentStateManagerDelegate final
       base::WeakPtr<optimization_guide::OnDeviceModelComponentStateManager>
           state_manager,
       optimization_guide::OnDeviceModelRegistrationAttributes attributes) {
-    switch (type_) {
-      case OnDeviceModelType::kClassifierModel:
-        return std::make_unique<
-            OptimizationGuideOnDeviceClassifierModelInstallerPolicy>(
-            state_manager);
-      case OnDeviceModelType::kBaseModel:
-        return std::make_unique<
-            OptimizationGuideOnDeviceBaseModelInstallerPolicy>(
-            state_manager, std::move(attributes));
-    }
+    return std::make_unique<OptimizationGuideOnDeviceBaseModelInstallerPolicy>(
+        state_manager, std::move(attributes));
   }
-
-  const OnDeviceModelType type_;
 };
 
 // A generic component installer policy for Manifest Component.
@@ -459,6 +407,10 @@ class ManifestMonitorInstallerPolicy final
     return kOptimizationGuideModelsManifestName;
   }
 
+  update_client::InstallerAttributes GetInstallerAttributes() const override {
+    return {{"manifest_channel", kModelManifestChannel.Get()}};
+  }
+
   // Manifest should never be uninstalled.
   void OnCustomUninstall() override {}
 
@@ -486,7 +438,7 @@ class ManifestAssetManagerDelegateImpl final
     return subscription;
   }
 
-  void GetFreeDiskSpace(base::OnceCallback<void(std::optional<base::ByteCount>)>
+  void GetFreeDiskSpace(base::OnceCallback<void(std::optional<base::ByteSize>)>
                             callback) const override {
     GetComponentFreeDiskSpace(GetComponentInstallDirectory(),
                               std::move(callback));
@@ -650,20 +602,13 @@ void OptimizationGuideOnDeviceModelInstallerPolicy::UpdateOnDemand(
 
 std::unique_ptr<
     optimization_guide::OnDeviceModelComponentStateManager::Delegate>
-CreateOptimizationGuideOnDeviceModelComponentDelegate(OnDeviceModelType type) {
-  return std::make_unique<OnDeviceModelComponentStateManagerDelegate>(type);
+CreateOptimizationGuideOnDeviceModelComponentDelegate() {
+  return std::make_unique<OnDeviceModelComponentStateManagerDelegate>();
 }
 
-std::string GetOptimizationGuideOnDeviceModelExtensionId(
-    OnDeviceModelType type) {
-  switch (type) {
-    case OnDeviceModelType::kClassifierModel:
-      return OptimizationGuideOnDeviceClassifierModelInstallerPolicy::
-          GetExtensionId();
-    case OnDeviceModelType::kBaseModel:
-      return OptimizationGuideOnDeviceBaseModelInstallerPolicy::
-          GetOnDeviceModelExtensionId();
-  }
+std::string GetOptimizationGuideOnDeviceModelExtensionId() {
+  return OptimizationGuideOnDeviceBaseModelInstallerPolicy::
+      GetOnDeviceModelExtensionId();
 }
 
 std::unique_ptr<optimization_guide::ManifestAssetManager::Delegate>

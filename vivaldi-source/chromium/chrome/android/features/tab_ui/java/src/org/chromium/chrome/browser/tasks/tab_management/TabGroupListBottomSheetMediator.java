@@ -11,6 +11,7 @@ import org.chromium.base.Token;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabGroupUtils.TabGroupCreationCallback;
 import org.chromium.chrome.browser.tabmodel.TabGroupUtils.TabMovedCallback;
@@ -50,11 +51,17 @@ public class TabGroupListBottomSheetMediator {
     private final FaviconResolver mFaviconResolver;
     private final @Nullable TabGroupSyncService mTabGroupSyncService;
     private final boolean mShowNewGroup;
+    private boolean mCurrentlyShowing;
 
     private final BottomSheetObserver mBottomSheetObserver =
             new EmptyBottomSheetObserver() {
+
                 @Override
                 public void onSheetClosed(@StateChangeReason int reason) {
+                    // This may be called when another bottom sheet was closed in order to show this
+                    // bottom sheet.
+                    if (!mCurrentlyShowing) return;
+                    mCurrentlyShowing = false;
                     mBottomSheetController.removeObserver(mBottomSheetObserver);
                     mModelList.clear();
                 }
@@ -68,9 +75,11 @@ public class TabGroupListBottomSheetMediator {
 
                 @Override
                 public void onSheetContentChanged(@Nullable BottomSheetContent newContent) {
-                    if (mDelegate.isSameContentView(newContent)
-                            && !mBottomSheetController.hasBottomInset()) {
-                        mDelegate.addPadding();
+                    if (mDelegate.isSameContentView(newContent)) {
+                        mCurrentlyShowing = true;
+                        if (!mBottomSheetController.hasBottomInset()) {
+                            mDelegate.addPadding();
+                        }
                     }
                 }
             };
@@ -123,6 +132,11 @@ public class TabGroupListBottomSheetMediator {
         if (!requestSuccess) {
             mBottomSheetController.removeObserver(mBottomSheetObserver);
         }
+    }
+
+    /** Destroys the mediator. */
+    void destroy() {
+        mBottomSheetController.removeObserver(mBottomSheetObserver);
     }
 
     /** Hides the bottom sheet. */
@@ -242,6 +256,9 @@ public class TabGroupListBottomSheetMediator {
     }
 
     private boolean shouldShowGroupByState(@GroupWindowState int groupWindowState) {
+        if (ChromeFeatureList.sCrossWindowTabGroupOperations.isEnabled()) {
+            return groupWindowState != GroupWindowState.HIDDEN;
+        }
         return groupWindowState != GroupWindowState.IN_ANOTHER
                 && groupWindowState != GroupWindowState.HIDDEN;
     }

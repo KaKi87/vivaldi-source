@@ -7,6 +7,8 @@
 #import "components/webauthn/ios/ios_passkey_client_commands.h"
 #import "components/webauthn/ios/passkey_tab_helper.h"
 #import "ios/chrome/browser/app_launcher/model/app_launcher_tab_helper.h"
+#import "ios/chrome/browser/autofill/atmemory/public/at_memory_commands.h"
+#import "ios/chrome/browser/autofill/model/autofill_ai_util.h"
 #import "ios/chrome/browser/autofill/model/autofill_tab_helper.h"
 #import "ios/chrome/browser/autofill/model/bottom_sheet/autofill_bottom_sheet_tab_helper.h"
 #import "ios/chrome/browser/autofill/model/form_suggestion_tab_helper.h"
@@ -35,12 +37,12 @@
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/shared/public/commands/autofill_commands.h"
-#import "ios/chrome/browser/shared/public/commands/bwg_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/contextual_sheet_commands.h"
 #import "ios/chrome/browser/shared/public/commands/enterprise_commands.h"
 #import "ios/chrome/browser/shared/public/commands/file_upload_panel_commands.h"
 #import "ios/chrome/browser/shared/public/commands/fullscreen_commands.h"
+#import "ios/chrome/browser/shared/public/commands/gemini_commands.h"
 #import "ios/chrome/browser/shared/public/commands/help_commands.h"
 #import "ios/chrome/browser/shared/public/commands/lens_commands.h"
 #import "ios/chrome/browser/shared/public/commands/mini_map_commands.h"
@@ -194,8 +196,12 @@
     id<AutofillCommands> autofillHandler =
         HandlerForProtocol(_commandDispatcher, AutofillCommands);
     autofillTabHelper->SetAutofillHandler(autofillHandler);
-    autofillTabHelper->SetSnackbarHandler(
-        static_cast<id<SnackbarCommands>>(_commandDispatcher));
+    id<AtMemoryCommands> atMemoryHandler =
+        autofill::IsAutofillAtMemoryEnabled()
+            ? HandlerForProtocol(_commandDispatcher, AtMemoryCommands)
+            : nil;
+    autofillTabHelper->SetCommandHandlers(
+        static_cast<id<SnackbarCommands>>(_commandDispatcher), atMemoryHandler);
   }
 
   ReaderModeTabHelper* readerModeTabHelper =
@@ -265,14 +271,12 @@
 
   GeminiTabHelper* geminiTabHelper = GeminiTabHelper::FromWebState(webState);
   if (geminiTabHelper) {
-    id<BWGCommands> BWGCommandsHandler =
-        HandlerForProtocol(_commandDispatcher, BWGCommands);
-    geminiTabHelper->SetGeminiCommandsHandler(BWGCommandsHandler);
+    id<GeminiCommands> geminiHandler =
+        HandlerForProtocol(_commandDispatcher, GeminiCommands);
+    geminiTabHelper->SetGeminiHandler(geminiHandler);
 
-    if (IsAskGeminiChipEnabled()) {
-      geminiTabHelper->SetLocationBarBadgeCommandsHandler(
-          id<LocationBarBadgeCommands>(_commandDispatcher));
-    }
+    geminiTabHelper->SetLocationBarBadgeCommandsHandler(
+        id<LocationBarBadgeCommands>(_commandDispatcher));
 
     if (IsGeminiImageRemixToolEnabled()) {
       id<HelpCommands> helpCommandsHandler =
@@ -363,7 +367,7 @@
   if (autofillTabHelper) {
     autofillTabHelper->SetBaseViewController(nil);
     autofillTabHelper->SetAutofillHandler(nil);
-    autofillTabHelper->SetSnackbarHandler(nil);
+    autofillTabHelper->SetCommandHandlers(nil, nil);
   }
 
   ReaderModeTabHelper* readerModeTabHelper =
@@ -422,10 +426,8 @@
 
   GeminiTabHelper* geminiTabHelper = GeminiTabHelper::FromWebState(webState);
   if (geminiTabHelper) {
-    geminiTabHelper->SetGeminiCommandsHandler(nil);
-    if (IsAskGeminiChipEnabled()) {
-      geminiTabHelper->SetLocationBarBadgeCommandsHandler(nil);
-    }
+    geminiTabHelper->SetGeminiHandler(nil);
+    geminiTabHelper->SetLocationBarBadgeCommandsHandler(nil);
     if (IsGeminiImageRemixToolEnabled()) {
       geminiTabHelper->SetHelpCommandsHandler(nil);
     }

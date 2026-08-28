@@ -1,4 +1,4 @@
-# Copyright (c) 2011 Google Inc. All rights reserved.
+# Copyright 2011 Google LLC
 # Copyright (c) 2009 Torch Mobile Inc.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -11,7 +11,7 @@
 # copyright notice, this list of conditions and the following disclaimer
 # in the documentation and/or other materials provided with the
 # distribution.
-#    * Neither the name of Google Inc. nor the names of its
+#    * Neither the name of Google LLC nor the names of its
 # contributors may be used to endorse or promote products derived from
 # this software without specific prior written permission.
 #
@@ -31,23 +31,28 @@ import re
 
 # Matches Foo *foo declarations.
 _RE_PATTERN_POINTER_DECLARATION_WHITESPACE = re.compile(
-    r'\s*\w+((?<!\breturn|\bdelete)(?<!\bco_return))\s+'
-    r'(?P<pointer_operator>\*|\&)\w+')
+    r"\s*\w+((?<!\breturn|\bdelete)(?<!\bco_return))\s+"
+    r"(?P<pointer_operator>\*|\&)\w+"
+)
 
 
 def CheckPointerDeclarationWhitespace(filename, clean_lines, linenum, error):
     """Checks for Foo *foo declarations.
 
-  Args:
-    filename: The name of the current file.
-    clean_lines: A CleansedLines instance containing the file.
-    linenum: The number of the line to check.
-    error: The function to call with any errors found.
-  """
+    Args:
+      filename: The name of the current file.
+      clean_lines: A CleansedLines instance containing the file.
+      linenum: The number of the line to check.
+      error: The function to call with any errors found.
+    """
     line = clean_lines.elided[linenum]
     matched = _RE_PATTERN_POINTER_DECLARATION_WHITESPACE.match(line)
     if matched:
         error(
-            filename, linenum, 'whitespace/declaration', 3,
-            'Declaration has space between type name and %s in %s' %
-            (matched.group('pointer_operator'), matched.group(0).strip()))
+            filename,
+            linenum,
+            "whitespace/declaration",
+            3,
+            "Declaration has space between type name and %s in %s"
+            % (matched.group("pointer_operator"), matched.group(0).strip()),
+        )

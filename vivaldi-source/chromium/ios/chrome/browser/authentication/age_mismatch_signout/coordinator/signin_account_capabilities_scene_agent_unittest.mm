@@ -4,6 +4,7 @@
 
 #import "ios/chrome/browser/authentication/age_mismatch_signout/coordinator/signin_account_capabilities_scene_agent.h"
 
+#import "base/functional/callback_helpers.h"
 #import "base/memory/raw_ptr.h"
 #import "base/run_loop.h"
 #import "base/strings/sys_string_conversions.h"
@@ -27,9 +28,11 @@
 #import "ios/chrome/browser/shared/coordinator/layout_guide/layout_guide_scene_agent.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_ui_provider.h"
-#import "ios/chrome/browser/shared/coordinator/scene/test/stub_browser_provider_interface.h"
+#import "ios/chrome/browser/shared/coordinator/scene/test/fake_scene_state.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
-#import "ios/chrome/browser/shared/model/browser/test/test_browser.h"
+#import "ios/chrome/browser/shared/model/browser/browser.h"
+#import "ios/chrome/browser/shared/model/browser/browser_provider.h"
+#import "ios/chrome/browser/shared/model/browser/browser_provider_interface.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_manager_ios.h"
@@ -46,6 +49,7 @@
 #import "ios/chrome/browser/signin/model/identity_manager_factory.h"
 #import "ios/chrome/browser/signin/model/identity_test_environment_browser_state_adaptor.h"
 #import "ios/chrome/browser/signin/model/system_identity.h"
+#import "ios/chrome/browser/sync/model/sync_service_factory.h"
 #import "ios/chrome/test/ios_chrome_scoped_testing_local_state.h"
 #import "ios/chrome/test/testing_application_context.h"
 #import "ios/web/public/test/web_task_environment.h"
@@ -73,6 +77,8 @@ class SigninAccountCapabilitiesSceneAgentTest : public PlatformTest {
         AuthenticationServiceFactory::GetInstance(),
         AuthenticationServiceFactory::GetFactoryWithDelegate(
             std::make_unique<FakeAuthenticationServiceDelegate>()));
+    builder.AddTestingFactory(SyncServiceFactory::GetInstance(),
+                              SyncServiceFactory::GetDefaultFactory());
     builder.AddTestingFactory(
         IdentityManagerFactory::GetInstance(),
         base::BindRepeating(IdentityTestEnvironmentBrowserStateAdaptor::
@@ -80,19 +86,11 @@ class SigninAccountCapabilitiesSceneAgentTest : public PlatformTest {
     profile_ = profile_manager_.AddProfileWithBuilder(std::move(builder));
 
     app_state_ = OCMClassMock([AppState class]);
-    SceneState* scene_state = [[SceneState alloc] initWithAppState:app_state_];
+
+    scene_state_ = [[FakeSceneState alloc] initWithProfile:profile_.get()];
     LayoutGuideSceneAgent* layout_guide_scene_agent =
         [[LayoutGuideSceneAgent alloc] init];
-    [scene_state addAgent:layout_guide_scene_agent];
-    scene_state_ = OCMPartialMock(scene_state);
-
-    browser_ = std::make_unique<TestBrowser>(profile_.get(), scene_state_);
-    stub_browser_interface_provider_ =
-        [[StubBrowserProviderInterface alloc] init];
-    stub_browser_interface_provider_.mainBrowserProvider.browser =
-        browser_.get();
-    OCMStub([scene_state_ browserProviderInterface])
-        .andReturn(stub_browser_interface_provider_);
+    [scene_state_ addAgent:layout_guide_scene_agent];
 
     scene_ui_provider_ = OCMProtocolMock(@protocol(SceneUIProvider));
 
@@ -107,7 +105,12 @@ class SigninAccountCapabilitiesSceneAgentTest : public PlatformTest {
   }
 
   ~SigninAccountCapabilitiesSceneAgentTest() override {
-    [agent_ sceneStateDidDisableUI:scene_state_];
+    @autoreleasepool {
+      [agent_ sceneStateDidDisableUI:scene_state_];
+      [scene_state_ shutdown];
+      scene_state_ = nil;
+      profile_state_ = nil;
+    }
   }
 
   void AddIdentity(FakeSystemIdentity* identity) {
@@ -155,16 +158,19 @@ class SigninAccountCapabilitiesSceneAgentTest : public PlatformTest {
         account_manager_service,
         base::BindRepeating(^(const CoreAccountId& account_id,
                               const AccountCapabilities& capabilities) {
-          AccountInfo updated_account = account;
-          updated_account.capabilities = capabilities;
+          AccountInfo::Builder builder(account);
+          builder.UpdateAccountCapabilitiesWith(capabilities);
           signin::UpdateAccountInfoForAccount(identity_manager,
-                                              updated_account);
+                                              builder.Build());
         }),
-        base::BindOnce([](base::RunLoop* run_loop,
-                          const CoreAccountId&) { run_loop->Quit(); },
-                       &run_loop));
+        base::IgnoreArgs<const CoreAccountId&>(run_loop.QuitClosure()));
+
     fetcher.Start();
     run_loop.Run();
+  }
+
+  Browser* browser() {
+    return scene_state_.browserProviderInterface.currentBrowserProvider.browser;
   }
 
  protected:
@@ -177,9 +183,7 @@ class SigninAccountCapabilitiesSceneAgentTest : public PlatformTest {
   id<SceneUIProvider> scene_ui_provider_;
   ProfileState* profile_state_;
   AppState* app_state_;
-  SceneState* scene_state_;
-  std::unique_ptr<TestBrowser> browser_;
-  StubBrowserProviderInterface* stub_browser_interface_provider_;
+  FakeSceneState* scene_state_;
   SigninAccountCapabilitiesSceneAgent* agent_;
   raw_ptr<FakeSystemIdentityManager> fake_system_identity_manager_;
 };
@@ -189,7 +193,7 @@ TEST_F(SigninAccountCapabilitiesSceneAgentTest, TestWantsToSignIn) {
   // Mock the SceneCommands handler.
   id<SceneCommands> scene_commands_mock =
       OCMProtocolMock(@protocol(SceneCommands));
-  [browser_->GetCommandDispatcher()
+  [browser()->GetCommandDispatcher()
       startDispatchingToTarget:scene_commands_mock
                    forProtocol:@protocol(SceneCommands)];
 
@@ -225,7 +229,6 @@ TEST_F(SigninAccountCapabilitiesSceneAgentTest, TestWantsToSignIn) {
   EXPECT_OCMOCK_VERIFY(coordinator_mock);
 }
 
-
 // Tests that the agent signs out the account if the `CanSignInToChrome`
 // capability is explicitly set to false.
 TEST_F(SigninAccountCapabilitiesSceneAgentTest,
@@ -242,6 +245,46 @@ TEST_F(SigninAccountCapabilitiesSceneAgentTest,
       fake_system_identity_manager_->GetPendingCapabilitiesMutator(identity);
   mutator->set_can_sign_in_to_chrome(false);
   FetchCapabilities(identity);
+
+  base::HistogramTester* histogram_tester_ptr = &histogram_tester;
+  EXPECT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(
+      base::test::ios::kWaitForActionTimeout, true, ^bool {
+        return histogram_tester_ptr->GetBucketCount(
+                   "Signin.SignoutProfile",
+                   signin_metrics::ProfileSignout::
+                       kSignoutFromCanSignInToChromeCapability) == 1;
+      }));
+
+  AuthenticationService* authentication_service =
+      AuthenticationServiceFactory::GetForProfile(profile_.get());
+  EXPECT_FALSE(authentication_service->HasPrimaryIdentity());
+
+  // Wait for the sign-out completion block to finish.
+  base::RunLoop run_loop;
+  task_environment_.GetMainThreadTaskRunner()->PostTask(FROM_HERE,
+                                                        run_loop.QuitClosure());
+  run_loop.Run();
+}
+
+// Tests that the agent signs out the account if the `CanSignInToChrome`
+// capability is already false when the primary account is set.
+TEST_F(SigninAccountCapabilitiesSceneAgentTest,
+       TestSignoutOnPrimaryAccountChangedWithCapabilityFalse) {
+  base::HistogramTester histogram_tester;
+
+  FakeSystemIdentity* identity = [FakeSystemIdentity fakeIdentity1];
+  AddIdentity(identity);
+
+  // Set capability to false before setting as primary.
+  AccountCapabilitiesTestMutator* mutator =
+      fake_system_identity_manager_->GetPendingCapabilitiesMutator(identity);
+  mutator->set_can_sign_in_to_chrome(false);
+  FetchCapabilities(identity);
+
+  scene_state_.activationLevel = SceneActivationLevelForegroundActive;
+
+  // Setting primary account should trigger onPrimaryAccountChanged.
+  SetPrimaryIdentity(identity);
 
   base::HistogramTester* histogram_tester_ptr = &histogram_tester;
   EXPECT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(

@@ -1,6 +1,7 @@
-import("//vivaldi/vivaldi_init_settings.gni") # DO NOT relocate, MUST be first line in the file
+import("//vivaldi/vivaldi_init_settings.gni")  # DO NOT relocate, MUST be first
+                                               # line in the file
 
-assert(is_vivaldi) # Order above is required
+assert(is_vivaldi)  # Order above is required
 
 import("//build/config/chrome_build.gni")
 import("//build/config/ui.gni")
@@ -28,6 +29,8 @@ import("//vivaldi/testing/testing.gni")
 if (is_ios) {
   import("//build/config/ios/ios_sdk.gni")
 }
+
+assert(!is_official_build || !is_component_build, "Official builds must use static linking")
 
 group("All") {
   testonly = true
@@ -109,6 +112,7 @@ group("All") {
         "//ui/message_center:message_center_unittests",
       ]
     }
+
     # Policy templates for mac is currently unsupported
     if (false && is_official_build && target_cpu == "arm64" &&
         (build_enterprise_policy_pack ||

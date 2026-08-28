@@ -9,6 +9,7 @@
 
 #include "base/feature_list.h"
 #include "base/metrics/field_trial_params.h"
+#include "build/build_config.h"
 #include "chrome/browser/default_browser/default_browser_setter.h"
 #include "url/gurl.h"
 
@@ -30,6 +31,9 @@ bool IsDefaultBrowserChangedOsNotificationEnabled();
 
 // Returns whether the experimental default browser prompt surfaces are enabled.
 bool IsDefaultBrowserPromptSurfacesEnabled();
+
+// Returns whether the visual guided setter docking feature flag is enabled.
+bool IsVisualGuidedSetterDockingEnabled();
 
 // Returns the UI surface to use for Default Browser Prompt. Defaults to Infobar
 // if the `kDefaultBrowserFramework` feature is disabled.
@@ -63,13 +67,22 @@ BASE_DECLARE_FEATURE(kDefaultBrowserChangedOsNotification);
 // will default to the the `DefaultBrowserSetterType::kShellIntegration`.
 BASE_DECLARE_FEATURE(kDefaultBrowserSetterSelection);
 
+// Enables continuous docking in the visual guided setter.
+BASE_DECLARE_FEATURE(kVisualGuidedSetterDocking);
+
 // Switch linked to the flag `kDefaultBrowserSetterSelection` that help to set a
 // given setter (e.g. shell_integration, visual_guide).
 BASE_DECLARE_FEATURE_PARAM(DefaultBrowserSetterType,
                            kDefaultBrowserSetterParam);
 
+#if BUILDFLAG(IS_WIN)
 // Parameter for the URL used by the visual guided setter.
 BASE_DECLARE_FEATURE_PARAM(std::string, kDefaultBrowserVisualGuideUrlParam);
+
+// Parameter for the maximum amount of time we should wait for the Settings
+// window.
+BASE_DECLARE_FEATURE_PARAM(base::TimeDelta, kFindSettingsTimeout);
+#endif
 
 }  // namespace default_browser
 

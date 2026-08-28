@@ -10,10 +10,13 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/test/bind.h"
 #include "base/test/gtest_util.h"
+#include "base/test/scoped_feature_list.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window_theme_observer.h"
+#include "chrome/browser/ui/omnibox/omnibox_next_features.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
@@ -91,6 +94,10 @@ class TestTabStripClient : public tabs_api::mojom::TabsObserver {
         if (tabs.contains(id_str)) {
           tabs.at(id_str) = tab.Clone();
         }
+        const auto& mask = event->get_tab()->mask;
+        if (mask && mask->favicon) {
+          ++favicon_field_change_count;
+        }
         break;
       }
       case tabs_api::mojom::OnDataChangedEvent::Tag::kTabGroup:
@@ -133,6 +140,10 @@ class TestTabStripClient : public tabs_api::mojom::TabsObserver {
   std::vector<tabs_api::mojom::OnNodesClosedEventPtr> node_closed_events;
 
   std::map<std::string, tabs_api::mojom::TabPtr> tabs;
+
+  // Number of data changed events received where the favicon field was marked
+  // as changed.
+  int favicon_field_change_count = 0;
 };
 
 class TabStripServiceImplBrowserTest : public InProcessBrowserTest {
@@ -140,7 +151,15 @@ class TabStripServiceImplBrowserTest : public InProcessBrowserTest {
   using TabStripService = tabs_api::mojom::TabStripService;
   using TabStripExperimentService = tabs_api::mojom::TabStripExperimentService;
 
-  TabStripServiceImplBrowserTest() = default;
+  TabStripServiceImplBrowserTest() {
+    scoped_feature_list_.InitWithFeatures(
+        /*enabled_features=*/{},
+        /*disabled_features=*/
+        // TODO(crbug.com/452061489): Fix tests that fail when the WebUI Omnibox
+        // is enabled and then remove these two Features.
+        {omnibox::internal::kWebUIOmniboxPopup,
+         omnibox::internal::kWebUIOmniboxAimPopup});
+  }
 
   void SetUpOnMainThread() override {
     InProcessBrowserTest::SetUpOnMainThread();
@@ -298,6 +317,9 @@ class TabStripServiceImplBrowserTest : public InProcessBrowserTest {
 
   std::unique_ptr<tabs_api::TabStripServiceImpl> tab_strip_service_;
   std::unique_ptr<tabs_api::TabStripUIControllerImpl> ui_controller_;
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(TabStripServiceImplBrowserTest, SynchronousObserver) {
@@ -495,6 +517,28 @@ IN_PROC_BROWSER_TEST_F(TabStripServiceImplBrowserTest, Observation) {
   ASSERT_TRUE(close_result.has_value());
   // Observation should have caused the tab to be removed.
   ASSERT_EQ(0ul, client.tabs.size());
+}
+
+IN_PROC_BROWSER_TEST_F(TabStripServiceImplBrowserTest,
+                       FaviconRefreshesOnThemeChange) {
+  auto observation = SetUpObservation();
+
+  // Create a tab so there is something whose favicon can be refreshed.
+  auto created_tab = CreateTabAt(observation->remote, tabs_api::Position(0),
+                                 GURL("chrome://newtab"));
+  observation->receiver.FlushForTesting();
+  ASSERT_TRUE(created_tab);
+
+  const int favicon_changes_before =
+      observation->client.favicon_field_change_count;
+
+  // Simulate a theme switch and verify favicons are re-emitted.
+  BrowserWindowThemeObserver::From(browser())->NotifyThemeChanged(
+      BrowserThemeChangeType::kBrowserTheme);
+  observation->receiver.FlushForTesting();
+
+  EXPECT_GT(observation->client.favicon_field_change_count,
+            favicon_changes_before);
 }
 
 IN_PROC_BROWSER_TEST_F(TabStripServiceImplBrowserTest, CloseNodes) {
@@ -929,7 +973,7 @@ IN_PROC_BROWSER_TEST_F(TabStripServiceImplBrowserTest, GetAllTabsForProfile) {
   tab_strip_service_->AcceptExperimental(
       experiment_remote.BindNewPipeAndPassReceiver());
 
-  CreateBrowser(browser()->profile());
+  CreateBrowser(browser()->GetProfile());
 
   base::RunLoop run_loop;
   experiment_remote->GetAllTabsForProfile(base::BindLambdaForTesting(

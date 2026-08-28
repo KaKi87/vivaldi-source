@@ -27,7 +27,11 @@ suite('YourSavedInfoPageIndex', function() {
 
     // routes.YOUR_SAVED_INFO does not exist if enableYourSavedInfoSettingsPage
     // is false
-    loadTimeData.overrideValues({enableYourSavedInfoSettingsPage: true});
+    loadTimeData.overrideValues({
+      enableYourSavedInfoSettingsPage: true,
+      showSuggestionsFromGeminiSettings: true,
+      shoppingIntegrationEnabled: true,
+    });
     resetRouterForTesting();
 
     index = document.createElement('settings-your-saved-info-page-index');
@@ -76,6 +80,50 @@ suite('YourSavedInfoPageIndex', function() {
     await microtasksFinished();
     assertActiveView('passkeys');
     // </if>
+
+    Router.getInstance().navigateTo(routes.YOUR_SAVED_INFO_SHOPPING);
+    await microtasksFinished();
+    assertActiveView('shopping');
+
+    Router.getInstance().navigateTo(routes.SUGGESTIONS_FROM_GEMINI);
+    await microtasksFinished();
+    assertActiveView('suggestionsFromGemini');
+  });
+
+  test('GeminiRouteDisabled', async function() {
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+    loadTimeData.overrideValues({
+      enableYourSavedInfoSettingsPage: true,
+      showSuggestionsFromGeminiSettings: false,
+    });
+    resetRouterForTesting();
+
+    index = document.createElement('settings-your-saved-info-page-index');
+    index.prefs = settingsPrefs.prefs!;
+    document.body.appendChild(index);
+    await flushTasks();
+
+    assertEquals(undefined, routes.SUGGESTIONS_FROM_GEMINI);
+    const subpage = index.$.viewManager.querySelector('#suggestionsFromGemini');
+    assertFalse(!!subpage);
+  });
+
+  test('ShoppingRouteDisabled', async function() {
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+    loadTimeData.overrideValues({
+      enableYourSavedInfoSettingsPage: true,
+      shoppingIntegrationEnabled: false,
+    });
+    resetRouterForTesting();
+
+    index = document.createElement('settings-your-saved-info-page-index');
+    index.prefs = settingsPrefs.prefs!;
+    document.body.appendChild(index);
+    await flushTasks();
+
+    assertEquals(undefined, routes.YOUR_SAVED_INFO_SHOPPING);
+    const subpage = index.$.viewManager.querySelector('#shopping');
+    assertFalse(!!subpage);
   });
 
   // Minimal (non-exhaustive) tests to ensure SearchableViewContainerMixin is
@@ -84,6 +132,8 @@ suite('YourSavedInfoPageIndex', function() {
     // Test that the child views are properly annotated.
     const childViewsId = [
       'payments',
+      'shopping',
+      'suggestionsFromGemini',
     ];
     for (const id of childViewsId) {
       assertTrue(!!index.$.viewManager.querySelector(

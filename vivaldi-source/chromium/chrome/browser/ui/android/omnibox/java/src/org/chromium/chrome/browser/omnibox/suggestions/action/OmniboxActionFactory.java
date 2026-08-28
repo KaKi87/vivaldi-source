@@ -13,6 +13,7 @@ import org.chromium.components.omnibox.SuggestTemplateInfoProto.SuggestTemplateI
 import org.chromium.components.omnibox.action.ActionPresentationMode;
 import org.chromium.components.omnibox.action.OmniboxAction;
 import org.chromium.components.omnibox.action.OmniboxPedalId;
+import org.chromium.components.search_engines.StarterPackId;
 
 /** A factory creating the OmniboxAction instances. */
 @NullMarked
@@ -25,6 +26,18 @@ public class OmniboxActionFactory {
     /** Initialize the factory. Called before native code is ready. */
     public static void setDialerAvailable(boolean dialerAvailable) {
         sDialerAvailable = dialerAvailable;
+    }
+
+    @CalledByNative
+    public static @Nullable OmniboxAction buildCrossDeviceTabAction(
+            long nativeInstance, String hint, String accessibilityHint) {
+        return new CrossDeviceTabAction(nativeInstance, hint, accessibilityHint);
+    }
+
+    @CalledByNative
+    public static @Nullable OmniboxAction buildOmniboxLensOverlayAction(
+            long nativeInstance, String hint, String accessibilityHint) {
+        return new OmniboxLensOverlayAction(nativeInstance, hint, accessibilityHint);
     }
 
     @CalledByNative
@@ -41,8 +54,10 @@ public class OmniboxActionFactory {
             long nativeInstance,
             @JniType("std::u16string") String hint,
             @JniType("std::u16string") String accessibilityHint,
-            @JniType("std::u16string") String keyword) {
-        return new SiteSearchAction(nativeInstance, hint, accessibilityHint, keyword);
+            @JniType("std::u16string") String keyword,
+            @StarterPackId int starterPackId) {
+        return new SiteSearchAction(
+                nativeInstance, hint, accessibilityHint, keyword, starterPackId);
     }
 
     @CalledByNative

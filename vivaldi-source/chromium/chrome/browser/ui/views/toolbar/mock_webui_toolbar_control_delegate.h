@@ -37,6 +37,7 @@ class MockWebUIToolbarControlDelegate
               (),
               (override));
   MOCK_METHOD(views::View*, GetView, (), (override));
+  MOCK_METHOD(content::WebContents*, GetWebContents, (), (override));
   MOCK_METHOD(void, AnnounceAlert, (const std::u16string&), (override));
   MOCK_METHOD(void, OnPreferredSizeChanged, (), (override));
   MOCK_METHOD(void,
@@ -51,6 +52,14 @@ class MockWebUIToolbarControlDelegate
   MOCK_METHOD(void,
               OnHomeControlStateChanged,
               (toolbar_ui_api::mojom::HomeControlStatePtr state),
+              (override));
+  MOCK_METHOD(void,
+              OnAppMenuControlStateChanged,
+              (toolbar_ui_api::mojom::AppMenuControlStatePtr state),
+              (override));
+  MOCK_METHOD(void,
+              OnBatterySaverControlStateChanged,
+              (bool is_showing),
               (override));
   MOCK_METHOD(void,
               OnOmniboxViewStateChanged,
@@ -75,17 +84,33 @@ class MockWebUIToolbarControlDelegate
       (override));
   MOCK_METHOD(
       void,
+      OnExtensionsStateChanged,
+      (std::vector<extensions_bar::mojom::ExtensionActionInfoPtr> state),
+      (override));
+  MOCK_METHOD(
+      void,
       OnContentSettingChanged,
       (std::vector<toolbar_ui_api::mojom::ContentSettingImageStatePtr> state),
       (override));
-  MOCK_METHOD(
-      const std::vector<toolbar_ui_api::mojom::PinnedToolbarActionStatePtr>&,
-      GetPinnedToolbarActionsState,
-      (),
-      (const override));
+  MOCK_METHOD(void,
+              OnPageActionChanged,
+              (std::vector<toolbar_ui_api::mojom::PageActionStatePtr> state),
+              (override));
+  MOCK_METHOD(const toolbar_ui_api::mojom::NavigationControlsState&,
+              GetState,
+              (),
+              (const override));
   MOCK_METHOD(void,
               OnAvatarControlStateChanged,
               (toolbar_ui_api::mojom::AvatarControlStatePtr),
+              (override));
+  MOCK_METHOD(void,
+              OnFocusRequested,
+              (toolbar_ui_api::mojom::FocusRequestTarget target),
+              (override));
+  MOCK_METHOD(std::optional<GURL>,
+              ConsumeDroppedUrl,
+              (const gfx::PointF&),
               (override));
   webui_toolbar::IconTable& GetIconTable() override { return icon_table_; }
 

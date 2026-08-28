@@ -10,16 +10,38 @@
           =1 {<ph name="NUM_YEARS_ONE" /> jaar gelede geskep}
           other {<ph name="NUM_YEARS_MANY" /> jaar gelede geskep}
         }</translation>
+<translation id="1101895854844881935">{DAY_COUNT, plural,
+          =1 {Onaktiewe oortjies en groepe word na 1 maand gesluit}
+          other {Onaktiewe oortjies en groepe word na <ph name="MONTH_COUNT_MANY" /> maande gesluit}
+        }</translation>
+<translation id="1133985792690629147"><ph name="COLOR_NAME" /> oortjiegroep-kleurikoon</translation>
+<translation id="1166688074841572519">{NUMBER_OF_TABS, plural,
+          =1 {Sluit groep met <ph name="TITLE_OF_GROUP" /> met <ph name="TABS_COUNT_ONE" /> oortjie, kleur <ph name="COLOR_NAME" />.}
+          other {Sluit groep met <ph name="TITLE_OF_GROUP" /> met <ph name="TABS_COUNT_MANY" /> oortjies, kleur <ph name="COLOR_NAME" />.}
+        }</translation>
+<translation id="1284091376947323642">Skuif oortjiegroep na regs</translation>
 <translation id="1329584516321524826">Pas bygewerk</translation>
+<translation id="1455797424496857273">{TABS_COUNT, plural,
+          =1 {Voeg oortjie toe aan nuwe groep}
+          other {Voeg oortjies toe aan nuwe groep}
+        }</translation>
+<translation id="1458791605942787797">Nuwe groep van u ander toestel</translation>
+<translation id="1487138071670610189">Sleep oortjies om dit te groepeer</translation>
 <translation id="149054111719651807">{NUM_MINS, plural,
           =1 {<ph name="NUM_MINS_ONE" /> minuut gelede geskep}
           other {<ph name="NUM_MINS_MANY" /> minute gelede geskep}
         }</translation>
 <translation id="1625440863545383011">Verwyder oortjie en verlaat groep</translation>
+<translation id="19713940601468134">Skep groepe om u oortjies te organiseer.</translation>
+<translation id="2001678985916350707">U geslote oortjies en -groepe kan heropen word vanuit die afdeling Onlangse oortjies en die afdeling Oortjiegroepe.</translation>
+<translation id="216776815027855047">Veranderinge word deur almal in die groep gesien</translation>
+<translation id="2221077170275765262">Oortjiegroep “<ph name="TAB_GROUP_NAME" />” nie meer beskikbaar nie</translation>
+<translation id="2299756585602735249">Oortjiegroeplys, half geopen</translation>
 <translation id="2330212241471632770">{TABS_COUNT, plural,
           =1 {Boekmerk oortjie}
           other {Boekmerk oortjies}
         }</translation>
+<translation id="2416147124259461944">Groep</translation>
 <translation id="2734252994837336591">{NUM_WEEKS, plural,
           =1 {<ph name="NUM_WEEKS_ONE" /> week gelede bygewerk}
           other {<ph name="NUM_WEEKS_MANY" /> weke gelede bygewerk}
@@ -32,42 +54,143 @@
           =1 {<ph name="NUM_HOURS_ONE" /> uur gelede geskep}
           other {<ph name="NUM_HOURS_MANY" /> uur gelede geskep}
         }</translation>
+<translation id="2823409674319971145">Voeg nuwe oortjie toe tot groep</translation>
 <translation id="2947471979790858922">U aktiwiteit in hierdie privaat oortjies word van hierdie toestel verwyder</translation>
+<translation id="3285228391229471836">{TABS_COUNT, plural,
+          =1 {Voeg oortjie toe aan groep}
+          other {Voeg oortjies toe aan groep}
+        }</translation>
 <translation id="3298614730029636660">Verlaat oortjiegroep</translation>
+<translation id="3300124386085148622">{TAB_COUNT, plural,
+          =1 {Voeg toe aan groep <ph name="TITLE_OF_GROUP" /> met <ph name="TAB_COUNT1" /> oortjie}
+          other {Voeg toe aan groep <ph name="TITLE_OF_GROUP" /> met <ph name="TAB_COUNT1" /> oortjies}
+        }</translation>
+<translation id="3316876767347568113">Verwyder uit oortjiegroep</translation>
 <translation id="354698175756845966">Wysig groepkleur</translation>
+<translation id="3832906837818406941"><ph name="TITLE_OF_GROUP" /> oortjiegroepopsies</translation>
+<translation id="3917319257151883508">Oortjiegroeplys, volledig geopen</translation>
+<translation id="3972555006334883530">U oortjiegroepe word hier bewaar en word oor al u ingetekende toestelle bygewerk</translation>
+<translation id="3984192732035267948">Open die oortjielysaksiekieslys vir oortjiegroep <ph name="TITLE_OF_GROUP" />, kleur <ph name="COLOR_NAME" />.</translation>
 <translation id="4009732926939031387">{NUM_DAYS, plural,
           =1 {<ph name="NUM_DAYS_ONE" /> dag gelede geskep}
           other {<ph name="NUM_DAYS_MANY" /> dae gelede geskep}
         }</translation>
+<translation id="406102127632982874">{NUMBER_OF_TABS, plural,
+          =1 {Vou oortjiegroep met <ph name="TABS_COUNT_ONE" /> oortjie, kleur <ph name="COLOR_NAME" /> uit.}
+          other {Vou oortjiegroep met <ph name="TABS_COUNT_MANY" /> oortjies, kleur <ph name="COLOR_NAME" /> uit.}
+        }</translation>
+<translation id="4166594760689356813">Sluit alle oortjies en groepeer dit</translation>
+<translation id="423046824994248930">Kies oortjiegroep of skep nuwe oortjiegroep</translation>
+<translation id="4439281775431634915">U oortjiegroepe word hier bewaar</translation>
 <translation id="4453940245650019914">{NUM_DAYS, plural,
           =1 {<ph name="NUM_DAYS_ONE" /> dag gelede bygewerk}
           other {<ph name="NUM_DAYS_MANY" /> dae gelede bygewerk}
         }</translation>
+<translation id="451604412571753027">{TABS_COUNT, plural,
+          =1 {Voeg <ph name="TABS_COUNT_ONE" /> oortjie toe aan groep}
+          other {Voeg <ph name="TABS_COUNT_MANY" /> oortjies toe aan groep}
+        }</translation>
+<translation id="4521279527488891004"><ph name="USER_EMAIL" /> groepe bewaar (sluit oortjies en skrap groepe)</translation>
+<translation id="4583669313366060453">{TABS_COUNT, plural,
+          =1 {Oortjie ontstapel}
+          other {Oortjies ontstapel}
+        }</translation>
 <translation id="4686942373615810936">Pas geskep</translation>
+<translation id="4687160919883774711">Open oortjiestapel outomatiese vanaf ander toestelle</translation>
+<translation id="4707553699210476405">{NUMBER_OF_TABS, plural,
+          =1 {Vou oortjiegroep <ph name="TITLE_OF_GROUP" /> met <ph name="TABS_COUNT_ONE" /> oortjie, kleur <ph name="COLOR_NAME" /> uit.}
+          other {Vou oortjiegroep <ph name="TITLE_OF_GROUP" /> met <ph name="TABS_COUNT_MANY" /> oortjies, kleur <ph name="COLOR_NAME" /> uit.}
+        }</translation>
+<translation id="4779979121749047116">Kies wanneer oortjies en oortjiegroepe outomaties na die onaktiewe deel geskuif word.</translation>
+<translation id="4804611303502643481">Hier vind u al u oortjiegroepe</translation>
+<translation id="4811314918290341974">{NUMBER_OF_TABS, plural,
+          =1 {Vou gedeelde oortjiegroep met <ph name="TABS_COUNT_ONE" /> oortjie, kleur <ph name="COLOR_NAME" />, met etiket <ph name="CARD_LABEL" /> uit.}
+          other {Vou gedeelde oortjiegroep met <ph name="TABS_COUNT_MANY" /> oortjiess, kleur <ph name="COLOR_NAME" />, met etiket <ph name="CARD_LABEL" /> uit.}
+        }</translation>
+<translation id="4811534123347558992">{NUMBER_OF_TABS, plural,
+          =1 {Vou gedeelde oortjiegroep met <ph name="TABS_COUNT_ONE" /> oortjie, kleur <ph name="COLOR_NAME" /> uik.}
+          other {Vou gedeelde oortjiegroep met <ph name="TABS_COUNT_MANY" /> oortjies, kleur <ph name="COLOR_NAME" /> uit.}
+        }</translation>
 <translation id="4870911314065352661">Sluit alle oortjies?</translation>
 <translation id="4871187110787939393">Sluit alle privaat oortjies?</translation>
+<translation id="5011517165747668569">Kies oortjiegroep</translation>
+<translation id="5344746330577571162">{AUTO_DELETE_DELAY, plural,
+            =1 {Chrome sluit outomaties onaktiewe oortjies en oortjiegroepe na <ph name="AUTO_DELETE_DELAY_ONE" /> maand. U kan dit verander in Instellings.}
+            other {Chrome sluit outomaties onaktiewe oortjies en oortjiegroepe na <ph name="AUTO_DELETE_DELAY_MANY" /> maande. U kan dit verander in Instellings.}
+          }</translation>
 <translation id="5494920125229734069">Kies alles</translation>
+<translation id="5686531930895087743">{INCOGNITO_TABS_COUNT, plural,
+        =1 {U geslote oortjies en groep kan heropen word vanuit die Onlangse oortjies- en die Oortjiegroep-afdelings. U privaat oortjie is nie beskikbaar nie.}
+        other {U geslote oortjies en groep kan heropen word vanuit die Onlangse oortjies- en die Oortjiegroep-afdelings. U # privaat oortjies is nie beskikbaar nie.}}</translation>
+<translation id="570198925265232174">Hernoem oortjiegroep</translation>
+<translation id="5782736613560873551">{TAB_GROUPS_COUNT, plural,
+            =1 {<ph name="TAB_GROUPS_COUNT_ONE" /> oortjiegroep nie meer beskikbaar}
+            other {<ph name="TAB_GROUPS_COUNT_MANY" /> oortjiegroepe nie meer beskikbaar}
+          }</translation>
+<translation id="5932736435198834671">{TABS_COUNT, plural,
+          =1 {Haal <ph name="TABS_COUNT_ONE" /> gekose oortjie uit groep}
+          other {Haal <ph name="TABS_COUNT_MANY" /> gekose oortjies uit groep}
+        }</translation>
+<translation id="6103180007424260422">{NUMBER_OF_TABS, plural,
+          =1 {Herstel en open oortjiegroep met <ph name="TABS_COUNT_ONE" /> oortjie, kleur <ph name="COLOR_NAME" />.}
+          other {Herstel en open oortjiegroep met <ph name="TABS_COUNT_MANY" /> oortjies, kleur <ph name="COLOR_NAME" />.}
+        }</translation>
+<translation id="618983369399969832">{NUMBER_OF_TABS, plural,
+          =1 {Herstel en open oortjiegroep <ph name="TITLE_OF_GROUP" /> met <ph name="TABS_COUNT_ONE" /> oortjie, kleur <ph name="COLOR_NAME" />.}
+          other {Herstel en open oortjiegroep <ph name="TITLE_OF_GROUP" /> met <ph name="TABS_COUNT_MANY" /> oortjies, kleur <ph name="COLOR_NAME" />.}
+        }</translation>
+<translation id="6484029326952865825">{NUMBER_OF_TABS, plural,
+          =1 {Vou gedeelde oortjiegroep <ph name="TITLE_OF_GROUP" /> met <ph name="TABS_COUNT_ONE" /> oortjie, kleur <ph name="COLOR_NAME" />, met etiket <ph name="CARD_LABEL" /> uit.}
+          other {Vou gedeelde oortjiegroep <ph name="TITLE_OF_GROUP" /> met <ph name="TABS_COUNT_MANY" /> oortjies, kleur <ph name="COLOR_NAME" />, met etiket <ph name="CARD_LABEL" /> uit.}
+        }</translation>
+<translation id="6577665056633327473">{NUMBER_OF_TABS, plural,
+          =1 {Sluit oortjiegroep met <ph name="TABS_COUNT_ONE" /> oortjie, kleur <ph name="COLOR_NAME" />.}
+          other {Sluit oortjiegroep met <ph name="TABS_COUNT_MANY" /> oortjies, kleur <ph name="COLOR_NAME" />.}
+        }</translation>
 <translation id="6807841890213931603">Verwyder oortjie en skrap groep</translation>
+<translation id="692024099672685501">Oortjies en oortjiegroepe</translation>
+<translation id="7198439757237441132">Toon oortjiegroepe in volskermrooster</translation>
+<translation id="7251417927463455051">Oortjiegroepe word outomaties op al u toestelle bewaar en bygewerk</translation>
 <translation id="750227952939161636">U oortjiestapels word outomaties oor al u aangetekende toestelle bewaar en bygewerk</translation>
 <translation id="7640137753339219124">Skrap groep</translation>
 <translation id="7653857400289671414">U oortjiestapels word outomaties bewaar</translation>
+<translation id="7720577161467416873">Skuif oortjiegroep na links</translation>
 <translation id="775668479044571025">{NUM_MONTHS, plural,
           =1 {<ph name="NUM_YEARS_ONE" /> jaar gelede bygewerk}
           other {<ph name="NUM_YEARS_MANY" /> jaar gelede bygewerk}
         }</translation>
+<translation id="7797448773120597519">{TAB_COUNT, plural,
+          =1 {Verwyder oortjie uit groep}
+          other {Verwyder oortjies uit groep}}</translation>
+<translation id="7861101756732813803">Groepeer <ph name="NUMBER_OF_TABS" /> oortjies om vinniger te werk?</translation>
+<translation id="8176081848609891478">Oortjiegroepe "<ph name="TAB_GROUP_NAME_1" />" en "<ph name="TAB_GROUP_NAME_2" />" nie meer beskikbaar</translation>
 <translation id="8207688828622594111">{NUM_MINS, plural,
           =1 {<ph name="NUM_MINS_ONE" /> minuut gelede bygewerk}
           other {<ph name="NUM_MINS_MANY" /> minute gelede bygewerk}
         }</translation>
+<translation id="825209846084758814"><ph name="TABS_COUNT_ONE" /> oortjies gegroepeer</translation>
 <translation id="8374451057714760401">{NUM_MONTHS, plural,
                 =1 {<ph name="NUM_MONTHS_ONE" /> maand gelede bygewerk}
                 other {<ph name="NUM_MONTHS_MANY" /> maande gelede bygewerk}
               }</translation>
 <translation id="8440938071054361204">Wysig groepnaam</translation>
 <translation id="8602902357364871325">Sluit oortjiegroep</translation>
+<translation id="8660513434781407996"><ph name="TABS_COUNT_MANY" /> oortjies gegroepeer</translation>
+<translation id="8685478989144570078">Oortjiegroepe</translation>
+<translation id="8686544461740117253">{NUMBER_OF_TABS, plural,
+          =1 {Vou gedeelde oortjiegroep <ph name="TITLE_OF_GROUP" /> met <ph name="TABS_COUNT_ONE" /> oortjie, kleur <ph name="COLOR_NAME" /> uit.}
+          other {Vou gedeelde oortjiegroep <ph name="TITLE_OF_GROUP" /> met <ph name="TABS_COUNT_MANY" /> oortjiess, kleur <ph name="COLOR_NAME" /> uit.}
+        }</translation>
 <translation id="875848103419578654">{NUM_MONTHS, plural,
                 =1 {<ph name="NUM_MONTHS_ONE" /> maand gelede geskep}
                 other {<ph name="NUM_MONTHS_MANY" /> maande gelede geskep}
               }</translation>
 <translation id="8851621822786801079">Verwyder uit groep</translation>
+<translation id="8882027961563202956">Open die oortjiegroepaksiekieslys vir gedeelde oortjiegroep <ph name="TITLE_OF_GROUP" />, kleur <ph name="COLOR_NAME" />.</translation>
+<translation id="8929097293917882827">Hier vind u al u oortjiegroepe</translation>
+<translation id="9080816060085763385">{TABS_COUNT, plural,
+          =1 {Voeg <ph name="TABS_COUNT_ONE" /> gekose oortjie toe aan groep}
+          other {Voeg <ph name="TABS_COUNT_MANY" /> gekose oortjies toe aan groep}
+        }</translation>
+<translation id="9107807397058417097">Oortjiegroeplys gesluit</translation>
 </translationbundle>

@@ -233,7 +233,7 @@ def _ResolveActivity(device,
     raise Exception('No Activity Resolver Table in:\n' + '\n'.join(lines))
   line_count = next(i for i, l in enumerate(lines[start_idx + 1:])
                     if l and not l[0].isspace())
-  data = '\n'.join(lines[start_idx:start_idx + line_count])
+  data = '\n'.join(lines[start_idx:start_idx + 1 + line_count])
 
   # Split on each Activity entry.
   entries = re.split(r'^        [0-9a-f]+ ', data, flags=re.MULTILINE)
@@ -281,6 +281,19 @@ def _ResolveActivity(device,
 
     if main_activity:
       return main_activity
+
+    # (Note(david@vivaldi.com): Vivaldi has multiple launcher activities aliases but only one is
+    # enabled at a time (e.g. for an alternative app icon). Query the device to find which one is
+    # currently enabled and filter down to that.
+    result = device.RunShellCommand(
+        ['pm', 'query-activities', '-a', 'android.intent.action.MAIN',
+         '-c', 'android.intent.category.LAUNCHER', '--components'],
+        check_return=True)
+    activity_names &= {l.strip().replace('/.', '.') for l in result
+                       if package_name in l}
+    if len(activity_names) == 1:
+      return next(iter(activity_names))
+    # End Vivaldi
 
     raise Exception('Found multiple launcher activities:\n * ' +
                     '\n * '.join(sorted(activity_names)))

@@ -1,6 +1,6 @@
 # Official framework image. Look for the different tagged releases at:
 # https://hub.docker.com/r/library/node/tags/
-image: "registry.gitlab.com/eyeo/docker/adblockplus-ci:node16-no-python"
+image: "node:24.5.0"
 
 # This folder is cached between builds
 # https://docs.gitlab.com/ee/ci/yaml/index.html#cache
@@ -8,13 +8,71 @@ cache:
   paths:
     - node_modules/
 
+stages:
+  - build
+  - release
+
 artifacts:
+  stage: build
   script:
     - npm install
     - npm run build
     - npm run test
 
 audit:
+  stage: build
   script:
     - npm audit
 
+# Available on main when the commit message matches "@eyeo/snippets vX.Y.Z", must be triggered manually.
+#
+# Required CI/CD secrets:
+#   GITLAB_TOKEN — token with Developer+ role and permission to push protected tags
+#
+# npm publishing uses OIDC Trusted Publishing (no long-lived token needed).
+# The npm package must have this GitLab project configured as a Trusted Publisher.
+release:
+  stage: release
+  id_tokens:
+    NPM_ID_TOKEN:
+      aud: "npm:registry.npmjs.org"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_COMMIT_MESSAGE =~ /^@eyeo\/snippets v\d+\.\d+\.\d+/'
+      when: manual
+  script:
+    - export VERSION=$(node -p "require('./package.json').version")
+    - echo "Releasing @eyeo/snippets v$VERSION"
+    - git remote set-url origin "https://oauth2:${GITLAB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    # Fetch the merged MR to use its description as GitLab release notes
+    - |
+      curl -sf --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+        "$CI_API_V4_URL/projects/$CI_PROJECT_ID/repository/commits/$CI_COMMIT_SHA/merge_requests" \
+        -o /tmp/mrs.json
+    - |
+      node -e "
+        const fs = require('fs');
+        const mrs = JSON.parse(fs.readFileSync('/tmp/mrs.json', 'utf8'));
+        const version = process.env.VERSION;
+        const mr = mrs[0];
+        const payload = JSON.stringify({
+          tag_name: 'v' + version,
+          name: '@eyeo/snippets v' + version,
+          description: (mr && mr.description) || ''
+        });
+        fs.writeFileSync('/tmp/release-payload.json', payload);
+        console.log('Release notes from MR:', (mr && mr.web_url) || 'WARNING: no merged MR found for this commit');
+      "
+    # Create and push the git tag on the merge commit
+    - git tag "v$VERSION" "$CI_COMMIT_SHA"
+    - git push origin "v$VERSION"
+    - echo "Tag v$VERSION pushed"
+    # Create the GitLab release, using the MR description as release notes
+    - |
+      curl -sf --request POST \
+        --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+        --header "Content-Type: application/json" \
+        --data @/tmp/release-payload.json \
+        "$CI_API_V4_URL/projects/$CI_PROJECT_ID/releases"
+    - echo "GitLab release created"
+    - npm publish
+    - echo "Done $VERSION published to npm"

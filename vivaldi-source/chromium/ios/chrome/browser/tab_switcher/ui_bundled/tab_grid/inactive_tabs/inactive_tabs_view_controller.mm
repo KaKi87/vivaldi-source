@@ -22,8 +22,8 @@
 using vivaldi::IsVivaldiRunning;
 // End Vivaldi
 
-@interface InactiveTabsViewController () <UINavigationBarDelegate,
-                                          LayoutStateObserver>
+@interface InactiveTabsViewController () <LayoutStateObserver,
+                                          UINavigationBarDelegate>
 
 // The embedded navigation bar.
 @property(nonatomic, readonly) UINavigationBar* navigationBar;
@@ -42,10 +42,6 @@ using vivaldi::IsVivaldiRunning;
 
   // The gradient background view.
   TabGridToolbarBackgroundView* _gradientBackgroundView;
-}
-
-- (void)dealloc {
-  [_layoutState removeObserver:self];
 }
 
 - (void)setLayoutState:(LayoutState*)layoutState {
@@ -173,16 +169,11 @@ using vivaldi::IsVivaldiRunning;
   [_bottomBar layoutIfNeeded];
   NSString* buttonTitle =
       l10n_util::GetNSString(IDS_IOS_INACTIVE_TABS_CLOSE_ALL_BUTTON);
-  __weak __typeof(self) weakSelf = self;
-  UIAction* closeAllInactiveAction =
-      [UIAction actionWithTitle:buttonTitle
-                          image:nil
-                     identifier:nil
-                        handler:^(UIAction* action) {
-                          [weakSelf didTapCloseAllInactive];
-                        }];
-  _closeAllInactiveButton =
-      [[UIBarButtonItem alloc] initWithPrimaryAction:closeAllInactiveAction];
+  _closeAllInactiveButton = [[UIBarButtonItem alloc]
+      initWithTitle:buttonTitle
+              style:UIBarButtonItemStylePlain
+             target:self
+             action:@selector(didTapCloseAllInactive)];
   _closeAllInactiveButton.accessibilityIdentifier =
       kInactiveTabGridCloseAllButtonIdentifier;
   UIBarButtonItem* flexibleSpace = [[UIBarButtonItem alloc]
@@ -248,7 +239,7 @@ using vivaldi::IsVivaldiRunning;
 - (void)updateBottomBarConstraints {
   _bottomBarBottomConstraint.constant =
       self.layoutState.appBarPosition == AppBarPosition::kBottom
-          ? -kAppBarHeight
+          ? -AppBarHeightPortrait()
           : 0;
 }
 

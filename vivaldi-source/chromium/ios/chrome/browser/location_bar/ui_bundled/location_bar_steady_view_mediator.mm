@@ -40,13 +40,13 @@ using vivaldi::kVivaldiUIScheme;
 // End Vivaldi
 
 @interface LocationBarSteadyViewMediator () <CRWWebStateObserver,
-                                             WebStateListObserving,
 
                                              // Vivaldi
                                              BooleanObserver,
                                              // End Vivaldi
 
-                                             OverlayPresenterObserving>
+                                             OverlayPresenterObserving,
+                                             WebStateListObserving>
 
 // Whether an overlay is currently presented over the web content area.
 @property(nonatomic, assign, getter=isWebContentAreaShowingOverlay)

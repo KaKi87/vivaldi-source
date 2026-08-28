@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "base/command_line.h"
+#include "base/containers/span.h"
 #include "base/feature_list.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_path.h"
@@ -84,6 +85,7 @@ const base::FilePath& GetTestDataDir() {
   return *dir;
 }
 
+#if !BUILDFLAG(USE_INTERNAL_AUTOFILL_PATTERNS)
 const base::FilePath GetInputDir() {
   static base::FilePath input_dir = GetTestDataDir()
                                         .Append(kFeatureName)
@@ -92,22 +94,27 @@ const base::FilePath GetInputDir() {
   return input_dir;
 }
 
-std::vector<base::FilePath> GetTestFiles() {
-  base::FileEnumerator input_files(GetInputDir(), false,
-                                   base::FileEnumerator::FILES);
-  std::vector<base::FilePath> files;
-  for (base::FilePath input_file = input_files.Next(); !input_file.empty();
-       input_file = input_files.Next()) {
-    files.push_back(input_file);
-  }
-  std::sort(files.begin(), files.end());
+const std::vector<base::FilePath>& GetTestFiles() {
+  static const base::NoDestructor<std::vector<base::FilePath>> files([] {
+    base::ScopedAllowBlockingForTesting allow_blocking;
+    base::FileEnumerator input_files(GetInputDir(), false,
+                                     base::FileEnumerator::FILES);
+    std::vector<base::FilePath> files;
+    for (base::FilePath input_file = input_files.Next(); !input_file.empty();
+         input_file = input_files.Next()) {
+      files.push_back(input_file);
+    }
+    std::sort(files.begin(), files.end());
 
 #if BUILDFLAG(IS_MAC)
-  base::apple::ClearAmIBundledCache();
+    base::apple::ClearAmIBundledCache();
 #endif  // BUILDFLAG(IS_MAC)
 
-  return files;
+    return files;
+  }());
+  return *files;
 }
+#endif  // !BUILDFLAG(USE_INTERNAL_AUTOFILL_PATTERNS)
 
 std::string FormStructuresToString(
     base::span<const FormStructure* const> forms) {
@@ -151,13 +158,26 @@ std::string FormStructuresToString(
   return base::JoinString(string_forms, "\n");
 }
 
+#if !BUILDFLAG(USE_INTERNAL_AUTOFILL_PATTERNS)
+constexpr int kMaxFilesInShard = 20;
+
+int GetNumShards() {
+  const size_t num_files = GetTestFiles().size();
+  return std::max(1, static_cast<int>((num_files + kMaxFilesInShard - 1) /
+                                      kMaxFilesInShard));
+}
+#else   // !BUILDFLAG(USE_INTERNAL_AUTOFILL_PATTERNS)
+int GetNumShards() {
+  return 1;
+}
+#endif  // !BUILDFLAG(USE_INTERNAL_AUTOFILL_PATTERNS)
+
 // A data-driven test for verifying Autofill heuristics. Each input is an HTML
 // file that contains one or more forms. The corresponding output file lists the
 // heuristically detected type for each field.
-class FormStructureBrowserTest
-    : public InProcessBrowserTest,
-      public testing::DataDrivenTest,
-      public testing::WithParamInterface<base::FilePath> {
+class FormStructureBrowserTest : public InProcessBrowserTest,
+                                 public testing::DataDrivenTest,
+                                 public testing::WithParamInterface<int> {
  public:
   FormStructureBrowserTest(const FormStructureBrowserTest&) = delete;
   FormStructureBrowserTest& operator=(const FormStructureBrowserTest&) = delete;
@@ -223,16 +243,7 @@ FormStructureBrowserTest::FormStructureBrowserTest()
           features::kAutofillIgnoreCheckableElements,
           // TODO(crbug.com/369503318): Remove once launched.
           features::kAutofillSupportSplitZipCode,
-          // TODO(crbug.com/479503511): Remove once launched.
-          features::kAutofillNewRegexForPhoneCountryCode,
-          // TODO(crbug.com/479503511): Remove once launched.
-          features::kAutofillImprovePhoneFieldParser,
-          // TODO(crbug.com/479503511): Remove once launched.
-          features::kAutofillNewAugmentedPhoneCountryCodeRegex,
-          // TODO(crbug.com/479503511): Remove once launched.
-          features::kAutofillPreferPhoneCountryCodeTypeOverCountryHtmlType,
-          // TODO(crbug.com/479503511): Remove once launched.
-          features::kAutofillImprovePhoneNumberRationalization,
+          features::kAutofillSupportStandaloneZipCodeGlobally,
           features::kAutofillEnableOneTimeCodeHeuristics,
       },
       // Disabled
@@ -316,17 +327,22 @@ IN_PROC_BROWSER_TEST_P(FormStructureBrowserTest, DataDrivenHeuristics) {
   GTEST_SKIP() << "DataDrivenHeuristics tests are only supported with legacy "
                   "parsing patterns";
 #else
-  // Prints the path of the test to be executed.
-  LOG(INFO) << GetParam().MaybeAsASCII();
-  bool is_expected_to_pass =
-      !GetFailingTestNames().contains(GetParam().BaseName().value());
-  RunOneDataDrivenTest(GetParam(), GetOutputDirectory(), is_expected_to_pass);
+  const int shard = GetParam();
+  const int num_shards = GetNumShards();
+  const std::vector<base::FilePath>& files = GetTestFiles();
+  for (size_t i = shard; i < files.size(); i += num_shards) {
+    const base::FilePath& file = files[i];
+    SCOPED_TRACE("Running " + file.MaybeAsASCII());
+    const bool is_expected_to_pass =
+        !GetFailingTestNames().contains(file.BaseName().value());
+    RunOneDataDrivenTest(file, GetOutputDirectory(), is_expected_to_pass);
+  }
 #endif
 }
 
 INSTANTIATE_TEST_SUITE_P(AllForms,
                          FormStructureBrowserTest,
-                         testing::ValuesIn(GetTestFiles()));
+                         testing::Range(0, GetNumShards()));
 
 }  // namespace
 }  // namespace autofill

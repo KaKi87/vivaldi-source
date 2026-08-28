@@ -2,15 +2,10 @@
 
 #import "ios/background_audio/background_audio_tab_helper.h"
 
-#import "base/apple/bundle_locations.h"
-#import "base/strings/sys_string_conversions.h"
-#import "components/google/core/common/google_util.h"
 #import "components/prefs/pref_service.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_backed_boolean.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/utils/observable_boolean.h"
-#import "ios/web/public/js_messaging/web_frame.h"
-#import "ios/web/public/js_messaging/web_frames_manager.h"
 #import "ios/web/public/navigation/navigation_context.h"
 #import "ios/web/public/navigation/navigation_manager.h"
 #import "prefs/ios/vivaldi_ios_pref_names.h"
@@ -81,72 +76,9 @@ void BackgroundAudioTabHelper::WebStateDestroyed(web::WebState* web_state) {
   [allowBackgroundAudioObserver_ stopObserving];
 }
 
-void BackgroundAudioTabHelper::DidFinishNavigation(
-    web::WebState* web_state,
-    web::NavigationContext* navigation_context) {
-  CHECK_EQ(web_state, web_state_);
-
-  // Check url first, so we can reload in case going from disabled->enabled
-  if (google_util::IsYoutubeDomainUrl(
-          navigation_context->GetUrl(), google_util::ALLOW_SUBDOMAIN,
-          google_util::DISALLOW_NON_STANDARD_PORTS)) {
-    isYoutube = true;
-  } else {
-    isYoutube = false;
-  }
-
-  if (!isYoutube) {
-    // Only YouTube domains for now.
-    return;
-  }
-
-  bool isEnabled =
-      prefs_->GetBoolean(vivaldiprefs::kVivaldiBackgroundAudioEnabled);
-
-  if (!isEnabled) {
-    // Don't inject if the feature is disabled
-    return;
-  }
-
-  web::WebFrame* web_frame =
-      web_state->GetPageWorldWebFramesManager()->GetMainWebFrame();
-  if (!web_frame) {
-    return;
-  }
-
-  NSString* script_path =
-      [base::apple::FrameworkBundle() pathForResource:@"background_audio"
-                                               ofType:@"js"];
-  NSError* error = nil;
-  NSString* script_bundle =
-      [NSString stringWithContentsOfFile:script_path
-                                encoding:NSUTF8StringEncoding
-                                   error:&error];
-  if (error) {
-    return;
-  }
-
-  std::u16string script = base::SysNSStringToUTF16(script_bundle);
-  web_frame->ExecuteJavaScript(script);
-  hasInjectedCode = true;
-}
-
 void BackgroundAudioTabHelper::BackgroundAudioPrefChanged() {
-  if (!hasInjectedCode) {
-    // No injected code
-    bool isEnabled =
-        prefs_->GetBoolean(vivaldiprefs::kVivaldiBackgroundAudioEnabled);
-    if (!isEnabled || !isYoutube) {
-      // Feature is disabled so no need to inject
-      // OR not youtube so no need to inject
-      return;
-    }
+  if (web_state_->IsVisible()) {
+    web_state_->GetNavigationManager()->Reload(web::ReloadType::NORMAL,
+                                               /*check_for_repost=*/true);
   }
-
-  // We get here if:
-  // Feature is enabled && url is youtube but has no injected code OR
-  // Feature is disabled but we have injected code
-  // => we should reload the tab.
-  web_state_->GetNavigationManager()->Reload(web::ReloadType::NORMAL,
-                                             /*check_for_repost=*/true);
 }

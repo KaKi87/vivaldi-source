@@ -38,6 +38,7 @@
 #include "components/omnibox/bookmark_nickname_provider.h"
 #include "components/omnibox/direct_match_provider.h"
 #include "components/omnibox/recent_typed_history_provider.h"
+#include "components/omnibox/vivaldi_calculator_provider.h"
 
 class BookmarkProvider;
 class ClipboardProvider;
@@ -249,6 +250,10 @@ class AutocompleteController : public AutocompleteProviderListener,
       base::TimeDelta query_formulation_time,
       AutocompleteMatch* match) const;
 
+  // Processes inline location suggestion side-effects when a match is selected.
+  virtual void MaybeProcessInlineLocationSuggestionMatch(
+      const AutocompleteMatch& match);
+
   void UpdateSearchTermsArgsWithAdditionalSearchboxStats(
       base::TimeDelta query_formulation_time,
       TemplateURLRef::SearchTermsArgs& search_terms_args) const;
@@ -286,6 +291,8 @@ class AutocompleteController : public AutocompleteProviderListener,
   // Groups `published_result_` by search vs URL.
   // See also `AutocompleteResult::GroupSuggestionsBySearchVsURL()`.
   virtual void GroupSuggestionsBySearchVsURL(size_t begin, size_t end);
+  std::u16string GetSuggestionGroupHeaderText(
+      const std::optional<omnibox::GroupId>& suggestion_group_id) const;
   bool done() const {
     return last_update_type_ == UpdateType::kNone ||
            last_update_type_ == UpdateType::kSyncPassOnly ||
@@ -641,6 +648,7 @@ class AutocompleteController : public AutocompleteProviderListener,
   raw_ptr<BookmarkNicknameProvider> bookmark_nickname_provider_;
   raw_ptr<DirectMatchProvider> direct_match_provider_;
   raw_ptr<RecentTypedHistoryProvider> recent_typed_history_provider_;
+  raw_ptr<VivaldiCalculatorProvider> vivaldi_calculator_provider_;
 };
 
 #endif  // COMPONENTS_OMNIBOX_BROWSER_AUTOCOMPLETE_CONTROLLER_H_

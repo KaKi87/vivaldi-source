@@ -151,6 +151,39 @@ source_set("user_agent") {
   ]
 }
 
+source_set("ua_config_holder") {
+  sources = [
+    "//vivaldi/components/user_agent/vivaldi_ua_config_holder.cc",
+    "//vivaldi/components/user_agent/vivaldi_ua_config_holder.h",
+  ]
+  deps = [
+    "//base",
+    "//vivaldi/components/user_agent/mojom",
+  ]
+}
+
+source_set("user_agent_config_service") {
+  sources = [
+    "//vivaldi/components/user_agent/vivaldi_user_agent_config_service.cc",
+    "//vivaldi/components/user_agent/vivaldi_user_agent_config_service.h",
+    "//vivaldi/components/user_agent/vivaldi_user_agent_config_service_factory.cc",
+    "//vivaldi/components/user_agent/vivaldi_user_agent_config_service_factory.h",
+  ]
+  deps = [
+    ":ua_config_holder",
+    ":user_agent",
+    "//base",
+    "//chrome/common:buildflags",
+    "//components/google/core/common",
+    "//components/keyed_service/content",
+    "//components/keyed_service/core",
+    "//components/version_info",
+    "//components/version_info:version_string",
+    "//content/public/browser",
+    "//vivaldi/components/user_agent/mojom",
+  ]
+}
+
 if (is_ios) {
   source_set("vivaldi_ios_user_agent_override") {
     sources = [

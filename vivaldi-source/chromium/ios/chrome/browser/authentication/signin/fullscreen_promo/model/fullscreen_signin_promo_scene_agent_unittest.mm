@@ -14,10 +14,9 @@
 #import "ios/chrome/browser/promos_manager/model/constants.h"
 #import "ios/chrome/browser/promos_manager/model/mock_promos_manager.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
-#import "ios/chrome/browser/shared/coordinator/scene/test/stub_browser_provider_interface.h"
+#import "ios/chrome/browser/shared/coordinator/scene/test/fake_scene_state.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
-#import "ios/chrome/browser/shared/model/browser/test/test_browser.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/signin/model/authentication_service.h"
 #import "ios/chrome/browser/signin/model/authentication_service_factory.h"
@@ -27,6 +26,7 @@
 #import "ios/chrome/browser/signin/model/fake_system_identity_manager.h"
 #import "ios/chrome/browser/signin/model/identity_manager_factory.h"
 #import "ios/chrome/browser/sync/model/sync_service_factory.h"
+#import "ios/chrome/browser/sync/model/test_sync_service_utils.h"
 #import "ios/chrome/test/ios_chrome_scoped_testing_local_state.h"
 #import "ios/web/public/test/web_task_environment.h"
 #import "testing/platform_test.h"
@@ -41,19 +41,13 @@ class FullscreenSigninPromoSceneAgentTest : public PlatformTest {
         AuthenticationServiceFactory::GetInstance(),
         AuthenticationServiceFactory::GetFactoryWithDelegate(
             std::make_unique<FakeAuthenticationServiceDelegate>()));
+    builder.AddTestingFactory(SyncServiceFactory::GetInstance(),
+                              base::BindRepeating(&CreateTestSyncService));
 
-    SceneState* scene_state = [[SceneState alloc] initWithAppState:nil];
-    scene_state_ = OCMPartialMock(scene_state);
+    profile_ = std::move(builder).Build();
+    scene_state_ = [[FakeSceneState alloc] initWithProfile:profile_.get()];
     scene_state_.scene = static_cast<UIWindowScene*>(
         [[[UIApplication sharedApplication] connectedScenes] anyObject]);
-    profile_ = std::move(builder).Build();
-    browser_ = std::make_unique<TestBrowser>(profile_.get(), scene_state_);
-    stub_browser_interface_provider_ =
-        [[StubBrowserProviderInterface alloc] init];
-    stub_browser_interface_provider_.mainBrowserProvider.browser =
-        browser_.get();
-    OCMStub([scene_state_ browserProviderInterface])
-        .andReturn(stub_browser_interface_provider_);
     authentication_service_ =
         AuthenticationServiceFactory::GetForProfile(profile_.get());
     identity_manager_ = IdentityManagerFactory::GetForProfile(profile_.get());
@@ -67,7 +61,8 @@ class FullscreenSigninPromoSceneAgentTest : public PlatformTest {
 
     agent_.sceneState = scene_state_;
 
-    profile_state_ = CreateMockProfileState(ProfileInitStage::kFinal);
+    profile_state_ = [[ProfileState alloc] initWithAppState:nil];
+    SetProfileStateInitStage(profile_state_, ProfileInitStage::kFinal);
     profile_state_.profile = profile_.get();
     scene_state_.profileState = profile_state_;
 
@@ -77,41 +72,33 @@ class FullscreenSigninPromoSceneAgentTest : public PlatformTest {
     scene_state_.UIEnabled = YES;
   }
 
-  ~FullscreenSigninPromoSceneAgentTest() override {
-    profile_state_.profile = nullptr;
-  }
-
   void TearDown() override {
-    NSUserDefaults* standardDefaults = [NSUserDefaults standardUserDefaults];
-    [standardDefaults removeObjectForKey:kDisplayedSSORecallForMajorVersionKey];
-    [standardDefaults removeObjectForKey:kLastShownAccountGaiaIdVersionKey];
-    [standardDefaults removeObjectForKey:kSigninPromoViewDisplayCountKey];
-    [standardDefaults synchronize];
-    scene_state_.UIEnabled = NO;
-  }
-
-  ProfileState* CreateMockProfileState(ProfileInitStage init_stage) {
-    ProfileState* mock_profile_state = OCMClassMock([ProfileState class]);
-    OCMStub([mock_profile_state initStage]).andReturn(init_stage);
-    OCMStub([mock_profile_state profile]).andReturn(profile_.get());
-    return mock_profile_state;
+    @autoreleasepool {
+      NSUserDefaults* standardDefaults = [NSUserDefaults standardUserDefaults];
+      [standardDefaults
+          removeObjectForKey:kDisplayedSSORecallForMajorVersionKey];
+      [standardDefaults removeObjectForKey:kLastShownAccountGaiaIdVersionKey];
+      [standardDefaults removeObjectForKey:kSigninPromoViewDisplayCountKey];
+      [standardDefaults synchronize];
+      scene_state_.UIEnabled = NO;
+      [scene_state_ shutdown];
+      scene_state_ = nil;
+      profile_state_ = nil;
+    }
   }
 
  protected:
-  IOSChromeScopedTestingLocalState scoped_testing_local_state_;
-  FullscreenSigninPromoSceneAgent* agent_;
   web::WebTaskEnvironment task_environment_;
-  syncer::TestSyncService sync_service_;
-  StubBrowserProviderInterface* stub_browser_interface_provider_;
-  raw_ptr<signin::IdentityManager, DanglingUntriaged> identity_manager_;
-  raw_ptr<ChromeAccountManagerService, DanglingUntriaged>
-      account_manager_service_;
-  raw_ptr<AuthenticationService, DanglingUntriaged> authentication_service_;
+  IOSChromeScopedTestingLocalState scoped_testing_local_state_;
   std::unique_ptr<TestProfileIOS> profile_;
-  std::unique_ptr<Browser> browser_;
-  ProfileState* profile_state_;
-  SceneState* scene_state_;
   std::unique_ptr<MockPromosManager> promos_manager_;
+  syncer::TestSyncService sync_service_;
+  raw_ptr<signin::IdentityManager> identity_manager_;
+  raw_ptr<ChromeAccountManagerService> account_manager_service_;
+  raw_ptr<AuthenticationService> authentication_service_;
+  ProfileState* profile_state_;
+  FakeSceneState* scene_state_;
+  FullscreenSigninPromoSceneAgent* agent_;
 };
 
 // Tests that the sign-in fullscreen promo registers with the promo manager when

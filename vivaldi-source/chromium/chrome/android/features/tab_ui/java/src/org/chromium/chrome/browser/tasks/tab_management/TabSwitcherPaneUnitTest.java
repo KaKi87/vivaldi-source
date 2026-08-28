@@ -27,6 +27,7 @@ import static org.robolectric.Shadows.shadowOf;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
+import android.view.ContextThemeWrapper;
 import android.view.View;
 
 import androidx.annotation.Nullable;
@@ -81,10 +82,10 @@ import org.chromium.chrome.browser.tab.TabArchiveSettings;
 import org.chromium.chrome.browser.tab.TabSelectionType;
 import org.chromium.chrome.browser.tab_group_sync.TabGroupSyncServiceFactory;
 import org.chromium.chrome.browser.tab_ui.RecyclerViewPosition;
+import org.chromium.chrome.browser.tab_ui.TabListMode;
 import org.chromium.chrome.browser.tab_ui.TabSwitcherCustomViewManager;
 import org.chromium.chrome.browser.tabmodel.TabGroupObserver;
 import org.chromium.chrome.browser.tabmodel.TabGroupObserver.DidRemoveTabGroupReason;
-import org.chromium.chrome.browser.tasks.tab_management.TabListCoordinator.TabListMode;
 import org.chromium.chrome.browser.tasks.tab_management.archived_tabs_auto_delete_promo.ArchivedTabsAutoDeletePromoManager;
 import org.chromium.chrome.browser.tasks.tab_management.archived_tabs_auto_delete_promo.ArchivedTabsAutoDeletePromoSheetContent;
 import org.chromium.chrome.browser.ui.actions.button.DisplayButtonData;
@@ -215,7 +216,10 @@ public class TabSwitcherPaneUnitTest {
     public void setUp() {
         TabSwitcherPaneBase.setShowIphForTesting(true);
 
-        mContext = ApplicationProvider.getApplicationContext();
+        mContext =
+                new ContextThemeWrapper(
+                        ApplicationProvider.getApplicationContext(),
+                        R.style.Theme_Chromium_TabbedMode);
 
         when(mHubContainerView.getContext()).thenReturn(mContext);
         TabGroupSyncServiceFactory.setForTesting(mTabGroupSyncService);
@@ -477,6 +481,12 @@ public class TabSwitcherPaneUnitTest {
         View mockView = mock(View.class);
         buttonData.onPress(mockView);
         verify(mNewTabButtonClickListener).onClick(mockView);
+    }
+
+    @Test
+    public void testCreateNewTab() {
+        assertTrue(mTabSwitcherPane.createNewTab());
+        verify(mNewTabButtonClickListener).onClick(null);
     }
 
     @Test
@@ -1392,5 +1402,18 @@ public class TabSwitcherPaneUnitTest {
         HubUtils.setIsTabletForTesting(true);
         mTabSwitcherPane.setPaneHubController(mPaneHubController);
         assertFalse(mTabSwitcherPane.getHubSearchBoxVisibilitySupplier().get());
+    }
+
+    @Test
+    public void testIsTouchOnInteractiveElement() {
+        assertFalse(mTabSwitcherPane.isTouchOnInteractiveElement(100f, 100f));
+
+        mTabSwitcherPane.createTabSwitcherPaneCoordinator();
+
+        when(mTabSwitcherPaneCoordinator.isTouchOnInteractiveElement(100f, 100f)).thenReturn(true);
+        assertTrue(mTabSwitcherPane.isTouchOnInteractiveElement(100f, 100f));
+
+        when(mTabSwitcherPaneCoordinator.isTouchOnInteractiveElement(100f, 100f)).thenReturn(false);
+        assertFalse(mTabSwitcherPane.isTouchOnInteractiveElement(100f, 100f));
     }
 }

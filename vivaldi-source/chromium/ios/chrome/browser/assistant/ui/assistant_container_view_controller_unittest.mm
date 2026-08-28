@@ -4,11 +4,16 @@
 
 #import "ios/chrome/browser/assistant/ui/assistant_container_view_controller.h"
 
+#import "base/test/ios/wait_util.h"
+#import "base/time/time.h"
 #import "ios/chrome/browser/assistant/ui/assistant_container_delegate.h"
 #import "ios/chrome/browser/assistant/ui/assistant_container_detent.h"
+#import "ios/chrome/browser/assistant/ui/assistant_container_layout_utils.h"
 #import "ios/chrome/browser/keyboard/ui_bundled/UIKeyCommand+Chrome.h"
 #import "ios/chrome/browser/keyboard/ui_bundled/key_command_actions.h"
 #import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state_test_passkey_factory.h"
+#import "ios/chrome/browser/shared/ui/util/util_swift.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/test/app/uikit_test_util.h"
 #import "testing/gtest/include/gtest/gtest.h"
@@ -23,12 +28,15 @@
 - (void)handlePanGesture:(UIPanGestureRecognizer*)gesture;
 - (void)handleDimmingViewTap:(UITapGestureRecognizer*)gesture;
 - (void)handleGrabberButtonTapped:(UIButton*)sender;
+- (BOOL)isGrabberHidden;
 @end
 
 // Expose accessors for private properties.
 @interface AssistantContainerViewController (TestingHelpers)
 @property(nonatomic, readonly) NSLayoutConstraint* heightConstraint;
 @property(nonatomic, readonly) UIPanGestureRecognizer* headerPanGesture;
+@property(nonatomic, readonly) NSLayoutConstraint* outerBottomConstraint;
+@property(nonatomic, readonly) UIButton* grabberButton;
 @property(nonatomic, assign) BOOL isAnimating;
 @end
 
@@ -40,9 +48,18 @@
 - (UIPanGestureRecognizer*)headerPanGesture {
   return [self valueForKey:@"_headerPanGesture"];
 }
+- (NSLayoutConstraint*)outerBottomConstraint {
+  return [self valueForKey:@"_outerBottomConstraint"];
+}
+- (UIButton*)grabberButton {
+  return [[self valueForKey:@"_assistantContainerView"]
+      valueForKey:@"_grabberButton"];
+}
 @end
 
 namespace {
+
+using layout_state::LayoutStateTestPassKeyFactory;
 
 class AssistantContainerViewControllerTest : public PlatformTest {
  protected:
@@ -260,6 +277,44 @@ TEST_F(AssistantContainerViewControllerTest, AnimateToDetentValid) {
   EXPECT_OCMOCK_VERIFY(delegate_mock);
 }
 
+// Tests that the delegate is notified of detent height updates on layout and
+// orientation changes.
+TEST_F(AssistantContainerViewControllerTest,
+       NotifiesDelegateOnDetentHeightUpdates) {
+  id delegate_mock = OCMProtocolMock(@protocol(AssistantContainerDelegate));
+  view_controller_.delegate = delegate_mock;
+
+  // Initial layout should notify the delegate.
+  OCMExpect([delegate_mock
+      assistantContainerDidUpdateDetentHeights:view_controller_]);
+  [view_controller_.view setNeedsLayout];
+  [view_controller_.view layoutIfNeeded];
+  EXPECT_OCMOCK_VERIFY(delegate_mock);
+
+  // Orientation / size transition should notify the delegate again.
+  id<UIViewControllerTransitionCoordinator> mock_coordinator =
+      OCMProtocolMock(@protocol(UIViewControllerTransitionCoordinator));
+  OCMStub([mock_coordinator animateAlongsideTransition:[OCMArg any]
+                                            completion:[OCMArg any]])
+      .andDo(^(NSInvocation* invocation) {
+        void (^completion)(id<UIViewControllerTransitionCoordinatorContext>) =
+            nil;
+        [invocation getArgument:&completion atIndex:3];
+        if (completion) {
+          completion(nil);
+        }
+      });
+
+  OCMExpect([delegate_mock
+      assistantContainerDidUpdateDetentHeights:view_controller_]);
+  [view_controller_ viewWillTransitionToSize:CGSizeMake(580, 320)
+                   withTransitionCoordinator:mock_coordinator];
+  [view_controller_.view setNeedsLayout];
+  [view_controller_.view layoutIfNeeded];
+
+  EXPECT_OCMOCK_VERIFY(delegate_mock);
+}
+
 // Tests that tapping the dimming view when in the large detent dismisses the
 // container back to the minimized detent.
 TEST_F(AssistantContainerViewControllerTest, HandleDimmingViewTap) {
@@ -334,7 +389,9 @@ TEST_F(AssistantContainerViewControllerTest, UpdatesLayoutOnLayoutStateChange) {
             AssistantPresentationContext::kSheet);
 
   // Update state to supported.
-  layout_state.containedLayoutSupported = YES;
+  [layout_state setContainedLayoutSupported:YES
+                                    passKey:LayoutStateTestPassKeyFactory::
+                                                CreateSceneKey()];
 
   // Should switch to panel mode.
   EXPECT_EQ(view_controller_.presentationContext,
@@ -412,6 +469,95 @@ TEST_F(AssistantContainerViewControllerTest,
 
   BOOL handled = [view_controller_ accessibilityPerformEscape];
   EXPECT_FALSE(handled);
+}
+
+// Tests that setting guideName and layoutGuideCenter dynamically updates
+// the container's bottom constraint to anchor to the resolved guide.
+TEST_F(AssistantContainerViewControllerTest, AnchorsToLayoutGuide) {
+  // Create a mock LayoutGuideCenter.
+  NSString* const kMockGuideName = @"MockGuide";
+  id layout_guide_center_mock = OCMClassMock([LayoutGuideCenter class]);
+
+  // Create an anchor view and add it to the same view hierarchy.
+  UIView* anchor_view = [[UIView alloc] init];
+  anchor_view.translatesAutoresizingMaskIntoConstraints = NO;
+  [window_.rootViewController.view addSubview:anchor_view];
+
+  // Stub referencedViewUnderName: to return our anchor view.
+  OCMStub([layout_guide_center_mock referencedViewUnderName:kMockGuideName])
+      .andReturn(anchor_view);
+
+  // Assign guideName and layoutGuideCenter.
+  view_controller_.layoutGuideCenter = layout_guide_center_mock;
+  view_controller_.guideName = kMockGuideName;
+
+  // Trigger layout pass.
+  [window_ layoutIfNeeded];
+
+  // Retrieve the private outerBottomConstraint using the type-safe accessor.
+  NSLayoutConstraint* outer_bottom_constraint =
+      view_controller_.outerBottomConstraint;
+
+  // Verify that the constraint is active and resolved against the anchor
+  // view's top anchor.
+  ASSERT_NE(nil, outer_bottom_constraint);
+  EXPECT_TRUE(outer_bottom_constraint.active);
+  EXPECT_EQ(outer_bottom_constraint.secondAnchor, anchor_view.topAnchor);
+}
+
+// Tests that setting grabberHidden dynamically hides the grabber button and
+// disables header pan resizing.
+TEST_F(AssistantContainerViewControllerTest,
+       GrabberHiddenDisablesInteractions) {
+  EXPECT_FALSE([view_controller_ isGrabberHidden]);
+  EXPECT_TRUE(view_controller_.headerPanGesture.enabled);
+  EXPECT_FALSE(view_controller_.grabberButton.hidden);
+
+  [view_controller_ setGrabberHidden:YES animated:NO];
+  EXPECT_TRUE([view_controller_ isGrabberHidden]);
+  EXPECT_TRUE(view_controller_.headerPanGesture.enabled);
+  EXPECT_TRUE(view_controller_.grabberButton.hidden);
+
+  [view_controller_ setGrabberHidden:NO animated:NO];
+  EXPECT_FALSE([view_controller_ isGrabberHidden]);
+  EXPECT_TRUE(view_controller_.headerPanGesture.enabled);
+  EXPECT_FALSE(view_controller_.grabberButton.hidden);
+}
+
+// Tests that setting grabberHidden dynamically with animation hides the grabber
+// button and disables header pan resizing after the animation completes.
+TEST_F(AssistantContainerViewControllerTest,
+       GrabberHiddenDisablesInteractionsAnimated) {
+  EXPECT_FALSE([view_controller_ isGrabberHidden]);
+  EXPECT_TRUE(view_controller_.headerPanGesture.enabled);
+  EXPECT_FALSE(view_controller_.grabberButton.hidden);
+
+  [view_controller_ setGrabberHidden:YES animated:YES];
+  EXPECT_TRUE([view_controller_ isGrabberHidden]);
+  // During animation, interactions are disabled immediately.
+  EXPECT_FALSE(view_controller_.headerPanGesture.enabled);
+  EXPECT_FALSE(view_controller_.grabberButton.enabled);
+
+  // Wait for the animation to complete.
+  constexpr double kAnimationDelayDelta = 0.1;
+  const base::TimeDelta delay = base::Seconds(
+      kAssistantGrabberVisibilityAnimationDuration + kAnimationDelayDelta);
+  base::test::ios::SpinRunLoopWithMinDelay(delay);
+
+  EXPECT_TRUE(view_controller_.headerPanGesture.enabled);
+  EXPECT_TRUE(view_controller_.grabberButton.hidden);
+
+  [view_controller_ setGrabberHidden:NO animated:YES];
+  EXPECT_FALSE([view_controller_ isGrabberHidden]);
+  // During animation, interactions are disabled immediately.
+  EXPECT_FALSE(view_controller_.headerPanGesture.enabled);
+  EXPECT_FALSE(view_controller_.grabberButton.enabled);
+
+  // Wait for the animation to complete.
+  base::test::ios::SpinRunLoopWithMinDelay(delay);
+
+  EXPECT_TRUE(view_controller_.headerPanGesture.enabled);
+  EXPECT_FALSE(view_controller_.grabberButton.hidden);
 }
 
 }  // namespace

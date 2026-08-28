@@ -116,6 +116,11 @@ class NetErrorTabHelper
     return network_diagnostics_receivers_;
   }
 
+  content::RenderFrameHostReceiverSet<chrome::mojom::NetworkEasterEgg>&
+  network_easter_egg_receivers_for_testing() {
+    return network_easter_egg_receivers_;
+  }
+
   content::RenderFrameHostReceiverSet<chrome::mojom::NetErrorPageSupport>&
   net_error_page_support_for_testing() {
     return net_error_page_support_;

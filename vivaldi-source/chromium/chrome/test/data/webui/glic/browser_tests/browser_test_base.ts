@@ -7,13 +7,14 @@
 //   --gn_target chrome/test/data/webui/glic:build_ts
 
 import {WebClientMode} from '/glic/glic_api/glic_api.js';
-import type {GlicBrowserHost, GlicHostRegistry, GlicWebClient, InvokeOptions, Observable, OpenPanelInfo, PanelOpeningData, PanelStateKind} from '/glic/glic_api/glic_api.js';
+import type {GlicBrowserHost, GlicHostRegistry, GlicWebClient, InvokeOptions, Observable, OpenPanelInfo, PanelOpeningData, PanelStateKind, Screenshot} from '/glic/glic_api/glic_api.js';
 import {ObservableValue, Subject, type Subscriber} from '/glic/observable.js';
 import {TaskQueue} from '/glic/task_queue.js';
 
 import {createGlicHostRegistryOnLoad} from '../api_boot.js';
 
 let maxTimeoutEndTime = performance.now() + 10000;
+export const longWaitTimeMs = 120000;
 
 export interface TestInitData {
   embeddedTestServerUrl: string;
@@ -175,6 +176,12 @@ export class WebClient implements GlicWebClient {
 
   async initialize(glicBrowserHost: GlicBrowserHost): Promise<void> {
     this.host = glicBrowserHost;
+    glicBrowserHost.experimentalTriggering?.()
+        ?.uploadEncryptedScreenshotRequests?.()
+        ?.subscribe((request) => {
+          this.lastUploadedScreenshot = request.screenshot;
+          request.uploadComplete(this.mockFileToken);
+        });
     this.initializedPromise.resolve();
   }
 
@@ -208,6 +215,14 @@ export class WebClient implements GlicWebClient {
   waitForInitialize(): Promise<void> {
     return this.initializedPromise.promise;
   }
+
+  lastUploadedScreenshot: Screenshot|null = null;
+  get lastUploadedScreenshotPayload(): Uint8Array|null {
+    return this.lastUploadedScreenshot ?
+        new Uint8Array(this.lastUploadedScreenshot.data) :
+        null;
+  }
+  mockFileToken: string|null = 'mock-file-token-12345';
 }
 
 export interface TestStepper {
@@ -227,6 +242,24 @@ export type BrowserCommand = {
 }|{
   command: 'navigate-tab',
   tabId?: string, url: string,
+}|{
+  command: 'parse-actions-result',
+  actionsResult: string,
+}|{
+  command: 'make-wait-action',
+  tabId?: string,
+  durationMs?: number, taskId: number,
+}|{
+  command: 'make-navigate-action',
+  tabId?: string, url: string, taskId: number,
+}|{
+  command: 'make-attempt-otp-filling-action',
+  taskId: number,
+  tabId?: string,
+  nodeId: number,
+  documentIdentifier: string,
+  forSignin: boolean,
+  otpType: number,
 };
 
 export class BrowserControl {
@@ -249,6 +282,45 @@ export class BrowserControl {
   async navigateActiveTab(url: string): Promise<boolean> {
     return this.testStepper.doCommand({command: 'navigate-tab', url}) as
         Promise<boolean>;
+  }
+
+  async parseActionsResult(resultBuffer: ArrayBuffer): Promise<string> {
+    const base64 = (new Uint8Array(resultBuffer)).toBase64();
+    return this.testStepper.doCommand(
+               {command: 'parse-actions-result', actionsResult: base64}) as
+        Promise<string>;
+  }
+
+  async makeWaitAction(taskId: number, durationMs?: number, tabId?: string):
+      Promise<ArrayBuffer> {
+    const base64 =
+        await this.testStepper.doCommand(
+            {command: 'make-wait-action', taskId, durationMs, tabId}) as string;
+    return Uint8Array.fromBase64(base64).buffer as ArrayBuffer;
+  }
+
+  async makeNavigateAction(taskId: number, url: string, tabId?: string):
+      Promise<ArrayBuffer> {
+    const base64 =
+        await this.testStepper.doCommand(
+            {command: 'make-navigate-action', taskId, url, tabId}) as string;
+    return Uint8Array.fromBase64(base64).buffer as ArrayBuffer;
+  }
+
+  async makeAttemptOtpFillingAction(
+      taskId: number, nodeId: number, documentIdentifier: string,
+      forSignin: boolean, otpType: number,
+      tabId?: string): Promise<ArrayBuffer> {
+    const base64 = await this.testStepper.doCommand({
+      command: 'make-attempt-otp-filling-action',
+      taskId,
+      tabId,
+      nodeId,
+      documentIdentifier,
+      forSignin,
+      otpType,
+    }) as string;
+    return Uint8Array.fromBase64(base64).buffer as ArrayBuffer;
   }
 }
 
@@ -323,9 +395,12 @@ export class ApiTestFixtureBase {
     return this.testStepCount;
   }
 
+  getUrl(path: string): string {
+    return new URL(path, this.initData!.embeddedTestServerUrl).href;
+  }
+
   getTestUrl(path: string): string {
-    return new URL('/test_data/' + path, this.initData!.embeddedTestServerUrl)
-        .href;
+    return this.getUrl('/test_data/' + path);
   }
 
   async testAllTestsAreRegistered() {

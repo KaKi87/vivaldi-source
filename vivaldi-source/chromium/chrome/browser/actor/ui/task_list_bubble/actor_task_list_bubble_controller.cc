@@ -25,7 +25,6 @@
 #include "chrome/browser/ui/views/toolbar/toolbar_glic_actor_task_icon.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/common/chrome_features.h"
-#include "chrome/grit/generated_resources.h"
 #include "ui/base/base_window.h"
 #include "ui/base/l10n/l10n_util.h"
 
@@ -93,6 +92,12 @@ void ActorTaskListBubbleController::ShowBubbleImpl(views::View* anchor_view,
   // Do not show bubble if there are no rows to show.
   if (task_id_to_state.empty()) {
     return;
+  }
+  // Close any existing bubble widget to avoid stacking multiple bubble windows.
+  if (bubble_widget_) {
+    bubble_widget_->Close();
+    bubble_widget_ = nullptr;
+    widget_observation_.Reset();
   }
   bubble_widget_ = ActorTaskListBubble::ShowBubble(
       browser_->GetProfile(), anchor_view, task_id_to_state,

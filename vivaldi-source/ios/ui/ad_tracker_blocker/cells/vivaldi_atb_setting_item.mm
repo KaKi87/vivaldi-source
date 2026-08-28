@@ -30,9 +30,8 @@ const UIEdgeInsets imageViewPadding = UIEdgeInsetsMake(12.f, 0.f, 0.f, 0.f);
   return self;
 }
 
-- (void)configureCell:(VivaldiATBSettingItemCell*)cell
-           withStyler:(ChromeTableViewStyler*)styler {
-  [super configureCell:cell withStyler:styler];
+- (void)configureCell:(VivaldiATBSettingItemCell*)cell {
+  [super configureCell:cell];
   [cell configurWithItem:self.item
       userPreferredOption:self.userPreferredOption
       globalDefaultOption:self.globalDefaultOption

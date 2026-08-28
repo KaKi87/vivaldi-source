@@ -6,12 +6,14 @@
 #define CHROME_BROWSER_CONTEXTUAL_TASKS_CONTEXTUAL_TASKS_UTILS_H_
 
 #include "base/unguessable_token.h"
+#include "build/build_config.h"
 #include "components/contextual_search/contextual_search_context_controller.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "third_party/omnibox_proto/model_mode.pb.h"
 #include "third_party/omnibox_proto/tool_mode.pb.h"
 
 class Profile;
+class BrowserWindowInterface;
 
 namespace content {
 class WebContents;
@@ -28,6 +30,7 @@ class Page;
 }  // namespace mojom
 
 class ContextualTasksUIInterface;
+class AimMessagePoster;
 struct SiteExclusionDetail;
 
 // Utility method to create config params for the
@@ -53,6 +56,10 @@ void RecordErrorPageShown(contextual_search::ContextualSearchSource source);
 void RecordInnerFrameContentsHttpResponseCode(int http_status_code,
                                               bool is_zero_state);
 
+// Returns true if tab sharing and tab input capabilities are supported
+// for the given profile (checking AIM and Fusebox eligibility).
+bool IsTabSharingEligible(Profile* profile);
+
 // Returns true if the given URL is valid to show as a suggested tab.
 // `profile` and `site_exclusion_detail` must be non-null.
 bool IsValidUrlForSuggestedTab(const GURL& url,
@@ -69,12 +76,13 @@ std::unique_ptr<contextual_search::ContextualSearchContextController::
 PrepareClientToAimRequestInfo(
     const std::string& query,
     contextual_search::ContextualSearchSessionHandle* session_handle,
-    ContextualTasksUIInterface* web_ui_interface,
+    AimMessagePoster* message_poster,
     omnibox::ToolMode active_tool,
     omnibox::ModelMode active_model,
     std::optional<int64_t> active_tab_context_id,
     std::optional<base::UnguessableToken> overlay_token,
-    bool is_voice_search);
+    bool is_voice_search,
+    const std::map<std::string, std::string>& additional_cgi_params = {});
 
 // Finalizes the AIM query request (consuming tokens) and delivers it to the
 // page.
@@ -82,15 +90,17 @@ void FinalizeAndSendAimQuery(
     std::unique_ptr<contextual_search::ContextualSearchContextController::
                         CreateClientToAimRequestInfo> request_info,
     contextual_search::ContextualSearchSessionHandle* session_handle,
-    ContextualTasksUIInterface* web_ui_interface);
+    AimMessagePoster* message_poster);
 
 // Sends a message to the WebUI that an injected input has been removed.
-void SendInjectedInputRemovedUpdate(
-    ContextualTasksUIInterface* web_ui_interface,
-    const std::string& id);
+void SendInjectedInputRemovedUpdate(AimMessagePoster* message_poster,
+                                    const std::string& id);
 
 // Returns true if the side panel should be used instead of the bottom sheet.
 bool ShouldShowSidePanel();
+
+// Returns true if running on Android mobile (phone form factor).
+bool IsAndroidMobileFormFactor();
 
 // Returns whether the provided URL is to a contextual tasks WebUI page.
 bool IsContextualTasksUrl(const GURL& url);
@@ -106,6 +116,12 @@ GURL GetContextualTasksDisplayURL(content::WebContents* web_contents);
 
 // Returns the effective pin state for the contextual tasks button.
 bool GetEffectivePinState(Profile* profile);
+
+#if !BUILDFLAG(IS_ANDROID)
+// Updates the visibility of the contextual tasks pinned toolbar ActionItem.
+void UpdatePinButtonVisibilityState(BrowserWindowInterface* browser_window,
+                                    bool eligible);
+#endif
 
 }  // namespace contextual_tasks
 

@@ -276,6 +276,9 @@ HEADLESS_PROTOCOL_TEST(VirtualTimeDisposeWhileRunning,
                        "emulation/virtual-time-dispose-while-running.js")
 HEADLESS_PROTOCOL_TEST(VirtualTimePausesDocumentLoading,
                        "emulation/virtual-time-pauses-document-loading.js")
+HEADLESS_PROTOCOL_TEST(
+    VirtualTimeCommitWhileResumingLoaders,
+    "emulation/virtual-time-commit-while-resuming-loaders.js")
 
 HEADLESS_PROTOCOL_TEST(PageBeforeUnload, "page/page-before-unload.js")
 
@@ -298,19 +301,13 @@ HEADLESS_PROTOCOL_TEST(Geolocation, "emulation/geolocation-crash.js")
 
 HEADLESS_PROTOCOL_TEST(DragStarted, "input/dragIntercepted.js")
 
-// https://crbug.com/1414190
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
-#define MAYBE_InputClipboardOps DISABLED_InputClipboardOps
-#else
-#define MAYBE_InputClipboardOps InputClipboardOps
-#endif
-HEADLESS_PROTOCOL_TEST(MAYBE_InputClipboardOps, "input/input-clipboard-ops.js")
+HEADLESS_PROTOCOL_TEST(InputClipboardOps, "shared/input-clipboard-ops.js")
 
 HEADLESS_PROTOCOL_TEST(ClipboardApiCopyPaste,
                        "input/clipboard-api-copy-paste.js")
 
 HEADLESS_PROTOCOL_TEST(FocusBlurNotifications,
-                       "input/focus-blur-notifications.js")
+                       "shared/focus-blur-notifications.js")
 
 HEADLESS_PROTOCOL_TEST(HeadlessSessionBasicsTest,
                        "sessions/headless-session-basics.js")
@@ -521,8 +518,8 @@ class PopupWindowOpenTest : public HeadlessProtocolBrowserTest,
   PopupWindowOpenTest() = default;
 
   void CustomizeHeadlessBrowserContext(
-      HeadlessBrowserContext::Builder& builder) override {
-    builder.SetBlockNewWebContents(ShouldBlockNewWebContents());
+      HeadlessBrowserContext::CreateParams& params) override {
+    params.block_new_web_contents = ShouldBlockNewWebContents();
   }
 
   base::DictValue GetPageUrlExtraParams() override {
@@ -541,6 +538,12 @@ HEADLESS_PROTOCOL_TEST_P(PopupWindowOpenTest,
 INSTANTIATE_TEST_SUITE_P(/* no prefix */,
                          PopupWindowOpenTest_Open,
                          ::testing::Bool());
+
+HEADLESS_PROTOCOL_TEST(PopupWindowHasOpener,
+                       "shared/popup-window-has-opener.js")
+
+HEADLESS_PROTOCOL_TEST(NormalWindowHasOpener,
+                       "shared/normal-window-has-opener.js")
 
 class HeadlessProtocolBrowserTestWithoutSiteIsolation
     : public HeadlessProtocolBrowserTest {
@@ -674,6 +677,17 @@ HEADLESS_PROTOCOL_TEST(SetZoomedWindowBounds,
 HEADLESS_PROTOCOL_TEST(WindowOpenOnSecondaryScreen,
                        "shared/window-open-on-secondary-screen.js")
 
+HEADLESS_PROTOCOL_TEST(WindowOpenClickOpenerId,
+                       "shared/window-open-click-opener-id.js")
+
+HEADLESS_PROTOCOL_TEST(WindowOpenNoopenerClickOpenerId,
+                       "shared/window-open-noopener-click-opener-id.js")
+
+HEADLESS_PROTOCOL_TEST(WindowOpenShiftClickOpenerId,
+                       "shared/window-open-shift-click-opener-id.js")
+
+HEADLESS_PROTOCOL_TEST(BlockNewWebContents, "sanity/block-new-web-contents.js")
+
 HEADLESS_PROTOCOL_TEST(ScreenRotationSecondaryScreen,
                        "sanity/screen-rotation-secondary-screen.js")
 
@@ -790,5 +804,8 @@ HEADLESS_PROTOCOL_TEST(WindowWithNewContext,
 
 HEADLESS_PROTOCOL_TEST(RangeMouseEventAfterNodeRemoval,
                        "shared/range-mouse-event-after-node-removal.js")
+
+HEADLESS_PROTOCOL_TEST(GetCanvasContextWebGL,
+                       "shared/get-canvas-context-webgl.js")
 
 }  // namespace headless

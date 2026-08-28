@@ -191,11 +191,6 @@ public class DownloadDialogBridge implements DownloadLocationDialogController {
         mSuggestedPath = null;
     }
 
-    @VisibleForTesting
-    @Nullable Context getContextForTesting() {
-        return mContext;
-    }
-
     // DownloadLocationDialogController implementation.
     @Override
     public void onDownloadLocationDialogComplete(String returnedPath, boolean didUserConfirm) {
@@ -278,6 +273,10 @@ public class DownloadDialogBridge implements DownloadLocationDialogController {
 
         void setDownloadAndSaveFileDefaultDirectory(
                 PrefService prefs, @JniType("std::string") @Nullable String directory);
+    }
+
+    @Nullable Context getContextForTesting() {
+        return mContext;
     }
 
     /** Vivaldi - Function to start external download manager activity **/
@@ -364,4 +363,5 @@ public class DownloadDialogBridge implements DownloadLocationDialogController {
         }
         return false;
     }
+    // End Vivaldi
 }

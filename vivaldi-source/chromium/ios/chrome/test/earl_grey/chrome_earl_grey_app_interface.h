@@ -33,11 +33,11 @@ enum class TipsNotificationType;
 // the app binary and can be called from either app or test code.
 @interface ChromeEarlGreyAppInterface : NSObject
 
-// Returns whether the TabGridViewController's child views have been set up.
-+ (BOOL)isTabGridSetUp;
-
 // YES if the current interface language uses RTL layout.
 + (BOOL)isRTL;
+
+// Returns YES if the application window is in windowed mode (multitasking).
++ (BOOL)isWindowedMode;
 
 // Clears browsing history and waits for history to finish clearing before
 // returning. Returns nil on success, or else an NSError indicating why the
@@ -299,19 +299,8 @@ enum class TipsNotificationType;
 // operation failed, otherwise nil.
 + (NSError*)tapWebStateElementWithID:(NSString*)elementID;
 
-// Waits for the current web state to contain an element matching `selector`.
-// If not succeed returns an NSError indicating  why the operation failed,
-// otherwise nil.
-+ (NSError*)waitForWebStateContainingElement:(ElementSelector*)selector;
-
-// Waits for the current web state to no longer contain an element matching
-// `selector`. On failure, returns an NSError, otherwise nil.
-+ (NSError*)waitForWebStateNotContainingElement:(ElementSelector*)selector;
-
-// Waits for the current web state's frames to contain `text`.
-// If not succeed returns an NSError indicating  why the operation failed,
-// otherwise nil.
-+ (NSError*)waitForWebStateContainingTextInIFrame:(NSString*)text;
+// Returns YES if the current WebState's frames contain `text`.
++ (BOOL)webStateContainsTextInIFrame:(NSString*)text;
 
 // Attempts to submit form with `formID` in the current WebState.
 // Returns nil on success, or else an NSError indicating why the operation
@@ -325,21 +314,17 @@ enum class TipsNotificationType;
 + (BOOL)webStateContainsText:(NSString*)text;
 
 // Waits for the current WebState to contain loaded image with `imageID`.
-// When loaded, the image element will have the same size as actual image.
-// Returns nil if the condition is met within a timeout, or else an NSError
-// indicating why the operation failed.
-+ (NSError*)waitForWebStateContainingLoadedImage:(NSString*)imageID;
+// Returns YES if the current WebState contains a loaded image with `imageID`.
++ (BOOL)webStateContainsLoadedImage:(NSString*)imageID;
 
-// Waits for the current WebState to contain a blocked image with `imageID`.
-// When blocked, the image element will be smaller than the actual image size.
-// Returns nil if the condition is met within a timeout, or else an NSError
-// indicating why the operation failed.
-+ (NSError*)waitForWebStateContainingBlockedImage:(NSString*)imageID;
+// Returns YES if the current WebState contains a blocked image with `imageID`.
++ (BOOL)webStateContainsBlockedImage:(NSString*)imageID;
 
 // Waits for the web state's scroll view zoom scale to be suitably close (within
 // 0.05) of the expected scale. Returns nil if the condition is met within a
 // timeout, or else an NSError indicating why the operation failed.
-+ (NSError*)waitForWebStateZoomScale:(CGFloat)scale;
+// Returns YES if the current WebState's zoom scale is close to `scale`.
++ (BOOL)webStateZoomScaleCloseTo:(CGFloat)scale;
 
 // Signs the user out from Chrome and then starts clearing the identities.
 //
@@ -453,6 +438,12 @@ enum class TipsNotificationType;
                                 formFieldData:
                                     (NSDictionary<NSString*, NSString*>*)
                                         formFieldData;
+
+// Adds a fake Send Tab To Self entry with the given text fragment to the fake
+// sync server and returns its GUID.
++ (NSString*)addFakeSendTabToSelfEntryWithURL:(NSString*)url
+                                        title:(NSString*)title
+                                 textFragment:(NSString*)textFragment;
 
 // Checks if the local Send Tab To Self model contains an entry with the given
 // GUID.
@@ -578,14 +569,14 @@ enum class TipsNotificationType;
 // Returns YES if kTestFeature is enabled.
 + (BOOL)isTestFeatureEnabled;
 
+// Returns YES if kOverflowMenuHomeCustomizationEntrypoint is enabled.
++ (BOOL)isOverflowMenuHomeCustomizationEntrypointEnabled;
+
 // Returns YES if Fullscreen smooth scrolling is supported.
 + (BOOL)isFullscreenSmoothScrollingSupported;
 
 // Returns YES if DemographicMetricsReporting feature is enabled.
 + (BOOL)isDemographicMetricsReportingEnabled [[nodiscard]];
-
-// Returns YES if AskGeminiChip is enabled.
-+ (BOOL)isAskGeminiChipEnabled [[nodiscard]];
 
 // Returns YES if ProactiveSuggestionsFramework is enabled.
 + (BOOL)isProactiveSuggestionsFrameworkEnabled [[nodiscard]];
@@ -608,6 +599,9 @@ enum class TipsNotificationType;
 // Returns whether the UseLensToSearchForImage feature is enabled.
 + (BOOL)isUseLensToSearchForImageEnabled;
 
+// Returns whether the YourSavedInfoSettingsPageIos feature is enabled.
++ (BOOL)isYourSavedInfoSettingsPageIosEnabled;
+
 // Returns whether the current layout is showing the bottom omnibox.
 + (BOOL)isCurrentLayoutBottomOmnibox;
 
@@ -616,6 +610,12 @@ enum class TipsNotificationType;
 
 // Returns whether chrome next is enabled.
 + (BOOL)isChromeNextEnabled;
+
+// Returns whether overflow menu refactoring on the NTP is enabled.
++ (BOOL)isOverflowMenuNTPRefactorEnabled;
+
+// Returns whether the chrome next share icon is visible.
++ (BOOL)isChromeNextShareIconVisible;
 
 #pragma mark - ContentSettings
 

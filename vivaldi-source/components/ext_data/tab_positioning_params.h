@@ -28,6 +28,10 @@ enum class TabInvokedBy {
   kCommand = 12,
   kEmailLinkBackground = 13,
   kEmailLink = 14,
+  kPanelLinkBackground = 15,
+  kPanelLink = 16,
+  kVivaldiUi = 17,
+  kDownload = 18,
 };
 
 struct TabPositioningParams {

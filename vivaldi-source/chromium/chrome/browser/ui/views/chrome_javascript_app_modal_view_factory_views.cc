@@ -31,8 +31,8 @@
 #include "app/vivaldi_apptools.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 
 namespace {
@@ -110,7 +110,9 @@ javascript_dialogs::AppModalDialogView* CreateViewsJavaScriptDialog(
   if (vivaldi::IsVivaldiRunning()) {
     // NOTE(andre@vivaldi.com) : There are no toplevelnative window in Vivaldi
     // since we use WebViews.
-    Browser* browser = chrome::FindBrowserWithTab(web_contents);
+    BrowserWindowInterface* const browser =
+        GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+            web_contents);
     if (!browser) {
       BrowserWindowInterface* browser_window_interface =
           ProfileBrowserCollection::GetForProfile(
@@ -119,7 +121,7 @@ javascript_dialogs::AppModalDialogView* CreateViewsJavaScriptDialog(
       parent_window = browser_window_interface->GetWindow()->GetNativeWindow();
 
     } else {
-      parent_window = browser->window()->GetNativeWindow();
+      parent_window = browser->GetWindow()->GetNativeWindow();
     }
   }
   // End Vivaldi

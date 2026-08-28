@@ -14,14 +14,16 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 import {apply, proxy} from "proxy-pants/function";
 
 import {getDebugger} from "../introspection/log.js";
-import {formatArguments, toRegExp} from "../utils/general.js";
+import {
+  formatArguments, sendSnippetHitEvent, toRegExp
+} from "../utils/general.js";
 import {profile} from "../introspection/profile.js";
 import {matchesStackTrace} from "../utils/execution.js";
+import {proxyToStringCalls} from "../utils/toString.js";
 
 const {Error, Object, atob, btoa, RegExp} = $(window);
 
@@ -29,7 +31,7 @@ const {Error, Object, atob, btoa, RegExp} = $(window);
  * Replaces values returned by native methods.
  * Traps the specified method and replaces text
  * in its return value or object properties.
- * @alias module:content/snippets.replace-outbound-value
+ * @memberof module:snippets/behavioral
  *
  * @param {string} methodPath The method to trap
  * (e.g., "document.querySelector.textContent")
@@ -43,6 +45,18 @@ const {Error, Object, atob, btoa, RegExp} = $(window);
  * @param {?string} [stack=""] Comma-separated list of strings to check in the
  * stack trace. If provided, the replacement will only apply when the stack
  * trace contains at least one of these patterns.
+ * @example
+ * replace-outbound-value 'JSON.stringify' '"ads":true' '"ads":false' =>
+ * window.testData = {
+ *  user: "john",
+ *  ads: true
+ * };
+ * const res = JSON.stringify(window.testData);
+ * => res will have ads: false
+ *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/1094189057/replace-outbound-value} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/behavioral-snippets/replace-outbound-value} for external documentation.
+ * @since Adblock Plus 4.26.0
  */
 export function replaceOutboundValue(methodPath, textToReplace = "",
                                      replacement = "", decodeMethod = "",
@@ -53,6 +67,13 @@ export function replaceOutboundValue(methodPath, textToReplace = "",
   let debugLog = getDebugger("replace-outbound-value");
   const {mark, end} = profile("replace-outbound-value");
   const formattedArgsToLog = formatArguments(arguments);
+  let hitEventSent = false;
+  function sendHitOnce() {
+    if (!hitEventSent) {
+      hitEventSent = true;
+      sendSnippetHitEvent("replace-outbound-value " + formattedArgsToLog);
+    }
+  }
 
   /**
    * Gets a property by traversing a path on an object.
@@ -67,7 +88,8 @@ export function replaceOutboundValue(methodPath, textToReplace = "",
 
     for (let i = 0; i < chain.length - 1; i++) {
       let prop = chain[i];
-      if (!object || typeof object !== "object") {
+      if (!object || (typeof object !== "object" &&
+                      typeof object !== "function")) {
         return {
           base: object,
           prop,
@@ -108,7 +130,7 @@ export function replaceOutboundValue(methodPath, textToReplace = "",
       const encodedStringWithoutPadding = $(encodedString).replace(/=+$/, "").toString();
       return encodedStringWithoutPadding === stringWithoutPadding;
     }
-    catch (e) {
+    catch (_e) {
       return false;
     }
   }
@@ -267,6 +289,7 @@ export function replaceOutboundValue(methodPath, textToReplace = "",
       if (modifiedObject !== returnValue) {
         debugLog("success",
                `Replaced outbound value\nFILTER: replace-outbound-value ${formattedArgs}`);
+        sendHitOnce();
       }
 
       return modifiedObject;
@@ -288,15 +311,12 @@ export function replaceOutboundValue(methodPath, textToReplace = "",
       if (modifiedContent !== returnValue) {
         debugLog("success",
                `Replaced outbound value: ${modifiedContent} \nFILTER: replace-outbound-value ${formattedArgs}`);
+        sendHitOnce();
       }
 
       return modifiedContent;
     }
 
-    // Handle other types
-    debugLog("info", pathParts.length ?
-      "Content is not an object or path not specified" :
-      "Content is not a string");
     return returnValue;
   }
 
@@ -330,60 +350,62 @@ export function replaceOutboundValue(methodPath, textToReplace = "",
   // that are used by snippet's own code.
   let isMatchingSuspended = false;
 
-  Object.defineProperty(base, prop, {
-    value: proxy(nativeMethod, function() {
-      if (isMatchingSuspended)
-        return apply(nativeMethod, this, arguments);
+  let wrappedMethod = proxy(nativeMethod, function() {
+    if (isMatchingSuspended)
+      return apply(nativeMethod, this, arguments);
 
-      isMatchingSuspended = true;
-      const methodResult = apply(nativeMethod, this, arguments);
+    isMatchingSuspended = true;
+    const methodResult = apply(nativeMethod, this, arguments);
 
-      if (stackNeedles.length && !matchesStackTrace(stackNeedles, debugLog)) {
-        isMatchingSuspended = false;
-        return methodResult;
-      }
-
-      // Handle Promise returns
-      if (methodResult && typeof methodResult.then === "function") {
-        debugLog("info", "Method returned a Promise, modifying resolved value");
-
-        isMatchingSuspended = false;
-        return methodResult.then(resolvedValue => {
-          const valueType = typeof resolvedValue === "object" ?
-            JSON.stringify(resolvedValue) : resolvedValue;
-          debugLog("info", `Promise resolved with value: ${valueType}`);
-
-          // Apply the same logic as below but to the resolved value
-          return processReturnValue(
-            resolvedValue,
-            pathSegments,
-            textToReplace,
-            replacement,
-            decodeMethod,
-            path,
-            debugLog,
-            formattedArgsToLog
-          );
-        }).catch(error => {
-          debugLog("info", `Promise rejected: ${error.message}`);
-          throw error;
-        });
-      }
-
-      // Handle synchronous returns (non-Promise)
-      const processedResult = processReturnValue(
-        methodResult,
-        pathSegments,
-        textToReplace,
-        replacement,
-        decodeMethod,
-        path,
-        debugLog,
-        formattedArgsToLog
-      );
+    if (stackNeedles.length && !matchesStackTrace(stackNeedles, debugLog)) {
       isMatchingSuspended = false;
-      return processedResult;
-    })
+      return methodResult;
+    }
+
+    // Handle Promise returns
+    if (methodResult && typeof methodResult.then === "function") {
+      debugLog("info", "Method returned a Promise, modifying resolved value");
+
+      isMatchingSuspended = false;
+      return methodResult.then(resolvedValue => {
+        const valueType = typeof resolvedValue === "object" ?
+          JSON.stringify(resolvedValue) : resolvedValue;
+        debugLog("info", `Promise resolved with value: ${valueType}`);
+
+        // Apply the same logic as below but to the resolved value
+        return processReturnValue(
+          resolvedValue,
+          pathSegments,
+          textToReplace,
+          replacement,
+          decodeMethod,
+          path,
+          debugLog,
+          formattedArgsToLog
+        );
+      }).catch(error => {
+        debugLog("info", `Promise rejected: ${error.message}`);
+        throw error;
+      });
+    }
+
+    // Handle synchronous returns (non-Promise)
+    const processedResult = processReturnValue(
+      methodResult,
+      pathSegments,
+      textToReplace,
+      replacement,
+      decodeMethod,
+      path,
+      debugLog,
+      formattedArgsToLog
+    );
+    isMatchingSuspended = false;
+    return processedResult;
+  });
+  proxyToStringCalls(wrappedMethod, nativeMethod);
+  Object.defineProperty(base, prop, {
+    value: wrappedMethod
   });
 
   debugLog("info", `Wrapped ${methodPath}`);

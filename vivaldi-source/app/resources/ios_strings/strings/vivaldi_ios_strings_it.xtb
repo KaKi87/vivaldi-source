@@ -8,6 +8,7 @@
 <translation id="1310184829257917508">Chiedi di aprire link da altre app in modalità privata</translation>
 <translation id="1624481300475123200">Compilazione automatica delle password</translation>
 <translation id="1743244221910283364">Elimina modifiche</translation>
+<translation id="1972589975368876259">Modifica gruppo</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Aggiungi scheda al gruppo}
         other {Aggiungi schede al gruppo}}</translation>
@@ -48,7 +49,6 @@
 <translation id="4772190485302020393">Chiudi tutte le schede e i gruppi</translation>
 <translation id="4802185666270672526">Nascondi Richiedi sito desktop</translation>
 <translation id="4828571836982833289">Separa le schede?</translation>
-<translation id="4838250035189612538">Rinomina gruppo</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 gruppo di schede chiuso e salvato}
             other {{count} gruppi di schede chiusi e salvati}}</translation>

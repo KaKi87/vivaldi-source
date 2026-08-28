@@ -59,7 +59,7 @@ NSString* const kCopyActivityType = @"com.google.chrome.copyActivity";
     return CustomSymbolWithPointSize(vMenuCopy,
                                      kSymbolActionPointSize);  // End Vivaldi
 
-  return DefaultSymbolWithPointSize(kCopyActionSymbol, kSymbolActionPointSize);
+  return SymbolWithPointSize(SymbolCopyAction, kSymbolActionPointSize);
 }
 
 - (BOOL)canPerformWithActivityItems:(NSArray*)activityItems {

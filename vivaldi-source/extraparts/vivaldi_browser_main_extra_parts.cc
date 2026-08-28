@@ -36,6 +36,9 @@
 #include "components/request_filter/request_filter_proxying_url_loader_factory.h"
 #include "components/request_filter/request_filter_proxying_websocket.h"
 #include "components/translate/core/browser/translate_language_list.h"
+
+#include "components/user_agent/vivaldi_user_agent_config_service_factory.h"
+
 #include "content/public/browser/web_ui_controller_factory.h"
 #include "content/public/common/content_switches.h"
 #include "extensions/browser/api/content_settings/content_settings_helpers.h"
@@ -75,38 +78,38 @@
 #include "browser/vivaldi_browser_component_wrapper_impl.h"
 #include "browser/vivaldi_extension_handover_impl.h"
 #ifndef VIVALDI_SPARKLE_DISABLED
-#include "extensions/api/auto_update/auto_update_api.h"
+#include "extensions/api/autoupdate/autoupdate_api.h"
 #endif
 #include "extensions/api/bookmark_context_menu/bookmark_context_menu_api.h"
-#include "extensions/api/bookmarks/bookmarks_private_api.h"
+#include "extensions/api/bookmarks_private/bookmarks_private_api.h"
 #include "extensions/api/calendar/calendar_api.h"
 #include "extensions/api/contacts/contacts_api.h"
 #include "extensions/api/content_blocking/content_blocking_api.h"
 #include "extensions/api/direct_match/direct_match_api.h"
 #include "extensions/api/events/vivaldi_ui_events.h"
 #include "extensions/api/extension_action_utils/extension_action_utils_api.h"
-#include "extensions/api/history/history_private_api.h"
+#include "extensions/api/history_private/history_private_api.h"
 #include "extensions/api/import_data/import_data_api.h"
-#include "extensions/api/mail/mail_private_api.h"
+#include "extensions/api/mail_private/mail_private_api.h"
 #include "extensions/api/menu_content/menu_content_api.h"
 #include "extensions/api/menubar_menu/menubar_menu_api.h"
 #include "extensions/api/notes/notes_api.h"
-#include "extensions/api/omnibox/omnibox_private_api.h"
+#include "extensions/api/omnibox_private/omnibox_private_api.h"
 #include "extensions/api/page_actions/page_actions_api.h"
 #include "extensions/api/prefs/prefs_api.h"
-#include "extensions/api/reading_list/reading_list_api.h"
-#include "extensions/api/runtime/runtime_api.h"
+#include "extensions/api/reading_list_private/reading_list_private_api.h"
+#include "extensions/api/runtime_private/runtime_private_api.h"
 #include "extensions/api/search_engines/search_engines_api.h"
-#include "extensions/api/sessions/vivaldi_sessions_api.h"
 #include "extensions/api/settings/settings_api.h"
 #include "extensions/api/site_permissions/site_permissions_api.h"
 #include "extensions/api/sync/sync_api.h"
-#include "extensions/api/tabs/tabs_private_api.h"
-#include "extensions/api/theme/theme_private_api.h"
+#include "extensions/api/tabs_private/tabs_private_api.h"
+#include "extensions/api/theme_private/theme_private_api.h"
 #include "extensions/api/translate_history/translate_history_api.h"
 #include "extensions/api/vivaldi_account/vivaldi_account_api.h"
+#include "extensions/api/vivaldi_sessions/vivaldi_sessions_api.h"
 #include "extensions/api/vivaldi_utilities/vivaldi_utilities_api.h"
-#include "extensions/api/window/window_private_api.h"
+#include "extensions/api/window_private/window_private_api.h"
 #include "extensions/api/zoom/zoom_api.h"
 #include "extensions/vivaldi_extensions_init.h"
 #include "ui/devtools/devtools_connector.h"
@@ -222,6 +225,8 @@ void VivaldiBrowserMainExtraParts::
   extensions::VivaldiRootDocumentHandlerFactory::GetInstance();
   vivaldi::WindowRegistryServiceFactory::GetInstance();
 
+  vivaldi_user_agent::VivaldiUserAgentConfigServiceFactory::GetInstance();
+
   vivaldi::VivaldiExtensionHandoverImpl::CreateImpl();
 
   // Create a browser-component side function wrapper that is accessed in the
@@ -246,9 +251,6 @@ void VivaldiBrowserMainExtraParts::
 
 void VivaldiBrowserMainExtraParts::PreProfileInit() {
   EnsureBrowserContextKeyedServiceFactoriesBuilt();
-
-  vivaldi::ClientHintsBrandRegisterProfilePrefs(
-      g_browser_process->local_state());
 
   vivaldi::ConfigureClientHintsOverrides();
 }
@@ -367,9 +369,7 @@ void VivaldiBrowserMainExtraParts::PreMainMessageLoopRun() {
       g_browser_process->shared_url_loader_factory());
 }
 
-void VivaldiBrowserMainExtraParts::PostMainMessageLoopRun() {
-  vivaldi::ClientHintsBrandRegisterProfilePrefs(nullptr);
-}
+void VivaldiBrowserMainExtraParts::PostMainMessageLoopRun() {}
 
 void VivaldiBrowserMainExtraParts::PostDestroyThreads() {
 #if BUILDFLAG(ENABLE_EXTENSIONS) && !defined(VIVALDI_SPARKLE_DISABLED)

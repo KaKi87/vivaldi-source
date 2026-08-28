@@ -6,6 +6,8 @@
 
 #import "base/check.h"
 #import "base/ios/block_types.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
+#import "ios/chrome/browser/shared/public/commands/tab_grid_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/util/layout_guide_names.h"
 #import "ios/chrome/browser/shared/ui/util/named_guide.h"
@@ -64,6 +66,9 @@ enum class TabGridTransitionType {
   // The top and bottom toolbar snapshot views.
   UIView* _topToolbarSnapshotView;
   UIView* _bottomToolbarSnapshotView;
+
+  // The layout state.
+  LayoutState* _layoutState;
 }
 
 #pragma mark - Public
@@ -75,7 +80,8 @@ enum class TabGridTransitionType {
             browserLayoutGuideCenter:
                 (LayoutGuideCenter*)browserLayoutGuideCenter
                  isRegularBrowserNTP:(BOOL)isRegularBrowserNTP
-                           incognito:(BOOL)incognito {
+                           incognito:(BOOL)incognito
+                         layoutState:(LayoutState*)layoutState {
   self = [super init];
   if (self) {
     _transitionType = TabGridTransitionType::kNormal;
@@ -92,6 +98,7 @@ enum class TabGridTransitionType {
     _browserLayoutGuideCenter = browserLayoutGuideCenter;
     _isRegularBrowserNTP = isRegularBrowserNTP;
     _incognito = incognito;
+    _layoutState = layoutState;
   }
   return self;
 }
@@ -154,9 +161,13 @@ enum class TabGridTransitionType {
                                   middleRect:contentAreaFrame];
   }
 
-  _bottomToolbarSnapshotView =
-      [self snapshotOfViewPortionBelowRect:browserLayout.view
-                                middleRect:contentAreaFrame];
+  CHECK(_layoutState, base::NotFatalUntil::M155);
+  if (!IsChromeNextIaEnabled() ||
+      _layoutState.toolbarPosition == ToolbarPosition::kBottom) {
+    _bottomToolbarSnapshotView =
+        [self snapshotOfViewPortionBelowRect:browserLayout.view
+                                  middleRect:contentAreaFrame];
+  }
 }
 
 // Performs the Browser to Tab Grid transition with a `completion` block.
@@ -223,36 +234,41 @@ enum class TabGridTransitionType {
     browserLayout.view.frame = tabGrid.view.bounds;
   }
 
-  // Taking a snapshot can take a few milliseconds during which a screen refresh
-  // can occur. If the browserLayout is added to the final position before
-  // taking the snapshot, it means that it will be visible in its final position
-  // before the animation starts. But it is also necessary to add it to the view
-  // hierarchy before taking a snapshot otherwise `-viewWillAppear` and
-  // `-viewDidDisappear` are called during the snapshot. The compromise is to
-  // add it below all the views so it is part of the view hierarchy but hidden
-  // by all the views.
-  CGRect browserLayoutOriginalFrame = browserLayout.view.frame;
-  UIView* sourceView = tabGrid.view;
-  if (IsChromeNextIaEnabled() && !IsFullscreenRefactoringEnabled()) {
-    sourceView = appContentGuide;
+  if (_transitionType != TabGridTransitionType::kDisabledAnimation) {
+    // Taking a snapshot can take a few milliseconds during which a screen
+    // refresh can occur. If the browserLayout is added to the final position
+    // before taking the snapshot, it means that it will be visible in its final
+    // position before the animation starts. But it is also necessary to add it
+    // to the view hierarchy before taking a snapshot otherwise
+    // `-viewWillAppear` and
+    // `-viewDidDisappear` are called during the snapshot. The compromise is to
+    // add it below all the views so it is part of the view hierarchy but hidden
+    // by all the views.
+    CGRect browserLayoutOriginalFrame = browserLayout.view.frame;
+    UIView* sourceView = tabGrid.view;
+    if (IsChromeNextIaEnabled() && !IsFullscreenRefactoringEnabled()) {
+      sourceView = appContentGuide;
+    }
+    UIViewController* rootViewController =
+        tabGrid.view.window.rootViewController;
+    if (IsFullscreenRefactoringEnabled()) {
+      // Temporarily re-enable autoresizing so that the frame can be manually
+      // set for the snapshot.
+      browserLayout.view.translatesAutoresizingMaskIntoConstraints = YES;
+    }
+    browserLayout.view.frame =
+        [sourceView convertRect:browserLayoutOriginalFrame
+                         toView:rootViewController.view];
+    [rootViewController addChildViewController:browserLayout];
+    [rootViewController.view insertSubview:browserLayout.view atIndex:0];
+    if (IsFullscreenRefactoringEnabled()) {
+      // Running a layout here ensures that the toolbar frames are correct for
+      // the snapshots.
+      [browserLayout.view layoutIfNeeded];
+    }
+    [self takeToolbarSnapshots];
+    browserLayout.view.frame = browserLayoutOriginalFrame;
   }
-  UIViewController* rootViewController = tabGrid.view.window.rootViewController;
-  if (IsFullscreenRefactoringEnabled()) {
-    // Temporarily re-enable autoresizing so that the frame can be manually set
-    // for the snapshot.
-    browserLayout.view.translatesAutoresizingMaskIntoConstraints = YES;
-  }
-  browserLayout.view.frame = [sourceView convertRect:browserLayoutOriginalFrame
-                                              toView:rootViewController.view];
-  [rootViewController addChildViewController:browserLayout];
-  [rootViewController.view insertSubview:browserLayout.view atIndex:0];
-  if (IsFullscreenRefactoringEnabled()) {
-    // Running a layout here ensures that the toolbar frames are correct for
-    // the snapshots.
-    [browserLayout.view layoutIfNeeded];
-  }
-  [self takeToolbarSnapshots];
-  browserLayout.view.frame = browserLayoutOriginalFrame;
 
   if (IsChromeNextIaEnabled()) {
     [parentViewController addChildViewController:browserLayout];
@@ -292,6 +308,10 @@ enum class TabGridTransitionType {
   UIViewController* browserLayout = _params->browser_layout_view_controller;
   UIViewController* parentViewController = _params->parent_view_controller;
   [browserLayout didMoveToParentViewController:parentViewController];
+
+  if (_transitionType == TabGridTransitionType::kDisabledAnimation) {
+    [browserLayout.view layoutIfNeeded];
+  }
 
   [browserLayout setNeedsStatusBarAppearanceUpdate];
 }
@@ -400,7 +420,8 @@ enum class TabGridTransitionType {
       bottomToolbarSnapshotView:_bottomToolbarSnapshotView
           shouldScaleTopToolbar:scaleTopToolbar
                       incognito:_incognito
-               topToolbarHidden:topToolbarHidden];
+               topToolbarHidden:topToolbarHidden
+                 commandHandler:_params->handler];
 }
 
 // Returns a snapshot of the portion of the view that is above the given rect.

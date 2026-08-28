@@ -3,7 +3,7 @@
   {
     "namespace": "autoUpdate",
     "compiler_options": {
-      "implemented_in": "extensions/api/auto_update/auto_update_api.h"
+      "implemented_in": "extensions/api/autoupdate/autoupdate_api.h"
     },
     "platforms": [
       "win",

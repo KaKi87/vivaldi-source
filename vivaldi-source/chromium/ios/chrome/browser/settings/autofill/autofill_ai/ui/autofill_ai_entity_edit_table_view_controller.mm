@@ -15,6 +15,7 @@
 #import "ios/chrome/browser/settings/autofill/autofill_ai/ui/autofill_ai_entity_edit_item.h"
 #import "ios/chrome/browser/settings/autofill/autofill_ai/ui/autofill_ai_entity_edit_mutator.h"
 #import "ios/chrome/browser/settings/autofill/autofill_ai/ui/autofill_ai_entity_edit_table_view_controller_delegate.h"
+#import "ios/chrome/browser/settings/autofill/autofill_ai/utils/autofill_ai_date_util.h"
 #import "ios/chrome/browser/settings/ui_bundled/settings_navigation_controller.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_link_header_footer_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_edit_item.h"
@@ -22,7 +23,6 @@
 #import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
 #import "ios/chrome/common/ui/util/chrome_button.h"
 #import "ios/chrome/grit/ios_strings.h"
-#import "ui/base/device_form_factor.h"
 #import "ui/base/l10n/l10n_util.h"
 #import "url/gurl.h"
 
@@ -74,6 +74,16 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
   // The presented popover view controller for selecting dates on iPad.
   UIViewController* _datePickerPopoverViewController;
+
+  // The date item currently presenting a date picker.
+  AutofillAIEntityEditDateItem* _activeDateItem;
+
+  // The source text field for the active date picker.
+  UITextField* _activeDatePickerSourceTextField;
+
+  // Guard to prevent re-entrant layout calls during date picker presentation
+  // style transitions.
+  BOOL _isTransitioningDatePickerStyle;
 }
 
 #pragma mark - UIViewController
@@ -324,6 +334,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
   } else {
     [self.view endEditing:YES];
   }
+  _activeDateItem = nil;
+  _activeDatePickerSourceTextField = nil;
 }
 
 - (void)didTapCancel {
@@ -432,7 +444,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
       if ([cell isKindOfClass:[TableViewTextEditCell class]]) {
         TableViewTextEditCell* textFieldCell =
             base::apple::ObjCCast<TableViewTextEditCell>(cell);
-        if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
+        if (ShouldUsePopoverForDatePicker(self.tableView)) {
           AutofillAIEntityEditDateItem* dateItem =
               base::apple::ObjCCastStrict<AutofillAIEntityEditDateItem>(item);
           [self showDatePickerPopoverForItem:dateItem
@@ -522,6 +534,10 @@ typedef NS_ENUM(NSInteger, ItemType) {
   if ([tableViewTextEditItem
           isKindOfClass:[AutofillAIEntityEditDateItem class]]) {
     [self reconfigureCellsForItems:@[ tableViewTextEditItem ]];
+    if (_activeDateItem == tableViewTextEditItem) {
+      _activeDateItem = nil;
+      _activeDatePickerSourceTextField = nil;
+    }
   }
 }
 
@@ -537,10 +553,12 @@ typedef NS_ENUM(NSInteger, ItemType) {
     if ([item isKindOfClass:[AutofillAIEntityEditDateItem class]]) {
       AutofillAIEntityEditDateItem* dateItem =
           base::apple::ObjCCastStrict<AutofillAIEntityEditDateItem>(item);
-      if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
+      if (ShouldUsePopoverForDatePicker(self.tableView)) {
         [self showDatePickerPopoverForItem:dateItem sourceView:textField];
         return NO;
       }
+      _activeDateItem = dateItem;
+      _activeDatePickerSourceTextField = textField;
     }
   }
   return YES;
@@ -691,6 +709,10 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
   _datePickerPopoverViewController = popoverContentController;
 
+  _activeDateItem = item;
+  _activeDatePickerSourceTextField =
+      base::apple::ObjCCast<UITextField>(sourceView);
+
   [self presentViewController:popoverContentController
                      animated:YES
                    completion:nil];
@@ -701,10 +723,93 @@ typedef NS_ENUM(NSInteger, ItemType) {
 - (void)popoverPresentationControllerDidDismissPopover:
     (UIPopoverPresentationController*)popoverPresentationController {
   _datePickerPopoverViewController = nil;
+  _activeDateItem = nil;
+  _activeDatePickerSourceTextField = nil;
 }
 
 - (UIButton*)saveButton {
   return _saveButton;
+}
+
+- (void)viewDidLayoutSubviews {
+  [super viewDidLayoutSubviews];
+
+  if (!_activeDateItem || _isTransitioningDatePickerStyle) {
+    return;
+  }
+
+  BOOL wasUsingPopover = (_datePickerPopoverViewController != nil);
+  BOOL willUsePopover = ShouldUsePopoverForDatePicker(self.tableView);
+
+  if (wasUsingPopover != willUsePopover) {
+    _isTransitioningDatePickerStyle = YES;
+    __weak AutofillAIEntityEditTableViewController* weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+      [weakSelf
+          handleDatePickerPresentationStyleChangeFromPopover:wasUsingPopover
+                                                   toPopover:willUsePopover];
+    });
+  }
+}
+
+- (UITextField*)textFieldForItem:(TableViewItem*)item {
+  NSIndexPath* indexPath = [self.tableViewModel indexPathForItem:item];
+  if (!indexPath) {
+    return nil;
+  }
+  UITableViewCell* cell = [self.tableView cellForRowAtIndexPath:indexPath];
+  if ([cell isKindOfClass:[TableViewTextEditCell class]]) {
+    return ((TableViewTextEditCell*)cell).textField;
+  }
+  return nil;
+}
+
+- (void)handleDatePickerPresentationStyleChangeFromPopover:(BOOL)fromPopover
+                                                 toPopover:(BOOL)toPopover {
+  if (!_activeDateItem || fromPopover == toPopover) {
+    _isTransitioningDatePickerStyle = NO;
+    return;
+  }
+
+  AutofillAIEntityEditDateItem* item = _activeDateItem;
+
+  if (toPopover) {
+    UITextField* oldTextField = _activeDatePickerSourceTextField;
+    [oldTextField resignFirstResponder];
+
+    [self reconfigureCellsForItems:@[ item ]];
+    [self.tableView layoutIfNeeded];
+
+    UITextField* newTextField = [self textFieldForItem:item];
+    if (newTextField) {
+      _activeDateItem = item;
+      _activeDatePickerSourceTextField = newTextField;
+      [self showDatePickerPopoverForItem:item sourceView:newTextField];
+    } else {
+      _activeDateItem = nil;
+      _activeDatePickerSourceTextField = nil;
+    }
+  } else {
+    if (_datePickerPopoverViewController) {
+      [_datePickerPopoverViewController dismissViewControllerAnimated:NO
+                                                           completion:nil];
+      _datePickerPopoverViewController = nil;
+    }
+
+    [self reconfigureCellsForItems:@[ item ]];
+    [self.tableView layoutIfNeeded];
+
+    UITextField* newTextField = [self textFieldForItem:item];
+    if (newTextField) {
+      _activeDateItem = item;
+      _activeDatePickerSourceTextField = newTextField;
+      [newTextField becomeFirstResponder];
+    } else {
+      _activeDateItem = nil;
+      _activeDatePickerSourceTextField = nil;
+    }
+  }
+  _isTransitioningDatePickerStyle = NO;
 }
 
 @end

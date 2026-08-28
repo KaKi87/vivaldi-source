@@ -43,7 +43,6 @@
 <translation id="4772190485302020393">모든 탭 및 스택 닫기</translation>
 <translation id="4802185666270672526">데스크톱 사이트로 보기 숨기기</translation>
 <translation id="4828571836982833289">탭 스택을 해제하시겠어요?</translation>
-<translation id="4838250035189612538">스택 이름 변경</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1개 탭 스택 닫힘 및 저장됨}
             other {{count}개 탭 스택 닫힘 및 저장됨}}</translation>

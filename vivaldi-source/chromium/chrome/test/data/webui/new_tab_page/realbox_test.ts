@@ -94,12 +94,14 @@ suite('NewTabPageRealboxTabsTest', () => {
     });
   });
 
-  setup(() => {
+  setup(async () => {
     testProxy = new TestSearchboxBrowserProxy();
     SearchboxBrowserProxy.setInstance(testProxy);
 
     realbox = createAndAppendRealbox(
         {ntpRealboxNextEnabled: true, searchboxLayoutMode: 'Compact'});
+    await microtasksFinished();
+    testProxy.handler.reset();
   });
 
   test('on tab strip change does not trigger getRecentTabs call', async () => {
@@ -185,6 +187,7 @@ suite('NewTabPageRealboxNextTest', () => {
       searchboxLensSearch: true,
       searchboxSeparator: ' - ',
       searchboxVoiceSearch: true,
+      energyEffectAnimationEnabled: false,
     });
   });
 
@@ -429,6 +432,25 @@ suite('NewTabPageRealboxNextTest', () => {
     assertFalse(pasteEvent.defaultPrevented);
     assertFalse(openComposeboxCalled);
     assertTrue(realbox.$.input.preventInlineAutocomplete(''));
+    assertEquals(1, metrics.count('NewTabPage.Realbox.Paste', 1));
+    assertEquals(1, metrics.count('NewTabPage.Realbox.Paste', 0));
+  });
+
+  test('pasting into realbox records NewTabPage.Realbox.Paste', async () => {
+    realbox = await createAndAppendRealbox();
+    assertEquals(0, metrics.count('NewTabPage.Realbox.Paste'));
+
+    const pasteEvent = new ClipboardEvent('paste', {
+      clipboardData: new DataTransfer(),
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+    });
+    realbox.$.input.inputElement.dispatchEvent(pasteEvent);
+    await microtasksFinished();
+
+    assertEquals(1, metrics.count('NewTabPage.Realbox.Paste', 1));
+    assertEquals(1, metrics.count('NewTabPage.Realbox.Paste', 0));
   });
 
   test('useWebKitSearchboxIcons with compose button enabled', async () => {
@@ -615,6 +637,7 @@ suite('NewTabPageRealboxNextTest', () => {
 
     testProxy.callbackRouterRemote.autocompleteResultChanged(
         createAutocompleteResultForTesting({
+          queryId: realbox.activeQueryId,
           input: realbox.$.input.inputElement.value.trimStart(),
           matches: matches,
         }));
@@ -650,6 +673,7 @@ suite('NewTabPageRealboxNextTest', () => {
 
     testProxy.callbackRouterRemote.autocompleteResultChanged(
         createAutocompleteResultForTesting({
+          queryId: realbox.activeQueryId,
           input: realbox.$.input.inputElement.value.trimStart(),
           matches: matches,
         }));
@@ -879,6 +903,7 @@ suite('NewTabPageRealboxNextTest', () => {
     ];
     testProxy.handler.setResultFor(
         'getRecentTabs', Promise.resolve({tabs: sampleTabs}));
+    testProxy.handler.reset();
 
     // Open context menu to trigger shown metrics.
     const entrypointAndMenu = realbox.shadowRoot.querySelector(
@@ -1000,5 +1025,204 @@ suite('NewTabPageRealboxNextTest', () => {
             'search-animated-glow');
     assertTrue(!!animatedGlow);
     assertFalse(animatedGlow.darkThemeColorsEnabled);
+  });
+
+  test(
+      'compose button hides for URL suggestions when ' +
+          'ntpRealboxDynamicAiModeButton is enabled',
+      async () => {
+        loadTimeData.overrideValues({ntpRealboxDynamicAiModeButton: true});
+
+        // Re-create realbox to pick up new loadTimeData.
+        realbox = createAndAppendRealbox({
+          composeButtonEnabled: true,
+        });
+        await microtasksFinished();
+
+        // Initially, with no results, compose button should be visible.
+        let composeButton =
+            realbox.shadowRoot.querySelector('cr-searchbox-compose-button');
+        assertTrue(!!composeButton);
+
+        // Simulate autocomplete result with a URL suggestion as default match.
+        const urlMatch = createSearchMatchForTesting({
+          isSearchType: false,
+          allowedToBeDefaultMatch: true,
+        });
+        realbox.result = createAutocompleteResultForTesting({
+          matches: [urlMatch],
+        });
+        await microtasksFinished();
+
+        // Compose button should be hidden.
+        composeButton =
+            realbox.shadowRoot.querySelector('cr-searchbox-compose-button');
+        assertFalse(!!composeButton);
+
+        // Simulate autocomplete result with a Search suggestion as default match.
+        const searchMatch = createSearchMatchForTesting({
+          isSearchType: true,
+          allowedToBeDefaultMatch: true,
+        });
+        realbox.result = createAutocompleteResultForTesting({
+          matches: [searchMatch],
+        });
+        await microtasksFinished();
+
+        // Compose button should be visible again.
+        composeButton =
+            realbox.shadowRoot.querySelector('cr-searchbox-compose-button');
+        assertTrue(!!composeButton);
+      });
+
+  test(
+      'compose button does not hide for URL suggestions in ZPS (not default match) when ' +
+          'ntpRealboxDynamicAiModeButton is enabled',
+      async () => {
+        loadTimeData.overrideValues({ntpRealboxDynamicAiModeButton: true});
+
+        realbox = createAndAppendRealbox({
+          composeButtonEnabled: true,
+        });
+        await microtasksFinished();
+
+        // Simulate ZPS result: first match is a URL but not allowed to be default.
+        const urlMatch = createSearchMatchForTesting({
+          isSearchType: false,
+          allowedToBeDefaultMatch: false,
+        });
+        realbox.result = createAutocompleteResultForTesting({
+          matches: [urlMatch],
+        });
+        await microtasksFinished();
+
+        // Compose button should be visible.
+        const composeButton =
+            realbox.shadowRoot.querySelector('cr-searchbox-compose-button');
+        assertTrue(!!composeButton);
+      });
+
+   test('has-user-input attribute is set when typing', async () => {
+      loadTimeData.overrideValues({ntpRealboxDynamicAiModeButton: true});
+      realbox = createAndAppendRealbox({
+        composeButtonEnabled: true,
+        composeboxEnabled: true,
+        ntpRealboxNextEnabled: true,
+      });
+      await microtasksFinished();
+      const composeButton =
+          realbox.shadowRoot.querySelector('cr-searchbox-compose-button');
+      assertTrue(!!composeButton);
+
+      assertFalse(composeButton.hasAttribute('has-user-input'));
+
+      // Simulate typing
+      realbox.$.input.dispatchEvent(new CustomEvent('searchbox-input-text-updated', {
+        detail: {value: 'hello', isComposing: false},
+      }));
+      await microtasksFinished();
+      assertTrue(composeButton.hasAttribute('has-user-input'));
+
+      // Simulate clearing input
+      realbox.$.input.dispatchEvent(new CustomEvent('searchbox-input-text-updated', {
+        detail: {value: '', isComposing: false},
+      }));
+      await microtasksFinished();
+      assertFalse(composeButton.hasAttribute('has-user-input'));
+    });
+
+    test('onInputStateChanged updates inputState_', async () => {
+      const newInputState = new MockInputState({
+        allowedTools: [ToolMode.kDeepSearch],
+        allowedModels: [ModelMode.kGeminiPro],
+      });
+      testProxy.callbackRouterRemote.onInputStateChanged(newInputState);
+      await testProxy.callbackRouterRemote.$.flushForTesting();
+      await microtasksFinished();
+      const contextualEntrypoint =
+          realbox.shadowRoot.querySelector<ContextualEntrypointAndMenuElement>(
+              '#context')!;
+      assertTrue(!!contextualEntrypoint);
+      const inputState = contextualEntrypoint.inputState;
+      assertTrue(!!inputState);
+      assertEquals(ToolMode.kDeepSearch, inputState.allowedTools[0]);
+      assertEquals(ModelMode.kUnspecified, inputState.activeModel);
+    });
+
+  suite('DynamicAiModeButton', () => {
+    test('dynamic attribute is set correctly', async () => {
+      loadTimeData.overrideValues({ntpRealboxDynamicAiModeButton: true});
+      realbox = createAndAppendRealbox({
+        composeButtonEnabled: true,
+        composeboxEnabled: true,
+        ntpRealboxNextEnabled: true,
+      });
+      await microtasksFinished();
+      const composeButton =
+          realbox.shadowRoot.querySelector('cr-searchbox-compose-button');
+      assertTrue(!!composeButton);
+      assertTrue(composeButton.hasAttribute('dynamic'));
+    });
+
+    test('dynamic attribute is not set when disabled', async () => {
+      loadTimeData.overrideValues({ntpRealboxDynamicAiModeButton: false});
+      realbox = createAndAppendRealbox({
+        composeButtonEnabled: true,
+        composeboxEnabled: true,
+        ntpRealboxNextEnabled: true,
+      });
+      await microtasksFinished();
+      const composeButton =
+          realbox.shadowRoot.querySelector('cr-searchbox-compose-button');
+      assertTrue(!!composeButton);
+      assertFalse(composeButton.hasAttribute('dynamic'));
+    });
+  });
+});
+
+suite('NewTabPageRealboxSmartTabSharingTest', () => {
+  let realbox: NtpSearchboxElement;
+  let testProxy: TestSearchboxBrowserProxy;
+
+  setup(async () => {
+    loadTimeData.overrideValues({
+      composeboxSmartTabSharingVisible: true,
+    });
+    testProxy = new TestSearchboxBrowserProxy();
+    testProxy.handler.setResultFor(
+        'getSmartTabSharingActive', Promise.resolve({active: true}));
+    SearchboxBrowserProxy.setInstance(testProxy);
+
+    realbox = createAndAppendRealbox({
+      ntpRealboxNextEnabled: true,
+    });
+    await microtasksFinished();
+  });
+
+  test('forwards smart tab sharing properties to context menu', async () => {
+    const contextElement = realbox.shadowRoot.querySelector(
+        'cr-composebox-contextual-entrypoint-and-menu');
+    assertTrue(!!contextElement);
+    await microtasksFinished();
+
+    assertTrue(contextElement.smartTabSharingVisible);
+    assertTrue(contextElement.smartTabSharingActive);
+
+    // Test that changing it in the context menu propagates back.
+    contextElement.fire('smart-tab-sharing-active-changed', {active: false});
+    await microtasksFinished();
+
+    assertFalse(realbox.smartTabSharingActive);
+    assertEquals(1, testProxy.handler.getCallCount('setSmartTabSharingActive'));
+    assertFalse(testProxy.handler.getArgs('setSmartTabSharingActive')[0]);
+  });
+
+  test('enabling STS opens composebox', async () => {
+    const openComposeboxPromise = eventToPromise('open-composebox', realbox);
+    const contextElement = realbox.shadowRoot.querySelector(
+        'cr-composebox-contextual-entrypoint-and-menu');
+    assertTrue(!!contextElement);
+    contextElement.fire('smart-tab-sharing-active-changed', {active: true});
+    await openComposeboxPromise;
   });
 });

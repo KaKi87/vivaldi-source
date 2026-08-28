@@ -4,9 +4,14 @@
 
 #include "chrome/browser/glic/host/context/glic_delegating_sharing_manager.h"
 
+#include <cstdint>
+#include <string>
+#include <utility>
+
 #include "base/callback_list.h"
 #include "chrome/browser/glic/host/context/glic_sharing_manager_impl.h"
 #include "chrome/browser/glic/host/context/glic_sharing_utils.h"
+#include "third_party/blink/public/mojom/content_extraction/ai_page_content.mojom.h"
 
 namespace glic {
 
@@ -93,6 +98,12 @@ bool GlicDelegatingSharingManagerBase::IsTabPinned(
              : false;
 }
 
+bool GlicDelegatingSharingManagerBase::IsTabShared(
+    tabs::TabInterface* tab) const {
+  return sharing_manager_delegate_ ? sharing_manager_delegate_->IsTabShared(tab)
+                                   : false;
+}
+
 bool GlicDelegatingSharingManagerBase::IsTabFocused(
     tabs::TabHandle tab_handle) const {
   return sharing_manager_delegate_
@@ -151,7 +162,7 @@ GlicDelegatingSharingManagerBase::CheckPreliminaryContextSharingEligibility(
 
 void GlicDelegatingSharingManagerBase::GetContextFromTab(
     tabs::TabHandle tab_handle,
-    const mojom::GetTabContextOptions& options,
+    const mojom::TabContextOptions& options,
     base::OnceCallback<void(GlicGetContextResult)> callback) {
   if (!sharing_manager_delegate_) {
     std::move(callback).Run(base::unexpected(
@@ -166,7 +177,7 @@ void GlicDelegatingSharingManagerBase::GetContextFromTab(
 
 void GlicDelegatingSharingManagerBase::GetContextForActorFromTab(
     tabs::TabHandle tab_handle,
-    const mojom::GetTabContextOptions& options,
+    const mojom::TabContextOptions& options,
     base::OnceCallback<void(GlicGetContextResult)> callback) {
   if (!sharing_manager_delegate_) {
     std::move(callback).Run(base::unexpected(
@@ -177,6 +188,21 @@ void GlicDelegatingSharingManagerBase::GetContextForActorFromTab(
 
   sharing_manager_delegate_->GetContextForActorFromTab(tab_handle, options,
                                                        std::move(callback));
+}
+
+void GlicDelegatingSharingManagerBase::GetImageBytes(
+    tabs::TabHandle tab_handle,
+    const std::string& document_id,
+    int32_t dom_node_id,
+    base::OnceCallback<void(GlicGetImageBytesResult)> callback) {
+  if (!sharing_manager_delegate_) {
+    std::move(callback).Run(base::unexpected(
+        GlicGetContextError{GlicGetContextFromTabError::kPageContextNotEligible,
+                            "tab not eligible"}));
+    return;
+  }
+  sharing_manager_delegate_->GetImageBytes(tab_handle, document_id, dom_node_id,
+                                           std::move(callback));
 }
 
 std::vector<tabs::TabInterface*>
@@ -191,13 +217,13 @@ void GlicDelegatingSharingManagerBase::OnConversationTurnSubmitted() {
   }
 }
 
-base::WeakPtr<GlicSharingManager>
+base::WeakPtr<GlicSharingManagerInternal>
 GlicDelegatingSharingManagerBase::GetWeakPtr() {
   return weak_ptr_factory_.GetWeakPtr();
 }
 
 void GlicDelegatingSharingManagerBase::SetDelegate(
-    GlicSharingManager* sharing_manager_delegate) {
+    GlicSharingManagerInternal* sharing_manager_delegate) {
   // Do nothing if the delegate hasn't changed.
   if (sharing_manager_delegate == sharing_manager_delegate_) {
     return;
@@ -210,7 +236,7 @@ void GlicDelegatingSharingManagerBase::SetDelegate(
   ForceNotify(old_pinned_tabs);
 }
 
-GlicSharingManager* GlicDelegatingSharingManagerBase::GetDelegate() {
+GlicSharingManagerInternal* GlicDelegatingSharingManagerBase::GetDelegate() {
   return sharing_manager_delegate_;
 }
 

@@ -5,7 +5,7 @@
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/ext_data/tab_ext_data.h"
 #include "content/public/browser/navigation_handle.h"
@@ -57,12 +57,14 @@ ThrottleCheckResult FollowerTabThrottle::WillStartRequest() {
     return PROCEED;
   }
 
-  Browser* browser = chrome::FindBrowserWithTab(source_contents);
+  BrowserWindowInterface* const browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          source_contents);
   if (!browser) {
     return PROCEED;
   }
 
-  TabStripModel* tab_strip = browser->tab_strip_model();
+  TabStripModel* tab_strip = browser->GetTabStripModel();
   int tab_idx = -1;
   for (int i = 0; i < tab_strip->count(); ++i) {
     content::WebContents* tab = tab_strip->GetWebContentsAt(i);

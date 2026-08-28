@@ -66,7 +66,7 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
 - (LegacyToolbarButton*)backButton {
   auto loadImageBlock = ^UIImage* {
     UIImage* backImage =
-        DefaultSymbolWithPointSize(kBackSymbol, kSymbolToolbarPointSize);
+        SymbolWithPointSize(SymbolBack, kSymbolToolbarPointSize);
 
     if (IsVivaldiRunning())
       backImage =
@@ -94,7 +94,7 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
 - (LegacyToolbarButton*)forwardButton {
   auto loadImageBlock = ^UIImage* {
     UIImage* forwardImage =
-        DefaultSymbolWithPointSize(kForwardSymbol, kSymbolToolbarPointSize);
+        SymbolWithPointSize(SymbolForward, kSymbolToolbarPointSize);
 
     if (IsVivaldiRunning())
       forwardImage =
@@ -136,11 +136,10 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
 
     switch (tabGroupState) {
       case ToolbarTabGroupState::kNormal:
-        return CustomSymbolWithPointSize(kSquareNumberSymbol,
-                                         kSymbolToolbarPointSize);
+        return SymbolWithPointSize(SymbolSquareNumber, kSymbolToolbarPointSize);
       case ToolbarTabGroupState::kTabGroup:
-        return DefaultSymbolWithPointSize(kSquareFilledOnSquareSymbol,
-                                          kSymbolToolbarPointSize);
+        return SymbolWithPointSize(SymbolSquareFilledOnSquare,
+                                   kSymbolToolbarPointSize);
     }
   };
 
@@ -166,15 +165,14 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
 
 - (LegacyToolbarButton*)toolsMenuButton {
   auto loadImageBlock = ^UIImage* {
-    return DefaultSymbolWithPointSize(kMenuSymbol, kSymbolToolbarPointSize);
+    return SymbolWithPointSize(SymbolMenu, kSymbolToolbarPointSize);
   };
   UIColor* locationBarBackgroundColor =
       [self.toolbarConfiguration locationBarBackgroundColorWithVisibility:1];
 
   auto loadIPHHighlightedImageBlock = ^UIImage* {
     return SymbolWithPalette(
-        CustomSymbolWithPointSize(kEllipsisSquareFillSymbol,
-                                  kSymbolToolbarPointSize),
+        SymbolWithPointSize(SymbolEllipsisSquareFill, kSymbolToolbarPointSize),
         @[ [UIColor colorNamed:kGrey600Color], locationBarBackgroundColor ]);
   };
   LegacyToolbarButton* toolsMenuButton = [[LegacyToolbarButton alloc]
@@ -207,8 +205,7 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
 
 - (LegacyToolbarButton*)shareButton {
   auto loadImageBlock = ^UIImage* {
-    UIImage* image =
-        DefaultSymbolWithPointSize(kShareSymbol, kSymbolToolbarPointSize);
+    UIImage* image = SymbolWithPointSize(SymbolShare, kSymbolToolbarPointSize);
 
     // The system share image has uneven vertical padding. Add a small bottom
     // padding to balance it.
@@ -246,8 +243,7 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
 
 - (LegacyToolbarButton*)reloadButton {
   auto loadImageBlock = ^UIImage* {
-    return CustomSymbolWithPointSize(kArrowClockWiseSymbol,
-                                     kSymbolToolbarPointSize);
+    return SymbolWithPointSize(SymbolArrowClockWise, kSymbolToolbarPointSize);
   };
 
   LegacyToolbarButton* reloadButton =
@@ -266,7 +262,7 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
 
 - (LegacyToolbarButton*)stopButton {
   auto loadImageBlock = ^UIImage* {
-    return DefaultSymbolWithPointSize(kXMarkSymbol, kSymbolToolbarPointSize);
+    return SymbolWithPointSize(SymbolXMark, kSymbolToolbarPointSize);
   };
 
   LegacyToolbarButton* stopButton =
@@ -291,20 +287,18 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
 
   auto loadImageBlock = ^UIImage* {
     return SymbolWithPalette(
-        CustomSymbolWithPointSize(kPlusCircleFillSymbol,
-                                  kSymbolToolbarPointSize),
+        SymbolWithPointSize(SymbolPlusCircleFill, kSymbolToolbarPointSize),
         @[ [UIColor colorNamed:kGrey600Color], locationBarBackgroundColor ]);
   };
 
   auto loadIPHHighlightedImageBlock = ^UIImage* {
-    return SymbolWithPalette(CustomSymbolWithPointSize(kPlusCircleFillSymbol,
-                                                       kSymbolToolbarPointSize),
-                             @[
-                               // The color of the 'plus'.
-                               buttonsTintColorIPHHighlighted,
-                               // The filling color of the circle.
-                               buttonsIPHHighlightColor,
-                             ]);
+    return SymbolWithPalette(
+        SymbolWithPointSize(SymbolPlusCircleFill, kSymbolToolbarPointSize), @[
+          // The color of the 'plus'.
+          buttonsTintColorIPHHighlighted,
+          // The filling color of the circle.
+          buttonsIPHHighlightColor,
+        ]);
   };
 
   LegacyToolbarButton* newTabButton = nil;
@@ -578,9 +572,7 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
   button.toolbarConfiguration = self.toolbarConfiguration;
   button.exclusiveTouch = YES;
   button.pointerInteractionEnabled = YES;
-  if (IsGeminiCopresenceEnabled()) {
-    button.geminiHandler = self.geminiHandler;
-  }
+  button.geminiHandler = self.geminiHandler;
   if (ios::provider::IsRaccoonEnabled()) {
     button.hoverStyle = [UIHoverStyle
         styleWithShape:[UIShape rectShapeWithCornerRadius:width / 4]];

@@ -55,6 +55,10 @@ import org.chromium.ui.interpolators.Interpolators;
 import java.util.List;
 import java.util.function.Supplier;
 
+// Vivaldi
+import org.chromium.build.BuildConfig;
+import org.vivaldi.browser.common.VivaldiUtils;
+
 /** Delegate that manages bottom bar area inside of {@link CustomTabActivity}. */
 @NullMarked
 public class CustomTabBottomBarDelegate
@@ -621,6 +625,9 @@ public class CustomTabBottomBarDelegate
     }
 
     private void setBottomControlsHeight(int height) {
+        // Vivaldi VAB-13114: Don't override the bottom controls when Vivaldi's bottom address bar
+        // owns them, otherwise the empty CCT bottom bar collapses it to a negative height.
+        if (BuildConfig.IS_VIVALDI && !VivaldiUtils.isTopToolbarOn()) return;
         int minHeight = mBrowserControlsSizer.getBottomControlsMinHeight();
 
         // Make the bottom controls height smaller by the shadow height so that

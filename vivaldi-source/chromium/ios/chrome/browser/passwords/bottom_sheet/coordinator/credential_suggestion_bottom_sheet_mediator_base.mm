@@ -4,12 +4,17 @@
 
 #import "ios/chrome/browser/passwords/bottom_sheet/coordinator/credential_suggestion_bottom_sheet_mediator_base.h"
 
+#import "base/functional/bind.h"
 #import "base/notreached.h"
 #import "base/scoped_observation.h"
 #import "base/strings/sys_string_conversions.h"
 #import "components/autofill/ios/browser/form_suggestion.h"
 #import "components/password_manager/core/browser/password_ui_utils.h"
 #import "components/webauthn/ios/ios_passkey_client.h"
+#import "components/webauthn/ios/ios_webauthn_credentials_delegate.h"
+#import "components/webauthn/ios/ios_webauthn_credentials_delegate_factory.h"
+#import "components/webauthn/ios/passkey_suggestion_utils.h"
+#import "components/webauthn/ios/passkey_tab_helper.h"
 #import "ios/chrome/browser/favicon/model/favicon_loader.h"
 #import "ios/chrome/browser/passwords/bottom_sheet/coordinator/credential_suggestion_bottom_sheet_mediator_base+Subclassing.h"
 #import "ios/chrome/browser/passwords/bottom_sheet/coordinator/password_suggestion_bottom_sheet_exit_reason.h"
@@ -38,6 +43,15 @@
 
 // The WebStateList observed by this mediator.
 @property(nonatomic, readonly) WebStateList* webStateList;
+
+// Delegate used to fetch and select passkey suggestions.
+@property(nonatomic, assign)
+    base::WeakPtr<webauthn::IOSWebAuthnCredentialsDelegate>
+        webAuthnCredentialsDelegate;
+
+// Returns the webauthn::PasskeyTabHelper for the active webstate or nil if it
+// can't be retrieved.
+- (webauthn::PasskeyTabHelper*)passkeyTabHelper;
 
 @end
 
@@ -80,6 +94,23 @@
       _domain =
           base::SysUTF8ToNSString(password_manager::GetShownOrigin(origin));
     }
+
+    if (_requestInfo.has_value() &&
+        _requestInfo->remote_frame_token.has_value()) {
+      __weak __typeof(self) weakSelf = self;
+      auto callback = base::BindOnce(
+          [](CredentialSuggestionBottomSheetMediatorBase* mediator,
+             webauthn::IOSWebAuthnCredentialsDelegate* delegate) {
+            mediator.webAuthnCredentialsDelegate =
+                delegate ? delegate->GetWeakPtr() : nullptr;
+          },
+          weakSelf);
+
+      webauthn::IOSWebAuthnCredentialsDelegateFactory::GetFactory(
+          _webStateList->GetActiveWebState())
+          ->GetDelegateForRemoteFrameToken(*_requestInfo->remote_frame_token,
+                                           std::move(callback));
+    }
   }
   return self;
 }
@@ -101,6 +132,7 @@
   _webStateListObserver.reset();
   _webStateList = nullptr;
   _reauthenticationModule = nil;
+  _webAuthnCredentialsDelegate = nullptr;
 }
 
 - (BOOL)hasSuggestions {
@@ -124,9 +156,11 @@
     };
 
     NSString* reason = l10n_util::GetNSString(IDS_IOS_AUTOFILL_REAUTH_REASON);
+    BOOL canReusePreviousAuth =
+        [self canReusePreviousAuthForSuggestion:formSuggestion];
     [_reauthenticationModule
         attemptReauthWithLocalizedReason:reason
-                    canReusePreviousAuth:YES
+                    canReusePreviousAuth:canReusePreviousAuth
                                  handler:completionHandler];
   } else {
     [self selectSuggestion:formSuggestion atIndex:index completion:completion];
@@ -145,6 +179,12 @@
     reauthenticationResult:(ReauthenticationResult)result
                 completion:(ProceduralBlock)completion {
   if (result != ReauthenticationResult::kFailure) {
+    if (result == ReauthenticationResult::kSuccess &&
+        suggestion.type == autofill::SuggestionType::kWebauthnCredential &&
+        self.webAuthnCredentialsDelegate) {
+      self.webAuthnCredentialsDelegate->MarkPasskeyAsUserVerified(
+          webauthn::GetPasskeySuggestionEncodedCredentialId(suggestion));
+    }
     [self selectSuggestion:suggestion atIndex:index completion:completion];
   } else {
     [self disconnect];
@@ -158,6 +198,7 @@
 }
 
 - (void)onDismissWithoutAnyCredentialAction {
+  [self deferPasskeyRequestToRenderer];
 }
 
 - (BOOL)hasPendingRequest:
@@ -192,6 +233,16 @@
 
 #pragma mark - Private
 
+// Returns whether the previous authentication can be reused for the given
+// suggestion.
+- (BOOL)canReusePreviousAuthForSuggestion:(FormSuggestion*)formSuggestion {
+  if (formSuggestion.type != autofill::SuggestionType::kWebauthnCredential) {
+    return YES;
+  }
+  return self.webAuthnCredentialsDelegate &&
+         self.webAuthnCredentialsDelegate->CanReusePreviousSigninAuth();
+}
+
 // Closes the current bottom sheet when the web state changes.
 - (void)onWebStateChanged {
   // Disconnect so anything that relies on the webstate behind the mediator can
@@ -201,6 +252,28 @@
   // As there is no more context for showing the bottom sheet, end the
   // presentation.
   [self.presenter endPresentation];
+}
+
+- (webauthn::PasskeyTabHelper*)passkeyTabHelper {
+  if (!self.webStateList) {
+    return nil;
+  }
+
+  web::WebState* activeWebState = self.webStateList->GetActiveWebState();
+  if (!activeWebState) {
+    return nil;
+  }
+
+  return webauthn::PasskeyTabHelper::FromWebState(activeWebState);
+}
+
+- (void)deferPasskeyRequestToRenderer {
+  webauthn::PasskeyTabHelper* passkeyTabHelper = [self passkeyTabHelper];
+  if (!passkeyTabHelper || !_requestInfo.has_value()) {
+    return;
+  }
+
+  passkeyTabHelper->DeferPendingRequestToRenderer(_requestInfo->request_id);
 }
 
 @end

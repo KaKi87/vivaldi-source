@@ -1,5 +1,6 @@
 import("//build/config/locales.gni")
 import("//build/util/process_version.gni")
+import("//tools/grit/grit_args.gni")
 import("//tools/grit/repack.gni")
 import("//vivaldi/gn/config/features.gni")
 import("//vivaldi/gn/config/locales.gni")
@@ -28,6 +29,9 @@ group("resources") {
   ]
   if (is_win) {
     public_deps += [ ":vivaldi_installer_strings" ]
+  }
+  if (vivaldi_check_translations_list && current_toolchain == default_toolchain) {
+    public_deps += [ ":check_extraction_ids" ]
   }
 }
 
@@ -323,6 +327,7 @@ if (!is_ios && !is_android) {
 
 if (is_ios && current_toolchain == default_toolchain) {
   repack_locales("vivaldi_ios_merge_repacks") {
+    output_dir = "$root_gen_dir/ios/chrome/app/resources"
     source_patterns = [
       "${root_gen_dir}/components/strings/components_branded_strings_",
       "${root_gen_dir}/components/strings/components_locale_settings_",
@@ -345,12 +350,73 @@ if (is_ios && current_toolchain == default_toolchain) {
     ]
 
     # only added locales
-    input_locales =
-        vivaldi_supported_locales + platform_pak_locales - platform_pak_locales
-    output_locales =
-        vivaldi_supported_locales + platform_pak_locales - platform_pak_locales
+    input_locales = vivaldi_ios_extra_locales
+    output_locales = vivaldi_ios_extra_output_locales
     assert(input_locales != [])
     assert(output_locales != [])
     copy_data_to_bundle = true
+  }
+}
+
+if (vivaldi_check_translations_list && current_toolchain == default_toolchain) {
+  _target_num = 1
+  _target_list = []
+  foreach(_target_config,
+          CHROMIUM_VIVALDI_RESOURCE_LIST + ANDROID_VIVALDI_RESOURCE_LIST +
+              IOS_VIVALDI_RESOURCE_LIST) {
+    _vivaldi_source = _target_config[1]
+    _flags = []
+    _flags = _target_config[2]
+    have_strings_flag =
+        !defined(_flags.have_strings_flag) || _flags.have_strings_flag
+
+    _target_num = _target_num + 1
+    _action_name = "check_extraction_ids_$_target_num"
+    _target_list += [ ":" + _action_name ]
+
+    action(_action_name) {
+      script = "//vivaldi/app/resources/verify_translation_list.py"
+      id_file = "//vivaldi/vivapp/bin/gettext/ids.txt"
+      stamp_file = "$target_gen_dir/$target_name.stamp"
+
+      grit_defines = []
+      if (defined(_flags.merge_extra_grit_defines)) {
+        grit_defines += _flags.merge_extra_grit_defines
+      }
+      grit_defines += grit_args
+      _use_defines = [
+        "is_cfm=false",
+        "use_blink=$use_blink",
+      ]
+      if (defined(chrome_grit_defines)) {
+        _use_defines += chrome_grit_defines
+      }
+      foreach(def, _use_defines) {
+        grit_defines += [
+          "-D",
+          def,
+        ]
+      }
+
+      inputs = [
+        id_file,
+        _vivaldi_source,
+      ]
+
+      outputs = [ stamp_file ]
+
+      args = [
+               "--messages",
+               rebase_path(id_file, root_build_dir),
+               "--stamp-file",
+               rebase_path(stamp_file, root_build_dir),
+             ] + grit_defines + extra_grit_defines
+
+      args += [ rebase_path(_vivaldi_source, root_build_dir) ]
+    }
+  }
+
+  group("check_extraction_ids") {
+    deps = _target_list
   }
 }

@@ -1,7 +1,86 @@
 # Copyright (c) 2022 Vivaldi Technologies AS. All rights reserved
 
 import("//build/config/ios/ios_sdk.gni")
+import("//vivaldi/gn/config/locales.gni")
 import("//vivaldi/testing/testing.gni")
+
+# (07/07/2026) - Important note(prio@vivaldi.com)
+# As of this date iOS ships only locales that are 50%+ progress on Vivaldi
+# translations projects for iOS except ja-KS and kmr.
+# Those languages does not produce any resource packs by Chromium.
+# The supported locales are marked with "ios" in //vivaldi/app/locale_list.json.
+# Keep that list in sync with the currently supported iOS translations; locales
+# without complete Chromium iOS resource packs such as 'kmr' must stay out
+# of the iOS bundle.
+update_target("//ios/chrome/app/strings:strings") {
+  public_deps += [ "//vivaldi/app:vivaldi_ios_native_strings" ]
+}
+
+update_target("//ios/chrome/app/resources:packed_resources") {
+  public_deps += [
+    "//vivaldi/app:vivaldi_ios_merge_repacks",
+    "//vivaldi/app:vivaldi_ios_native_strings",
+    "//vivaldi/app:vivaldi_native_strings",
+  ]
+}
+
+update_template_instance("//ios/chrome/app/resources:repack_locales") {
+  ios_locales_pack_extra_source_patterns = [
+    "${root_gen_dir}/vivaldi/app/vivaldi_native_strings_",
+    "${root_gen_dir}/vivaldi/ios/vivaldi_ios_native_strings_",
+  ]
+  ios_locales_pack_extra_deps = [
+    "//vivaldi/app:vivaldi_ios_native_strings",
+    "//vivaldi/app:vivaldi_native_strings",
+  ]
+}
+
+update_template_instance("//ios/chrome/app/resources:system_strings") {
+  packed_locales = []
+  packed_locales = vivaldi_ios_app_output_locales
+}
+
+_vivaldi_ios_extension_packed_resources = [
+  "//ios/chrome/credential_provider_extension:packed_resources",
+  "//ios/chrome/open_extension:packed_resources",
+  "//ios/chrome/share_extension:packed_resources",
+  "//ios/chrome/widget_kit_extension:packed_resources",
+]
+foreach(_target, _vivaldi_ios_extension_packed_resources) {
+  update_template_instance(_target) {
+    input_locales = []
+    input_locales = vivaldi_ios_bundle_locales
+    output_locales = []
+    output_locales = vivaldi_ios_bundle_output_locales
+  }
+}
+
+_vivaldi_ios_extension_system_strings = [
+  "//ios/chrome/share_extension:system_strings",
+  "//ios/chrome/open_extension:system_strings",
+  "//ios/chrome/credential_provider_extension:system_strings",
+  "//ios/chrome/widget_kit_extension:system_strings",
+]
+foreach(_target, _vivaldi_ios_extension_system_strings) {
+  update_template_instance(_target) {
+    packed_locales = []
+    packed_locales = vivaldi_ios_bundle_output_locales
+  }
+}
+
+foreach(_percent,
+        [
+          100,
+          200,
+        ]) {
+  update_template_instance(
+      "//ios/chrome/app/resources:repack_scalable_resources_${_percent}") {
+    sources += [
+      "$root_gen_dir/vivaldi/vivaldi_native_resources_${_percent}_percent.pak",
+    ]
+    deps += [ "//vivaldi/app:vivaldi_native_resources" ]
+  }
+}
 
 update_template_instance("//ios/chrome/app:chrome") {
   deps += [
@@ -150,10 +229,8 @@ update_target("//ios/chrome/browser/shared/model/browser:browser") {
 
 update_target("//ios/chrome/browser/web/model:web_internal") {
   deps += [
-    "//vivaldi/browser:features",
     "//vivaldi/browser:stats_reporter",
     "//vivaldi/ios/background_audio",
-    "//vivaldi/ios/bankid:vivaldi_bankid_form_navigation_workaround",
     "//vivaldi/ios/reader_mode:vivaldi_reader_mode_feature",
     "//vivaldi/ios/search:vivaldi_add_search_engine_feature",
     "//vivaldi/ios/ui/settings/appearance:vivaldi_appearance_settings",

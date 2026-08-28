@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include <optional>
+#include <string_view>
 #include <vector>
 
 #include "base/command_line.h"
@@ -15,7 +16,6 @@
 #include "base/time/time.h"
 #include "base/values.h"
 #include "base/version_info/version_info.h"
-#include "chrome/browser/extensions/api/webstore_private/webstore_private_api.h"
 #include "chrome/browser/extensions/extension_install_prompt_show_params.h"
 #include "chrome/browser/extensions/extension_management.h"
 #include "chrome/browser/extensions/test_extension_system.h"
@@ -26,12 +26,12 @@
 #include "chrome/test/base/testing_profile_manager.h"
 #include "components/enterprise/browser/reporting/common_pref_names.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
-#include "components/supervised_user/core/common/features.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_renderer_host.h"
 #include "content/public/test/web_contents_tester.h"
 #include "extensions/browser/api/management/management_api.h"
+#include "extensions/browser/api/webstore_private/webstore_private_api.h"
 #include "extensions/browser/api_test_utils.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/event_router_factory.h"
@@ -43,13 +43,8 @@
 #include "extensions/buildflags/buildflags.h"
 #include "extensions/common/constants.h"
 #include "extensions/common/extension_builder.h"
-#include "extensions/common/extension_features.h"
 #include "services/data_decoder/public/cpp/test_support/in_process_data_decoder.h"
 #include "testing/gtest/include/gtest/gtest.h"
-
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-#include "extensions/browser/mv2_experiment_stage.h"
-#endif
 
 #if !BUILDFLAG(IS_ANDROID)
 #include "components/enterprise/promotion_types.h"
@@ -332,6 +327,20 @@ TEST_F(WebstorePrivateGetExtensionStatusTest, ExtensionBlockedByPermission) {
   std::optional<base::Value> response = RunFunctionAndReturnValue(
       function.get(), GenerateArgs(kExtensionId, kExtensionManifest));
   VerifyResponse(ExtensionInstallStatus::kBlockedByPolicy, *response);
+}
+
+TEST_F(WebstorePrivateGetExtensionStatusTest,
+       ExtensionBlockedWithRequestEnabled) {
+  SetExtensionSettings(kBlockAllExtensionSettings, profile());
+  profile()->GetTestingPrefService()->SetManagedPref(
+      enterprise_reporting::kCloudExtensionRequestEnabled,
+      std::make_unique<base::Value>(true));
+
+  auto function =
+      base::MakeRefCounted<WebstorePrivateGetExtensionStatusFunction>();
+  std::optional<base::Value> response = RunFunctionAndReturnValue(
+      function.get(), GenerateArgs(kExtensionId, kExtensionManifest));
+  VerifyResponse(ExtensionInstallStatus::kCanRequest, *response);
 }
 
 TEST_F(WebstorePrivateGetExtensionStatusTest,
@@ -749,9 +758,9 @@ TEST_F(WebstorePrivateBeginInstallWithManifest3Test,
 }
 
 struct FrictionDialogTestCase {
-  std::string test_name;
+  const char* test_name;
   bool esb_user;
-  std::string esb_allowlist;
+  const char* esb_allowlist;
   bool expected_friction_shown;
   ScopedTestDialogAutoConfirm::AutoConfirm dialog_action =
       ScopedTestDialogAutoConfirm::ACCEPT;
@@ -823,14 +832,14 @@ TEST_P(WebstorePrivateBeginInstallWithManifest3FrictionDialogTest,
   function->SetRenderFrameHost(web_contents->GetPrimaryMainFrame());
   ScopedTestDialogAutoConfirm auto_confirm(test_case.dialog_action);
 
+  std::string_view esb_allowlist = test_case.esb_allowlist;
   std::string args =
-      test_case.esb_allowlist == "undefined"
+      esb_allowlist == "undefined"
           ? base::StringPrintf(R"([{"id":"%s", "manifest":"%s"}])",
                                kExtensionId, kExtensionManifest)
           : base::StringPrintf(
                 R"([{"id":"%s", "manifest":"%s", "esbAllowlist":%s}])",
-                kExtensionId, kExtensionManifest,
-                test_case.esb_allowlist.c_str());
+                kExtensionId, kExtensionManifest, esb_allowlist.data());
 
   if (test_case.dialog_action == ScopedTestDialogAutoConfirm::ACCEPT) {
     std::optional<base::Value> response =
@@ -870,51 +879,60 @@ INSTANTIATE_TEST_SUITE_P(
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 // A test suite to be used with the MV2 deprecation experiments.
 // NOTE: Android does not support MV2 deprecation experiments.
-class WebstorePrivateManifestV2DeprecationUnitTest
-    : public WebstorePrivateApiTestBase,
-      public testing::WithParamInterface<MV2ExperimentStage> {
- public:
-  WebstorePrivateManifestV2DeprecationUnitTest();
-  ~WebstorePrivateManifestV2DeprecationUnitTest() override = default;
+using WebstorePrivateManifestV2DeprecationUnitTest = WebstorePrivateApiTestBase;
 
- private:
-  base::test::ScopedFeatureList feature_list_;
+// Tests the behavior of the webstorePrivate.getMV2DeprecationStatus() function.
+TEST_F(WebstorePrivateManifestV2DeprecationUnitTest,
+       TestGetMV2DeprecationStatus) {
+  auto function =
+      base::MakeRefCounted<WebstorePrivateGetMV2DeprecationStatusFunction>();
+  std::optional<base::Value> response =
+      api_test_utils::RunFunctionAndReturnSingleResult(
+          function.get(), /*args*/ "[]", profile());
+  ASSERT_TRUE(response);
+  EXPECT_EQ("hard_disable", *response);
+}
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+
+#if !BUILDFLAG(IS_ANDROID)
+class WebstorePrivateLogEnterprisePromoShownFunctionTest
+    : public WebstorePrivateApiTestBase {
+ protected:
+  base::HistogramTester histogram_tester_;
 };
 
-WebstorePrivateManifestV2DeprecationUnitTest::
-    WebstorePrivateManifestV2DeprecationUnitTest() {
-  std::vector<base::test::FeatureRef> enabled_features;
-  std::vector<base::test::FeatureRef> disabled_features;
-  switch (GetParam()) {
-    case MV2ExperimentStage::kNone:
-      disabled_features.push_back(
-          extensions_features::kExtensionManifestV2DeprecationWarning);
-      disabled_features.push_back(
-          extensions_features::kExtensionManifestV2Unsupported);
-      break;
-    case MV2ExperimentStage::kWarning:
-      enabled_features.push_back(
-          extensions_features::kExtensionManifestV2DeprecationWarning);
-      disabled_features.push_back(
-          extensions_features::kExtensionManifestV2Unsupported);
-      break;
-    case MV2ExperimentStage::kDisableWithReEnable:
-      disabled_features.push_back(
-          extensions_features::kExtensionManifestV2DeprecationWarning);
-      disabled_features.push_back(
-          extensions_features::kExtensionManifestV2Unsupported);
-      break;
-    case MV2ExperimentStage::kUnsupported:
-      enabled_features.push_back(
-          extensions_features::kExtensionManifestV2Unsupported);
-      disabled_features.push_back(
-          extensions_features::kExtensionManifestV2DeprecationWarning);
-      break;
-  }
+TEST_F(WebstorePrivateLogEnterprisePromoShownFunctionTest,
+       HistogramRecordedDisplay) {
+  auto function =
+      base::MakeRefCounted<WebstorePrivateLogEnterprisePromoShownFunction>();
 
-  feature_list_.InitWithFeatures(enabled_features, disabled_features);
+  api_test_utils::RunFunction(function.get(), "[]", profile());
+
+  histogram_tester_.ExpectUniqueSample(
+      "Enterprise.CwsPromotionBannerEvent",
+      static_cast<int>(enterprise::CwsPromotionBannerEvent::kDisplayed), 1);
 }
 
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+class WebstorePrivateOnEnterprisePromoClickFunctionTest
+    : public WebstorePrivateApiTestBase {
+ protected:
+  base::HistogramTester histogram_tester_;
+};
+
+TEST_F(WebstorePrivateOnEnterprisePromoClickFunctionTest,
+       HistogramRecordedClick) {
+  PrefService* prefs = profile()->GetPrefs();
+  prefs->SetBoolean(pref_names::kHasDismissedEnterprisePromotion, false);
+  auto function =
+      base::MakeRefCounted<WebstorePrivateOnEnterprisePromoClickFunction>();
+
+  api_test_utils::RunFunction(function.get(), "[]", profile());
+
+  histogram_tester_.ExpectUniqueSample(
+      "Enterprise.CwsPromotionBannerEvent",
+      static_cast<int>(enterprise::CwsPromotionBannerEvent::kClicked), 1);
+  EXPECT_TRUE(prefs->GetBoolean(pref_names::kHasDismissedEnterprisePromotion));
+}
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 }  // namespace extensions

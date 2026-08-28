@@ -1,0 +1,570 @@
+// Copyright 2015 Vivaldi Technologies AS. All rights reserved.
+
+[
+  {
+    "namespace": "extensionActionUtils",
+    "description": "Helper functions for Vivaldi to reuse Chromes extension UI.",
+    "types": [
+      {
+        "id": "ActionType",
+        "type": "string",
+        "enum": [ "browser", "page" ],
+        "description": "browser- or pageAction."
+      },
+      {
+        "id": "ExtensionType",
+        "type": "string",
+        "enum": [ "extensionAction", "componentAction" ],
+        "description": "Regular extension- or componentAction. Component actions will go through ToolbarActionViewController"
+      },
+      {
+        "id": "MenuType",
+        "type": "string",
+        "enum": [ "normal", "checkbox", "radio", "separator" ],
+        "description": "What type of menu item."
+      },
+      {
+        "id": "GlobalErrorType",
+        "type": "string",
+        "enum": [ "installed", "upgrade" ],
+        "description": "Type of global error. Disabled because of permission increase, or installed by third-party."
+      },
+      {
+        "id": "MenuItem",
+        "type": "object",
+        "description": "Menu item representing a single menu item.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the item as shown in the menu."
+          },
+          "id": {
+            "type": "string",
+            "description": "The id for the item."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Is the item enabled."
+          },
+          "visible": {
+            "type": "boolean",
+            "description": "Is the item visible."
+          },
+          "checked": {
+            "type": "boolean",
+            "description": "Is the item checked."
+          },
+          "menuType": {
+            "$ref": "MenuType"
+          },
+          "submenu": {
+            "type": "array",
+            "items": { "$ref": "MenuItem" },
+            "optional": true,
+            "description": "Sub menu items if the extension supplies a custom menu."
+          }
+        }
+      },
+      {
+        "id": "SidePanelInfo",
+        "type": "object",
+        "description": "Side Panel description (if exists).",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Side Panel URL."
+          },
+          "activeUrl": {
+            "type": "string",
+            "description": "Side Panel URL."
+          }
+        }
+      },
+      {
+        "id": "SidePanelOptions",
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "optional": true,
+            "description": "If specified, the side panel options will only apply to the tab with this id. If omitted, these options set the default behavior (used for any tab that doesn't have specific settings). Note: if the same path is set for this tabId and the default tabId, then the panel for this tabId will be a different instance than the panel for the default tabId.",
+            "type": "integer"
+          },
+          "path": {
+            "optional": true,
+            "description": "The path to the side panel HTML file to use. This must be a local resource within the extension package.",
+            "type": "string"
+          },
+          "extensionId": {
+            "optional": true,
+            "description": "The path to the side panel HTML file to use. This must be a local resource within the extension package.",
+            "type": "string"
+          },
+          "resourceUrl": {
+            "optional": true,
+            "description": "The path to the side panel HTML file to use. This must be a local resource within the extension package.",
+            "type": "string"
+          },
+          "enabled": {
+            "optional": true,
+            "description": "Whether the side panel should be enabled. This is optional. The default value is true.",
+            "type": "boolean"
+          }
+        }
+      },
+      {
+        "id": "ExtensionInfo",
+        "type": "object",
+        "description": "Extension action per tab id.",
+        "properties": {
+          "tabId": {
+            "description": "tab id, or kDefaultTabId(-1) if the information should be used for all tabs.",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string",
+            "description": "The unique extension identifier."
+          },
+          "badgeTooltip": {
+            "type": "string",
+            "optional": true,
+            "description": "Tooltip for the button."
+          },
+          "badgeText": {
+            "type": "string",
+            "optional": true,
+            "description": "Badgetext, typically room for four chars."
+          },
+          "badgeIcon": {
+            "type": "string",
+            "optional": true,
+            "description": "data-url for the current icon."
+          },
+          "badgeTextColor": {
+            "type": "string",
+            "optional": true,
+            "description": "Text color for the badge text, currently unused."
+          },
+          "badgeBackgroundColor": {
+            "type": "string",
+            "optional": true,
+            "description": "Background color for the badge text."
+          },
+          "enabled": {
+            "type": "boolean",
+            "optional": true,
+            "description": "Whether the extension is enabled or not."
+          },
+          "actionType": {
+            "$ref": "ActionType",
+            "optional": true,
+            "description": "The type of the extensionAction, either pageaction or browseraction."
+          },
+          "visible": {
+            "type": "boolean",
+            "optional": true,
+            "description": "Visibility of the action button, defaults to true."
+          },
+          "allowInIncognito": {
+            "type": "boolean",
+            "optional": true,
+            "description": "Whether the action is available in incognito windows or not."
+          },
+          "extensionType": {
+            "$ref": "ExtensionType",
+            "optional": true,
+            "description": "The type of the extensionAction, either pageaction or browseraction. Defaults to |extensionAction|."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of extension."
+          },
+          "homepage": {
+            "type": "string",
+            "optional": true,
+            "description": "Homepage of extension."
+          },
+          "optionspage": {
+            "type": "string",
+            "optional": true,
+            "description": "Address of extension options page."
+          },
+          "optionsInNewTab": {
+            "type": "boolean",
+            "optional": true,
+            "description": "false if the options page should be opened embedded, true if it opens in a new tab."
+          },
+          "keyboardShortcut": {
+            "type": "string",
+            "optional": true,
+            "description": "Keyboard shortcut to toggle this extension."
+          },
+          "sidePanel": {
+            "$ref": "SidePanelInfo",
+            "optional": true,
+            "description": "contains sidepanel URL."
+          },
+          "blocked": {
+            "type": "boolean",
+            "optional": true,
+            "description": "Whether the extension is blocked or not."
+          },
+          "explicitly_set_icon_path": {
+            "type": "string",
+            "optional": true,
+            "description": "Path to icon set via action.setIcon."
+          }
+        }
+      },
+      {
+        "id": "ExtensionInstallError",
+        "type": "object",
+        "description": "Extension error.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique extension identifier."
+          },
+          "name": {
+            "type": "string",
+            "description": "Extension name."
+          },
+          "errorType": {
+            "$ref": "GlobalErrorType",
+            "optional": true,
+            "description": "The type of the extensionAction, either pageaction or browseraction. Defaults to |extensionAction|."
+          },
+          "commandId": {
+            "type": "integer",
+            "description": "Int id to lookup an error on action."
+          }
+        }
+      },
+      {
+        "id": "ExtensionActionParams",
+        "type": "object",
+        "description": "Describes action when the extension button is clicked",
+        "properties": {
+          "extensionId" : {
+            "type": "string",
+            "optional": true,
+            "description": "Related extensionId"
+          },
+          "popupUrl": {
+            "type": "string",
+            "optional": true,
+            "description": "relative url for the popup document if exists."
+          },
+          "openPanelOnActionClick": {
+            "type": "boolean",
+            "optional": true,
+            "description": "openPanelOnActionClick value set by chrome.sidePanel.setPanelBehavior"
+          }
+        }
+      }
+    ],
+    "functions": [
+      {
+        "name": "getToolbarExtensions",
+        "type": "function",
+        "description": "",
+        "parameters": [],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "results",
+              "type": "array",
+              "items": { "$ref": "ExtensionInfo" }
+            }
+          ]
+        }
+      },
+      {
+        "name": "executeExtensionAction",
+        "type": "function",
+        "description": "execute browserAction or pageAction for extension",
+        "parameters": [
+          {
+            "name": "extensionId",
+            "type": "string",
+            "description": ""
+          },
+          {
+            "type": "integer",
+            "name": "windowId",
+            "description": "id of the application window."
+          }
+        ],
+        "returns_async": {
+          "name": "handleAction",
+          "description": "Callback for the actions.",
+          "parameters": [
+            {
+              "$ref": "ExtensionActionParams",
+              "name": "result"
+            }
+          ]
+        }
+      },
+      {
+        "name": "removeExtension",
+        "type": "function",
+        "description": "Removes a specified extension.",
+        "parameters": [
+          {
+            "name": "extensionId",
+            "type": "string",
+            "description": "The id for the extension we want to remove."
+          },
+          {
+            "type": "integer",
+            "name": "windowId",
+            "description": "id of the application window. Used to find the Browser object."
+          }
+        ]
+      },
+      {
+        "name": "showExtensionOptions",
+        "type": "function",
+        "description": "Shows options for the given extension",
+        "parameters": [
+          {
+            "name": "extensionId",
+            "type": "string",
+            "description": "The id for the extension we want to remove."
+          },
+          {
+            "name": "windowId",
+            "type": "integer",
+            "description": "id of the application window. Used to find the Browser object."
+          }
+        ]
+      },
+      {
+        "name": "getExtensionMenu",
+        "type": "function",
+        "description": "Gets the context menu for the given extension",
+        "parameters": [
+          {
+            "name": "extensionId",
+            "type": "string",
+            "description": "The id for the extension we want to get the menu for."
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "items",
+              "type": "array",
+              "items": { "$ref": "MenuItem" },
+              "description": "Menu items if the extension supplies a custom menu."
+            }
+          ]
+        }
+      },
+      {
+        "name": "executeMenuAction",
+        "type": "function",
+        "description": "Execute menu action for extension.",
+        "parameters": [
+          {
+            "name": "extensionId",
+            "type": "string",
+            "description": ""
+          },
+          {
+            "type": "integer",
+            "name": "windowId",
+            "description": "id of the application window."
+          },
+          {
+            "type": "string",
+            "name": "menuId",
+            "description": "id of the menu item."
+          }
+        ],
+        "returns_async": {
+          "name": "result",
+          "description": "Callback for action.",
+          "parameters": [
+            {
+              "name": "success",
+              "type": "boolean",
+              "description": "true on success."
+            }
+          ]
+        }
+      },
+      {
+        "name": "showGlobalError",
+        "type": "function",
+        "description": "Show the dialog for an extension install error.",
+        "parameters": [
+          {
+            "name": "commandId",
+            "type": "integer",
+            "description": "The id for the error."
+          },
+          {
+            "name": "windowId",
+            "type": "integer",
+            "description": "id of the application window. Used to find the Browser object."
+          }
+        ]
+      },
+      {
+        "name": "triggerGlobalErrors",
+        "type": "function",
+        "description": "Loop through any pending global extension errors and fire events for the ui.",
+        "parameters": [],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "items",
+              "type": "array",
+              "items": { "$ref": "ExtensionInstallError" },
+              "description": "Errors triggered before the window was shown."
+            }
+          ]
+        }
+      }
+    ],
+    "events": [
+      {
+        "name": "onAdded",
+        "type": "function",
+        "description": "Fired when an extension has been loaded.",
+        "parameters": [
+          {
+            "$ref": "ExtensionInfo",
+            "name": "extension"
+          }
+        ]
+      },
+      {
+        "name": "onRemoved",
+        "type": "function",
+        "description": "Fired when an extension has been unloaded.",
+        "parameters": [
+          {
+            "$ref": "ExtensionInfo",
+            "name": "extension"
+          }
+        ]
+      },
+      {
+        "name": "onUpdated",
+        "type": "function",
+        "description": "Fired when an extensionAction is changed.",
+        "parameters": [
+          {
+            "$ref": "ExtensionInfo",
+            "name": "extension"
+          }
+        ]
+      },
+      {
+        "name": "onClearAllValuesForTab",
+        "type": "function",
+        "description": "Fired on ExtensionAction::ClearAllValuesForTab().",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "extensionId"
+          },
+          {
+            "type": "number",
+            "name": "tabId"
+          }
+        ]
+      },
+      {
+        "name": "onCommandAdded",
+        "type": "function",
+        "description": "Fired when a keyboard shortcut is added to an extension.",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "extensionId"
+          },
+          {
+            "type": "string",
+            "name": "shortcut"
+          }
+        ]
+      },
+      {
+        "name": "onCommandRemoved",
+        "type": "function",
+        "description": "Fired when a keyboard shortcut is removed from an extension.",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "extensionId"
+          },
+          {
+            "type": "string",
+            "name": "shortcut"
+          }
+        ]
+      },
+      {
+        "name": "onExtensionDisabledInstallErrorAdded",
+        "type": "function",
+        "description": "Fired when an extensionerror is created. Can be of various kinds of GlobalErrors",
+        "parameters": [
+          {
+            "$ref": "ExtensionInstallError",
+            "name": "error"
+          }
+        ]
+      },
+      {
+        "name": "onExtensionDisabledInstallErrorRemoved",
+        "type": "function",
+        "description": "Fired when an extensionerror is handled or removed. Can be of various kinds of GlobalErrors.",
+        "parameters": [
+          {
+            "$ref": "ExtensionInstallError",
+            "name": "error"
+          }
+        ]
+      },
+      {
+        "name": "onSidePanelOptionChanged",
+        "type": "function",
+        "description": "Fired when side panel opetion changed",
+        "parameters": [
+          {
+            "name": "extendionId",
+            "type": "string",
+            "description": "The unique extension identifier."
+          },
+          {
+            "$ref": "SidePanelOptions",
+            "name": "options"
+          }
+        ]
+      },
+      {
+        "name": "onSidePanelActionRequested",
+        "type": "function",
+        "description": "Fired when side panel action requested",
+        "parameters": [
+          {
+            "name": "extendionId",
+            "type": "string",
+            "description": "The unique extension identifier."
+          },
+          {
+            "type": "string",
+            "name": "Action",
+            "description": "The unique action identifier."
+          }
+        ]
+      }
+    ]
+  }
+]

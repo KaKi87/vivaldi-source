@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {html} from '//resources/lit/v3_0/lit.rollup.js';
+import {html} from 'chrome://resources/lit/v3_0/lit.rollup.js';
 
 import type {AimEligibilityAppElement} from './app.js';
 
@@ -23,6 +23,14 @@ export function getHtml(this: AimEligibilityAppElement) {
             this.getCheckClass_(
                 this.eligibilityState_.isEligibleByPolicy)}">
           ${this.getPolicyEligibilityText_()}
+        </span>
+      </div>
+      <div class="check-label">ThirdPartyAiChatSettings Policy:</div>
+      <div class="check-item">
+        <span class="check-value ${
+            this.getCheckClass_(
+                this.eligibilityState_.isThirdPartyEligibleByPolicy)}">
+          ${this.getThirdPartyPolicyEligibilityText_()}
         </span>
       </div>
       <div class="check-label">Default Search Engine:</div>
@@ -88,10 +96,83 @@ export function getHtml(this: AimEligibilityAppElement) {
           View Demo
         </cr-button>
       </div>
+
+      <div class="drive-state-header">Drive State</div>
+      ${this.eligibilityState_.driveStatus ? html`
+        <div class="check-label">OVERALL: Is Drive Supported?</div>
+        <div class="check-item ${
+            this.getCheckClass_(this.eligibilityState_.driveStatus.isDriveSupported)}">
+          <span class="check-value ${
+              this.getCheckClass_(this.eligibilityState_.driveStatus.isDriveSupported)}">
+            ${this.getDriveSupportedText_()}
+          </span>
+        </div>
+
+        <div class="check-label">PEC API (INPUT_TYPE_DRIVE):</div>
+        <div class="check-item">
+          <span class="check-value ${
+              this.getCheckClass_(this.eligibilityState_.driveStatus.isPecEligible)}">
+            ${this.getPecEligibleText_()}
+          </span>
+        </div>
+
+        <div class="check-label">Identity Match:</div>
+        <div class="check-item">
+          <span class="check-value ${
+              this.getCheckClass_(this.eligibilityState_.driveStatus.isIdentityMatch)}">
+            ${this.getIdentityMatchText_()}
+          </span>
+        </div>
+
+        <div class="check-label">Incognito:</div>
+        <div class="check-item">
+          <span class="check-value ${
+              this.getCheckClass_(!this.eligibilityState_.driveStatus.isIncognito)}">
+            ${this.getIncognitoText_()}
+          </span>
+        </div>
+
+        <div class="check-label">Feature Flag (kComposeboxDriveContextMenuOption):</div>
+        <div class="check-item">
+          <span class="check-value ${
+              this.getCheckClass_(this.eligibilityState_.driveStatus.isFeatureFlagEnabled)}">
+            ${this.getFeatureFlagText_()}
+          </span>
+        </div>
+
+        <div class="check-label">Disclaimer Feature Flag (kComposeboxDriveContextMenuOptionDisclaimer):</div>
+        <div class="check-item">
+          <span class="check-value ${
+              this.getCheckClass_(this.eligibilityState_.driveStatus.isDisclaimerFlagEnabled)}">
+            ${this.getDisclaimerFlagText_()}
+          </span>
+        </div>
+
+        <div class="check-label">Search Content Sharing Policy:</div>
+        <div class="check-item">
+          <span class="check-value ${
+              this.getCheckClass_(this.eligibilityState_.driveStatus.isSearchContentSharingEnabled)}">
+            ${this.getSearchSharingText_()}
+          </span>
+        </div>
+
+        <div class="check-label">Disclaimer Accepted (FACS):</div>
+        <div class="check-item">
+          <span class="check-value ${this.getDisclaimerClass_()}">
+            ${this.getDisclaimerAcceptedText_()}
+          </span>
+        </div>
+      ` : html`
+        <div class="check-item">
+          <span class="check-value">Loading Drive State...</span>
+        </div>
+      `}
     </div>
-    <div class="footer">
-      Last updated: ${this.getLastUpdatedTimestamp_()}
-    </div>
+    ${this.showFooter_ ? html`
+      <div class="footer">
+        Last updated: ${this.getLastUpdatedTimestamp_()}
+      </div>
+    ` : ''}
   `;
   // clang-format on
 }

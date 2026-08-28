@@ -6,6 +6,7 @@
 #define COMPONENTS_SYNC_PROTOCOL_PROTO_VISITORS_H_
 
 #include "components/sync/base/data_type.h"
+#include "components/sync/protocol/agile_encryption_keys.pb.h"
 #include "components/sync/protocol/ai_thread_specifics.pb.h"
 #include "components/sync/protocol/app_list_specifics.pb.h"
 #include "components/sync/protocol/app_setting_specifics.pb.h"
@@ -25,6 +26,8 @@
 #include "components/sync/protocol/data_type_state.pb.h"
 #include "components/sync/protocol/deletion_origin.pb.h"
 #include "components/sync/protocol/dictionary_specifics.pb.h"
+#include "components/sync/protocol/encrypted_tab_context_container_specifics.pb.h"
+#include "components/sync/protocol/encrypted_tab_context_item_specifics.pb.h"
 #include "components/sync/protocol/encryption.pb.h"
 #include "components/sync/protocol/entity_metadata.pb.h"
 #include "components/sync/protocol/entity_specifics.pb.h"
@@ -132,6 +135,31 @@
   void VisitProtoFields(V& visitor, proto)
 
 namespace syncer {
+
+VISIT_PROTO_FIELDS(const sync_pb::AgileSymmetricKey& proto) {
+  VISIT(legacy_nigori);
+  VISIT(aes_256_gcm);
+  VISIT(chacha20_poly1305);
+}
+
+VISIT_PROTO_FIELDS(const sync_pb::AgileSymmetricKey::Aes256GcmKey& proto) {
+  VISIT_SECRET(key);
+}
+
+VISIT_PROTO_FIELDS(
+    const sync_pb::AgileSymmetricKey::Chacha20Poly1305Key& proto) {
+  VISIT_SECRET(key);
+}
+
+VISIT_PROTO_FIELDS(const sync_pb::AgileSymmetricKeySet& proto) {
+  VISIT(primary_key_id);
+  VISIT_REP(key);
+}
+
+VISIT_PROTO_FIELDS(const sync_pb::AgileSymmetricKeySet::Key& proto) {
+  VISIT(key_data);
+  VISIT(key_id);
+}
 
 VISIT_PROTO_FIELDS(const sync_pb::AppListSpecifics& proto) {
   VISIT(item_id);
@@ -599,6 +627,7 @@ VISIT_PROTO_FIELDS(const sync_pb::DataTypeProgressMarker& proto) {
 VISIT_PROTO_FIELDS(const sync_pb::GarbageCollectionDirective& proto) {
   VISIT(version_watermark);
   VISIT(collaboration_gc);
+  VISIT(clear_metadata);
 }
 
 VISIT_PROTO_FIELDS(
@@ -653,6 +682,8 @@ VISIT_PROTO_FIELDS(const sync_pb::DeviceInfoSpecifics& proto) {
   VISIT(google_play_services_version_info);
   VISIT_ENUM(os_type);
   VISIT_ENUM(device_form_factor);
+  VISIT(android_os_build_fingerprint_prefix);
+  VISIT(server_determined_model_name);
 }
 
 VISIT_PROTO_FIELDS(const sync_pb::DesktopToMobilePromoMessage& proto) {
@@ -711,6 +742,20 @@ VISIT_PROTO_FIELDS(const sync_pb::DictionarySpecifics& proto) {
 VISIT_PROTO_FIELDS(const sync_pb::EncryptedData& proto) {
   VISIT(key_name);
   VISIT_BYTES(blob);
+  VISIT_BYTES(blob_v2);
+  VISIT(key_id_v2);
+}
+
+VISIT_PROTO_FIELDS(const sync_pb::EncryptedTabContextItemSpecifics& proto) {
+  VISIT(container_id);
+  VISIT(item_id);
+  VISIT(encrypted_data);
+}
+
+VISIT_PROTO_FIELDS(
+    const sync_pb::EncryptedTabContextContainerSpecifics& proto) {
+  VISIT(uuid);
+  VISIT(encryption_key);
 }
 
 VISIT_PROTO_FIELDS(const sync_pb::EntityMetadata& proto) {
@@ -743,7 +788,7 @@ VISIT_PROTO_FIELDS(
 }
 
 VISIT_PROTO_FIELDS(const sync_pb::EntitySpecifics& proto) {
-  static_assert(63 + 1 /* notes */ == GetNumDataTypes(),
+  static_assert(66 + 1 /* notes */ == GetNumDataTypes(),
                 "When adding a new protocol type, you will likely need to add "
                 "it here as well.");
   VISIT(encrypted);
@@ -766,6 +811,8 @@ VISIT_PROTO_FIELDS(const sync_pb::EntitySpecifics& proto) {
   VISIT(cookie);
   VISIT(device_info);
   VISIT(dictionary);
+  VISIT(encrypted_tab_context_container);
+  VISIT(encrypted_tab_context_item);
   VISIT(extension);
   VISIT(extension_setting);
   VISIT(history);
@@ -811,6 +858,7 @@ VISIT_PROTO_FIELDS(const sync_pb::EntitySpecifics& proto) {
   VISIT(contextual_task);
   VISIT(skill);
   VISIT(gemini_thread);
+  VISIT(notebook);
 
   VISIT(notes);
 }
@@ -950,7 +998,6 @@ VISIT_PROTO_FIELDS(const sync_pb::CustomPassphraseKeyDerivationParams& proto) {
 
 VISIT_PROTO_FIELDS(const sync_pb::NigoriModel& proto) {
   VISIT(cryptographer_data);
-  VISIT(current_keystore_key_name);
   VISIT(pending_keys);
   VISIT(passphrase_type);
   VISIT(keystore_migration_time);
@@ -979,6 +1026,13 @@ VISIT_PROTO_FIELDS(const sync_pb::CrossUserSharingPublicKey& proto) {
 VISIT_PROTO_FIELDS(const sync_pb::CrossUserSharingPrivateKey& proto) {
   VISIT(version);
   VISIT(x25519_private_key);
+}
+
+VISIT_PROTO_FIELDS(const sync_pb::NigoriKey& proto) {
+  VISIT(deprecated_name);
+  VISIT_SECRET(deprecated_user_key);
+  VISIT_SECRET(encryption_key);
+  VISIT_SECRET(mac_key);
 }
 
 VISIT_PROTO_FIELDS(const sync_pb::NigoriSpecifics& proto) {
@@ -1406,6 +1460,7 @@ VISIT_PROTO_FIELDS(const sync_pb::SendTabToSelfSpecifics& proto) {
   VISIT(current_navigation_index);
   VISIT(received_time_windows_epoch_micros);
   VISIT(opened_time_windows_epoch_micros);
+  VISIT(activated_time_windows_epoch_micros);
 }
 
 VISIT_PROTO_FIELDS(const sync_pb::TextFragmentData& proto) {
@@ -1560,6 +1615,12 @@ VISIT_PROTO_FIELDS(const sync_pb::SyncEntity& proto) {
   VISIT(client_tag_hash);
   VISIT(collaboration);
   VISIT(deletion_origin);
+  VISIT(attachment);
+}
+
+VISIT_PROTO_FIELDS(const sync_pb::Attachment& proto) {
+  VISIT(temporary_blob_id);
+  VISIT(modification_time_unix_epoch_millis);
 }
 
 VISIT_PROTO_FIELDS(const sync_pb::SyncEntity::CollaborationMetadata& proto) {
@@ -1587,6 +1648,7 @@ VISIT_PROTO_FIELDS(const sync_pb::SyncInvalidationsPayload& proto) {
   VISIT_BYTES(hint);
   VISIT(version);
   VISIT(server_publish_time_unix_epoch_millis);
+  VISIT(server_dispatch_time_unix_epoch_millis);
 }
 
 VISIT_PROTO_FIELDS(
@@ -2407,6 +2469,15 @@ VISIT_PROTO_FIELDS(const sync_pb::GeminiThreadSpecifics& proto) {
   VISIT(last_turn_time_unix_epoch_millis);
 }
 
+VISIT_PROTO_FIELDS(const sync_pb::NotebookSpecifics& proto) {
+  VISIT(uuid);
+  VISIT(creation_time_windows_epoch_micros);
+  VISIT(update_time_windows_epoch_micros);
+  VISIT(notebook);
+  VISIT(schema_version);
+}
+
+VISIT_PROTO_FIELDS(const sync_pb::Notebook& proto) {}
 
 VISIT_PROTO_FIELDS(const sync_pb::AiThreadSpecifics& proto) {
   VISIT_ENUM(type);

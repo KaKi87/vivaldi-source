@@ -9,7 +9,6 @@
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
 #include "chrome/browser/ui/autofill/autofill_field_promo_view.h"
-#include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/views/autofill/popup/popup_view_views.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/test_with_browser_view.h"
@@ -119,7 +118,7 @@ class AutofillFieldPromoViewImplTest : public TestWithBrowserView {
 
  private:
   const ui::ElementIdentifier test_promo_element_identifier_ =
-      autofill::PopupViewViews::kAutofillStandaloneCvcSuggestionElementId;
+      PopupViewViews::kAutofillStandaloneCvcSuggestionElementId;
   base::WeakPtr<AutofillFieldPromoView> view_;
 };
 

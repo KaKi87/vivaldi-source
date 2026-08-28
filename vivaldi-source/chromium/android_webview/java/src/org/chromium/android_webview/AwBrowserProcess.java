@@ -83,7 +83,6 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -214,11 +213,8 @@ public final class AwBrowserProcess {
      * <p>Note: it is up to the caller to ensure this is only called once.
      *
      * @param callback This is triggered when the async startup completes.
-     * @param shouldScheduleFlushStartupTasks Whether to post a task to flush the startup tasks
-     *     instead of letting them complete asynchronously
      */
-    public static void triggerAsyncBrowserProcess(
-            StartupCallback callback, boolean shouldScheduleFlushStartupTasks) {
+    public static void triggerAsyncBrowserProcess(StartupCallback callback) {
         ThreadUtils.assertOnUiThread();
         try (DualTraceEvent e2 =
                 DualTraceEvent.scoped("AwBrowserProcess.startBrowserProcessAsync")) {
@@ -228,7 +224,6 @@ public final class AwBrowserProcess {
                             /* startGpuProcess= */ false,
                             /* startMinimalBrowser= */ false,
                             /* singleProcess= */ !isMultiProcess(),
-                            /* scheduleFlushStartupTasks= */ shouldScheduleFlushStartupTasks,
                             callback);
         }
     }
@@ -385,14 +380,10 @@ public final class AwBrowserProcess {
         }
 
         if (libraryName.contains("libmonochrome")) {
-            // The library name for monochrome and trichrome is "libmonochrome.so"
-            // or "libmonochrome_64.so".
+            // The library name for trichrome is "libmonochrome.so" or "libmonochrome_64.so".
             if (info.sharedLibraryFiles != null && info.sharedLibraryFiles.length > 0) {
                 // Only Trichrome uses shared library files.
                 sApkType = ApkType.TRICHROME;
-            } else if (info.className.toLowerCase(Locale.ROOT).contains("monochrome")) {
-                // Only Monochrome has "monochrome" in the application class name.
-                sApkType = ApkType.MONOCHROME;
             } else {
                 sApkType = ApkType.UNKNOWN;
             }
@@ -674,7 +665,7 @@ public final class AwBrowserProcess {
 
         Context appContext = ContextUtils.getApplicationContext();
         if (!connection.bind(appContext, intent, Context.BIND_AUTO_CREATE)) {
-            Log.d(TAG, "Could not bind to MetricsBridgeService " + intent);
+            Log.d(TAG, "Could not bind to MetricsBridgeService %s", intent);
         }
     }
 
@@ -725,8 +716,8 @@ public final class AwBrowserProcess {
             if (metricServiceEnabledOnlySdkRuntime) {
                 AwMetricsLogUploader uploader = new AwMetricsLogUploader();
                 // Open a connection during startup while connecting to other services such as
-                // ComponentsProviderService and VariationSeedServer to try to avoid spinning the
-                // nonembedded ":webview_service" twice.
+                // VariationSeedServer to try to avoid spinning the nonembedded ":webview_service"
+                // twice.
                 uploader.initialize();
                 AndroidMetricsLogConsumer consumer =
                         useCppFiltering ? uploader : new MetricsFilteringDecorator(uploader);

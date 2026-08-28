@@ -32,24 +32,6 @@ BASE_DECLARE_FEATURE(kSafetyCheckAutorunByManagerKillswitch);
 // Stack if no issues are found.
 BASE_DECLARE_FEATURE(kSafetyCheckModuleHiddenIfNoIssuesKillswitch);
 
-// Enum defining the available Tab Grid setup modes.
-enum class TabGridSetupMode {
-  // The Tab Grid is set up immediately at startup (legacy behavior).
-  kImmediate = 0,
-  // The Tab Grid is set up after startup, once the UI thread is idle.
-  kDeferred = 1,
-
-  // For simulating the race condition where the user navigates to
-  // the tab grid before deferred setup is complete.
-  kLazy_ForTesting = 2,
-};
-
-// Feature flag to control Tab Grid setup mode.
-BASE_DECLARE_FEATURE(kTabGridSetupMode);
-extern const base::FeatureParam<std::string> kTabGridSetupModeParam;
-extern const char kTabGridSetupModeParamName[];
-TabGridSetupMode GetTabGridSetupMode();
-
 // Feature to enable the refactored implementation of the `OmahaService`, using
 // new `OmahaServiceObserver`(s) for Omaha clients. Acts as a killswitch.
 BASE_DECLARE_FEATURE(kOmahaServiceRefactor);
@@ -111,14 +93,9 @@ BASE_DECLARE_FEATURE(kLensOverlayCustomBottomSheet);
 // Feature flag to check headers for lens searches.
 BASE_DECLARE_FEATURE(kLensSearchHeadersCheckEnabled);
 
-
 // Variations of Composebox.
 extern const char kComposeboxParam[];
 extern const char kComposeboxParamAllOmniboxEntrypoints[];
-
-// Feature for the DRS prototype.
-BASE_DECLARE_FEATURE(kOmniboxDRSPrototype);
-
 // Feature flag to enable UITraitCollection workaround for fixing incorrect
 // trait propagation.
 BASE_DECLARE_FEATURE(kEnableTraitCollectionWorkAround);
@@ -128,16 +105,6 @@ BASE_DECLARE_FEATURE(kRemoveExcessNTPs);
 
 // Feature flag / Kill Switch for TCRex.
 BASE_DECLARE_FEATURE(kTCRexKillSwitch);
-
-// When enabled uses new transitions in the TabGrid.
-BASE_DECLARE_FEATURE(kTabGridNewTransitions);
-
-
-// Whether the new tab grid tabs transitions should be enabled.
-bool IsNewTabGridTransitionsEnabled();
-
-// When enabled, an overflow menu will replace the edit menu on the GTS.
-BASE_DECLARE_FEATURE(kTabSwitcherOverflowMenu);
 
 // Feature to enable force showing the Contextual Panel entrypoint.
 BASE_DECLARE_FEATURE(kContextualPanelForceShowEntrypoint);
@@ -157,6 +124,9 @@ extern const base::FeatureParam<int>
 
 // Feature flag the "Hide Toolbar" button in the overflow menu.
 BASE_DECLARE_FEATURE(kHideToolbarsInOverflowMenu);
+
+// Returns true if the "Hide Toolbar" button is enabled.
+bool IsHideToolbarEnabled();
 
 // Flag to hide voice and lens actions in fusebox.
 BASE_DECLARE_FEATURE(kHideFuseboxVoiceLensActions);
@@ -180,9 +150,6 @@ BASE_DECLARE_FEATURE(kIOSChooseFromDriveSignedOut);
 // Feature flag enabling dates long press to enter the Create Calendar event
 // ExperienceKit for signed out users.
 BASE_DECLARE_FEATURE(kIOSDateToCalendarSignedOut);
-
-// Feature flag enabling a fix for the Download manager mediator.
-BASE_DECLARE_FEATURE(kIOSDownloadNoUIUpdateInBackground);
 
 // Feature flag enabling the save to drive feature for signed out users.
 BASE_DECLARE_FEATURE(kIOSSaveToDriveSignedOut);
@@ -257,6 +224,15 @@ bool IsDownloadListEnabled();
 
 // Feature flag to control the download list UI type.
 BASE_DECLARE_FEATURE(kDownloadList);
+
+// Feature flag to switch the iOS download list service layer to the new
+// paginated, keyset-cursor-backed reader path with an active-records-only
+// cache. When disabled, the service falls back to the legacy full-table
+// cache + bulk load behavior.
+BASE_DECLARE_FEATURE(kDownloadListPagination);
+
+// Returns true if the iOS download list pagination feature is enabled.
+bool IsDownloadListPaginationEnabled();
 
 // Feature param under `kEnableFeedBackgroundRefresh` to enable server driven
 // background refresh schedule.
@@ -355,24 +331,8 @@ bool IsLiquidGlassEffectEnabled();
 // Feature flag to enable the default input accessory view.
 BASE_DECLARE_FEATURE(kIOSKeyboardAccessoryDefaultView);
 
-// Feature flag to enable the two-bubble design for the Keyboard Accessory view.
-BASE_DECLARE_FEATURE(kIOSKeyboardAccessoryTwoBubble);
-
 // Returns true if the default input accessory view is enabled.
 bool IsIOSKeyboardAccessoryDefaultViewEnabled();
-
-// Returns true if the two-bubble design for the keyboard accessory view is
-// enabled.
-bool IsIOSKeyboardAccessoryTwoBubbleEnabled();
-
-// Name of the parameter for kIOSKeyboardAccessoryTwoBubble to use a keyboard
-// icon.
-inline constexpr char kIOSKeyboardAccessoryTwoBubbleKeyboardIconParamName[] =
-    "use_keyboard_icon";
-
-// Feature param for kIOSKeyboardAccessoryTwoBubble to use a keyboard icon.
-BASE_DECLARE_FEATURE_PARAM(bool,
-                           kIOSKeyboardAccessoryTwoBubbleKeyboardIconParam);
 
 // Kill switch for disabling the navigations when the application is in
 // foreground inactive state after opening an external app.
@@ -409,16 +369,15 @@ BASE_DECLARE_FEATURE(kSeparateProfilesForManagedAccounts);
 
 // Killswitch for the reauth-first step in AuthenticationFlowInProfile.
 BASE_DECLARE_FEATURE(kAuthenticationFlowReauthFirstKillswitch);
-
-// Feature param for kSeparateProfilesForManagedAccountsForceMigration to
-// specify how much time to wait before force-migrating the primary managed
-// account to its own separate profile.
-extern const base::FeatureParam<base::TimeDelta>
-    kMultiProfileMigrationGracePeriod;
-
 // Feature flag to control force-migrating the primary managed account to its
 // own separate profile.
 BASE_DECLARE_FEATURE(kSeparateProfilesForManagedAccountsForceMigration);
+
+// Feature flag to control force-migrating the primary managed account to its
+// own separate profile *immediately*, i.e. without the usual grace period
+// that's observed by `kSeparateProfilesForManagedAccountsForceMigration`.
+BASE_DECLARE_FEATURE(
+    kSeparateProfilesForManagedAccountsImmediateForceMigration);
 
 // Feature to control resyncing the omaha ping timer on foregrounding.
 BASE_DECLARE_FEATURE(kOmahaResyncTimerOnForeground);
@@ -479,25 +438,6 @@ extern const std::string_view kFRESignInHeaderTextUpdateParamArm1;
 // Returns whether 'kFRESignInHeaderTextUpdate' is enabled.
 bool FRESignInHeaderTextUpdate();
 
-// Feature to enable different text for the secondary action on FRE sign-in
-// promo.
-BASE_DECLARE_FEATURE(kFRESignInSecondaryActionLabelUpdate);
-extern const base::FeatureParam<std::string>
-    kFRESignInSecondaryActionLabelUpdateParam;
-extern const std::string_view
-    kFRESignInSecondaryActionLabelUpdateParamStaySignedOut;
-
-// Returns whether 'kFRESignInSecondaryActionLabelUpdate' is enabled.
-bool FRESignInSecondaryActionLabelUpdate();
-
-// Feature flag to change the button order in the confirmation alerts, placing
-// the primary CTA below the secondary button.
-BASE_DECLARE_FEATURE(kConfirmationButtonSwapOrder);
-
-// Checks if the button order in the confirmation alerts should be swapped
-// (primary button at the bottom), based on the `kConfirmationButtonSwapOrder`
-// flag.
-bool IsConfirmationButtonSwapOrderEnabled();
 
 // Enables Profile-specific push notification handling logic. When enabled, this
 // routes incoming notifications to the PushNotificationClientManager associated
@@ -606,19 +546,6 @@ BASE_DECLARE_FEATURE(kNotificationCollisionManagement);
 // Feature flag to enable integration with iOS's
 // providesAppNotificationSettings.
 BASE_DECLARE_FEATURE(kIOSProvidesAppNotificationSettings);
-
-// Feature flag to enable background customization on the NTP.
-BASE_DECLARE_FEATURE(kNTPBackgroundCustomization);
-
-// The parameter representing the maximum number of recently used NTP
-// backgrounds to store.
-extern const base::FeatureParam<int> kMaxRecentlyUsedBackgrounds;
-
-// The maximum number of recently used NTP backgrounds to store.
-int MaxRecentlyUsedBackgrounds();
-
-// Checks if background customization is enabled on the NTP.
-bool IsNTPBackgroundCustomizationEnabled();
 
 // Feature flag to control whether default status API check and reporting are
 // enabled.
@@ -772,9 +699,6 @@ BASE_DECLARE_FEATURE(kLocationBarBadgeMigration);
 // Returns true if the LocationBarBadgeMigration feature is enabled.
 bool IsLocationBarBadgeMigrationEnabled();
 
-// Enables the Composebox feature.
-BASE_DECLARE_FEATURE(kComposeboxIOS);
-
 // Returns true if the Composebox feature is enabled.
 bool IsComposeboxIOSEnabled();
 
@@ -782,18 +706,17 @@ bool IsComposeboxIOSEnabled();
 // memory. When disabled, images are decoded at full resolution.
 BASE_DECLARE_FEATURE(kContextMenuPreviewDownsampleImage);
 
-// The feature to enable or disable the group color on the tab group and tab
-// grid surfaces.
-BASE_DECLARE_FEATURE(kTabGroupColorOnSurface);
-
-// Returns true if the TabGroupColorOnSurface feature is enabled.
-bool IsTabGroupColorOnSurfaceEnabled();
-
 // Enables the OmniboxCrashFixKillSwitch feature.
 BASE_DECLARE_FEATURE(kOmniboxCrashFixKillSwitch);
 
 // Returns true if the OmniboxCrashFixKillSwitch feature is enabled.
 bool IsOmniboxCrashFixKillSwitchEnabled();
+
+// Enables the AlertCrashFixKillSwitch feature.
+BASE_DECLARE_FEATURE(kAlertCrashFixKillSwitch);
+
+// Returns true if the AlertCrashFixKillSwitch feature is enabled.
+bool IsAlertCrashFixKillSwitchEnabled();
 
 // Enables the AIMEligibilityServiceStartWithProfile feature.
 BASE_DECLARE_FEATURE(kAIMEligibilityServiceStartWithProfile);
@@ -818,6 +741,12 @@ BASE_DECLARE_FEATURE(kIOSWebContextMenuNewTitle);
 
 // Returns true if the IOSWebContextMenuNewTitle feature is enabled.
 bool IsIOSWebContextMenuNewTitleEnabled();
+
+// Enables the AtMemoryContextMenuEntryPoint feature.
+BASE_DECLARE_FEATURE(kAtMemoryContextMenuEntryPoint);
+
+// Returns true if the AtMemoryContextMenuEntryPoint feature is enabled.
+bool IsAtMemoryContextMenuEntryPointEnabled();
 
 // Feature flag to enable the Assistant Container.
 BASE_DECLARE_FEATURE(kAssistantContainer);
@@ -905,12 +834,6 @@ BASE_DECLARE_FEATURE(kDisableComposeboxFromAIMNTP);
 // Returns true if the DisableComposeboxFromAIMNTP feature is enabled.
 bool IsDisableComposeboxFromAIMNTPEnabled();
 
-// Enables the AIMCobrowseDebugEntrypoint feature.
-BASE_DECLARE_FEATURE(kAIMCobrowseDebugEntrypoint);
-
-// Returns true if the AIMCobrowseDebugEntrypoint feature is enabled.
-bool IsAIMCobrowseDebugEntrypointEnabled();
-
 extern const char kAIMCobrowseHeaderParam[];
 extern const char kAIMCobrowseHeaderParamOptionA[];
 extern const char kAIMCobrowseHeaderParamOptionB[];
@@ -964,10 +887,16 @@ BASE_DECLARE_FEATURE(kDisableFeedbackForIneligibleUsers);
 // Returns true if the DisableFeedbackForIneligibleUsers feature is enabled.
 bool IsDisableFeedbackForIneligibleUsersEnabled();
 
+// Feature flag to include system log in user feedback reports.
+BASE_DECLARE_FEATURE(kIncludeSystemLogInFeedback);
+
+// Returns true if system log should be included in user feedback reports.
+bool IsIncludeSystemLogInFeedbackEnabled();
+
 // Enables the FullscreenRefactoring feature.
 BASE_DECLARE_FEATURE(kFullscreenRefactoring);
 
-// Returns true if the FullscreenRefactoring feature is enabled.
+// Returns true if the FullscreenRefactoring feature or ChromeNext is enabled.
 bool IsFullscreenRefactoringEnabled();
 
 // Enables the AskAboutThisPage feature.
@@ -1031,12 +960,6 @@ BASE_DECLARE_FEATURE(kPlusButtonInFakebox);
 // Returns true if the plus button in NTP fakebox is enabled
 bool IsPlusButtonInFakeboxEnabled();
 
-// Enables the CobrowseAimHistory feature.
-BASE_DECLARE_FEATURE(kCobrowseAimHistory);
-
-// Returns true if the CobrowseAimHistory feature is enabled.
-bool IsCobrowseAimHistoryEnabled();
-
 // Enables the `AssistantAimMinimizedState` feature.
 BASE_DECLARE_FEATURE(kAssistantAimMinimizedState);
 
@@ -1063,5 +986,78 @@ BASE_DECLARE_FEATURE(kIdentityAwareness);
 
 // Returns true if the IdentityAwareness feature is enabled.
 bool IsIdentityAwarenessEnabled();
+
+// Display a ring around the avatar if the user has a AI Tier
+BASE_DECLARE_FEATURE(kAiAvatarRingIos);
+
+// Returns true if the AiAvatarRing feature is enabled.
+bool IsAiAvatarRingIosEnabled();
+
+// Feature flag to enable the Infobar Banner Revamp (UI Refactor of the
+// Infobar/Banner Component).
+BASE_DECLARE_FEATURE(kInfobarBannerRevamp);
+
+// Returns true if the InfobarBannerRevamp feature is enabled.
+bool IsInfobarBannerRevampEnabled();
+
+// Feature flag to enable shortcut paste bypass detection for PhishGuard.
+BASE_DECLARE_FEATURE(kIOSPhishGuardPasteShortcutDetection);
+
+// Returns true if kIOSPhishGuardPasteShortcutDetection is enabled.
+bool IsIOSPhishGuardPasteShortcutDetectionEnabled();
+
+// Feature to hide the labels for the buttons in the App Bar.
+BASE_DECLARE_FEATURE(kAppBarHideLabels);
+
+// Returns true if the App Bar labels should be hidden.
+bool IsAppBarLabelsHidden();
+
+// Enables Google One deep link support on startup.
+BASE_DECLARE_FEATURE(kSupportGoogleOneDeepLink);
+
+// Returns true if SupportGoogleOneDeepLink is enabled.
+bool IsGoogleOneDeepLinkEnabled();
+
+// Feature to enable Discover feed background refresh.
+BASE_DECLARE_FEATURE(kEnableDiscoverBackgroundRefresh);
+
+// Whether Discover feed background refresh is enabled.
+bool IsDiscoverBackgroundRefreshEnabled();
+
+// Interval when the Discover feed service is missing.
+extern const base::FeatureParam<base::TimeDelta>
+    kDiscoverFeedBackgroundRefreshNoServiceInterval;
+
+// Interval when the Discover feed service exists but provides no refresh date.
+extern const base::FeatureParam<base::TimeDelta>
+    kDiscoverFeedBackgroundRefreshNoDateInterval;
+
+// Delay when the scheduled Discover feed refresh time has already passed.
+extern const base::FeatureParam<base::TimeDelta>
+    kDiscoverFeedBackgroundRefreshMinBuffer;
+
+// Feature to completely hide the App Bar when in fullscreen.
+BASE_DECLARE_FEATURE(kAppBarHideInFullscreen);
+
+// Returns true if the App Bar should be completely hidden when in fullscreen.
+bool IsAppBarHiddenInFullscreen();
+
+// Enables the DefaultBottomOmniboxOnIOS feature.
+BASE_DECLARE_FEATURE(kDefaultBottomOmniboxOnIOS);
+
+// Returns true if the DefaultBottomOmniboxOnIOS feature is enabled.
+bool IsDefaultBottomOmniboxOnIOSEnabled();
+
+// Enables the GlassToolbar feature.
+BASE_DECLARE_FEATURE(kGlassToolbar);
+
+// Returns true if the GlassToolbar feature is enabled.
+bool IsGlassToolbarEnabled();
+
+// Enables the NextOldDesign feature.
+BASE_DECLARE_FEATURE(kNextOldDesign);
+
+// Returns true if the NextOldDesign feature is enabled.
+bool IsNextOldDesignEnabled();
 
 #endif  // IOS_CHROME_BROWSER_SHARED_PUBLIC_FEATURES_FEATURES_H_

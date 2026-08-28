@@ -9,12 +9,8 @@
 #include <utility>
 
 #include "base/functional/bind.h"
-#include "base/functional/callback_helpers.h"
-#include "base/notreached.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/performance_controls/performance_controls_metrics.h"
 #include "chrome/browser/ui/performance_controls/performance_intervention_bubble_delegate.h"
-#include "chrome/browser/ui/performance_controls/performance_intervention_bubble_observer.h"
 #include "chrome/browser/ui/performance_controls/performance_intervention_button_controller.h"
 #include "chrome/browser/ui/performance_controls/tab_list_model.h"
 #include "chrome/browser/ui/views/performance_controls/performance_intervention_button.h"
@@ -22,7 +18,6 @@
 #include "chrome/grit/branded_strings.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/performance_manager/public/features.h"
-#include "components/strings/grit/components_strings.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/dialog_model.h"
@@ -48,7 +43,6 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(PerformanceInterventionBubble,
 
 // static
 views::BubbleDialogModelHost* PerformanceInterventionBubble::CreateBubble(
-    Browser* browser,
     PerformanceInterventionButton* anchor_view,
     PerformanceInterventionButtonController* button_controller) {
   auto tab_list_model_unique =
@@ -58,7 +52,7 @@ views::BubbleDialogModelHost* PerformanceInterventionBubble::CreateBubble(
   RecordSuggestedTabShownCount(tab_list_model->count());
   auto bubble_delegate =
       std::make_unique<PerformanceInterventionBubbleDelegate>(
-          browser, std::move(tab_list_model_unique), button_controller);
+          std::move(tab_list_model_unique), button_controller);
 
   const DialogStrings strings = GetStrings(tab_list_model->count());
   PerformanceInterventionBubbleDelegate* const delegate = bubble_delegate.get();

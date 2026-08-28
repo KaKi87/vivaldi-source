@@ -39,7 +39,6 @@
 <translation id="1601560923496285236">Aplicar</translation>
 <translation id="1603914832182249871">(Modo Privado)</translation>
 <translation id="1627276047960621195">Descritores de ficheiros</translation>
-<translation id="1654713139320245449">Não foi encontrado nenhum destino de transmissão. Precisa de ajuda?</translation>
 <translation id="166278006618318542">Algoritmo da chave pública do sujeito</translation>
 <translation id="1682548588986054654">Nova janela privada</translation>
 <translation id="1708338024780164500">(Inativa)</translation>
@@ -60,7 +59,6 @@
 <translation id="1906488504371069394">Descubra mais extensões e temas na <ph name="BEGIN_LINK" />Chrome Web Store<ph name="END_LINK" /></translation>
 <translation id="1921584744613111023"><ph name="DPI" /> ppp</translation>
 <translation id="1925021887439448749">Digite o endereço web personalizado</translation>
-<translation id="1932098463447129402">Não anterior a</translation>
 <translation id="1936157145127842922">Mostrar na pasta</translation>
 <translation id="1936931585862840749">Use um número para indicar o número de cópias a imprimir (1 a <ph name="MAX_COPIES" />).</translation>
 <translation id="2019718679933488176">&amp;Abrir áudio num separador novo</translation>
@@ -102,7 +100,6 @@
 <translation id="253557089021624350">Contagem de keepalives</translation>
 <translation id="2550212893339833758">Memória swapped</translation>
 <translation id="2553440850688409052">Ocultar este plug-in</translation>
-<translation id="2607101320794533334">Informações da chave pública do sujeito</translation>
 <translation id="261305050785128654">Deixe os websites saber que idiomas entende. Irão mostrar-lhe conteúdo nesses idiomas, quando for possível.</translation>
 <translation id="26224892172169984">Não permitir que os websites processem protocolos</translation>
 <translation id="2653275834716714682">Substituição de texto</translation>
@@ -112,7 +109,6 @@
 <translation id="2719936478972253983">Os cookies seguintes foram bloqueados</translation>
 <translation id="2721037002783622288">&amp;Pesquisar imagem em <ph name="SEARCH_ENGINE" /></translation>
 <translation id="2722547199758472013">ID: <ph name="EXTENSION_ID" /></translation>
-<translation id="2738771556149464852">Não posterior a</translation>
 <translation id="2749881179542288782">Rever gramática com a ortografia</translation>
 <translation id="2785873697295365461">Descritores de ficheiros</translation>
 <translation id="2825758591930162672">Chave pública do sujeito</translation>
@@ -163,7 +159,6 @@
 <translation id="3387614642886316601">Utilizar verificação ortográfica avançada</translation>
 <translation id="3390013585654699824">Detalhes da aplicação</translation>
 <translation id="345693547134384690">Abrir &amp;imagem num novo separador</translation>
-<translation id="3493881266323043047">Validade</translation>
 <translation id="3511307672085573050">Copiar &amp;endereço da ligação</translation>
 <translation id="354068948465830244">Pode ler e alterar dados do website</translation>
 <translation id="3555812735919707620">Eliminar extensão</translation>
@@ -179,7 +174,6 @@
 <translation id="3760460896538743390">Inspecionar &amp;Página de Fundo</translation>
 <translation id="3786224729726357296">Eliminar os dados e as autorizações do site <ph name="SITE" /></translation>
 <translation id="3797900183766075808">Pe&amp;squisar com <ph name="SEARCH_ENGINE" /> por "<ph name="SEARCH_TERMS" />"</translation>
-<translation id="3798449238516105146">Versão</translation>
 <translation id="3810973564298564668">Gerir</translation>
 <translation id="3838085852053358637">Falha ao carregar a extensão</translation>
 <translation id="383891835335927981">A ampliação dos websites não foi aumentada nem diminuída</translation>
@@ -215,6 +209,7 @@
 <translation id="4170314459383239649">Limpar ao sair</translation>
 <translation id="4200983522494130825">Novo &amp;separador</translation>
 <translation id="4225397296022057997">Em todos os websites</translation>
+<translation id="4242245038391716252">Transferido pela extensão: &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="4256316378292851214">Gra&amp;var vídeo como...</translation>
 <translation id="4270393598798225102">Versão <ph name="NUMBER" /></translation>
 <translation id="4278390842282768270">Permitido</translation>
@@ -265,12 +260,10 @@
 <translation id="5063480226653192405">Utilização</translation>
 <translation id="5116628073786783676">Gra&amp;var áudio como...</translation>
 <translation id="5154108062446123722">Definições avançadas de <ph name="PRINTING_DESTINATION" /></translation>
-<translation id="5154702632169343078">Sujeito</translation>
 <translation id="5170568018924773124">Mostrar na pasta</translation>
 <translation id="5171343362375269016">Memória swapped</translation>
 <translation id="5233231016133573565">ID do processo</translation>
 <translation id="5233736638227740678">&amp;Colar</translation>
-<translation id="5244466461749935369">Manter, por enquanto</translation>
 <translation id="5256861893479663409">Em todos os websites</translation>
 <translation id="5260334392110301220">Aspas inteligentes</translation>
 <translation id="5269977353971873915">Falha de Impressão</translation>
@@ -309,7 +302,6 @@
 <translation id="5780973441651030252">Prioridade do processo</translation>
 <translation id="5804241973901381774">Permissões</translation>
 <translation id="5828633471261496623">A imprimir...</translation>
-<translation id="5851868085455377790">Emitente</translation>
 <translation id="5860491529813859533">Ativar</translation>
 <translation id="5910363049092958439">Gra&amp;var imagem como...</translation>
 <translation id="5914724413750400082">Módulo (<ph name="MODULUS_NUM_BITS" /> bits):
@@ -458,11 +450,11 @@ Mantenha o seu ficheiro de chave num local seguro, pois irá precisar dele para 
 <translation id="862750493060684461">Cache CSS</translation>
 <translation id="8661290697478713397">Abrir ligação numa janela de nave&amp;gação privada</translation>
 <translation id="8664389313780386848">&amp;Ver código fonte da página</translation>
-<translation id="8705331520020532516">Número de série</translation>
 <translation id="8708000541097332489">Limpar ao sair</translation>
 <translation id="8714838604780058252">Imagens em segundo plano</translation>
 <translation id="8725066075913043281">Tentar novamente</translation>
 <translation id="8770406935328356739">Pasta principal da extensão</translation>
+<translation id="8773535891252326047">Link copiado para destaque</translation>
 <translation id="8774934320277480003">Margem superior</translation>
 <translation id="8798099450830957504">Predefinido</translation>
 <translation id="8808478386290700967">Web Store</translation>

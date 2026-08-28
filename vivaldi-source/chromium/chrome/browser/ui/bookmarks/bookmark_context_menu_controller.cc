@@ -303,7 +303,11 @@ void BookmarkContextMenuController::BuildMenu() {
   AddItem(IDC_BOOKMARK_BAR_NEW_FOLDER, IDS_BOOKMARK_BAR_NEW_FOLDER);
 
   AddSeparator();
-  AddItem(IDC_BOOKMARK_MANAGER, IDS_BOOKMARK_MANAGER);
+  if (features::IsMenuSimplificationEnabled()) {
+    AddItem(IDC_BOOKMARK_MANAGER, IDS_BOOKMARK_MANAGER_V2);
+  } else {
+    AddItem(IDC_BOOKMARK_MANAGER, IDS_BOOKMARK_MANAGER);
+  }
 
   if (base::FeatureList::IsEnabled(
           ntp_features::kNtpSimplificationBookmarkBar)) {
@@ -314,8 +318,7 @@ void BookmarkContextMenuController::BuildMenu() {
       AddCheckboxItem(IDC_BOOKMARK_BAR_SHOW_APPS_SHORTCUT,
                       IDS_BOOKMARK_BAR_SHOW_APPS_SHORTCUT);
     }
-    if (tab_groups::SavedTabGroupUtils::IsEnabledForProfile(profile_) &&
-        !tab_groups::IsProjectsPanelFeatureEnabled()) {
+    if (tab_groups::SavedTabGroupUtils::IsEnabledForProfile(profile_)) {
       AddCheckboxItem(IDC_BOOKMARK_BAR_TOGGLE_SHOW_TAB_GROUPS,
                       IDS_BOOKMARK_BAR_SHOW_TAB_GROUPS);
     }
@@ -844,8 +847,7 @@ void BookmarkContextMenuController::AddSubmenuItems() {
         IDC_BOOKMARK_BAR_SHOW_APPS_SHORTCUT,
         IDS_BOOKMARK_BAR_SHOW_APPS_SHORTCUT);
   }
-  if (tab_groups::SavedTabGroupUtils::IsEnabledForProfile(profile_) &&
-      !tab_groups::IsProjectsPanelFeatureEnabled()) {
+  if (tab_groups::SavedTabGroupUtils::IsEnabledForProfile(profile_)) {
     submenu_model_->AddCheckItemWithStringId(
         IDC_BOOKMARK_BAR_TOGGLE_SHOW_TAB_GROUPS,
         IDS_BOOKMARK_BAR_SHOW_TAB_GROUPS);

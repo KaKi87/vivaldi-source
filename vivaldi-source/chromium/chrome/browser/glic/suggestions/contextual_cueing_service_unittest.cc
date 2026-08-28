@@ -8,6 +8,7 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
+#include "base/unguessable_token.h"
 #include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/glic/suggestions/contextual_cueing_features.h"
 #include "chrome/browser/glic/suggestions/contextual_cueing_prefs.h"
@@ -369,6 +370,7 @@ class MockLoadingPredictor : public predictors::LoadingPredictor {
               (const GURL& url,
                bool allow_credentials,
                const net::NetworkAnonymizationKey& network_anonymization_key,
+               const base::UnguessableToken& network_restrictions_id,
                const net::NetworkTrafficAnnotationTag& traffic_annotation,
                const content::StoragePartitionConfig* storage_partition_config),
               (override));
@@ -444,7 +446,7 @@ class ContextualCueingServiceTestZeroStateSuggestions : public testing::Test {
   void SetAccountCapability(bool can_use_model_execution) {
     AccountInfo account_info = identity_test_env_.MakePrimaryAccountAvailable(
         "test@example.com", signin::ConsentLevel::kSignin);
-    AccountCapabilitiesTestMutator mutator(&account_info.capabilities);
+    AccountCapabilitiesTestMutator mutator(&account_info);
     mutator.set_can_use_model_execution_features(can_use_model_execution);
     identity_test_env_.UpdateAccountInfoForAccount(account_info);
   }
@@ -485,6 +487,8 @@ class ContextualCueingServiceTestZeroStateSuggestions : public testing::Test {
   }
 
   content::WebContents* web_contents() { return web_contents_.get(); }
+
+  Profile* profile() { return &profile_; }
 
   PrefService* pref_service() { return pref_service_.get(); }
 
@@ -581,7 +585,7 @@ TEST_F(ContextualCueingServiceTestZeroStateSuggestions,
 TEST_F(ContextualCueingServiceTestZeroStateSuggestions,
        PreconnectsWithContextEnabled) {
   EXPECT_CALL(*loading_predictor(),
-              PreconnectURLIfAllowed(GURL("https://mes.com/"), _, _, _, _));
+              PreconnectURLIfAllowed(GURL("https://mes.com/"), _, _, _, _, _));
 
   SetGlicTabContextEnabled(true);
   InitializeContextualCueingService();
@@ -595,6 +599,31 @@ TEST_F(ContextualCueingServiceTestZeroStateSuggestions,
   SetGlicTabContextEnabled(false);
   InitializeContextualCueingService();
   service()->PrepareToFetchContextualGlicZeroStateSuggestions(web_contents());
+}
+
+TEST_F(ContextualCueingServiceTestZeroStateSuggestions,
+       NullOptimizationGuideServiceNoCrash) {
+  SetGlicTabContextEnabled(true);
+
+  // Initialize the service manually, passing nullptr for the optimization
+  // guide service.
+  auto local_service = std::make_unique<ContextualCueingService>(
+      /*page_content_extraction_service=*/nullptr,
+      /*optimization_guide_keyed_service=*/nullptr, loading_predictor(),
+      IdentityManagerFactory::GetForProfile(profile()), pref_service(),
+      /*template_url_service=*/nullptr);
+
+  // Verify PrepareToFetch does not crash.
+  local_service->PrepareToFetchContextualGlicZeroStateSuggestions(
+      web_contents());
+
+  // Verify GetSuggestions runs the callback with empty results and does not
+  // crash.
+  base::test::TestFuture<std::vector<std::string>> future;
+  local_service->GetContextualGlicZeroStateSuggestionsForFocusedTab(
+      web_contents(), /*is_fre=*/false, /*supported_tools=*/std::nullopt,
+      future.GetCallback());
+  EXPECT_TRUE(future.Get().empty());
 }
 
 TEST_F(ContextualCueingServiceTestZeroStateSuggestions,

@@ -14,20 +14,22 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 import {debug} from "../introspection/debug.js";
 import {getDebugger} from "../introspection/log.js";
 import {profile} from "../introspection/profile.js";
-import {formatArguments, toRegExp} from "../utils/general.js";
+import {formatArguments, sendSnippetHitEvent, toRegExp}
+  from "../utils/general.js";
 import {addPostFetchCallback} from "../utils/fetchManipulation.js";
 
 let {Map, Object, RegExp, Response} = $(window);
 let fetchRules;
+const hitFilters = new Set();
 
 /**
- * Replaces the response of a fetch request if the response text matches
- * a given regular expression pattern.
+ * @description Replaces the response of a fetch request if the
+ * response text matches a given regular expression pattern.
+ * @memberof module:snippets/behavioral
  *
  * @param {string} search - The string or regex pattern to match
  * in the response text.
@@ -44,6 +46,14 @@ let fetchRules;
  * // Replaces "Hello" with "Hi" in the response text of fetch requests
  * only if the response text includes "Greeting".
  *    replaceFetchResponse(/Hello/g, "Hi", "Greeting");
+ * @example
+ * replace-fetch-response 'serve-ads:true' 'serve-ads:false' => Will
+ * replace the string serve-ads:true to serve-ads:false in
+ * the response body.
+ *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69970862/strip-fetch-query-parameter} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/behavioral-snippets/strip-fetch-query-parameter} for external documentation.
+ * @since Adblock Plus 4.4
  */
 
 export function replaceFetchResponse(search, replacement = "", needle = null) {
@@ -82,13 +92,21 @@ export function replaceFetchResponse(search, replacement = "", needle = null) {
               continue;
             }
           }
+          const prevText = replacedText.toString();
           replacedText = replacedText.replace(thisSearch, thisReplacement);
-          if (debug() && replacedText.toString() !== origText.toString()) {
-            console.groupCollapsed(`DEBUG [replace-fetch-response] success: '${thisSearch}' replaced with '${thisReplacement}' in fetch response`,
-              `\nFILTER: replace-fetch-response ${formattedArgs}`
-            );
-            debugLog("success", `${replacedText}`);
-            console.groupEnd();
+          if (replacedText.toString() !== prevText) {
+            const filter = "replace-fetch-response " + formattedArgs;
+            if (!hitFilters.has(filter)) {
+              hitFilters.add(filter);
+              sendSnippetHitEvent(filter);
+            }
+            if (debug()) {
+              console.groupCollapsed(`DEBUG [replace-fetch-response] success: '${thisSearch}' replaced with '${thisReplacement}' in fetch response`,
+                `\nFILTER: replace-fetch-response ${formattedArgs}`
+              );
+              debugLog("success", `${replacedText}`);
+              console.groupEnd();
+            }
           }
         }
         // check if the response text was modified

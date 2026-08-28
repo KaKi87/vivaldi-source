@@ -41,6 +41,8 @@
 #import "ios/web/public/thread/web_task_traits.h"
 #import "ios/web/public/thread/web_thread.h"
 
+#include "app/vivaldi_apptools.h"
+
 namespace {
 
 // Removes old encryption info with empty authorized_entity to avoid DCHECK.
@@ -88,6 +90,10 @@ IOSSharingServiceFactory::~IOSSharingServiceFactory() {}
 
 std::unique_ptr<KeyedService> IOSSharingServiceFactory::BuildServiceInstanceFor(
     ProfileIOS* profile) const {
+
+  if (vivaldi::IsVivaldiRunning()) {
+    return nullptr; // Vivaldi: VB-128107 We do not want these services enabled or active
+  }
 
   syncer::SyncService* sync_service =
       SyncServiceFactory::GetForProfile(profile);

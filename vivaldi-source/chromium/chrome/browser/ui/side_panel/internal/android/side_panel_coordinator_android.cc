@@ -6,21 +6,32 @@
 
 #include <jni.h>
 
+#include <optional>
+
 #include "base/android/jni_android.h"
-#include "base/android/scoped_java_ref.h"
+#include "base/android/jni_string.h"
 #include "base/check.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
+#include "base/metrics/histogram_functions.h"
+#include "base/strings/strcat.h"
+#include "chrome/browser/android/tab_android.h"
 #include "chrome/browser/flags/android/chrome_feature_list.h"
 #include "chrome/browser/tab_list/tab_list_interface.h"
+#include "chrome/browser/ui/android/tab_model/tab_model.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/side_panel/internal/android/jni_headers/SidePanelCoordinatorAndroidImpl_jni.h"
-#include "chrome/browser/ui/side_panel/internal/android/side_panel_tab_list_observer_android.h"
+#include "chrome/browser/ui/side_panel/internal/android/side_panel_tab_model_observer.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry_waiter.h"
 #include "chrome/browser/ui/side_panel/side_panel_enums.h"
 #include "chrome/browser/ui/side_panel/side_panel_enums_utils.h"
 #include "chrome/browser/ui/side_panel/side_panel_metrics.h"
+#include "chrome/browser/ui/side_panel/side_panel_util.h"
+#include "components/tabs/public/tab_interface.h"
+#include "third_party/jni_zero/jni_zero.h"
+
+// Must come after headers that provide symbols used by @JniType.
+#include "chrome/browser/ui/side_panel/internal/android/jni_headers/SidePanelCoordinatorAndroidImpl_jni.h"
 
 #define LOG_TAG "SidePanelCoordinatorAndroid"
 #define SPLOG(message)                                     \
@@ -35,11 +46,25 @@ const gfx::Rect kNoBounds(kInvalidCoordinate,
                           kInvalidCoordinate,
                           kInvalidCoordinate,
                           kInvalidCoordinate);
+constexpr char kAndroidSidePanelHistogramPrefix[] = "SidePanel.Android";
+
+void RecordAutoCloseOrRestoreMetric(SidePanelEntry* entry, bool is_auto_close) {
+  if (!entry) {
+    return;
+  }
+  std::string_view entry_name =
+      SidePanelEntryIdToHistogramName(entry->key().id());
+  std::string_view action =
+      is_auto_close ? ".OnWillAutoClose" : ".OnWillAutoRestore";
+  base::UmaHistogramBoolean(
+      base::StrCat({kAndroidSidePanelHistogramPrefix, ".", entry_name, action}),
+      true);
+}
 }  // namespace
 
-using base::android::AttachCurrentThread;
-using base::android::JavaRef;
-using base::android::ScopedJavaLocalRef;
+using jni_zero::AttachCurrentThread;
+using jni_zero::JavaRef;
+using jni_zero::ScopedJavaLocalRef;
 
 DEFINE_USER_DATA(SidePanelCoordinatorAndroid);
 
@@ -56,7 +81,9 @@ SidePanelCoordinatorAndroid::SidePanelCoordinatorAndroid(
     : SidePanelUIBase(browser),
       java_coordinator_(env, java_coordinator),
       scoped_unowned_user_data_(browser->GetUnownedUserDataHost(), *this),
-      tab_list_observer_(TabListInterface::From(browser), this) {
+      tab_model_observer_(
+          static_cast<TabModel*>(TabListInterface::From(browser)),
+          this) {
   SPLOG("SidePanelCoordinatorAndroid Constructor - browser: " << browser);
 }
 
@@ -66,90 +93,80 @@ SidePanelCoordinatorAndroid::~SidePanelCoordinatorAndroid() {
                                                       java_coordinator());
 }
 
-void SidePanelCoordinatorAndroid::Destroy(JNIEnv* env) {
+void SidePanelCoordinatorAndroid::Destroy() {
   SPLOG("Destroy");
   delete this;
 }
 
-void SidePanelCoordinatorAndroid::NotifyOpenAnimationFinished(JNIEnv* env) {
-  SPLOG("NotifyOpenAnimationFinished");
-
-  // We need to make the round trip to Java even when animations are suppressed,
-  // which can happen when the panel is already shown and being replaced.
-  CHECK(state_ == SidePanelState::kOpening || state_ == SidePanelState::kShown)
-      << "Should only receive open animation finished callback when side "
-         "panel is opening or being replaced (shown).";
-
-  // We should have a key and entry whether we are opening or shown.
-  std::optional<UniqueKey> key = current_key();
-  CHECK(key) << "Current key should exist when side panel is opening or shown.";
-
-  SidePanelEntry* entry = GetEntryForUniqueKey(*key);
-  CHECK(entry)
-      << "Current entry should exist when side panel is opening or shown.";
-
-  if (pending_replaced_entry_) {
-    pending_replaced_entry_->OnEntryHidden();
-    pending_replaced_entry_->OnEntryHiddenWithReason(pending_hide_reason_);
-    pending_replaced_entry_ = nullptr;
-    // TODO(crbug.com/494001968): Set `pending_hide_reason_` as
-    // std::nullopt or kUnknown
-  }
-
-  state_ = SidePanelState::kShown;
+void SidePanelCoordinatorAndroid::ClosePanel() {
+  SPLOG("ClosePanel");
+  SidePanelUI::Close();
 }
 
-void SidePanelCoordinatorAndroid::NotifyCloseAnimationFinished(JNIEnv* env) {
-  SPLOG("NotifyCloseAnimationFinished");
-
-  CHECK(IsClosing())
-      << "Should only receive close animation finished callback when side "
-         "panel is closing.";
-
-  std::optional<UniqueKey> key = current_key();
-  CHECK(key) << "Current key should exist when side panel animation finishes.";
-
-  SidePanelEntry* entry = GetEntryForUniqueKey(*key);
-  CHECK(entry)
-      << "Current entry should still exist when side panel is closing.";
-
-  SetCurrentKey(/*new_key=*/std::nullopt);
-
-  // Now that the animation has completed, we can update our local state to be
-  // closed, and trigger the entry hidden callbacks.
-  entry->OnEntryHidden();
-  entry->OnEntryHiddenWithReason(pending_hide_reason_);
-
-  // We need to explicitly reset the active entry for the "close side panel"
-  // case.
-  //
-  // Context as of Apr 15, 2026:
-  //
-  // `SidePanelRegistry` observes all its `SidePanelEntries` via
-  // `SidePanelEntryObserver`.
-  //
-  // For the "open side panel" case, the active entry is set via
-  // `SidePanelEntry::OnEntryShown()` -> `SidePanelRegistry::OnEntryShown()`.
-  //
-  // For the "close side panel" case, `SidePanelRegistry` doesn't implement
-  // `SidePanelEntryObserver::OnEntryHidden()` or
-  // `SidePanelEntryObserver::OnEntryHiddenWithReason()`, so
-  // `SidePanelEntry::OnEntryHidden()` and
-  // `SidePanelEntry::OnEntryHiddenWithReason()` can't reset the active entry.
-  //
-  // TODO(crbug.com/503113522): Consider having `SidePanelRegistry` _reset_ the
-  // active entry so it's consistent with how the active entry is _set_.
-  if (auto* contextual_registry = GetActiveContextualRegistry()) {
-    contextual_registry->ResetActiveEntry();
+bool SidePanelCoordinatorAndroid::HasContentToShow() {
+  switch (state_) {
+    case SidePanelState::kOpening:
+    case SidePanelState::kShown:
+      return true;
+    case SidePanelState::kClosing:
+      // Unlike `kClosed`, we shouldn't check whether there is a deferred entry
+      // for `kClosing`.
+      //
+      // This is because a deferred entry is added before `Close()`, so by the
+      // time the state is `kClosing`, a deferred entry already exists.
+      // For the side panel to be closed, we have to return `false` without
+      // checking whether there is a deferred entry.
+      return false;
+    case SidePanelState::kClosed: {
+      // When the side panel is `kClosed`, whether there is content to show
+      // depends on whether there is a deferred entry.
+      //
+      // A deferred entry is an entry that could have been shown, but was
+      // deferred due to Android constraints such as narrow window size.
+      tabs::TabInterface* active_tab =
+          TabListInterface::From(browser())->GetActiveTab();
+      return active_tab &&
+             deferred_entry_tracker_
+                 .GetTabOrWindowScopedEntry(active_tab->GetHandle())
+                 .has_value();
+    }
   }
-  if (auto* window_registry = SidePanelRegistry::From(browser())) {
-    window_registry->ResetActiveEntry();
+}
+
+void SidePanelCoordinatorAndroid::OnPanelContainerUpdated(int old_width,
+                                                          int new_width) {
+  SPLOG("OnPanelContainerUpdated - old_width: "
+        << old_width << ", new_width: " << new_width
+        << ", state: " << ToString(state_));
+
+  if (old_width == new_width) {
+    return;
   }
-  ClearCachedEntryViews();
 
-  SidePanelMetrics::RecordSidePanelClosed(opened_timestamp());
+  // The side panel has finished opening.
+  if (old_width == 0 && new_width > 0) {
+    CHECK_EQ(state_, SidePanelState::kOpening);
+    FinishOpeningPanel();
+    return;
+  }
 
-  state_ = SidePanelState::kClosed;
+  // The side panel has finished closing.
+  if (old_width > 0 && new_width == 0) {
+    CHECK_EQ(state_, SidePanelState::kClosing);
+    FinishClosingPanel();
+  }
+}
+
+void SidePanelCoordinatorAndroid::OnPanelContentReplaced() {
+  SPLOG("OnPanelContentReplaced");
+
+  CHECK(pending_replaced_entry_);
+  CHECK(pending_hide_reason_);
+
+  pending_replaced_entry_->OnEntryHidden();
+  pending_replaced_entry_->OnEntryHiddenWithReason(*pending_hide_reason_);
+  pending_replaced_entry_ = nullptr;
+  pending_hide_reason_ = std::nullopt;
 }
 
 void SidePanelCoordinatorAndroid::ShowFrom(
@@ -167,13 +184,9 @@ void SidePanelCoordinatorAndroid::ShowFrom(
 
 void SidePanelCoordinatorAndroid::Close(SidePanelEntryHideReason hide_reason,
                                         bool suppress_animations) {
-  SPLOG("Close - hide_reason: " << ToString(hide_reason)
-                                << ", suppress_animations: "
-                                << suppress_animations);
-  CHECK(state_ == SidePanelState::kOpening || state_ == SidePanelState::kShown)
-      << "Close calls should only occur for opening or shown side panels. "
-         "Current state: "
-      << ToString(state_);
+  SPLOG("Close - hide_reason: "
+        << ToString(hide_reason) << ", suppress_animations: "
+        << suppress_animations << ", state: " << ToString(state_));
 
   // Stop any pending load.
   waiter()->ResetLoadingEntryIfNecessary();
@@ -181,34 +194,96 @@ void SidePanelCoordinatorAndroid::Close(SidePanelEntryHideReason hide_reason,
   // If a ShowFrom() was pending, clear the starting bounds.
   last_starting_bounds_.reset();
 
-  if (!IsSidePanelShowing()) {
+  // Nothing to do if the side panel is not showing or is already closing.
+  if (!IsSidePanelShowing() || state_ == SidePanelState::kClosing) {
     return;
   }
 
-  std::optional<UniqueKey> key = current_key();
-  CHECK(key) << "Current key should exist when side panel is showing.";
+  // We are about to change `state_`, so end ongoing animations to reach a
+  // stable `state_` first. This includes notifying SidePanelEntries of the
+  // stable state.
+  EndAnimations();
 
-  SidePanelEntry* entry = GetEntryForUniqueKey(*key);
-  CHECK(entry) << "SidePanelEntry should exist when side panel is showing.";
-
-  // TODO(crbug.com/494001968): Handle kOpening state case.
-
-  // When we start to close, we will update state to closing, and send a remove
-  // request to Java, which will handle animations and call back when done.
-  state_ = SidePanelState::kClosing;
-  pending_hide_reason_ = hide_reason;
-
-  // TOOD(crbug.com/494001968): Handle suppressed animations case.
-  entry->OnEntryWillHide(pending_hide_reason_);
-  Java_SidePanelCoordinatorAndroidImpl_removeContentAndClose(
-      AttachCurrentThread(), java_coordinator(), suppress_animations);
+  StartClosingPanel(hide_reason, suppress_animations);
 }
 
-void SidePanelCoordinatorAndroid::OnTabReparented(tabs::TabInterface* tab) {
+void SidePanelCoordinatorAndroid::OnTabClosed(TabAndroid* tab) {
+  SPLOG("OnTabClosed - tab: " << tab);
+  CHECK(tab);
+
+  deferred_entry_tracker_.ClearTabScopedEntry(tab->GetHandle());
+
+  // During a tab switch (tab_1 -> tab_2), if tab_2's side panel View
+  // contains a ThinWebView, the Java side will delay removing tab_1's side
+  // panel View until tab_2's ThinWebView has rendered the first frame. This is
+  // to prevent UI flickers.
+  //
+  // This also means `OnPanelContentReplaced()` is called when tab_1 has become
+  // inactive.
+  //
+  // The following logic targets the case where a tab switch is triggered by
+  // _closing_ tab_1.
+  //
+  // In this case, we must _not_ delay removing tab_1's side panel View.
+  // Otherwise, when `OnPanelContentReplaced()` is called, the
+  // `pending_replaced_entry_` will be an invalid pointer since tab_1 is already
+  // destroyed.
+  CompletePendingContentReplacementForTab(tab);
+}
+
+void SidePanelCoordinatorAndroid::OnTabReparented(TabAndroid* tab) {
   SPLOG("OnTabReparented - tab: " << tab);
+  CHECK(tab);
+
+  // `OnTabReparented()` is triggered when the `tab` is removed from this
+  // SidePanelCoordinatorAndroid's window and has become the active tab in a
+  // new window.
+  //
+  // If this coordinator (window) has a deferred entry for the `tab`, we should
+  // set it as the tab's active entry so the side panel appears in the tab's new
+  // host window.
+  //
+  // A scenario where this logic is necessary:
+  // (1) Open a tab-scoped side panel.
+  // (2) Make the window narrow enough so the side panel is auto-closed. The
+  // tab's active entry will become a deferred entry.
+  // (3) Move the tab to a new window that's wide enough for the side panel.
+  // (4) The side panel should appear in the new window.
+  if (std::optional<UniqueKey> deferred_entry =
+          deferred_entry_tracker_.GetTabScopedEntry(tab->GetHandle())) {
+    if (SidePanelEntry* entry = GetEntryForUniqueKey(*deferred_entry)) {
+      if (auto* registry = SidePanelRegistry::From(tab)) {
+        registry->SetActiveEntry(entry);
+      }
+    }
+  }
+
+  deferred_entry_tracker_.ClearTabScopedEntry(tab->GetHandle());
+
+  // During a tab switch (tab_1 -> tab_2), if tab_2's side panel View
+  // contains a ThinWebView, the Java side will delay removing tab_1's side
+  // panel View until tab_2's ThinWebView has rendered the first frame. This is
+  // to prevent UI flickers.
+  //
+  // The following logic targets the case where a tab switch is triggered by
+  // _reparenting_ tab_1 to another window.
+  //
+  // In this case, we must _not_ delay removing tab_1's side panel View.
+  // Otherwise, the destination window will activate tab_1 and show its
+  // side panel, only for the async delay in the source window to finish
+  // later and unexpectedly call OnEntryHidden(), permanently freezing tab_1's
+  // UI in the destination window.
+  CompletePendingContentReplacementForTab(tab);
+
+  if (auto* registry = SidePanelRegistry::From(tab)) {
+    for (auto const& entry : registry->entries()) {
+      entry->ClearCachedView();
+    }
+  }
+
   // In multi-tab windows, when the active tab is reparented out, the source
   // window activates another tab first. This triggers
-  // `SidePanelTabListObserverAndroid::OnActiveTabChanged()`, which already
+  // `SidePanelTabModelObserver::DidSelectTab()`, which already
   // closes or replaces the side panel before this method runs, making any
   // additional cleanup here unnecessary.
   auto* tab_list = TabListInterface::From(browser());
@@ -222,7 +297,7 @@ void SidePanelCoordinatorAndroid::OnTabReparented(tabs::TabInterface* tab) {
   //
   // In this case, because the source window is left with 0 tabs, Android's
   // `TabListInterface` cannot select a new active tab and never fires
-  // `SidePanelTabListObserverAndroid::OnActiveTabChanged()`. Thus, the source
+  // `SidePanelTabModelObserver::DidSelectTab()`. Thus, the source
   // window's side panel remains open and `current_key()` still matches the
   // reparented tab here.
   //
@@ -240,31 +315,40 @@ void SidePanelCoordinatorAndroid::OnTabReparented(tabs::TabInterface* tab) {
   }
 }
 
-void SidePanelCoordinatorAndroid::OnWindowResized(JNIEnv* env,
-                                                  bool can_show_side_panel) {
-  SPLOG("OnWindowResized - can_show_side_panel: " << can_show_side_panel);
+void SidePanelCoordinatorAndroid::OnWillAutoClose() {
+  SPLOG("OnWillAutoClose");
 
-  if (is_window_too_small_ == !can_show_side_panel) {
+  if (has_insufficient_space_) {
     return;
   }
 
-  is_window_too_small_ = !can_show_side_panel;
+  has_insufficient_space_ = true;
 
-  // Case 1: Window became too small. Hide the current side panel.
-  if (!can_show_side_panel) {
-    if (IsSidePanelShowing() && !IsClosing()) {
-      deferred_entry_tracker_.AddActiveEntries();
+  if (IsSidePanelShowing() && state_ != SidePanelState::kClosing) {
+    RecordAutoCloseOrRestoreMetric(GetEntryForCurrentKeyNonNull(),
+                                   /*is_auto_close=*/true);
 
-      Close(SidePanelEntryHideReason::kWindowResized,
-            /*suppress_animations=*/true);
-    }
+    deferred_entry_tracker_.AddActiveEntries();
+
+    // TODO(crbug.com/527985639): Rename `kWindowResized` as
+    // `kInsufficientSpace`.
+    Close(SidePanelEntryHideReason::kWindowResized,
+          /*suppress_animations=*/true);
+  }
+}
+
+void SidePanelCoordinatorAndroid::OnWillAutoRestore() {
+  SPLOG("OnWillAutoRestore");
+
+  if (!has_insufficient_space_) {
     return;
   }
 
-  // Case 2: Window became large enough. Restore deferred entries.
-  CHECK(!IsSidePanelShowing() || IsClosing())
-      << "Side panel should not be visible when the window changes from "
-         "being too small to being large enough.";
+  has_insufficient_space_ = false;
+
+  CHECK(!IsSidePanelShowing() || state_ == SidePanelState::kClosing)
+      << "Side panel should not be visible when the available space changes"
+         " from insufficient to sufficient.";
 
   tabs::TabInterface* active_tab =
       TabListInterface::From(browser())->GetActiveTab();
@@ -274,11 +358,28 @@ void SidePanelCoordinatorAndroid::OnWindowResized(JNIEnv* env,
 
   // Check if there's a deferred entry tracked explicitly.
   std::optional<UniqueKey> key_to_show =
-      deferred_entry_tracker_.GetEntry(active_tab->GetHandle());
+      deferred_entry_tracker_.GetTabOrWindowScopedEntry(
+          active_tab->GetHandle());
 
   if (key_to_show) {
+    RecordAutoCloseOrRestoreMetric(GetEntryForUniqueKey(*key_to_show),
+                                   /*is_auto_close=*/false);
     Show(*key_to_show, SidePanelOpenTrigger::kWindowResized,
          /*suppress_animations=*/true);
+  }
+}
+
+void SidePanelCoordinatorAndroid::Init() {
+  SPLOG("Init");
+  // During tab tear-off (multi-window), a new Activity is created and the
+  // reparented tab is added to the tab model before this coordinator and
+  // its observer are constructed. Consequently, the observer misses the
+  // initial active tab change event. We explicitly trigger it here during
+  // initialization to restore the side panel state for the active tab.
+  if (tabs::TabInterface* active_tab =
+          TabListInterface::From(browser())->GetActiveTab()) {
+    OnActiveTabChanged(/*old_contents=*/nullptr, active_tab->GetContents(),
+                       /*tab_removed_for_deletion=*/false);
   }
 }
 
@@ -294,8 +395,10 @@ void SidePanelCoordinatorAndroid::Toggle(SidePanelEntryKey key,
     entry = SidePanelRegistry::From(browser())->GetEntryForKey(key);
   }
 
-  if (entry && ShouldClose() && IsSidePanelShowing() &&
-      IsSidePanelEntryShowing(key)) {
+  if (entry &&
+      (state_ == SidePanelState::kShown ||
+       state_ == SidePanelState::kOpening) &&
+      IsSidePanelShowing() && IsSidePanelEntryShowing(key)) {
     Close(SidePanelEntryHideReason::kSidePanelClosed,
           /*suppress_animations=*/false);
     return;
@@ -327,64 +430,112 @@ void SidePanelCoordinatorAndroid::SetNoDelaysForTesting(  // IN-TEST
   waiter()->SetNoDelaysForTesting(no_delays_for_testing);  // IN-TEST
 }
 
+SidePanelState SidePanelCoordinatorAndroid::GetStateForTesting() {  // IN-TEST
+  return state_;
+}
+
+int SidePanelCoordinatorAndroid::GetContainerWidthForTesting() {  // IN-TEST
+  return Java_SidePanelCoordinatorAndroidImpl_getContainerWidthForTesting(  // IN-TEST
+      AttachCurrentThread(), java_coordinator());
+}
+
+void SidePanelCoordinatorAndroid::
+    ConfigDeferredViewReplacementForTesting(  // IN-TEST
+        bool enable) {
+  Java_SidePanelCoordinatorAndroidImpl_configDeferredViewReplacementForTesting(  // IN-TEST
+      AttachCurrentThread(), java_coordinator(), enable);
+}
+
+void SidePanelCoordinatorAndroid::
+    SimulateAutoCloseConditionForTesting() {  // IN-TEST
+  Java_SidePanelCoordinatorAndroidImpl_simulateAutoCloseConditionForTesting(  // IN-TEST
+      AttachCurrentThread(), java_coordinator());
+}
+
+void SidePanelCoordinatorAndroid::
+    SimulateAutoRestoreConditionForTesting() {  // IN-TEST
+  Java_SidePanelCoordinatorAndroidImpl_simulateAutoRestoreConditionForTesting(  // IN-TEST
+      AttachCurrentThread(), java_coordinator());
+}
+
+bool SidePanelCoordinatorAndroid::
+    HasPendingReplacedEntryForTesting()  // IN-TEST
+    const {
+  return pending_replaced_entry_ != nullptr;
+}
+
 void SidePanelCoordinatorAndroid::Show(
     const UniqueKey& key,
     std::optional<SidePanelOpenTrigger> open_trigger,
     bool suppress_animations) {
+  // TODO(crbug.com/503719405): Remove CHECK once param is non-optional.
+  CHECK(open_trigger.has_value());
   SPLOG("Show - key: " << key << ", open_trigger: "
                        << (open_trigger ? ToString(*open_trigger) : "nullopt")
-                       << ", suppress_animations: " << suppress_animations);
+                       << ", suppress_animations: " << suppress_animations
+                       << ", state: " << ToString(state_));
 
-  if (is_window_too_small_) {
-    SPLOG("Show - window is too small, skipping.");
+  // Defer the show request if there is insufficient space to show the side
+  // panel.
+  //
+  // Note that `Show()` can be called when
+  // (1) There isn't sufficient space to show the side panel, and
+  // (2) `has_insufficient_space_` hasn't been updated by `onWillAutoClose()`
+  // or `onWillAutoRestore()`.
+  //
+  // One such case is tab reparenting: moving a tab with a tab-scoped side panel
+  // to a narrow window.
+  //
+  // So we call into Java to update `has_insufficient_space_`.
+  has_insufficient_space_ = !Java_SidePanelCoordinatorAndroidImpl_canShow(
+      AttachCurrentThread(), java_coordinator());
+  if (has_insufficient_space_) {
+    SPLOG("Show - insufficient space, skipping.");
     deferred_entry_tracker_.AddEntry(key);
     return;
   }
-
   deferred_entry_tracker_.ClearEntry(key);
 
   SidePanelEntry* entry = GetEntryForUniqueKey(key);
   if (!entry) {
     return;
   }
-
   CHECK(entry->type() == SidePanelType::kToolbar)
       << "Android Side Panel only supports kToolbar entries.";
 
+  // Check #IsSidePanelShowing() specifically to stay aligned with other
+  // platforms.
   if (!IsSidePanelShowing()) {
     SetOpenedTimestamp(base::TimeTicks::Now());
     SidePanelMetrics::RecordSidePanelOpen(open_trigger);
   }
-
   SidePanelMetrics::RecordSidePanelShowOrChangeEntryTrigger(open_trigger);
 
-  if (IsSidePanelShowing()) {
-    SPLOG("Show - Side panel is already showing.");
-    std::optional<UniqueKey> current_entry_key = current_key();
-    CHECK(current_entry_key)
-        << "Current entry key should exist when side panel is showing.";
+  if (IsSidePanelShowing() && GetCurrentKeyNonNull() == key) {
+    SPLOG("Show - Requested to show an entry that's already shown.");
 
     // If the current entry is the same as the new entry we're trying to show,
     // we should cancel loading the new entry and keep the side panel visible.
-    //
-    // Not doing the above will cause the same entry to be loaded again and sent
-    // to `PopulateSidePanel()`, whose logic will replace the current entry
-    // with itself and then mark the entry as closed, since the same entry is
-    // both the "previous entry" and the "new entry".
-    if (*current_entry_key == key) {
-      SPLOG("Show - Entry already visible, resetting and returning.");
-      waiter()->ResetLoadingEntryIfNecessary();
+    waiter()->ResetLoadingEntryIfNecessary();
 
-      // If a ShowFrom() was pending or attempted on a visible entry, clear it.
-      last_starting_bounds_.reset();
+    // If a ShowFrom() was pending or attempted on a visible entry, clear it.
+    last_starting_bounds_.reset();
 
-      // TODO(crbug.com/493931047): Handle the case where the current entry is
-      // being closed, i.e., when `state_` is `SidePanelState::kClosing`.
-      // In this case, we should:
-      //   (1) stop the closing animation and keep the side panel open, and
-      //   (2) notify the entry of `OnEntryHideCancelled()`.
+    if (state_ != SidePanelState::kClosing) {
       return;
     }
+
+    // When we show an entry that's closing, we'll end the closing animation
+    // first, then start showing the entry.
+    //
+    // Also, we should invoke the entry's OnEntryHideCancelled() and skip
+    // OnEntryHidden().
+    //
+    // Therefore, we clear pending_hide_reason_ here so that when the closing
+    // animation ends, OnPanelClosed() won't invoke OnEntryHidden().
+    SPLOG("Show - Requested to show an entry that's closing");
+    pending_hide_reason_ = std::nullopt;
+    entry->OnEntryHideCancelled();
   }
 
   SidePanelMetrics::RecordEntryShowTriggeredMetrics(entry->key().id(),
@@ -402,6 +553,10 @@ void SidePanelCoordinatorAndroid::PopulateSidePanel(
     std::optional<SidePanelOpenTrigger> open_trigger,
     SidePanelEntry* entry,
     std::optional<SidePanelNativeView> content_view) {
+  // TODO(crbug.com/503719405): Remove CHECK once param is non-optional.
+  CHECK(open_trigger.has_value());
+
+  entry->set_last_open_trigger(open_trigger);
   SPLOG("PopulateSidePanel - unique_key: "
         << unique_key << ", suppress_animations: " << suppress_animations);
   std::unique_ptr<SidePanelNativeViewAndroid> native_view =
@@ -412,45 +567,182 @@ void SidePanelCoordinatorAndroid::PopulateSidePanel(
     return;
   }
 
-  // Case 1: If the side panel isn't shown, just show it.
-  //
-  // If the side panel isn't shown, we will open it with/without animations
-  // based on the `suppress_animations` param.
+  // We are about to change `state_`, so end ongoing animations to reach a
+  // stable `state_` first. This includes notifying SidePanelEntries of the
+  // stable state.
+  EndAnimations();
+
   if (!IsSidePanelShowing()) {
-    SPLOG("PopulateSidePanel - No Side Panel showing, opening new panel.");
-    state_ = SidePanelState::kOpening;
-    SetCurrentKey(unique_key);
-    entry->OnEntryShown();
-
-    // We need to cache the `native_view` here after its internal Java View has
-    // been populated into the UI. Otherwise, the `native_view` will be
-    // destroyed since `entry->GetContent()` std::moved it. The underlying Java
-    // View will still be alive, since it's in the View hierarchy. Without
-    // caching the `native_view`, a new Java View will be created for the same
-    // entry in cases like switching tabs.
-    //
-    // Note that this is slightly different from the WML `SidePanelCoordinator`.
-    // On WML, when the View is being shown on the UI, the ownership of the View
-    // is transferred to the UI and the cache in `SidePanelEntry` is empty.
-    // When the View is removed from the UI, it'll be put back into the cache.
-    PopulateJavaSidePanel(native_view->view(), suppress_animations);
-    entry->CacheView(std::move(native_view));
-    return;
+    StartOpeningPanel(entry, unique_key, suppress_animations,
+                      std::move(native_view));
+  } else {
+    // Note: when we replace the side panel's UI contents, no animation should
+    // be played. However, we can't CHECK(suppress_animations) as the side panel
+    // feature calling Show() may not be aware of the current side panel state.
+    StartReplacingPanelContent(entry, unique_key, *open_trigger,
+                               std::move(native_view));
   }
-  SPLOG("PopulateSidePanel - Side Panel already showing, replacing content.");
+}
 
-  // Case 2: If the side panel is already shown, replace the UI contents.
+void SidePanelCoordinatorAndroid::StartOpeningPanel(
+    SidePanelEntry* entry,
+    const UniqueKey& unique_key,
+    bool suppress_animations,
+    std::unique_ptr<SidePanelNativeViewAndroid> native_view) {
+  SPLOG("StartOpeningPanel - suppress_animations: " << suppress_animations);
+  state_ = SidePanelState::kOpening;
+  SetCurrentKey(unique_key);
+  entry->OnEntryShown();
+
+  // We need to cache the `native_view` here after its internal Java View has
+  // been populated into the UI. Otherwise, the `native_view` will be
+  // destroyed since `entry->GetContent()` std::moved it. The underlying Java
+  // View will still be alive, since it's in the View hierarchy. Without
+  // caching the `native_view`, a new Java View will be created for the same
+  // entry in cases like switching tabs.
   //
-  // Note: when we replace the side panel's UI contents, no animation should be
-  // played. However, we can't CHECK(suppress_animations) as the side panel
-  // feature calling Show() may not be aware of the current side panel state.
-  std::optional<UniqueKey> previous_entry_key = current_key();
-  CHECK(previous_entry_key)
-      << "Current key should exist when side panel is showing.";
+  // Note that this is slightly different from the WML `SidePanelCoordinator`.
+  // On WML, when the View is being shown on the UI, the ownership of the View
+  // is transferred to the UI and the cache in `SidePanelEntry` is empty.
+  // When the View is removed from the UI, it'll be put back into the cache.
+  gfx::Rect start_bounds = last_starting_bounds_.value_or(kNoBounds);
+  last_starting_bounds_.reset();
+  std::u16string_view title = SidePanelUtil::GetTitleText(entry, browser());
 
-  pending_replaced_entry_ = GetEntryForUniqueKey(*previous_entry_key);
-  CHECK(pending_replaced_entry_)
-      << "SidePanelEntry should exist when side panel is showing.";
+  JNIEnv* env = AttachCurrentThread();
+  Java_SidePanelCoordinatorAndroidImpl_startOpeningPanel(
+      env, java_coordinator(), native_view->view(), title,
+      entry->should_show_header(), start_bounds.x(), start_bounds.y(),
+      start_bounds.width(), start_bounds.height(), suppress_animations);
+  entry->CacheView(std::move(native_view));
+}
+
+void SidePanelCoordinatorAndroid::FinishOpeningPanel() {
+  SPLOG("FinishOpeningPanel");
+  CHECK(state_ == SidePanelState::kOpening)
+      << "Should only call FinishOpeningPanel() when side panel is opening.";
+  state_ = SidePanelState::kShown;
+}
+
+void SidePanelCoordinatorAndroid::StartClosingPanel(
+    SidePanelEntryHideReason hide_reason,
+    bool suppress_animations) {
+  SPLOG("StartClosingPanel - hide_reason: " << ToString(hide_reason)
+                                            << ", suppress_animations: "
+                                            << suppress_animations);
+
+  state_ = SidePanelState::kClosing;
+  SidePanelEntry* entry = GetEntryForCurrentKeyNonNull();
+  entry->OnEntryWillHide(hide_reason);
+  pending_hide_reason_ = hide_reason;
+  Java_SidePanelCoordinatorAndroidImpl_startClosingPanel(
+      AttachCurrentThread(), java_coordinator(), suppress_animations);
+}
+
+void SidePanelCoordinatorAndroid::FinishClosingPanel() {
+  SPLOG("FinishClosingPanel");
+  CHECK(state_ == SidePanelState::kClosing)
+      << "Should only call FinishClosingPanel() when side panel is closing.";
+
+  SidePanelEntry* entry = GetEntryForCurrentKeyNonNull();
+
+  SetCurrentKey(/*new_key=*/std::nullopt);
+
+  // Now that the animation has completed, we can update our local state to be
+  // closed, and trigger the entry hidden callbacks.
+  if (pending_hide_reason_) {
+    entry->OnEntryHidden();
+    entry->OnEntryHiddenWithReason(*pending_hide_reason_);
+    pending_hide_reason_ = std::nullopt;
+
+    // We need to explicitly reset the active entry for the "close side panel"
+    // case.
+    //
+    // Context as of Apr 15, 2026:
+    //
+    // `SidePanelRegistry` observes all its `SidePanelEntries` via
+    // `SidePanelEntryObserver`.
+    //
+    // For the "open side panel" case, the active entry is set via
+    // `SidePanelEntry::OnEntryShown()` -> `SidePanelRegistry::OnEntryShown()`.
+    //
+    // For the "close side panel" case, `SidePanelRegistry` doesn't implement
+    // `SidePanelEntryObserver::OnEntryHidden()` or
+    // `SidePanelEntryObserver::OnEntryHiddenWithReason()`, so
+    // `SidePanelEntry::OnEntryHidden()` and
+    // `SidePanelEntry::OnEntryHiddenWithReason()` can't reset the active entry.
+    //
+    // TODO(crbug.com/503113522): Consider having `SidePanelRegistry` _reset_
+    // the active entry so it's consistent with how the active entry is _set_.
+    if (auto* contextual_registry = GetActiveContextualRegistry()) {
+      contextual_registry->ResetActiveEntry();
+    }
+    if (auto* window_registry = SidePanelRegistry::From(browser())) {
+      window_registry->ResetActiveEntry();
+    }
+    ClearCachedEntryViews();
+
+    SidePanelMetrics::RecordSidePanelClosed(opened_timestamp());
+  }
+
+  state_ = SidePanelState::kClosed;
+}
+
+void SidePanelCoordinatorAndroid::StartReplacingPanelContent(
+    SidePanelEntry* new_entry,
+    const UniqueKey& new_key,
+    SidePanelOpenTrigger open_trigger,
+    std::unique_ptr<SidePanelNativeViewAndroid> native_view) {
+  SPLOG("StartReplacingPanelContent.");
+
+  // If there is already a pending replacement waiting for Java to finish, we
+  // MUST synchronously complete it right now before we overwrite
+  // `pending_replaced_entry_`. Otherwise, Java will synchronously complete it
+  // later during this function call, but it will incorrectly invoke
+  // OnEntryHidden() on the NEW pending_replaced_entry_ instead of the OLD one,
+  // permanently breaking state!
+  if (pending_replaced_entry_) {
+    Java_SidePanelCoordinatorAndroidImpl_completePendingContentReplacement(
+        AttachCurrentThread(), java_coordinator());
+  }
+
+  // Always clear the current tab's active entry before replacing the current
+  // entry.
+  //
+  // This implements requirements for cross-registry entry replacement:
+  //
+  // (a) If a window-scoped entry replaces a tab-scoped entry, the tab-scoped
+  // entry should become _inactive_.
+  //
+  // (b) If a tab-scoped entry replaces a window-scoped entry, the window-scoped
+  // entry should remain _active_.
+  //
+  // (c) If a tab-scoped entry replaces another tab-scoped entry in a different
+  // tab, StartReplacingPanelContent() is called _after_ the active tab has
+  // changed, so clearing the active entry for the new active tab's registry is
+  // fine: the new entry will be set as the new tab's active entry when
+  // `OnEntryShown()` is called below.
+  //
+  // Please see https://crbug.com/508402076#comment5 for more details on
+  // cross-registry entry replacement.
+  //
+  // Note that this _doesn't_ break same-registry entry replacement:
+  //
+  // (a) If both the old entry and the new entry belong to the same tab-scoped
+  // registry, the new entry's `OnEntryShown()` function will set the new entry
+  // as the active entry.
+  //
+  // (b) If both the old entry and the new entry belong to the same
+  // window-scoped registry, clearing the active entry for the active tab's
+  // registry is a no-op.
+  if (auto* contextual_registry = GetActiveContextualRegistry()) {
+    contextual_registry->ResetActiveEntry();
+  }
+
+  UniqueKey current_key = GetCurrentKeyNonNull();
+  CHECK(!pending_replaced_entry_) << "Another entry is waiting to be replaced";
+  pending_replaced_entry_ = GetEntryForUniqueKey(current_key);
+  CHECK(pending_replaced_entry_) << "No SidePanelEntry to replace";
 
   // The existing panel may have been loading, so we should cancel any load
   // methods as well.
@@ -458,37 +750,47 @@ void SidePanelCoordinatorAndroid::PopulateSidePanel(
 
   // The existing panel will receive a hidden event, which needs a reason.
   pending_hide_reason_ = SidePanelEntryHideReason::kReplaced;
-  if (open_trigger && *open_trigger == SidePanelOpenTrigger::kTabChanged) {
-    pending_hide_reason_ = SidePanelEntryHideReason::kBackgrounded;
-  } else if (!open_trigger && previous_entry_key->tab_handle &&
-             unique_key.tab_handle &&
-             previous_entry_key->tab_handle != unique_key.tab_handle) {
-    // Some side panel features observe active tab changes on their own and call
-    // `SidePanelCoordinatorAndroid::Show` without an `open_trigger`. In such
-    // cases, we use the entry keys' `tab_handle`s as a heuristic to
-    // determine if `SidePanelEntryHideReason` should be `kBackgrounded`.
-    //
-    // TODO(crbug.com/503719405): Investigate whether we should always require
-    // `open_trigger` for `SidePanelCoordinatorAndroid::Show`.
+
+  if (open_trigger == SidePanelOpenTrigger::kTabChanged) {
     pending_hide_reason_ = SidePanelEntryHideReason::kBackgrounded;
   }
 
-  pending_replaced_entry_->OnEntryWillHide(pending_hide_reason_);
+  pending_replaced_entry_->OnEntryWillHide(*pending_hide_reason_);
 
-  // Now same as above, we set key before populate.
-  SetCurrentKey(unique_key);
-  entry->OnEntryShown();
+  // Set key before replacing the current entry.
+  SetCurrentKey(new_key);
+  new_entry->OnEntryShown();
 
-  // When populating the view, we will force there to be no animation,
-  // regardless of param.
+  // Similar to StartOpeningPanel(), we need to cache the `native_view` here.
   //
-  // Similar to Case 1, we need to cache the `native_view` here.
-  //
-  // Note: we don't clear the cached View for `pending_replaced_entry_`,
-  // regardless of `pending_hide_reason_`. This mirrors the WML
+  // Note: we don't clear the cached View for `current_entry`,
+  // regardless of `hide_reason`. This mirrors the WML
   // `SidePanelCoordinator` behavior.
-  PopulateJavaSidePanel(native_view->view(), /*suppress_animations=*/true);
-  entry->CacheView(std::move(native_view));
+  std::u16string_view title = SidePanelUtil::GetTitleText(new_entry, browser());
+
+  JNIEnv* env = AttachCurrentThread();
+  Java_SidePanelCoordinatorAndroidImpl_startReplacingPanelContent(
+      env, java_coordinator(), native_view->view(), title,
+      new_entry->should_show_header());
+  new_entry->CacheView(std::move(native_view));
+}
+
+void SidePanelCoordinatorAndroid::EndAnimations() {
+  Java_SidePanelCoordinatorAndroidImpl_endAnimations(AttachCurrentThread(),
+                                                     java_coordinator());
+  CHECK(state_ == SidePanelState::kClosed || state_ == SidePanelState::kShown)
+      << "Side panel should be in a stable state after ending all animations.";
+}
+
+void SidePanelCoordinatorAndroid::CompletePendingContentReplacementForTab(
+    TabAndroid* tab) {
+  if (auto* registry = SidePanelRegistry::From(tab)) {
+    if (pending_replaced_entry_ &&
+        registry->GetActiveEntry() == pending_replaced_entry_) {
+      Java_SidePanelCoordinatorAndroidImpl_completePendingContentReplacement(
+          AttachCurrentThread(), java_coordinator());
+    }
+  }
 }
 
 void SidePanelCoordinatorAndroid::MaybeShowEntryOnTabStripModelChanged(
@@ -510,12 +812,11 @@ void SidePanelCoordinatorAndroid::MaybeShowEntryOnTabStripModelChanged(
       Show(*new_active_key, SidePanelOpenTrigger::kTabChanged,
            /*suppress_animations=*/true);
     } else {
-      std::optional<UniqueKey> key = current_key();
-      CHECK(key) << "Current key should exist when side panel is showing.";
+      UniqueKey key = GetCurrentKeyNonNull();
 
       if (old_contextual_registry &&
           old_contextual_registry->GetTabInterface().GetHandle() ==
-              key->tab_handle) {
+              key.tab_handle) {
         Close(SidePanelEntryHideReason::kBackgrounded,
               /*suppress_animations=*/true);
       }
@@ -524,11 +825,13 @@ void SidePanelCoordinatorAndroid::MaybeShowEntryOnTabStripModelChanged(
         // If there is no active entry in the new tab's registry, check if there
         // is a deferred entry saved in the tracker for this tab or this window.
         // This handles cases where a side panel was hidden due to constraints
-        // like a narrow window size.
-        // `Show()` handles `is_window_too_small_ == true`, and adds the entry
-        // to `SidePanelDeferredEntryTracker` if needed.
-        std::optional<UniqueKey> key_to_show = deferred_entry_tracker_.GetEntry(
-            new_contextual_registry->GetTabInterface().GetHandle());
+        // like insufficient space.
+        //
+        // `Show()` handles `has_insufficient_space_ == true`, and adds the
+        // entry to `SidePanelDeferredEntryTracker` if needed.
+        std::optional<UniqueKey> key_to_show =
+            deferred_entry_tracker_.GetTabOrWindowScopedEntry(
+                new_contextual_registry->GetTabInterface().GetHandle());
         if (key_to_show) {
           // Suppress animations to avoid jarring UX during tab switches, and
           // use SidePanelOpenTrigger::kWindowResized as the trigger to match
@@ -554,11 +857,12 @@ void SidePanelCoordinatorAndroid::MaybeShowEntryOnTabStripModelChanged(
     // If there is no active entry in the new tab's registry, check if there
     // is a deferred entry saved in the tracker for this tab or this window.
     // This handles cases where a side panel was hidden due to constraints
-    // like a narrow window size.
-    // `Show()` handles `is_window_too_small_ == true`, and adds the entry
+    // like insufficient space.
+    // `Show()` handles `has_insufficient_space_ == true`, and adds the entry
     // to `SidePanelDeferredEntryTracker` if needed.
-    std::optional<UniqueKey> key_to_show = deferred_entry_tracker_.GetEntry(
-        new_contextual_registry->GetTabInterface().GetHandle());
+    std::optional<UniqueKey> key_to_show =
+        deferred_entry_tracker_.GetTabOrWindowScopedEntry(
+            new_contextual_registry->GetTabInterface().GetHandle());
     if (key_to_show) {
       // Suppress animations to avoid jarring UX during tab switches, and use
       // SidePanelOpenTrigger::kWindowResized as the trigger to match the close
@@ -567,11 +871,6 @@ void SidePanelCoordinatorAndroid::MaybeShowEntryOnTabStripModelChanged(
            /*suppress_animations=*/true);
     }
   }
-}
-
-void SidePanelCoordinatorAndroid::ClearDeferredEntryForTab(
-    const tabs::TabHandle& tab_handle) {
-  deferred_entry_tracker_.ClearEntryForTab(tab_handle);
 }
 
 void SidePanelCoordinatorAndroid::ClearCachedEntryViews() {
@@ -599,20 +898,6 @@ ScopedJavaLocalRef<jobject> SidePanelCoordinatorAndroid::java_coordinator()
   return local_ref;
 }
 
-void SidePanelCoordinatorAndroid::PopulateJavaSidePanel(
-    const JavaRef<jobject>& view,
-    bool suppress_animations) {
-  // Pass the starting bounds to Java. If no bounds were provided (e.g. not a
-  // ShowFrom call), we use kNoBounds as a sentinel for JNI.
-  gfx::Rect start_bounds = last_starting_bounds_.value_or(kNoBounds);
-  last_starting_bounds_.reset();
-
-  Java_SidePanelCoordinatorAndroidImpl_populateSidePanel(
-      AttachCurrentThread(), java_coordinator(), view, start_bounds.x(),
-      start_bounds.y(), start_bounds.width(), start_bounds.height(),
-      suppress_animations);
-}
-
 bool SidePanelCoordinatorAndroid::CanShowEntryForKey(
     const UniqueKey& key) const {
   if (!GetEntryForUniqueKey(key)) {
@@ -627,6 +912,20 @@ bool SidePanelCoordinatorAndroid::CanShowEntryForKey(
   }
 
   return !key.tab_handle.has_value();
+}
+
+SidePanelUIBase::UniqueKey SidePanelCoordinatorAndroid::GetCurrentKeyNonNull()
+    const {
+  std::optional<UniqueKey> key = current_key();
+  CHECK(key) << "Current entry key is expected to exist.";
+  return *key;
+}
+
+SidePanelEntry* SidePanelCoordinatorAndroid::GetEntryForCurrentKeyNonNull()
+    const {
+  SidePanelEntry* entry = GetEntryForUniqueKey(GetCurrentKeyNonNull());
+  CHECK(entry) << "SidePanelEntry is expected to exist.";
+  return entry;
 }
 
 // ----------------------------------------------------------------------------

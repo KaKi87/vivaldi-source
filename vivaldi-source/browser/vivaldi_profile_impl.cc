@@ -34,6 +34,7 @@
 #include "components/page_actions/page_actions_service_factory.h"
 #include "components/search_engines/default_search_engine_observer.h"
 #include "components/translate/core/browser/translate_pref_names.h"
+#include "components/user_agent/vivaldi_user_agent_config_service_factory.h"
 #include "contact/contact_model_loaded_observer.h"
 #include "contact/contact_service_factory.h"
 #include "menus/context_menu_service_factory.h"
@@ -209,6 +210,10 @@ void VivaldiInitProfile(Profile* profile) {
     if (utility_api) {
       utility_api->PostProfileSetup();
     }
+
+    vivaldi_user_agent::VivaldiUserAgentConfigServiceFactory::
+        GetForBrowserContext(profile);
+
   }
   if (!vivaldi::IsVivaldiRunning())
     return;

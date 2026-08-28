@@ -29,7 +29,7 @@ NSMenuItem* BuildAppMenu(NSApplication* nsapp, AppController* app_controller) {
 
   NSMenuItem* item =
       Item(IDS_VIVALDI_APP_NAME)
-          .tag(IDC_CHROME_MENU)
+          .tag(kMacChromeMenuId)
           .submenu({
             Item(IDS_ABOUT_MAC)
                 .string_format_1(appname)
@@ -62,7 +62,7 @@ NSMenuItem* BuildAppMenu(NSApplication* nsapp, AppController* app_controller) {
 NSMenuItem* BuildFileMenu(NSApplication* nsapp, AppController* app_controller) {
   NSMenuItem* item =
       Item(IDS_FILE_MENU_MAC)
-          .tag(IDC_FILE_MENU)
+          .tag(kMacFileMenuId)
           .submenu({
             Item(IDS_NEW_TAB_MAC).command_id(IDC_NEW_TAB),
                 Item(IDS_NEW_WINDOW_MAC).command_id(IDC_NEW_WINDOW),
@@ -89,7 +89,7 @@ NSMenuItem* BuildFileMenu(NSApplication* nsapp, AppController* app_controller) {
 NSMenuItem* BuildEditMenu(NSApplication* nsapp, AppController* app_controller) {
   NSMenuItem* item =
       Item(IDS_EDIT_MENU_MAC)
-          .tag(IDC_EDIT_MENU)
+          .tag(kEditMenuId)
           .submenu({
             Item(IDS_EDIT_UNDO_MAC)
                 .tag(IDC_CONTENT_CONTEXT_UNDO)
@@ -119,7 +119,7 @@ NSMenuItem* BuildEditMenu(NSApplication* nsapp, AppController* app_controller) {
                 // Content below is not configurable. It will be tested for and
                 // kept when setting up menus with data from UI.
                 Item(IDS_EDIT_SPELLING_GRAMMAR_MAC)
-                    .tag(IDC_SPELLCHECK_MENU)
+                    .tag(kSpellcheckMenuId)
                     .submenu({
                       Item(IDS_EDIT_SHOW_SPELLING_GRAMMAR_MAC)
                           .action(@selector(showGuessPanel:))
@@ -183,7 +183,7 @@ NSMenuItem* BuildViewMenu(NSApplication* nsapp, AppController* app_controller) {
 NSMenuItem* BuildBookmarksMenu(NSApplication* nsapp,
                                AppController* app_controller) {
   NSMenuItem* item = Item(IDS_BOOKMARKS_MENU)
-                         .tag(IDC_BOOKMARKS_MENU)
+                         .tag(kBookmarksMenuId)
                          .submenu({
                              // Empty. Contents added elsewhere.
                          })
@@ -202,14 +202,14 @@ NSMenuItem* BuildWindowMenu(NSApplication* nsapp,
                             AppController* app_controller) {
   NSMenuItem* item =
       Item(IDS_WINDOW_MENU_MAC)
-          .tag(IDC_WINDOW_MENU)
+          .tag(kMacWindowMenuId)
           .submenu({
             Item(IDS_ZOOM_WINDOW_MAC)
                 .tag(IDC_MAXIMIZE_WINDOW)
                 .action(@selector(performZoom:)),
                 Item().is_separator(),
                 Item(IDS_ALL_WINDOWS_FRONT_MAC)
-                    .tag(IDC_ALL_WINDOWS_FRONT)
+                    .tag(kMacAllWindowsMenuId)
                     .action(@selector(arrangeInFront:)),
                 Item().is_separator().tag(
                     IDC_VIV_WINDOW_SEPARATOR_MAC),  // Start of dynamic tab list

@@ -68,45 +68,54 @@ class SyncedNoteTracker {
   // is no need to reupload them again after next browser startup.
   void SetNotesReuploaded();
 
-  // Returns null if no entity is found.
-  const SyncedNoteTrackerEntity* GetEntityForSyncId(
+  // Performs a linear scan over all tracked entities to find the entity
+  // matching `sync_id`. Prefer using GetEntityForUuid(),
+  // GetEntityForClientTagHash(), or GetEntityForNoteNode() whenever
+  // possible. Returns null if no entity is found.
+  SyncedNoteTrackerEntity* GetEntityForSyncIdExhaustively(
+      const std::string& sync_id);
+  const SyncedNoteTrackerEntity* GetEntityForSyncIdExhaustively(
       const std::string& sync_id) const;
 
   // Returns null if no entity is found.
+  SyncedNoteTrackerEntity* GetEntityForClientTagHash(
+      const syncer::ClientTagHash& client_tag_hash);
   const SyncedNoteTrackerEntity* GetEntityForClientTagHash(
       const syncer::ClientTagHash& client_tag_hash) const;
 
   // Convenience function, similar to GetEntityForClientTagHash().
+  SyncedNoteTrackerEntity* GetEntityForUuid(const base::Uuid& uuid);
   const SyncedNoteTrackerEntity* GetEntityForUuid(const base::Uuid& uuid) const;
 
   // Returns null if no entity is found.
+  SyncedNoteTrackerEntity* GetEntityForNoteNode(const vivaldi::NoteNode* node);
   const SyncedNoteTrackerEntity* GetEntityForNoteNode(
       const vivaldi::NoteNode* node) const;
 
-  // Starts tracking local note `note_node`, which must not be tracked
-  // beforehand. The rest of the arguments represent the initial metadata.
+  // Starts tracking local note `note_node` that is not yet committed to
+  // the server. It must not be tracked beforehand.
   // Returns the tracked entity.
-  const SyncedNoteTrackerEntity* Add(const vivaldi::NoteNode* note_node,
+  SyncedNoteTrackerEntity* AddLocalCreation(
+      const vivaldi::NoteNode* note_node,
+      const std::string& sync_id,
+      base::Time creation_time,
+      const sync_pb::EntitySpecifics& specifics);
+
+  // Starts tracking remote note `note_node` that is already synced.
+  // It must not be tracked beforehand. `server_version` must not be
+  // `kUncommittedVersion`.
+  // Returns the tracked entity.
+  SyncedNoteTrackerEntity* AddRemote(const vivaldi::NoteNode* note_node,
                                      const std::string& sync_id,
                                      int64_t server_version,
                                      base::Time creation_time,
                                      const sync_pb::EntitySpecifics& specifics);
 
-  // Updates the sync metadata for a tracked entity. `entity` must be owned by
-  // this tracker.
-  void Update(const SyncedNoteTrackerEntity* entity,
-              int64_t server_version,
-              base::Time modification_time,
-              const sync_pb::EntitySpecifics& specifics);
-
-  // Updates the server version of an existing entity. `entity` must be owned by
-  // this tracker.
-  void UpdateServerVersion(const SyncedNoteTrackerEntity* entity,
-                           int64_t server_version);
-
-  // Marks an existing entry that a commit request might have been sent to the
-  // server. `entity` must be owned by this tracker.
-  void MarkCommitMayHaveStarted(const SyncedNoteTrackerEntity* entity);
+  // Overrides the server ID and version of an existing entity.
+  // Internally calls `UpdateSyncIdIfNeeded` and updates the version.
+  void OverrideServerMetadata(const syncer::ClientTagHash& client_tag_hash,
+                              const std::string& sync_id,
+                              int64_t server_version);
 
   // This class maintains the order of calls to this method and the same order
   // is guaranteed when returning local changes in
@@ -119,10 +128,6 @@ class SyncedNoteTracker {
   // owned by this tracker. `location` is used to propagate
   // debug information about which piece of code triggered the deletion.
   void Remove(const SyncedNoteTrackerEntity* entity);
-
-  // Increment sequence number in the metadata for `entity`. `entity` must be
-  // owned by this tracker.
-  void IncrementSequenceNumber(const SyncedNoteTrackerEntity* entity);
 
   sync_pb::NotesModelMetadata BuildNoteModelMetadata() const;
 
@@ -141,35 +146,19 @@ class SyncedNoteTracker {
   }
 
   std::vector<const SyncedNoteTrackerEntity*> GetAllEntities() const;
+  std::vector<SyncedNoteTrackerEntity*> GetAllMutableEntities();
 
   std::vector<const SyncedNoteTrackerEntity*> GetEntitiesWithLocalChanges()
       const;
-
-  // Updates the tracker after receiving the commit response. `sync_id` should
-  // match the already tracked sync ID for `entity`, with the exception of the
-  // initial commit, where the temporary client-generated ID will be overridden
-  // by the server-provided final ID. `entity` must be owned by this tracker.
-  void UpdateUponCommitResponse(const SyncedNoteTrackerEntity* entity,
-                                const std::string& sync_id,
-                                int64_t server_version,
-                                int64_t acked_sequence_number);
-
-  // Informs the tracker that the sync ID for `entity` has changed. It updates
-  // the internal state of the tracker accordingly. `entity` must be owned by
-  // this tracker.
-  void UpdateSyncIdIfNeeded(const SyncedNoteTrackerEntity* entity,
-                            const std::string& sync_id);
+  std::vector<SyncedNoteTrackerEntity*> GetMutableEntitiesWithLocalChanges();
 
   // Used to start tracking an entity that overwrites a previous local tombstone
   // (e.g. user-initiated note deletion undo). `entity` must be owned by
   // this tracker.
   void UndeleteTombstoneForNoteNode(const SyncedNoteTrackerEntity* entity,
-                                    const vivaldi::NoteNode* node);
-
-  // Set the value of `EntityMetadata.acked_sequence_number` for `entity` to be
-  // equal to `EntityMetadata.sequence_number` such that it is not returned in
-  // GetEntitiesWithLocalChanges(). `entity` must be owned by this tracker.
-  void AckSequenceNumber(const SyncedNoteTrackerEntity* entity);
+                                    const vivaldi::NoteNode* node,
+                                    const sync_pb::EntitySpecifics& specifics,
+                                    base::Time modification_time);
 
   // Whether the tracker is empty or not.
   bool IsEmpty() const;
@@ -219,6 +208,11 @@ class SyncedNoteTracker {
           max_version_among_ignored_updates_due_to_missing_parent,
       file_sync::SyncedFileStore* synced_file_store);
 
+  SyncedNoteTrackerEntity* AddInternal(const vivaldi::NoteNode* note_node,
+                                       const std::string& sync_id,
+                                       int64_t server_version,
+                                       base::Time creation_time);
+
   // Add entities to `this` tracker based on the content of `*model` and
   // `model_metadata`. Validates the integrity of `*model` and `model_metadata`
   // and returns an enum representing any inconsistency.
@@ -228,7 +222,7 @@ class SyncedNoteTracker {
 
   // Conceptually, find a tracked entity that matches `entity` and returns a
   // non-const pointer of it. The actual implementation is a const_cast.
-  // `entity` must be owned by this tracker.
+  // `entity` must be owned by this tracker, or null.
   SyncedNoteTrackerEntity* AsMutableEntity(
       const SyncedNoteTrackerEntity* entity);
 
@@ -246,14 +240,9 @@ class SyncedNoteTracker {
 
   const raw_ptr<file_sync::SyncedFileStore> synced_file_store_;
 
-  // A map of sync server ids to sync entities. This should contain entries and
-  // metadata for almost everything.
-  std::unordered_map<std::string, std::unique_ptr<SyncedNoteTrackerEntity>>
-      sync_id_to_entities_map_;
-
-  // Index for efficient lookups by client tag hash.
+  // Map of client tag hashes to sync entities. This owns all entity instances.
   std::unordered_map<syncer::ClientTagHash,
-                     raw_ptr<const SyncedNoteTrackerEntity, CtnExperimental>,
+                     std::unique_ptr<SyncedNoteTrackerEntity>,
                      syncer::ClientTagHash::Hash>
       client_tag_hash_to_entities_map_;
 

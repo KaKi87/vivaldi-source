@@ -23,6 +23,9 @@ import org.chromium.content_public.browser.NavigationHandle;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.WindowAndroid;
 
+// Vivaldi
+import org.chromium.base.DeviceInfo;
+
 /** Manages the state of tab browser controls. */
 @NullMarked
 public class TabBrowserControlsConstraintsHelper implements UserData {
@@ -111,7 +114,7 @@ public class TabBrowserControlsConstraintsHelper implements UserData {
     private TabBrowserControlsConstraintsHelper(Tab tab) {
         mOffsetTagsInfo = new BrowserControlsOffsetTagsInfo(null, null, null);
         mTab = (TabImpl) tab;
-        mConstraintsChangedCallback = unused_constraints -> updateEnabledState();
+        mConstraintsChangedCallback = _ -> updateEnabledState();
         mTab.addObserver(
                 new EmptyTabObserver() {
                     @Override
@@ -242,6 +245,9 @@ public class TabBrowserControlsConstraintsHelper implements UserData {
      *     should jump immediately.
      */
     public void update(int current, boolean animate) {
+        // Vivaldi AUTO-344: Snap controls on automotive, don't slide.
+        if (DeviceInfo.isAutomotive()) animate = false;
+
         assert mTab.getWebContents() != null : "Shouldn't update a Tab with a null WebContents.";
 
         int constraints = getConstraints();

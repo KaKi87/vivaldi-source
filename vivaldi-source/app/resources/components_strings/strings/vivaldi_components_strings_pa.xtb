@@ -28,7 +28,6 @@
 <translation id="2467694685043708798"><ph name="BEGIN_LINK" />ਨੈੱਟਵਰਕ ਰੋਗ-ਜਾਂਚਕ<ph name="END_LINK" /></translation>
 <translation id="255002559098805027"><ph name="HOST_NAME" /> ਨੇ ਨਜਾਇਜ਼ ਜਵਾਬ ਭੇਜਿਆ ਹੈ।</translation>
 <translation id="2634124572758952069"><ph name="HOST_NAME" /> ਦੇ ਸਰਵਰ ਦਾ IP ਪਤਾ ਨਹੀਂ ਲੱਭ ਸਕਿਆ।</translation>
-<translation id="2649204054376361687"><ph name="CITY" />, <ph name="COUNTRY" /></translation>
 <translation id="2650446666397867134">ਫਾਈਲ ਤੱਕ ਪਹੁੰਚ ਅਸਵੀਕਾਰੀ ਗਈ ਸੀ</translation>
 <translation id="2705137772291741111">ਇਸ ਸਾਇਟ ਦੀ ਸਾਂਭੀ ਹੋਈ (ਕੈਸ਼ ਕੀਤੀ) ਕਾਪੀ ਨਾ-ਪੜ੍ਹਨਯੋਗ ਸੀ।</translation>
 <translation id="2730326759066348565"><ph name="BEGIN_LINK" />ਕਨੈਕਟੀਵਿਟੀ ਨੈੱਟਵਰਕ ਰੋਗ-ਜਾਂਚਕ<ph name="END_LINK" /></translation>
@@ -54,7 +53,6 @@
 <translation id="3462200631372590220">ਉੱਨਤ ਲੁਕਾਓ</translation>
 <translation id="3484560055331845446">ਤੁਸੀਂ ਆਪਣੇ ਗੂਗਲ ਖਾਤੇ ਦੀ ਪਹੁੰਚ ਗਵਾ ਸਕਦੇ ਹੋ। ਕਰੋਮ ਹੁਣੇ ਤੁਹਾਡੇ ਪਾਸਵਰਡ ਨੂੰ ਬਦਲਣ ਦਾ ਸੁਝਾਅ ਦਿੰਦਾ ਹੈ। ਤੁਹਾਨੂੰ ਦਾਖਲ ਹੋਣ ਬਾਰੇ ਪੁੱਛਿਆ ਜਾਵੇਗਾਾ।</translation>
 <translation id="3566021033012934673">ਤੁਹਾਡਾ ਕਨੈਕਸ਼ਨ ਨਿੱਜੀ ਨਹੀਂ ਹੈ</translation>
-<translation id="3574305903863751447"><ph name="CITY" />, <ph name="STATE" /> <ph name="COUNTRY" /></translation>
 <translation id="3586931643579894722">ਵੇਰਵਾ ਲੁਕਾਓ</translation>
 <translation id="3630155396527302611">ਜੇ ਇਹ ਪਹਿਲਾਂ ਹੀ ਨੈੱਟਵਰਕ ਨੂੰ ਪ੍ਰਵਾਨਗੀ ਵਾਲੇ ਪ੍ਰੋਗਰਾਮਾਂ ਵਜੋਂ ਸੂਚੀਬੱਧ ਹੈ, ਤਾਂ
 ਇਸਨੂੰ ਸੂਚੀ ਵਿੱਚੋਂ ਹਟਾ ਕੇ ਦੁਬਾਰਾ ਜੋੜ ਕੇ ਦੇਖੋ।</translation>
@@ -66,12 +64,10 @@
 <translation id="3973234410852337861"><ph name="HOST_NAME" /> 'ਤੇ ਰੋਕ ਲਗਾਈ ਗਈ ਹੈ</translation>
 <translation id="3987940399970879459">1 MB ਤੋਂ ਘੱਟ</translation>
 <translation id="4075732493274867456">ਗਾਹਕ ਤੇ ਸਰਵਰ ਆਮ SSL ਪ੍ਰੋਟੋਕਾਲ ਸੰਸਕਰਨ ਜਾਂ ਸਿਫਰ ਸਵੀਟ ਦਾ ਸਮਰਥਨ ਨਹੀਂ ਕਰਦੇ।</translation>
-<translation id="4116663294526079822">ਇਸ ਸਾਇਟ 'ਤੇ ਹਮੇਸ਼ਾ ਪ੍ਰਵਾਨ ਕਰੋ</translation>
 <translation id="4130226655945681476">ਨੈੱਟਵਰਕ ਕੇਬਲਾਂ, ਮੌਡਮ, ਅਤੇ ਰਾਊਟਰ ਦੀ ਜਾਂਚ ਕੀਤੀ ਜਾ ਰਹੀ ਹੈ</translation>
 <translation id="4165986682804962316">ਸਾਇਟ ਦੀਆਂ ਸੈਟਿੰਗਾਂ</translation>
 <translation id="4203896806696719780"><ph name="BEGIN_LINK" />ਫ਼ਾਇਰਵਾਲ ਅਤੇ ਐਂਟੀਵਾਇਰਸ ਦੀ ਰੂਪ-ਰੇਖਾ ਦੀ ਜਾਂਚ ਕੀਤੀ ਜਾ ਰਹੀ ਹੈ<ph name="END_LINK" /></translation>
 <translation id="4226937834893929579"><ph name="BEGIN_LINK" />ਨੈੱਟਵਰਕ ਰੋਗ-ਜਾਂਚਕ ਵਰਤਕੇ ਦੇਖੋ<ph name="END_LINK" />।</translation>
-<translation id="4235360514405112390">ਜਾਇਜ਼ ਹੈ</translation>
 <translation id="4250431568374086873">ਇਸ ਸਾਇਟ ਨਾਲ ਤੁਹਾਡਾ ਕਨੈਕਸ਼ਨ ਪੂਰੀ ਤਰ੍ਹਾਂ ਸੁਰੱਖਿਅਤ ਨਹੀਂ ਹੈ</translation>
 <translation id="4265872034478892965">ਤੁਹਾਡੇ ਪ੍ਰਸ਼ਾਸਕ ਵੱਲੋਂ ਪ੍ਰਵਾਨਿਤ ਹੈ</translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> ਨੇ ਤੁਹਾਡਾ ਦਾਖਲਾ ਸਰਟੀਫਿਕੇਟ ਸਵੀਕਾਰ ਨਹੀਂ ਕੀਤਾ, ਜਾਂ ਸ਼ਾਇਦ ਮੁਹੱਈਆ ਨਹੀਂ ਕਰਵਾਇਆ ਗਿਆ।</translation>
@@ -92,7 +88,6 @@
 <translation id="5355557959165512791">ਤੁਸੀਂ <ph name="SITE" /> ਨੂੰ ਹੁਣੇ ਖੋਲ੍ਹ ਨਹੀਂ ਸਕਦੇ ਕਿਉਂਕਿ ਇਸਦੇ ਸਰਟੀਫਿਕੇਟ ਨੂੰ ਮਨਸੂਖ ਕਰ ਦਿੱਤਾ ਗਿਆ ਹੈ। ਨੈੱਟਵਰਕ ਦੀਆਂ ਸਮੱਸਿਆਵਾਂ ਅਤੇ ਹਮਲੇ ਆਮ ਤੌਰ 'ਤੇ ਆਰਜ਼ੀ ਹੁੰਦੇ ਹਨ, ਇਸ ਲਈ ਸ਼ਾਇਦ ਇਹ ਪੰਨਾ ਬਾਅਦ ਵਿੱਚ ਕੰਮ ਕਰੇਗਾ।</translation>
 <translation id="5386426401304769735">ਇਸ ਸਾਇਟ ਦੀ ਸਰਟੀਫਿਕੇਟ ਲੜੀ ਵਿੱਚ SHA-1 ਰਾਹੀਂ ਹਸਤਾਖਰ ਕੀਤਾ ਸਰਟੀਫਿਕੇਟ ਸ਼ਾਮਲ ਹੈ।</translation>
 <translation id="5452270690849572955">ਇਹ <ph name="HOST_NAME" /> ਪੰਨਾ ਲੱਭਿਆ ਨਹੀਂ ਜਾ ਸਕਦਾ</translation>
-<translation id="5457113250005438886">ਨਜਾਇਜ਼ ਹੈ</translation>
 <translation id="5492298309214877701">ਇਸ ਸਾਇਟ ਦੀ ਕੰਪਨੀ, ਸੰਸਥਾ, ਜਾਂ ਸਕੂਲ ਦੇ ਇੰਟਰਾਨੈੱਟ 'ਤੇ ਬਾਹਰੀ ਵੈੱਬਸਾਇਟ ਵਜੋਂ ਇਹੋ URL ਹੈ।
     <ph name="LINE_BREAK" />
     ਆਪਣੇ ਸਿਸਟਮ ਪ੍ਰਸ਼ਾਸਕ ਨਾਲ ਸੰਪਰਕ ਕਰੋ।</translation>
@@ -128,18 +123,14 @@
 <translation id="6757797048963528358">ਤੁਹਾਡੀ ਡਿਵਾਇਸ ਸੌਂ ਗਈ ਸੀ।</translation>
 <translation id="6897140037006041989">ਵਰਤੋਂਕਾਰ ਏਜੰਟ</translation>
 <translation id="7108819624672055576">ਵਾਧੜੇ ਵੱਲੋਂ ਪ੍ਰਵਾਨਿਤ ਹੈ</translation>
-<translation id="7111012039238467737">(ਜਾਇਜ਼)</translation>
 <translation id="7210863904660874423"><ph name="HOST_NAME" /> ਸੁਰੱਖਿਆ ਮਿਆਰਾਂ ਦਾ ਪਾਲਣਾ ਨਹੀਂ ਕਰਦਾ।</translation>
 <translation id="7219179957768738017">ਕਨੈਕਸ਼ਨ <ph name="SSL_VERSION" /> ਦੀ ਵਰਤੋ ਕਰਦਾ ਹੈ।</translation>
 <translation id="7353601530677266744">ਕਮਾਂਡ ਲਾਇਨ</translation>
 <translation id="7419106976560586862">ਪ੍ਰੋਫਾਈਲ ਦਾ ਰਾਹ</translation>
-<translation id="7455133967321480974">ਗਲੋਬਲ ਮੂਲ ਵਰਤੋ (ਰੋਕ ਲਾਓ)</translation>
 <translation id="7518003948725431193">ਇਸ ਵੈੱਬ ਪਤੇ ਦਾ ਕੋਈ ਵੈੱਬਪੰਨਾ ਨਹੀਂ ਮਿਲਿਆ ਸੀ: <ph name="URL" /></translation>
 <translation id="7549584377607005141">ਇਸ ਵੈੱਬਪੰਨੇ ਨੂੰ ਸਹੀ ਤਰ੍ਹਾਂ ਦਿਖਾਉਣ ਲਈ ਉਸ ਡਾਟੇ ਦੀ ਲੋੜ ਹੈ ਜਿਹੜਾ ਕਿ ਤੁਸੀਂ ਪਹਿਲਾਂ ਭਰਿਆ ਸੀ। ਤੁਸੀਂ ਉਸ ਡਾਟੇ ਨੂੰ ਦੁਬਾਰਾ ਭੇਜ ਸਕਦੇ ਹੋ, ਪਰ ਇੰਝ ਕਰਨ ਨਾਲ ਤੁਸੀਂ ਪੰਨੇ ਵੱਲੋਂ ਪਹਿਲਾਂ ਕੀਤੀ ਕਾਰਵਾਈ ਨੂੰ ਦੁਹਰਾਓਗੇ।</translation>
 <translation id="759889825892636187"><ph name="HOST_NAME" /> ਮੌਜੂਦਾ ਸਮੇਂ ਇਸ ਬੇਨਤੀ ਨੂੰ ਸੰਭਾਲਣ ਤੋਂ ਅਸਮਰੱਥ ਹੈ।</translation>
 <translation id="7662298039739062396">ਸੈਟਿੰਗਾਂ ਵਾਧੜੇ ਦੇ ਕੰਟਰੋਲ ਵਿੱਚ ਹਨ</translation>
-<translation id="7663736086183791259">ਸਰਟੀਫਿਕੇਟ <ph name="CERTIFICATE_VALIDITY" /></translation>
-<translation id="7714464543167945231">ਸਰਟੀਫਿਕੇਟ</translation>
 <translation id="7716147886133743102">ਤੁਹਾਡੇ ਪ੍ਰਸ਼ਾਸਕ ਵੱਲੋਂ ਰੋਕ ਲਾਈ ਗਈ</translation>
 <translation id="7716424297397655342">ਇਸ ਸਾਇਟ ਨੂੰ ਕੈਸ਼ ਤੋਂ ਲੋਡ ਨਹੀਂ ਕੀਤਾ ਜਾ ਸਕਦਾ</translation>
 <translation id="7758069387465995638">ਸ਼ਾਇਦ ਫ਼ਾਇਰਵਾਲ ਜਾਂ ਐਂਟੀਵਾਇਰਸ ਸਾਫਟਵੇੇਅਰ ਨੇ ਕਨੈਕਸ਼ਨ ਰੋਕ ਦਿੱਤਾ ਹੈ।</translation>
@@ -147,14 +138,11 @@
 <translation id="7834399512844817676"><ph name="SITE" /> ਤੁਹਾਡੀ ਜਾਣਕਾਰੀ ਦੀ ਰੱਖਿਆ ਕਰਨ ਲਈ ਆਮ ਤੌਰ 'ਤੇ ਇਨਕਰਿਪਸ਼ਨ ਵਰਤਦੀ ਹੈ। ਇਸ ਵਾਰ ਜਦੋਂ ਵਿਵਾਲਡੀ ਨੇ <ph name="SITE" /> ਨਾਲ ਜੁੜਨ ਦੀ ਕੋਸ਼ਿਸ਼ ਕੀਤੀ ਤਾਂ ਵੈੱਬਸਾਇਟ ਨੇ ਅਸਧਾਰਨ ਤੇ ਗਲਤ ਪ੍ਰਮਾਣ ਭੇਜੇ। ਅਜਿਹਾ ਉਦੋਂ ਹੁੰਦਾ ਹੈ ਜਦੋਂ ਕੋਈ ਹਮਲਾਵਰ <ph name="SITE" /> ਹੋਣ ਦਾ ਦਿਖਾਵਾ ਕਰਦਾ ਹੈ, ਜਾਂ ਵਾਈ-ਫਾਈ ਦੀ ਦਾਖਲਾ ਸਕਰੀਨ ਕਨੈਕਸ਼ਨ ਵਿੱਚ ਵਿਘਨ ਪਾਉਂਦੀ ਹੈ। ਫਿਰ ਵੀ ਤੁਹਾਡੀ ਜਾਣਕਾਰੀ ਸੁਰੱਖਿਅਤ ਹੈ ਕਿਉਂਕਿ ਵਿਵਾਲਡੀ ਡਾਟੇ ਦੇ ਵਟਾਂਦਰੇ ਤੋਂ ਪਹਿਲਾਂ ਹੀ ਕਨੈਕਸ਼ਨ ਨੂੰ ਰੋਕ ਦਿੱੱਤਾ ਸੀ।</translation>
 <translation id="7878562273885520351">ਤੁਹਾਡੇ ਪਾਸਵਰਡ ਖਤਰੇ ਵਿੱਚ ਪੈ ਸਕਦੇ ਹਨ</translation>
 <translation id="7951415247503192394">(32-ਬਿੱਟ)</translation>
-<translation id="8041940743680923270">ਗਲੋਬਲ ਮੂਲ ਵਰਤੋ (ਪੁੱਛੋ)</translation>
 <translation id="808894953321890993">ਪਾਸਵਰਡ ਬਦਲੋ</translation>
 <translation id="8149426793427495338">ਤੁਹਾਡਾ ਕੰਪਿਊਟਰ ਸੌਂ ਗਿਆ ਸੀ।</translation>
 <translation id="8150722005171944719"><ph name="URL" /> ਸਥਿੱਤ ਫਾਈਲ ਪੜ੍ਹਨਯੋਗ ਨਹੀਂ ਹੈ।  ਇਹ ਸ਼ਾਇਦ ਹਟਾ ਦਿੱਤੀ ਗਈ ਹੋਵੇ, ਕਿਤੇ ਹੋਰ ਰੱਖ ਦਿੱਤੀ ਗਈ ਹੋਵੇ, ਜਾਂ ਸ਼ਾਇਦ ਫਾਈਲ ਦੀਆਂ ਇਜਾਜ਼ਤਾਂ ਇਸਦੀ ਵਰਤੋਂ ਕਰਨ ਤੋਂ ਵਰਜਦੀਆਂ ਹਨ।</translation>
-<translation id="8184538546369750125">ਗਲੋਬਲ ਮੂਲ ਵਰਤੋ (ਪ੍ਰਵਾਨ ਕਰੋ)</translation>
 <translation id="8211406090763984747">ਕਨੈਕਸ਼ਨ ਸੁਰੱਖਿਅਤ ਹੈ</translation>
 <translation id="8241707690549784388">ਉਹ ਪੰਨਾ ਹੈ ਜਿਸ 'ਤੇ ਉਹ ਜਾਣਕਾਰੀ ਵਰਤੀ ਗਈ ਹੈ ਜੋ ਕਿ ਤੁਸੀਂ ਭਰੀ ਸੀ। ਉਸ ਪੰਨੇ 'ਤੇ ਵਾਪਸ ਜਾਣਾ ਤੁਹਾਡੇ ਵੱਲੋਂ ਕੀਤੀ ਗਈ ਕਾਰਵਾਈ ਦੇ ਦੁਹਰਾਅ ਦਾ ਕਾਰਨ ਬਣ ਸਕਦਾ ਹੈ। ਤੁਸੀਂ ਜਾਰੀ ਰੱਖਣਾ ਚਾਹੁੰਦੇ ਹੋ?</translation>
-<translation id="8241712895048303527">ਇਸ ਸਾਇਟ 'ਤੇ ਰੋਕੋ</translation>
 <translation id="8286036467436129157">ਦਾਖਲ ਹੋਵੋ</translation>
 <translation id="8288807391153049143">ਸਰਟੀਫਿਕੇਟ ਦਿਖਾਓ</translation>
 <translation id="8289355894181816810">ਜੇ ਤੁਹਾਨੂੰ ਇਹ ਨਹੀਂ ਪਤਾ ਕਿ ਇਸਦਾ ਕੀ ਮਤਲਬ ਹੈ ਤਾਂ ਆਪਣੇ ਨੈੱਟਵਰਕ ਪ੍ਰਸ਼ਾਸਕ ਨਾਲ ਸੰਪਰਕ ਕਰੋ।</translation>
@@ -165,10 +153,8 @@
 <translation id="8740359287975076522"><ph name="HOST_NAME" /> ਦਾ &lt;abbr id="dnsDefinition"&gt;DNS ਪਤਾ&lt;/abbr&gt; ਨਹੀਂ ਲੱਭ ਸਕੇ। ਸਮੱਸਿਆ ਦੀ ਜਾਂਚ ਕੀਤੀ ਜਾ ਰਹੀ ਹੈ।</translation>
 <translation id="8820817407110198400">ਬੁੱਕਮਾਰਕ</translation>
 <translation id="9001074447101275817">ਮੁਖਤਿਆਰੀ <ph name="DOMAIN" /> ਲਈ ਵਰਤੋਂਕਾਰ-ਨਾਂ ਅਤੇ ਪਾਸਵਰਡ ਲੋੜੀਂਦਾ ਹੈ।</translation>
-<translation id="9025348182339809926">(ਨਜਾਇਜ਼)</translation>
 <translation id="9039213469156557790">ਅੱਗੇ, ਇਸ ਪੰਨੇ ਵਿੱਚ ਹੋਰ ਸਾਧਨ ਸ਼ਾਮਲ ਹਨ ਜੋ ਕਿ ਸੁਰੱਖਿਅਤ ਨਹੀਂ ਹਨ। ਇਹਨਾਂ ਸਾਧਨਾਂ ਨੂੰ ਭੇਜੇ-ਲਿਆਏ ਜਾਣ ਦੌਰਾਨ ਹੋਰਾਂ ਵੱਲੋਂ ਦੇਖਿਆ ਜਾ ਸਕਦਾ ਹੈ, ਅਤੇ ਹਮਲਾਵਰਾਂ ਵੱਲੋਂ ਇਹਨਾਂ ਨੂੰ ਪੰਨੇ ਦੇ ਵਤੀਰੇ ਨੂੰ ਬਦਲਣ ਲਈ ਵੀ ਸੋਧਿਆ ਜਾ ਸਕਦਾ ਹੈ।</translation>
 <translation id="9069693763241529744">ਵਾਧੜੇ ਵੱਲੋਂ ਰੋਕ ਲਾਈ ਗਈ</translation>
-<translation id="9169664750068251925">ਇਸ ਸਾਇਟ 'ਤੇ ਹਮੇਸ਼ਾ ਰੋਕੋ</translation>
 <translation id="9183425211371246419"><ph name="HOST_NAME" /> ਅਸਮਰਥਤ ਪ੍ਰੋਟੋਕਾਲ ਵਰਤਦਾ ਹੈ।</translation>
 <translation id="936602727769022409">ਤੁਸੀਂ ਆਪਣੇ ਗੂਗਲ ਖਾਤੇ ਦੀ ਪਹੁੰਚ ਗਵਾ ਸਕਦੇ ਹੋ। ਕਰੋਮੀਅਮ ਹੁਣੇ ਤੁਹਾਡੇ ਪਾਸਵਰਡ ਨੂੰ ਬਦਲਣ ਦਾ ਸੁਝਾਅ ਦਿੰਦਾ ਹੈ। ਤੁਹਾਨੂੰ ਦਾਖਲ ਹੋਣ ਬਾਰੇ ਪੁੱਛਿਆ ਜਾਵੇਗਾਾ।</translation>
 <translation id="969892804517981540">ਅਧਿਕਾਰਤ ਨਿਰਮਾਣ</translation>

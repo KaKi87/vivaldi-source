@@ -11,6 +11,7 @@
 #include "base/metrics/field_trial_params.h"
 #include "base/metrics/histogram_functions.h"
 #include "chrome/browser/autocomplete/aim_eligibility_service_factory.h"
+#include "chrome/browser/search_engines/ai_mode_button_service_factory.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/contextual_search/contextual_search_metrics_recorder.h"
@@ -18,6 +19,8 @@
 #include "components/contextual_search/contextual_search_session_handle.h"
 #include "components/omnibox/browser/aim_eligibility_service.h"
 #include "components/omnibox/browser/omnibox_field_trial.h"
+#include "components/omnibox/common/omnibox_features.h"
+#include "components/search/search.h"
 #include "ui/base/l10n/l10n_util.h"
 
 namespace {
@@ -30,11 +33,11 @@ namespace omnibox {
 namespace internal {
 
 // If enabled, shows the omnibox suggestions in the popup in WebUI.
-BASE_FEATURE(kWebUIOmniboxPopup, DISABLED);
+BASE_FEATURE(kWebUIOmniboxPopup, ENABLED);
 
 // If enabled, Omnibox popup will transition to AI-Mode with the compose-box
 // panel taking up the whole of the popup, covering the location bar completely.
-BASE_FEATURE(kWebUIOmniboxAimPopup, DISABLED);
+BASE_FEATURE(kWebUIOmniboxAimPopup, ENABLED);
 
 // If enabled, the Omnibox Popup will enable a different UI state when on a
 // webpage.
@@ -71,16 +74,19 @@ BASE_FEATURE(kWebUIOmniboxDisableCaretColorAnimation, ENABLED);
 // If enabled, there will no longer be animation when opening the WebUI Omnibox
 // AIM popup.
 BASE_FEATURE(kWebUIOmniboxAimPopupDisableAnimation, DISABLED);
-// If enabled, removes the cutout for the location bar and fills the entire
-// popup content with the WebUI WebView.
-BASE_FEATURE(kWebUIOmniboxFullPopup, DISABLED);
 // If enabled, then both the input row and suggestions dropdown (in the Omnibox)
 // will be rendered using the WebUI stack (i.e. the cutout for the location bar
 // will be removed).
-//
-// NOTE: This flag is intended to control the next-gen Omnibox experience and
-// will eventually supersede the `kWebUIOmniboxFullPopup` feature flag.
-BASE_FEATURE(kWebUIOmniboxFullPopupV2, DISABLED);
+BASE_FEATURE(kWebUIOmniboxFullPopup, DISABLED);
+// Enables the double click mechanism of sending selection set by
+// passing click events through the WebView.
+BASE_FEATURE(kWebUIOmniboxFullPopupDoubleClick, ENABLED);
+// If enabled, enables OmniboxEverywhere popup triggered by shortcut.
+BASE_FEATURE(kOmniboxEverywhere, DISABLED);
+// Controls showing the profile picker menu on profile avatar click in
+// OmniboxEverywhere.
+const base::FeatureParam<bool> kOmniboxEverywhereProfilePickerParam{
+    &kOmniboxEverywhere, "ProfilePicker", false};
 // Enables the WebUI for omnibox suggestions without modifying the popup UI.
 BASE_FEATURE(kWebUIOmniboxPopupDebug, DISABLED);
 // Enables side-by-side comparison omnibox suggestions in WebUI and Views.
@@ -96,12 +102,11 @@ BASE_FEATURE(kOmniboxAnimatedCaret, ENABLED);
 // If enabled, enables energy effect in the omnibox.
 BASE_FEATURE(kEnergyEffectInOmnibox, ENABLED);
 
-// If enabled, the "Ask Google about this page" action will route to cobrowse.
-BASE_FEATURE(kWebUIOmniboxAskGAboutThisPage, DISABLED);
-
-
 // If enabled, the Ai Mode button will be dynamically shown in the omnibox.
 BASE_FEATURE(kWebUIOmniboxDynamicAiModeButton, DISABLED);
+
+// If enabled, prevents closing the AIM popup while file chooser is open.
+BASE_FEATURE(kOmniboxKeepOpenOnFileSelection, ENABLED);
 
 // Decodes a proto object from its serialized Base64 string representation.
 // Returns true if decoding and parsing succeed, false otherwise.
@@ -134,7 +139,6 @@ omnibox::NTPComposeboxConfig GetNTPComposeboxConfig() {
   auto* composebox = default_config.mutable_composebox();
 
   auto* image_upload = composebox->mutable_image_upload();
-  image_upload->set_enable_webp_encoding(false);
   image_upload->set_downscale_max_image_size(1500000);
   image_upload->set_downscale_max_image_width(1600);
   image_upload->set_downscale_max_image_height(1600);
@@ -209,8 +213,14 @@ omnibox::NTPComposeboxConfig GetNTPComposeboxConfig() {
 bool ShouldShowAimContextMenuOption(Profile* profile) {
   const auto* aim_eligibility_service =
       AimEligibilityServiceFactory::GetForProfile(profile);
+  const auto* ai_mode_button_service =
+      AiModeButtonServiceFactory::GetForProfile(profile);
+  const auto* template_url_service =
+      TemplateURLServiceFactory::GetForProfile(profile);
   const bool is_aim_entrypoint_enabled =
-      OmniboxFieldTrial::IsAimOmniboxEntrypointEnabled(aim_eligibility_service);
+      OmniboxFieldTrial::IsAimOmniboxEntrypointEnabled(aim_eligibility_service,
+                                                       ai_mode_button_service,
+                                                       template_url_service);
 
   if (is_aim_entrypoint_enabled) {
     return true;
@@ -227,13 +237,18 @@ bool IsWebUIOmniboxPopupEnabled() {
 }
 
 bool IsWebUIOmniboxFullPopupEnabled() {
-  return base::FeatureList::IsEnabled(omnibox::kWebUIOmniboxFullPopup) ||
-         base::FeatureList::IsEnabled(omnibox::kWebUIOmniboxFullPopupV2);
+  return base::FeatureList::IsEnabled(omnibox::kWebUIOmniboxFullPopup);
+}
+
+bool ShouldUseWebUIOmniboxFullHandler() {
+  return IsWebUIOmniboxFullPopupEnabled() &&
+         base::FeatureList::IsEnabled(
+             omnibox::kWebUISearchboxWithoutModelController);
 }
 
 bool IsWebUIOmniboxInBrowserViewEnabled() {
-  return base::FeatureList::IsEnabled(omnibox::kWebUIOmniboxFullPopupV2) &&
-         kWebUIOmniboxFullPopupV2UseBrowserView.Get();
+  return base::FeatureList::IsEnabled(omnibox::kWebUIOmniboxFullPopup) &&
+         kWebUIOmniboxFullPopupUseBrowserView.Get();
 }
 
 bool IsAimPopupFeatureEnabled() {
@@ -252,6 +267,19 @@ bool IsAimPopupEnabled(Profile* profile) {
   auto* aim_service = AimEligibilityServiceFactory::GetForProfile(profile);
   return aim_service && aim_service->IsAimEligible() &&
          aim_service->IsFuseboxEligible();
+}
+
+bool IsOmniboxEverywhereEnabled(Profile* profile) {
+  if (!profile) {
+    return false;
+  }
+
+  if (!base::FeatureList::IsEnabled(kOmniboxEverywhere)) {
+    return false;
+  }
+
+  return search::DefaultSearchProviderIsGoogle(
+      TemplateURLServiceFactory::GetForProfile(profile));
 }
 
 bool IsContentSharingEnabled(
@@ -309,7 +337,7 @@ const base::FeatureParam<std::string>
 const base::FeatureParam<bool> kContextMenuEnableMultiTabSelection(
     &internal::kWebUIOmniboxAimPopup,
     "Omnibox_ContextMenuEnableMultiTabSelection",
-    false);
+    true);
 const base::FeatureParam<int> kContextMenuMaxTabSuggestions(
     &internal::kWebUIOmniboxAimPopup,
     "Omnibox_ContextMenuMaxTabSuggestions",
@@ -354,10 +382,6 @@ const base::FeatureParam<bool> kShowContextMenuHeaders(
     &internal::kWebUIOmniboxAimPopup,
     "Omnibox_ShowContextMenuHeaders",
     true);
-const base::FeatureParam<bool> kUseComposeboxFork(
-    &internal::kWebUIOmniboxAimPopup,
-    "Omnibox_UseComposeboxFork",
-    false);
 const base::FeatureParam<bool> kContextButtonHasBackground{
     &internal::kWebUIOmniboxSimplification,
     "Omnibox_ContextButtonHasBackground", false};
@@ -367,14 +391,14 @@ const base::FeatureParam<bool> kContextButtonShapeIsOblong{
 const base::FeatureParam<bool> kContextButtonShowSuggestionLabel{
     &internal::kWebUIOmniboxSimplification,
     "Omnibox_ContextButtonShowSuggestionLabel", false};
-const base::FeatureParam<bool> kWebUIOmniboxFullPopupV2UseBrowserView{
-    &kWebUIOmniboxFullPopupV2, "Omnibox_UseBrowserView", false};
-
-const base::FeatureParam<bool> kAskGCoBrowse{
-    &kWebUIOmniboxAskGAboutThisPage, "Omnibox_AskGCoBrowse", false};
-const base::FeatureParam<bool> kAskGCoBrowseWithVisualSelection{
-    &kWebUIOmniboxAskGAboutThisPage,
-    "Omnibox_AskGCoBrowseWithVisualSelection", false};
+const base::FeatureParam<bool> kWebUIOmniboxFullPopupUseBrowserView{
+    &kWebUIOmniboxFullPopup, "Omnibox_UseBrowserView", false};
+const base::FeatureParam<bool> kWebUIOmniboxFullPopupMultiline{
+    &kWebUIOmniboxFullPopup, "Omnibox_Multiline", false};
+const base::FeatureParam<bool> kWebUIOmniboxDynamicAnimation{
+    &kWebUIOmniboxDynamicAiModeButton, "Omnibox_DynamicAnimation", false};
+const base::FeatureParam<bool> kWebUIOmniboxDynamicColorScheme{
+    &kWebUIOmniboxDynamicAiModeButton, "Omnibox_DynamicColorScheme", false};
 
 FeatureConfig::FeatureConfig() : config(GetNTPComposeboxConfig()) {}
 

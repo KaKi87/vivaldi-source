@@ -4,7 +4,7 @@
 
 import type {WindowOpenDisposition} from '//resources/mojo/ui/base/mojom/window_open_disposition.mojom-webui.js';
 import type {NavigationPredictor} from 'chrome://resources/mojo/components/omnibox/browser/omnibox.mojom-webui.js';
-import type {OmniboxPopupSelection, PageHandlerInterface, PageRemote, PlaceholderConfig, SelectedFileInfo, SmartComposeStats} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
+import type {ActionModifiers, InputMethod, OmniboxPopupSelection, PageHandlerInterface, PageRemote, PlaceholderConfig, SelectedFileInfo, SmartComposeStats, SuggestInventory} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
 import {DriveDisclaimerStatus, PageCallbackRouter} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
 import type {ModelMode, ToolMode} from 'chrome://resources/mojo/components/omnibox/composebox/composebox_query.mojom-webui.js';
 import type {BigBuffer} from 'chrome://resources/mojo/mojo/public/mojom/base/big_buffer.mojom-webui.js';
@@ -27,42 +27,46 @@ class FakePageHandler extends TestBrowserProxy implements PageHandlerInterface {
 
   constructor() {
     super([
-      'deleteAutocompleteMatch',
       'activateKeyword',
-      'showContextMenu',
+      'activateMetricsFunnel',
+      'addFileContext',
+      'addTabContext',
+      'clearFiles',
+      'deleteAutocompleteMatch',
+      'deleteContext',
+      'deleteTabContext',
       'executeAction',
+      'getDriveDisclaimerStatus',
+      'getInputState',
+      'getPageClassification',
+      'getPlaceholderConfig',
+      'getRecentTabs',
+      'getSmartTabSharingActive',
+      'getTabPreview',
+      'notifySessionAbandoned',
+      'notifySessionStarted',
+      'onDriveDisclaimerAccepted',
+      'onDriveUploadClicked',
+      'onFocusChanged',
       'onNavigationLikely',
       'onThumbnailRemoved',
       'openAutocompleteMatch',
-      'queryAutocomplete',
-      'stopAutocomplete',
-      'toggleSuggestionGroupIdVisibility',
-      'onFocusChanged',
-      'getPlaceholderConfig',
-      'getRecentTabs',
-      'getTabPreview',
-      'waitForTabFaviconLoad',
-      'notifySessionStarted',
-      'notifySessionAbandoned',
-      'addFileContext',
-      'addTabContext',
-      'onDriveUploadClicked',
-      'deleteContext',
-      'clearFiles',
-      'submitQuery',
       'openLensSearch',
-      'setActiveToolMode',
+      'openPopupSelection',
+      'openProfilePicker',
+      'queryAutocomplete',
+      'recordModelSelectionAction',
       'recordToolSelectionAction',
       'setActiveModelMode',
-      'recordModelSelectionAction',
-      'getInputState',
-      'activateMetricsFunnel',
+      'setActiveToolMode',
       'setPopupSelection',
-      'openPopupSelection',
-      'getDriveDisclaimerStatus',
-      'onDriveDisclaimerAccepted',
-      'getPageClassification',
       'setSmartComposeStats',
+      'setSmartTabSharingActive',
+      'showContextMenu',
+      'stopAutocomplete',
+      'submitQuery',
+      'toggleSuggestionGroupIdVisibility',
+      'waitForTabFaviconLoad',
     ]);
   }
 
@@ -112,16 +116,14 @@ class FakePageHandler extends TestBrowserProxy implements PageHandlerInterface {
 
   openAutocompleteMatch(
       line: number, url: Url, areMatchesShowing: boolean, mouseButton: number,
-      altKey: boolean, ctrlKey: boolean, metaKey: boolean, shiftKey: boolean) {
+      modifiers: ActionModifiers, viaKeyboard: boolean) {
     this.methodCalled('openAutocompleteMatch', {
       line,
       url,
       areMatchesShowing,
       mouseButton,
-      altKey,
-      ctrlKey,
-      metaKey,
-      shiftKey,
+      modifiers,
+      viaKeyboard,
     });
   }
 
@@ -139,11 +141,19 @@ class FakePageHandler extends TestBrowserProxy implements PageHandlerInterface {
   }
 
   queryAutocomplete(
-      input: String16, preventInlineAutocomplete: boolean,
-      cursorPosition: number) {
-    this.methodCalled(
-        'queryAutocomplete',
-        {input, preventInlineAutocomplete, cursorPosition});
+      queryId: number, input: String16, preventInlineAutocomplete: boolean,
+      cursorPosition: number, suggestInventory: SuggestInventory,
+      isOnFocus: boolean, keyword: string, inputMethod: InputMethod) {
+    this.methodCalled('queryAutocomplete', {
+      queryId,
+      input,
+      preventInlineAutocomplete,
+      cursorPosition,
+      suggestInventory,
+      isOnFocus,
+      keyword,
+      inputMethod,
+    });
   }
 
   stopAutocomplete(clearResult: boolean) {
@@ -229,6 +239,10 @@ class FakePageHandler extends TestBrowserProxy implements PageHandlerInterface {
     this.methodCalled('deleteContext', {fileToken});
   }
 
+  deleteTabContext(tabId: number) {
+    this.methodCalled('deleteTabContext', {tabId});
+  }
+
   clearFiles() {
     this.methodCalled('clearFiles');
   }
@@ -245,8 +259,12 @@ class FakePageHandler extends TestBrowserProxy implements PageHandlerInterface {
     this.methodCalled('openLensSearch');
   }
 
-  setActiveToolMode(tool: ToolMode) {
-    this.methodCalled('setActiveToolMode', tool);
+  openProfilePicker() {
+    this.methodCalled('openProfilePicker');
+  }
+
+  setActiveToolMode(tool: ToolMode, isSetByServer: boolean = false) {
+    this.methodCalled('setActiveToolMode', tool, isSetByServer);
   }
 
   recordToolSelectionAction(tool: ToolMode) {
@@ -291,6 +309,18 @@ class FakePageHandler extends TestBrowserProxy implements PageHandlerInterface {
   getPageClassification() {
     this.methodCalled('getPageClassification');
     return Promise.resolve({metricSource: 'NTP_REALBOX'});
+  }
+
+  setSmartTabSharingActive(active: boolean) {
+    this.methodCalled('setSmartTabSharingActive', active);
+  }
+
+  getSmartTabSharingActive() {
+    this.methodCalled('getSmartTabSharingActive');
+    if (this.results_.has('getSmartTabSharingActive')) {
+      return this.results_.get('getSmartTabSharingActive');
+    }
+    return Promise.resolve({active: false});
   }
 }
 

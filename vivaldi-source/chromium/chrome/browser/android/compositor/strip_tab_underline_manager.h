@@ -36,6 +36,8 @@ class StripTabUnderlineManager {
 
   void SetUnderlineState(int tab_id, bool is_underlined);
 
+  void ResetAnimationCycle(int tab_id);
+
  private:
   class UiDelegateImpl;
 
@@ -47,8 +49,10 @@ class StripTabUnderlineManager {
         std::unique_ptr<UiDelegateImpl> delegate);
     ~TabUnderlineContext();
 
-    std::unique_ptr<glic::TabUnderlineController> controller;
+    // Destroying the delegate after the controller ensures the controller can
+    // safely reference its delegate during teardown.
     std::unique_ptr<UiDelegateImpl> delegate;
+    std::unique_ptr<glic::TabUnderlineController> controller;
   };
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi: keep disabled
 

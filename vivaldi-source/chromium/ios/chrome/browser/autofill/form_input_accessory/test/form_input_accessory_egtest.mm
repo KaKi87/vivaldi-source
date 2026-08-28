@@ -23,7 +23,9 @@
 #import "components/strings/grit/components_strings.h"
 #import "components/sync/base/features.h"
 #import "components/sync/service/sync_prefs.h"
+#import "components/webauthn/ios/features.h"
 #import "ios/chrome/browser/authentication/test/signin_earl_grey.h"
+#import "ios/chrome/browser/autofill/atmemory/public/at_memory_constants.h"
 #import "ios/chrome/browser/autofill/manual_fill/public/manual_fill_constants.h"
 #import "ios/chrome/browser/autofill/manual_fill/test/manual_fill_matchers.h"
 #import "ios/chrome/browser/autofill/model/form_suggestion_constants.h"
@@ -40,7 +42,7 @@
 #import "ios/chrome/test/earl_grey/chrome_actions.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
-#import "ios/chrome/test/earl_grey/web_http_server_chrome_test_case.h"
+#import "ios/chrome/test/earl_grey/chrome_test_case.h"
 #import "ios/chrome/test/scoped_eg_synchronization_disabler.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
 #import "ios/testing/earl_grey/matchers.h"
@@ -149,7 +151,7 @@ id<GREYMatcher> KeyboardAccessoryPasswordSuggestion(NSString* realm) {
   return grey_allOf(grey_text(chip_text),
                     grey_ancestor(grey_accessibilityID(
                         kFormInputAccessoryViewAccessibilityID)),
-                    nil);
+                    grey_interactable(), nil);
 }
 
 // Matcher for the autofill backup password suggestion chip in the keyboard
@@ -227,7 +229,7 @@ void CheckAddressAutofillSuggestionAcceptedIndexMetricsCount(
           expectUniqueSampleWithCount:1
                             forBucket:suggestion_index
                          forHistogram:
-                             @"Autofill.SuggestionAcceptedIndex.Profile"],
+                             @"Autofill.SuggestionAcceptedIndex.Address"],
       @"Unexpected histogram count for accepted address suggestion index.");
 
   GREYAssertNil(
@@ -291,17 +293,11 @@ void SlowlyTypeText(NSString* text) {
 
 }  // namespace
 
-@interface FormInputAccessoryEGTest : WebHttpServerChromeTestCase
+@interface FormInputAccessoryEGTest : ChromeTestCase
 @end
 
 @implementation FormInputAccessoryEGTest
 
-// Returns whether the two-bubble feature should be enabled for the current
-// test. `NO` is returned to verify all tests pass when the two-bubble feature
-// is disabled.
-- (BOOL)shouldEnableTwoBubbleFeature {
-  return NO;
-}
 
 - (void)setUp {
   [super setUp];
@@ -345,8 +341,6 @@ void SlowlyTypeText(NSString* text) {
                         overrideParam:(std::string_view)overrideParam {
   config.features_enabled.push_back(
       autofill::features::kAutofillAiWithDataSchema);
-  config.features_enabled.push_back(
-      autofill::features::kAutofillAiCreateEntityDataManager);
   config.features_enabled.push_back(
       autofill::features::debug::kAutofillAiForceOptIn);
 
@@ -395,15 +389,11 @@ void SlowlyTypeText(NSString* text) {
         kAutofillCorrectUserEditedBitInParsedField);
   }
   if ([self isRunningTest:@selector(testAddressHomeAndWorkIPH)]) {
-    config.features_enabled.push_back(
-        autofill::features::kAutofillEnableSupportForHomeAndWork);
     config.iph_feature_enabled =
         feature_engagement::kIPHAutofillHomeWorkProfileSuggestionFeature.name;
   }
 
   if ([self isRunningTest:@selector(testAccountNameEmailIPH)]) {
-    config.features_enabled.push_back(
-        autofill::features::kAutofillEnableSupportForNameAndEmail);
     config.iph_feature_enabled =
         feature_engagement::kIPHAutofillAccountNameEmailSuggestionFeature.name;
   }
@@ -413,11 +403,12 @@ void SlowlyTypeText(NSString* text) {
         autofill::features::kAutofillAcrossIframesIos);
   }
 
-  if ([self shouldEnableTwoBubbleFeature]) {
-    config.features_enabled.push_back(kIOSKeyboardAccessoryTwoBubble);
-  } else {
-    config.features_disabled.push_back(kIOSKeyboardAccessoryTwoBubble);
+  if ([self isRunningTest:@selector
+            (testPasswordSuggestionsSubtext_ConditionalPasskeyLoginEnabled)]) {
+    config.features_enabled.push_back(kIOSPasskeyShim);
+    config.features_enabled.push_back(kIOSPasskeyConditionalLoginWithShim);
   }
+
 
   return config;
 }
@@ -767,8 +758,8 @@ id<GREYMatcher> PaymentsBottomSheetUseKeyboardButton() {
   [self testFillCreditCardFieldsOnForm];
 
   // Focus on the cvc field to fill it.
-  [ChromeEarlGrey evaluateJavaScriptForSideEffect:
-                      @"document.getElementById('cvc').focus();"];
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::WebViewMatcher()]
+      performAction:chrome_test_util::TapWebElementWithId("cvc")];
   // Wait some time so the keyboard has time to show up then slowly type the CVC
   // number.
   base::test::ios::SpinRunLoopWithMinDelay(base::Milliseconds(200));
@@ -1355,21 +1346,50 @@ id<GREYMatcher> PaymentsBottomSheetUseKeyboardButton() {
   [self verifyFieldWithIdHasBeenFilled:kFormVehicleVIN value:@""];
 }
 
-@end
+// Tests that password suggestions shown on the Keyboard Accessory get their
+// subtext overridden to "Password" when Conditional Passkey Login is enabled.
+- (void)testPasswordSuggestionsSubtext_ConditionalPasskeyLoginEnabled {
+  // Disable the credential bottom sheet.
+  [CredentialSuggestionBottomSheetAppInterface disableBottomSheet];
 
-// Reruns all the tests in this file but with the two-bubble feature enabled by
-// default.
-@interface FormInputAccessoryTwoBubbleTestCase : FormInputAccessoryEGTest
+  [ReauthenticationAppInterface mockReauthenticationModuleExpectedResult:
+                                    ReauthenticationResult::kSuccess];
 
-@end
+  NSString* username = kExampleUsername;
+  NSString* password = kExamplePassword;
+  [PasswordManagerAppInterface
+      storeCredentialWithUsername:username
+                         password:password
+                              URL:net::NSURLWithGURL([self loginPageURL])];
+  [self loadLoginPage];
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::WebViewMatcher()]
+      performAction:chrome_test_util::TapWebElementWithId(kFormPassword)];
 
-@implementation FormInputAccessoryTwoBubbleTestCase
+  // The suggestion chip's accessibility label should mention "user, Password"
+  // instead of "user, localhost" (or signon realm).
+  NSString* passwordSubtext = l10n_util::GetNSString(IDS_IOS_PASSWORD_SUBTEXT);
+  NSString* expectedAccessibilityLabel =
+      [NSString stringWithFormat:@"%@, %@", username, passwordSubtext];
+  id<GREYMatcher> userChip = grey_allOf(
+      grey_accessibilityLabel(expectedAccessibilityLabel),
+      grey_ancestor(
+          grey_accessibilityID(kFormInputAccessoryViewAccessibilityID)),
+      nil);
 
-// Returns whether the two-bubble feature should be enabled for the current
-// test. It returns `YES` to rerun tests defined in
-// `FormInputAccessoryEGTest`.
-- (BOOL)shouldEnableTwoBubbleFeature {
-  return YES;
+  [ChromeEarlGrey waitForUIElementToAppearWithMatcher:userChip];
+
+  [[EarlGrey selectElementWithMatcher:userChip] performAction:grey_tap()];
+
+  [self verifyFieldsHaveBeenFilledWithUsername:username password:password];
+}
+
+// Tests that closing a tab after focusing a form field does not crash
+// during FormInputAccessoryCoordinator teardown when AtMemory was not shown.
+- (void)testAtMemoryUnopenedTeardown {
+  [self loadLoginPage];
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::WebViewMatcher()]
+      performAction:chrome_test_util::TapWebElementWithId(kFormUsername)];
+  [ChromeEarlGrey closeCurrentTab];
 }
 
 @end

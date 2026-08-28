@@ -27,6 +27,8 @@ import androidx.lifecycle.Lifecycle;
 
 import org.chromium.base.Callback;
 import org.chromium.base.Log;
+import org.chromium.base.ThreadUtils;
+import org.chromium.base.task.PostTask;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.actor.ui.ActorPictureInPictureOverlayCoordinator;
@@ -107,7 +109,8 @@ public class ActorPictureInPictureController
         mOnPipChangedCallback = onPipChangedCallback;
         // Initialize the AndroidX PiP delegate.
         // Activity extends ComponentActivity, so this is valid.
-        mPipDelegate = new BasicPictureInPicture(activity);
+        mPipDelegate =
+                new BasicPictureInPicture(activity, PostTask.getBackgroundUserVisibleExecutor());
         mPipDelegate.addOnPictureInPictureEventListener(
                 ContextCompat.getMainExecutor(activity), this);
         updatePipState();
@@ -184,11 +187,19 @@ public class ActorPictureInPictureController
 
     /** Replaces manual PictureInPictureParams building. */
     public void updatePipState() {
+        if (mActivity.isFinishing() || mActivity.isDestroyed()) return;
         boolean active = shouldEnterPip();
-        mPipDelegate.setEnabled(active);
-        if (active) {
-            mPipDelegate.setAspectRatio(new Rational(16, 9));
-            updatePausePlayActions();
+        // The Jetpack PiP library handles auto-entry (setAutoEnterEnabled) internally
+        // on Android 12+ when setEnabled(true) is called.
+        try {
+            mPipDelegate.setEnabled(active);
+            if (active) {
+                mPipDelegate.setAspectRatio(new Rational(16, 9));
+                updatePausePlayActions();
+            }
+            mPipDelegate.commit();
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            Log.e(TAG, "Failed to update PiP state", e);
         }
     }
 
@@ -240,6 +251,7 @@ public class ActorPictureInPictureController
                     mExitPipRunnable = null;
                     if (mInActorPiP && !shouldEnterPip()) {
                         Log.i(TAG, "Exiting PiP after 1 min delay.");
+                        ActorMetrics.getInstance().setIsInPip(false);
                         mInActorPiP = false;
                         hideOverlay();
                         mActivity.moveTaskToBack(true);
@@ -342,14 +354,19 @@ public class ActorPictureInPictureController
 
     /** Expose to Activity to guarantee UI reset during framework exits. */
     public void onFrameworkExitedPictureInPicture() {
-        exitPictureInPicture();
+        ThreadUtils.runOnUiThreadBlocking(this::exitPictureInPicture);
     }
 
     private void enterPictureInPicture() {
+        if (!shouldEnterPip()) return;
+
         if (mTabSelectRunnable != null) {
             mHandler.removeCallbacks(mTabSelectRunnable);
             mTabSelectRunnable = null;
         }
+
+        ActorMetrics.getInstance().setIsInPip(true);
+
         mInActorPiP = true;
         mPipStartTime = SystemClock.elapsedRealtime();
         mReceivedNewIntent = false;
@@ -362,6 +379,8 @@ public class ActorPictureInPictureController
 
     private void exitPictureInPicture() {
         if (!mInActorPiP) return;
+
+        ActorMetrics.getInstance().setIsInPip(false);
 
         mInActorPiP = false;
         ActorMetrics.recordPipStatus(ActorMetrics.ActorPipStatus.EXITED);
@@ -441,6 +460,10 @@ public class ActorPictureInPictureController
 
     /** Called when the Activity is destroyed. */
     public void destroy() {
+        if (mInActorPiP) {
+            ActorMetrics.getInstance().setIsInPip(false);
+            mInActorPiP = false;
+        }
         cancelPendingExit();
         if (mTabSelectRunnable != null) {
             mHandler.removeCallbacks(mTabSelectRunnable);
@@ -461,7 +484,7 @@ public class ActorPictureInPictureController
         // If the activity is finishing/destroyed, the OS will sweep up PiP parameters
         // automatically.
         if (!mActivity.isFinishing() && !mActivity.isDestroyed()) {
-            mPipDelegate.setEnabled(false);
+            mPipDelegate.setEnabled(false).commit();
         }
         OffscreenRenderingManager.getInstance().destroy();
     }

@@ -1,0 +1,29 @@
+caption: Enable Proton VPN for Vivaldi
+default: null
+desc: |-
+  Specifies whenever the user can use Proton VPN for Vivaldi
+
+        If 'Enabled' is selected or the policy is left unset, makes the Proton VPN for Vivaldi available.
+
+        If 'Disabled' is selected, the Proton VPN for Vivaldi feature is disabled: the toolbar button, its popups and context menus are hidden and the setting in Privacy is disabled.
+
+        Note: Other policies (e.g. managed proxy, or an extension install policy that blocks the Proton VPN extension) can still make this feature unavailable even when this policy is 'Enabled' or unset.
+example_value: true
+features:
+  dynamic_refresh: true
+  per_profile: true
+items:
+- caption: Proton VPN for Vivaldi feature available
+  value: true
+- caption: Disable Proton VPN for Vivaldi
+  value: false
+- caption: Proton VPN for Vivaldi feature available
+  value: null
+owners:
+- dev@vivaldi.com
+schema:
+  type: boolean
+supported_on:
+- chrome.*:150-
+tags: []
+type: main

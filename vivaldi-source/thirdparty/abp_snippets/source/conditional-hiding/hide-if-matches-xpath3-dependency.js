@@ -14,7 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 export function hideIfMatchesXPath3Dependency() {
 	// whynot.js 5.0.0
 

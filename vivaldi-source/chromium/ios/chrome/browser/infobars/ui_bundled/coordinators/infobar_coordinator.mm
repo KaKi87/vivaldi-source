@@ -42,8 +42,8 @@
 using vivaldi::IsVivaldiRunning;
 // End Vivaldi
 
-@interface InfobarCoordinator () <InfobarCoordinatorImplementation,
-                                  InfobarBannerPositioner,
+@interface InfobarCoordinator () <InfobarBannerPositioner,
+                                  InfobarCoordinatorImplementation,
                                   InfobarModalPositioner> {
   // The AnimatedFullscreenDisable disables fullscreen by displaying the
   // Toolbar/s when an Infobar banner is presented.

@@ -25,7 +25,8 @@ enum class ChangeProfileReason {
   kHandlePushNotification = 5,
   kSwitchAccountsFromWidget = 6,
   kSwitchAccountsFromShareExtension = 7,
-  kMaxValue = kSwitchAccountsFromShareExtension
+  kForGoogleOneSettings = 8,
+  kMaxValue = kForGoogleOneSettings
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/signin/enums.xml:IOSChangeProfileReason)
 
@@ -34,6 +35,9 @@ enum class ChangeProfileReason {
 
 // Changes the profile used by the scene identified by `sceneState` and invokes
 // `continuation` when the profile is fully loaded.
+//
+// NOTE: Do not call this method directly to switch profiles. Use
+// AuthenticationFlow APIs instead.
 //
 // The profile named `profileName` must be registered already, but it does not
 // need to be initialized or loaded. This method will take care of initializing

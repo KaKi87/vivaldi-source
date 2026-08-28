@@ -62,8 +62,7 @@ void OnFaviconFetched(TabSnapshotAndFavicon* tab_snapshot_and_favicon,
 
   tab_snapshot_and_favicon.favicon =
       attributes.faviconImage
-          ?: DefaultSymbolWithConfiguration(kGlobeAmericasSymbol,
-                                            configuration);
+          ?: SymbolWithConfiguration(SymbolGlobeAmericas, configuration);
 
   completion(tab_snapshot_and_favicon);
 }
@@ -122,7 +121,7 @@ class TabSnapshotAndFaviconConfigurator::TabGroupItemRequestInfo
   }
 
   UIImage* GetNTPFavicon(UIImageConfiguration* configuration) const override {
-    return CustomSymbolWithConfiguration(kChromeProductSymbol, configuration);
+    return SymbolWithConfiguration(SymbolChromeProduct, configuration);
   }
 
  private:
@@ -294,7 +293,7 @@ void TabSnapshotAndFaviconConfigurator::FetchSnapshotAndFaviconInternal(
   if (!favicon_loader_) {
     tab_snapshot_and_favicon.favicon =
         IsVivaldiRunning() ? [UIImage imageNamed:vNTPSDFallbackFavicon] : // Vivaldi
-        DefaultSymbolWithConfiguration(kGlobeAmericasSymbol, configuration);
+        SymbolWithConfiguration(SymbolGlobeAmericas, configuration);
     completion(tab_snapshot_and_favicon);
     return;
   }

@@ -121,6 +121,7 @@ xnnpack_cxx_library(
 ) for kernel in [
     "bf16_f32_vcvt",
     "bf16_qs8_vcvt",
+    "bf16_qu8_vcvt",
     "f16_f32_vcvt",
     "f16_qs8_vcvt",
     "f16_qu8_vcvt",
@@ -718,6 +719,17 @@ xnnpack_unit_test(
 )
 
 xnnpack_unit_test(
+    name = "qd8_bf16_qb4w_gemm_minmax_test",
+    timeout = "moderate",
+    srcs = [
+        "qd8-bf16-qb4w-gemm-minmax.cc",
+    ],
+    deps = MICROKERNEL_TEST_DEPS + [
+        ":gemm_microkernel_tester",
+    ],
+)
+
+xnnpack_unit_test(
     name = "qd8_f16_qb4w_gemm_minmax_test",
     timeout = "moderate",
     srcs = [
@@ -1110,5 +1122,17 @@ xnnpack_unit_test(
     ],
     deps = [
         "//:XNNPACK",
+    ],
+)
+
+xnnpack_unit_test(
+    name = "hardware_config_reset_test",
+    srcs = ["hardware-config-reset.cc"],
+    tags = ["no_ynnpack"],
+    deps = [
+        "//:common",
+        "//src/configs:config_hdrs",
+        "//src/configs:hardware_config",
+        "//src/configs:microkernel_configs",
     ],
 )

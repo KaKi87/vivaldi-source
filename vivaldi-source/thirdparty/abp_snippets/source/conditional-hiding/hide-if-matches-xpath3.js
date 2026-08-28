@@ -14,31 +14,39 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 
-import {formatArguments} from "../utils/general.js";
+import {formatArguments, sendSnippetHitEvent} from "../utils/general.js";
 import {hideElement} from "../utils/dom.js";
 import {profile} from "../introspection/profile.js";
 import {raceWinner} from "../introspection/race.js";
 import {getDebugger} from "../introspection/log.js";
 
 let {MutationObserver} = $(window);
+const hitFilters = new Set();
 
 const {ELEMENT_NODE} = Node;
 /* global fontoxpath */
 
 /**
- * Hide a specific element through a XPath 3.1 query string.
+ * @description Hide a specific element through a XPath 3.1 query string.
  * See {@tutorial xpath-filters} to know more.
- * @alias module:content/snippets.hide-if-matches-xpath3
+ * @memberof module:snippets/conditional-hiding
  *
  * @param {string} query The XPath query that targets the element to hide.
  * @param {string} scopeQuery CSS or XPath selector that the filter devs can
  * use to restrict the scope of the MO.
  * It is important that the selector is as specific as possible to avoid to
  * match too many nodes.
+ * @example
+ * hide-if-matches-xpath3 '//{@literal *}[lower-case(text())="sponsored"]' =>
+ * Hides any element that contains the text "sponsored" in its text content,
+ * regardless of the element type or the case (upper or lower) of
+ * the text (e.g.: "sPoNSoReD").
  *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69960763/hide-if-matches-xpath3} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/conditional-hiding-snippets/hide-if-matches-xpath3} for external documentation.
+ * @since Adblock Plus 3.19
  */
 export function hideIfMatchesXPath3(query, scopeQuery) {
   let {mark, end} = profile("hide-if-matches-xpath3");
@@ -79,6 +87,13 @@ export function hideIfMatchesXPath3(query, scopeQuery) {
                  node,
                  "\nFILTER: hide-if-matches-xpath3",
                  formattedArguments);
+        const filter =
+          "hide-if-matches-xpath3 " +
+          formattedArguments;
+        if (!hitFilters.has(filter)) {
+          hitFilters.add(filter);
+          sendSnippetHitEvent(filter);
+        }
       }
       end();
     };

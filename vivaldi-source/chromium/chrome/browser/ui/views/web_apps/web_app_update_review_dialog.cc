@@ -137,11 +137,12 @@ class UpdateDialogDelegate : public ui::DialogModelDelegate,
                        Browser& browser)
       : app_id_(app_id), callback_(std::move(callback)), browser_(browser) {
     install_manager_observation_.Observe(
-        &WebAppProvider::GetForWebApps(browser_->profile())->install_manager());
+        &WebAppProvider::GetForWebApps(browser_->GetProfile())
+             ->install_manager());
     browser_->GetBrowserView().SetProperty(kIsPwaUpdateDialogShowingKey, true);
   }
   ~UpdateDialogDelegate() override {
-    if (browser_->window()) {
+    if (browser_->GetWindow()) {
       browser_->GetBrowserView().SetProperty(kIsPwaUpdateDialogShowingKey,
                                              false);
     }
@@ -264,7 +265,7 @@ void ShowWebAppReviewUpdateDialog(const webapps::AppId& app_id,
   // Some combination of changes should be existing if the update dialog needs
   // to be triggered.
   CHECK_GT(update.GetCombinationChangeIndex(), 0);
-  CHECK(AreWebAppsEnabled(browser->profile()));
+  CHECK(AreWebAppsEnabled(browser->GetProfile()));
   bool url_migration_only =
       (update.GetCombinationChangeIndex() == WebAppIdentityUpdate::kUrlChange);
 
@@ -384,7 +385,7 @@ void ShowWebAppReviewUpdateDialog(const webapps::AppId& app_id,
   }
 
   views::Widget* widget = constrained_window::ShowBrowserModal(
-      dialog_model_builder.Build(), browser->window()->GetNativeWindow());
+      dialog_model_builder.Build(), browser->GetWindow()->GetNativeWindow());
   delegate_weak_ptr->OnWidgetShownStartTracking(widget);
 
   base::UmaHistogramTimes("WebApp.UpdateReviewDialog.TriggerToShowTime",

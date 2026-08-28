@@ -8,6 +8,7 @@
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/test/with_feature_override.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/extensions/extension_action_dispatcher.h"
 #include "chrome/browser/extensions/extension_apitest.h"
@@ -15,6 +16,7 @@
 #include "chrome/browser/renderer_context_menu/render_view_context_menu_test_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/test/base/ui_test_utils.h"
 #include "components/sessions/content/session_tab_helper.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -28,6 +30,7 @@
 #include "extensions/browser/extension_util.h"
 #include "extensions/browser/process_manager.h"
 #include "extensions/browser/script_result_queue.h"
+#include "extensions/common/extension.h"
 #include "extensions/common/extension_features.h"
 #include "extensions/common/mojom/view_type.mojom.h"
 #include "extensions/common/switches.h"
@@ -35,6 +38,7 @@
 #include "extensions/test/result_catcher.h"
 #include "extensions/test/test_extension_dir.h"
 #include "net/dns/mock_host_resolver.h"
+#include "ui/base/window_open_disposition.h"
 
 namespace extensions {
 
@@ -517,19 +521,13 @@ IN_PROC_BROWSER_TEST_F(NativeBindingsApiTest, PromiseBasedAPI) {
 
 class NativeBindingsBrowserNamespaceTest : public NativeBindingsApiTest {
  public:
-  NativeBindingsBrowserNamespaceTest() {
-    scoped_feature_list_.InitAndEnableFeature(
-        extensions_features::kExtensionBrowserNamespaceAndPolyfillSupport);
-  }
+  NativeBindingsBrowserNamespaceTest() = default;
 
   NativeBindingsBrowserNamespaceTest(
       const NativeBindingsBrowserNamespaceTest&) = delete;
   const NativeBindingsBrowserNamespaceTest& operator=(
       const NativeBindingsBrowserNamespaceTest&) = delete;
   ~NativeBindingsBrowserNamespaceTest() override = default;
-
- protected:
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 // Tests that extension background script contexts have access to
@@ -681,8 +679,13 @@ IN_PROC_BROWSER_TEST_F(NativeBindingsBrowserNamespaceTest,
   ASSERT_TRUE(catcher.GetNextResult()) << catcher.message();
 }
 
-// Tests that confirms where some contexts where the the devtools API should and
-// should not be defined for the chrome and browser namespaces.
+// Tests where the `devtools` API should and should not be defined for the
+// `chrome` and `browser` namespaces across different extension contexts. Note:
+// Although the `devtools` API is not restricted in any special way beyond its
+// permission and the script context, it is bespoke and dynamically injected by
+// the DevTools frontend rather than the standard extension bindings system.
+// Because of this we explicitly test the API's visibility behaviors across
+// contexts to prevent regressions.
 IN_PROC_BROWSER_TEST_F(NativeBindingsBrowserNamespaceTest,
                        ChromeAndBrowserObjects_DevToolsVisibility) {
   ASSERT_TRUE(StartEmbeddedTestServer());
@@ -707,18 +710,21 @@ IN_PROC_BROWSER_TEST_F(NativeBindingsBrowserNamespaceTest,
                             chrome.test.assertTrue(
                               chrome.hasOwnProperty('devtools'));
                             chrome.test.assertNe(undefined, chrome.devtools);
-                            chrome.test.assertTrue(
-                              typeof browser === 'undefined');
+                            chrome.test.assertNe(undefined, browser);
+                            chrome.test.assertTrue('devtools' in browser);
+                            chrome.test.assertNe(undefined, browser.devtools);
                             chrome.test.succeed();
                           }
                         ]);)");
   constexpr char kCheckNoDevTools[] =
       R"(chrome.test.runTests([
            function checkNoDevTools() {
-             chrome.test.assertFalse(
-               chrome.hasOwnProperty('devtools'));
+             chrome.test.assertNe(undefined, chrome);
+             chrome.test.assertFalse('devtools' in chrome);
              chrome.test.assertEq(undefined, chrome.devtools);
-             chrome.test.assertTrue(typeof browser === 'undefined');
+             chrome.test.assertNe(undefined, browser);
+             chrome.test.assertFalse('devtools' in browser);
+             chrome.test.assertEq(undefined, browser.devtools);
              chrome.test.succeed();
            }
          ]);)";
@@ -769,8 +775,13 @@ IN_PROC_BROWSER_TEST_F(NativeBindingsBrowserNamespaceTest,
       << devtools_page_catcher.message();
 }
 
-// Tests the edge case where the devtools page is loaded outside of the devtools
-// frontend. browser.devtools should not be defined.
+// Tests the edge case where the DevTools page is loaded outside of the DevTools
+// frontend (e.g. manually navigating to it in a regular tab).
+// `browser.devtools` and `chrome.devtools` should not be defined because they
+// are only injected by the DevTools frontend when hosted within it, but the
+// `browser` namespace itself should still be defined. We explicitly test this
+// to prevent regressions in the bespoke DevTools frontend injection and
+// aliasing checks.
 IN_PROC_BROWSER_TEST_F(NativeBindingsBrowserNamespaceTest,
                        ChromeAndBrowserObjects_DevToolsVisibility_External) {
   ASSERT_TRUE(StartEmbeddedTestServer());
@@ -789,8 +800,10 @@ IN_PROC_BROWSER_TEST_F(NativeBindingsBrowserNamespaceTest,
                           function checkNoDevTools() {
                             chrome.test.assertFalse(chrome.hasOwnProperty(
                               'devtools'));
-                            chrome.test.assertTrue(
-                              typeof browser === 'undefined');
+                            chrome.test.assertNe(undefined, chrome);
+                            chrome.test.assertFalse('devtools' in chrome);
+                            chrome.test.assertNe(undefined, browser);
+                            chrome.test.assertFalse('devtools' in browser);
                             chrome.test.succeed();
                           }
                         ]);)");
@@ -807,8 +820,12 @@ IN_PROC_BROWSER_TEST_F(NativeBindingsBrowserNamespaceTest,
   ASSERT_TRUE(catcher.GetNextResult()) << catcher.message();
 }
 
-// Tests the visibility of the devtools API for the chrome and browser
-// namespaces in iframes nested inside a devtools page.
+// Tests the visibility and aliasing of the `devtools` API for the `chrome` and
+// `browser` namespaces inside iframes nested within a DevTools page. Since the
+// `devtools` API is bespoke and dynamically injected by the DevTools frontend
+// rather than through the standard extension bindings system, we explicitly
+// test nested frames to ensure the custom injection and aliasing logic properly
+// propagates across frame boundaries without regression.
 IN_PROC_BROWSER_TEST_F(
     NativeBindingsBrowserNamespaceTest,
     ChromeAndBrowserObjects_DevToolsVisibility_NestedIframe) {
@@ -845,11 +862,12 @@ IN_PROC_BROWSER_TEST_F(
                               'devtools frontend to define chrome.devtools.');
                           },
                           async function checkNestedFrameHasDevTools() {
-                            chrome.test.assertTrue(
-                              chrome.hasOwnProperty('devtools'));
+                            chrome.test.assertNe(undefined, chrome);
+                            chrome.test.assertTrue('devtools' in chrome);
                             chrome.test.assertNe(undefined, chrome.devtools);
-                            chrome.test.assertTrue(
-                              typeof browser === 'undefined');
+                            chrome.test.assertNe(undefined, browser);
+                            chrome.test.assertTrue('devtools' in browser);
+                            chrome.test.assertNe(undefined, browser.devtools);
                             chrome.test.succeed();
                           }
                         ]);)");
@@ -865,14 +883,13 @@ IN_PROC_BROWSER_TEST_F(
   ASSERT_TRUE(catcher.GetNextResult()) << catcher.message();
 }
 
-// TODO(crbug.com/401226626): Re-enable once the devtools API is on browser
-// namespace.
-// Tests the `browser.devtools` aliasing behavior to `chrome.devtools` in a
-// devtools page. This is tested explicitly because `devtools` APIs are an
-// exception being injected by the devtools frontend rather than the standard
-// extension bindings system.
+// Tests the `browser.devtools` dynamic aliasing behavior to `chrome.devtools`
+// in a DevTools page. Note: The `devtools` API is bespoke and dynamically
+// injected onto `chrome` by the DevTools frontend rather than through the
+// standard extension bindings system. We explicitly test this aliasing to
+// prevent regressions in the custom frontend-injected API.
 IN_PROC_BROWSER_TEST_F(NativeBindingsBrowserNamespaceTest,
-                       DISABLED_ChromeAndBrowserObjects_DevToolsApiAliasing) {
+                       ChromeAndBrowserObjects_DevToolsApiAliasing) {
   TestExtensionDir test_dir;
   test_dir.WriteManifest(
       R"({
@@ -926,6 +943,96 @@ IN_PROC_BROWSER_TEST_F(NativeBindingsBrowserNamespaceTest,
 
   ASSERT_TRUE(catcher.GetNextResult()) << catcher.message();
 }
+
+class NativeBindingsBrowserNamespaceOnWebPagesTest
+    : public base::test::WithFeatureOverride,
+      public NativeBindingsApiTest {
+ public:
+  NativeBindingsBrowserNamespaceOnWebPagesTest()
+      : base::test::WithFeatureOverride(
+            extensions_features::kExtensionBrowserNamespaceOnWebPages) {}
+
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    NativeBindingsApiTest::SetUpCommandLine(command_line);
+    command_line->AppendSwitch(switches::kExtensionTestApiOnWebPages);
+  }
+};
+
+// Tests that the `browser` namespace is defined on web pages if and only if
+// the `extensions_features::kExtensionBrowserNamespaceOnWebPages` feature
+// is enabled. Also confirms that when enabled, attributes on `chrome` and
+// `browser` (like `test` API) point to the exact same object.
+IN_PROC_BROWSER_TEST_P(NativeBindingsBrowserNamespaceOnWebPagesTest,
+                       BrowserObjectOnWebPages) {
+  // Start the test server and navigate to a non-extension web page `a.com`.
+  ASSERT_TRUE(StartEmbeddedTestServer());
+  const GURL& test_website =
+      embedded_test_server()->GetURL("a.com", "/title1.html");
+  auto* web_contents = GetActiveWebContents();
+  ASSERT_TRUE(NavigateToURL(web_contents, test_website));
+
+  // The `chrome` namespace should always be defined on web pages.
+  EXPECT_TRUE(ObjectIsDefined(web_contents, "chrome"));
+
+  // The `browser` namespace should be defined if the feature is enabled,
+  // and undefined otherwise.
+  if (IsParamFeatureEnabled()) {
+    EXPECT_TRUE(ObjectIsDefined(web_contents, "browser"));
+    // Confirm that the `test` API on both namespaces points to the exact same
+    // object.
+    EXPECT_TRUE(ApiExists(web_contents, "chrome.test"));
+    EXPECT_TRUE(ApiExists(web_contents, "browser.test"));
+    EXPECT_TRUE(content::EvalJs(web_contents, "chrome.test === browser.test")
+                    .ExtractBool());
+  } else {
+    EXPECT_FALSE(ObjectIsDefined(web_contents, "browser"));
+  }
+}
+
+INSTANTIATE_FEATURE_OVERRIDE_TEST_SUITE(
+    NativeBindingsBrowserNamespaceOnWebPagesTest);
+
+class NativeBindingsBrowserNamespaceOnWebPagesNoTestApiTest
+    : public base::test::WithFeatureOverride,
+      public NativeBindingsApiTest {
+ public:
+  NativeBindingsBrowserNamespaceOnWebPagesNoTestApiTest()
+      : base::test::WithFeatureOverride(
+            extensions_features::kExtensionBrowserNamespaceOnWebPages) {}
+};
+
+// Tests that the `browser` namespace is defined on web pages if and only if
+// the `extensions_features::kExtensionBrowserNamespaceOnWebPages` feature
+// is enabled, even if there are no features available to the page.
+IN_PROC_BROWSER_TEST_P(NativeBindingsBrowserNamespaceOnWebPagesNoTestApiTest,
+                       BrowserObjectOnWebPagesWithoutAPIs) {
+  ASSERT_TRUE(StartEmbeddedTestServer());
+  const GURL& test_website =
+      embedded_test_server()->GetURL("a.com", "/title1.html");
+  auto* web_contents = GetActiveWebContents();
+  ASSERT_TRUE(NavigateToURL(web_contents, test_website));
+
+  EXPECT_TRUE(ObjectIsDefined(web_contents, "chrome"));
+
+  if (IsParamFeatureEnabled()) {
+    EXPECT_TRUE(ObjectIsDefined(web_contents, "browser"));
+    // Note: We cannot test that `browser` has the same attributes as `chrome`
+    // here because the only attributes present on `chrome` for a regular
+    // web page without any extension APIs are legacy properties like
+    // `chrome.loadTimes` and `chrome.csi` (and `chrome.app` which is explicitly
+    // skipped for `browser` in `NativeExtensionBindingsSystem`).
+    // `loadTimes` and `csi` are injected via a separate V8 extension script
+    // (v8/LoadTimes) which explicitly only populates the `chrome` object and
+    // does not alias to `browser`. `browser` is not a generic proxy of
+    // `chrome`, but rather a separate object where extension APIs are
+    // explicitly mirrored.
+  } else {
+    EXPECT_FALSE(ObjectIsDefined(web_contents, "browser"));
+  }
+}
+
+INSTANTIATE_FEATURE_OVERRIDE_TEST_SUITE(
+    NativeBindingsBrowserNamespaceOnWebPagesNoTestApiTest);
 
 // TODO(crbug.com/401226626): Test that the browser object also has dev mode
 // restricted APIs set on correctly as well.
@@ -1141,6 +1248,131 @@ IN_PROC_BROWSER_TEST_F(
   util::SetDeveloperModeForProfile(profile(), false);
   renderer_round_trip();
   EXPECT_EQ("success", call_in_service_worker("verifyApiIsNotAvailable();"));
+}
+
+// Tests that when an event listener throws an exception whose `stack` getter
+// removes the `iframe` (destroying its context), synchronous event dispatch
+// safely breaks out without a heap-use-after-free on the freed
+// `extensions::JSRunner`, while ensuring a one-time message sender receives
+// the response sent by a previous listener before context teardown. This is a
+// regression test for `crbug.com/536676756` when run on AddressSanitizer
+// builders. It is not limited to run just on AddressSanitizer builders so we
+// can get code coverage too.
+IN_PROC_BROWSER_TEST_F(NativeBindingsApiTest,
+                       ListenersDestroyingFrameContextInErrorStackGetter) {
+  static constexpr char kManifest[] =
+      R"({
+           "name": "Events UAF Reproducer",
+           "version": "0.1",
+           "manifest_version": 3,
+           "permissions": ["storage"]
+         })";
+
+  static constexpr char kPageHtml[] =
+      R"(<!DOCTYPE html>
+         <html>
+         <head>
+           <script src="page.js"></script>
+         </head>
+         <body>
+           <iframe id="test_frame" src="frame.html"></iframe>
+         </body>
+         </html>)";
+
+  static constexpr char kPageJs[] =
+      R"('use strict';
+
+         window.onload = function() {
+           // Send a one-time message to trigger `chrome.runtime.onMessage`.
+           chrome.runtime.sendMessage('test_message', function(response) {
+             chrome.test.sendMessage('got_response: ' + response);
+           });
+         };)";
+
+  static constexpr char kFrameHtml[] =
+      R"(<!DOCTYPE html>
+         <html>
+         <head>
+           <script src="frame.js"></script>
+         </head>
+         <body></body>
+         </html>)";
+
+  static constexpr char kFrameJs[] =
+      R"('use strict';
+
+         // Add the first listener, which sends a reply to the sender via
+         // `sendResponse()` and also returns a value.
+         chrome.runtime.onMessage.addListener(
+             function firstListener(message, sender, sendResponse) {
+               sendResponse('first_listener_reply');
+               return 'first_listener_return_value';
+             });
+
+         // Add the second listener, which calls `sendResponse()` and then
+         // throws an error object with a custom `stack` property getter.
+         // When `extensions::ExceptionHandler::HandleException()` inspects the
+         // exception stack trace via `v8::TryCatch::StackTrace()`, the getter
+         // executes reentrantly and calls `frameElement.remove()`. That
+         // detaches the `iframe` from the DOM, destroys its `v8::Context`,
+         // and frees the per-context `extensions::JSRunner` data on the heap.
+         chrome.runtime.onMessage.addListener(
+             function secondListener(message, sender, sendResponse) {
+               sendResponse('second_listener_reply');
+               const exception = {};
+               Object.defineProperty(exception, 'stack', {
+                 get() {
+                   frameElement.remove();
+                 },
+               });
+               throw exception;
+             });
+
+         // Add a third listener. Previously,
+         // `extensions::EventEmitter::DispatchSync()` failed to check
+         // `extensions::binding::IsContextValid()` after exception handling
+         // and proceeded to execute this third listener using the dangling
+         // `extensions::JSRunner` pointer, triggering a heap-use-after-free
+         // read. `extensions::EventEmitter::DispatchSync()` now breaks the
+         // loop without calling this third listener.
+         chrome.runtime.onMessage.addListener(
+             function thirdListener(message, sender, sendResponse) {
+               sendResponse('third_listener_reply');
+             });)";
+
+  // Write the extension manifest, html, and js test files to the test
+  // directory.
+  TestExtensionDir test_dir;
+  test_dir.WriteManifest(kManifest);
+  test_dir.WriteFile(FILE_PATH_LITERAL("page.html"), kPageHtml);
+  test_dir.WriteFile(FILE_PATH_LITERAL("page.js"), kPageJs);
+  test_dir.WriteFile(FILE_PATH_LITERAL("frame.html"), kFrameHtml);
+  test_dir.WriteFile(FILE_PATH_LITERAL("frame.js"), kFrameJs);
+
+  // Set up a message listener to wait for the expected response from the
+  // first event listener.
+  ExtensionTestMessageListener response_listener(
+      /*expected_message=*/"got_response: first_listener_reply");
+
+  // Load the unpacked extension and assert that it loaded successfully.
+  const Extension* extension = LoadExtension(test_dir.UnpackedPath());
+  ASSERT_TRUE(extension);
+
+  // Navigate to `page.html`, which loads the iframe and triggers one-time
+  // messaging via `ui_test_utils::NavigateToURLWithDisposition()`.
+  ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
+      browser(), extension->GetResourceURL("page.html"),
+      WindowOpenDisposition::NEW_FOREGROUND_TAB,
+      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
+
+  // Verify that the one-time message sender received the reply from
+  // `firstListener` even though `secondListener` destroyed the iframe context.
+  {
+    SCOPED_TRACE(
+        "Waiting for the one-time message sender to receive the reply from "
+        "firstListener");
+    EXPECT_TRUE(response_listener.WaitUntilSatisfied());
+  }
 }
 
 }  // namespace extensions

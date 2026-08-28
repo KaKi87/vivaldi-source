@@ -30,6 +30,7 @@
 #import "ios/chrome/app/unexpected_mode_toast_util.h"
 #import "ios/chrome/browser/credential_exchange/model/credential_import_manager_swift.h"
 #import "ios/chrome/browser/credential_provider/model/features.h"
+#import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/intents/model/intents_constants.h"
 #import "ios/chrome/browser/lens/ui_bundled/lens_availability.h"
 #import "ios/chrome/browser/lens/ui_bundled/lens_entrypoint.h"
@@ -487,7 +488,7 @@ void UserActivityBrowserAgent::RouteToCorrectTab() {
       base::BindOnce(&UserActivityBrowserAgent::HandleRouteToCorrectTab,
                      weak_ptr_factory_.GetWeakPtr());
   [connection_information_.startupParameters
-      requestApplicationModeWithBlock:base::CallbackToBlock(
+      fetchAppSwitcherParamsWithBlock:base::CallbackToBlock(
                                           std::move(completion))];
 }
 
@@ -679,7 +680,7 @@ BOOL UserActivityBrowserAgent::ContinueUserActivityURL(
         base::BindOnce(&UserActivityBrowserAgent::HandleUrlOpening,
                        weak_ptr_factory_.GetWeakPtr(), webpage_GURL);
     [connection_information_.startupParameters
-        requestApplicationModeWithBlock:base::CallbackToBlock(
+        fetchAppSwitcherParamsWithBlock:base::CallbackToBlock(
                                             std::move(completion))];
     return YES;
   }
@@ -710,9 +711,9 @@ void UserActivityBrowserAgent::OpenMultipleTabs() {
       base::BindOnce(&UserActivityBrowserAgent::HandleMultipleUrlsOpening,
                      weak_ptr_factory_.GetWeakPtr(), URLs);
   [connection_information_.startupParameters
-      requestApplicationModeWithBlock:base::CallbackToBlock(
+      fetchAppSwitcherParamsWithBlock:base::CallbackToBlock(
                                           std::move(completion))];
-  }
+}
 
 GURL UserActivityBrowserAgent::GenerateResultGURLFromSearchQuery(
     NSString* search_query) {
@@ -789,17 +790,9 @@ void UserActivityBrowserAgent::HandleRouteToCorrectTab(
     params = UrlLoadParams::InNewTab(url, virtual_url);
   }
 
-  // App scheme URLs are not generally allowed to be opened in new tabs.
-  // However, allow `chrome://dino` to be opened if the request originated
-  // from a widget or a siri shortcut in order to support the Dino Game.
-  // Setting the `transition_type` to `PAGE_TRANSITION_AUTO_BOOKMARK` instead of
-  // `PAGE_TRANSITION_LINK` allows this load to complete successfully.
-  if ((connection_information_.startupParameters.openedViaWidgetScheme ||
-       connection_information_.startupParameters.openedViaSiriShortcut) &&
-      url.GetScheme() == kChromeUIScheme &&
-      url.GetHost() == kChromeUIDinoHost) {
-    params.web_params.transition_type = ui::PAGE_TRANSITION_AUTO_BOOKMARK;
-  }
+  params.from_widget_or_siri =
+      connection_information_.startupParameters.openedViaWidgetScheme ||
+      connection_information_.startupParameters.openedViaSiriShortcut;
 
   if (connection_information_.startupParameters.imageSearchData) {
     TemplateURLService* template_url_service =

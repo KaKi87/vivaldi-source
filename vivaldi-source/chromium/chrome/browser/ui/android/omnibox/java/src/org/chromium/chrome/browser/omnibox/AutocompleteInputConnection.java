@@ -299,8 +299,10 @@ class AutocompleteInputConnection extends InputConnectionWrapper {
         boolean retVal = decrementBatchEditCount();
         // Simply typed some characters or whole text selection has been overridden.
         if (currentState.isForwardTypedFrom(mPreBatchEditState)
+                || currentState.isForwardReplacementFrom(mPreBatchEditState)
                 || (mPreBatchEditState.isWholeUserTextSelected()
                         && currentState.getUserText().length() > 0
+                        && currentState.getSelection().isCollapsed()
                         && currentState.isCursorAtEndOfUserText())) {
             mInputDelegate.setLastEditWasTyping(true);
         }

@@ -14,7 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 import {noop} from "./log.js";
 import {getDebugger} from "./log.js";
@@ -24,13 +23,20 @@ let {Array, Error, Map, parseInt} = $(window);
 let stack = null;
 let won = null;
 
-// #$#race start; thing1; thing2; race stop;
-
 /**
- * Delimits a race among filters, to be able to disable competing filters when
- * any of them "wins the race". `#$#race start; filter1; filter2; race end;`
+ * @description Delimits a race among filters, to be able to disable
+ * competing filters when any of them "wins the race".
+ * `#$#race start; filter1; filter2; race end;`
+ * @memberOf module:snippets/introspection
  * @param {string} action either `start` or `stop` the race.
  * @param {string} winners the amount of possible race's winners: 1 by default.
+ * @example
+ * example.#$#race start; snippet 1 2 3; other 4 5 6; another 7 8 9; race stop;
+ * => Whatever snippet "wins" the race, all others will be flagged as "loosers",
+ * and their registered callback to stop them executing, will be invoked.
+ *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/69965637/Race} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/performance-snippets/race} for external documentation.
  */
 export function race(action, winners = "1") {
   switch (action) {
@@ -55,8 +61,10 @@ export function race(action, winners = "1") {
 }
 
 /**
- * Returns a function that, when a race is happening, can mark a winner,
- * by invoking all callbacks passed for every other snippet that lost the race.
+ * @description Returns a function that, when a race is happening,
+ * can mark a winner, by invoking all callbacks passed for
+ * every other snippet that lost the race.
+ * @memberOf module:snippets/introspection
  * @param {string} name the snippet name that is racing.
  * @param {function} lose a callback that, once invoked, will stop the snippet.
  * @returns {function} a callback to invoke whenever a match happens.

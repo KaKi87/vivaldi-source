@@ -48,7 +48,7 @@ if (is_win) {
   }
 
   if (vivaldi_build_tests) {
-    update_template_instance("//chrome/test:browser_tests") {
+    update_template_instance("//chrome/browser/extensions:browser_tests") {
       data_deps -= [
         "//chrome/browser/extensions/api/messaging:native_messaging_test_echo_&_host",
         "//chrome/browser/extensions/api/messaging:native_messaging_test_echo_host",

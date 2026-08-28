@@ -7,8 +7,6 @@
 #include <memory>
 #include <string_view>
 
-#include "base/functional/callback_helpers.h"
-#include "base/test/mock_callback.h"
 #include "base/time/time.h"
 #include "chrome/test/views/chrome_views_test_base.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -110,6 +108,18 @@ TEST_F(PopupSearchBarViewTest, OnInputChangedIsCalledAfterDelay) {
   check.Call();
   task_environment()->FastForwardBy(
       PopupSearchBarView::kInputChangeCallbackDelay / 2);
+}
+
+// Verifies that when `debounce_delay` is zero, text input changes notify the
+// delegate on the current tick without advancing mock time.
+TEST_F(PopupSearchBarViewTest, OnInputChangedIsCalledImmediatelyWithZeroDelay) {
+  auto view = std::make_unique<PopupSearchBarView>(
+      u"placeholder", delegate(), /*show_indicator=*/false,
+      /*show_search_icon_sparkle=*/false, /*debounce_delay=*/base::TimeDelta());
+
+  EXPECT_CALL(delegate(), SearchBarOnInputChanged(Eq(u"input text")));
+  view->SetInputTextForTesting(u"input text");
+  task_environment()->RunUntilIdle();
 }
 
 TEST_F(PopupSearchBarViewTest, OnInputChangedCallbackIsThrottled) {

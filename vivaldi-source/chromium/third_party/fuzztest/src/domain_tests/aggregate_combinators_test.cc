@@ -28,7 +28,6 @@
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
-#include "absl/types/optional.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/serialization.h"
@@ -354,7 +353,7 @@ TEST(OptionalOf, WorksWithACustomOptionalType) {
   auto domain = OptionalOf<std::optional<int>>(InRange(1, 3));
   absl::BitGen bitgen;
   std::optional<int> v = Value(domain, bitgen).user_value;
-  EXPECT_THAT(v, AnyOf(absl::nullopt, Optional(_)));
+  EXPECT_THAT(v, AnyOf(std::nullopt, Optional(_)));
 }
 
 TEST(OptionalOf, AlwaysGenerateNulloptWhenPolicySet) {

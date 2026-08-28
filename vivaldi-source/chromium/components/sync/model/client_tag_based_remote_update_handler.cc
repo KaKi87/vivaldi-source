@@ -197,7 +197,7 @@ ProcessorEntity* ClientTagBasedRemoteUpdateHandler::ProcessUpdate(
   }
 
   ProcessorEntity* entity =
-      entity_tracker_->GetEntityForTagHash(client_tag_hash);
+      entity_tracker_->GetEntityForClientTagHash(client_tag_hash);
 
   // Filter out unexpected client tag hashes.
   if (!data.is_deleted() && bridge_->SupportsGetClientTag() &&

@@ -1,16 +1,20 @@
-fetch_test_fonts = custom_target(
-  'fetch_test_fonts',
-  output: 'testfonts',
-  command: [
-    python3,
-    join_paths(meson.project_source_root(), 'build-aux', 'fetch-testfonts.py'),
-    '--target-dir',
-    '@BUILD_ROOT@/testfonts',
-    '--try-symlink',
-  ],
-  build_by_default: false,
-  build_always_stale: true,
-)
+if get_option('tests-external-fonts').allowed()
+  fetch_test_fonts = custom_target(
+    'fetch_test_fonts',
+    output: 'testfonts',
+    command: [
+      python3,
+      join_paths(meson.project_source_root(), 'build-aux', 'fetch-testfonts.py'),
+      '--target-dir',
+      '@0@/testfonts'.format(meson.project_build_root()),
+      '--try-symlink',
+    ],
+    build_by_default: false,
+    build_always_stale: true,
+  )
+else
+  fetch_test_fonts = []
+endif
 
 tests = [
   ['test-bz89617.c', {'c_args': ['-DSRCDIR="@0@"'.format(meson.current_source_dir())]}],
@@ -96,13 +100,18 @@ else
 endif
 
 if pytest.found()
-  test('pytest', pytest, args: ['--tap'],
+  pytest_args = ['--tap', '-vv', '--assert=plain']
+  if not get_option('tests-external-fonts').allowed()
+    pytest_args += ['-m', 'not network']
+  endif
+  test('pytest', pytest, args: pytest_args,
        workdir: meson.current_source_dir(),
        env: [
          'builddir=@0@'.format(meson.project_build_root()),
          'srcdir=@0@'.format(meson.project_source_root()),
          'EXEEXT=@0@'.format(conf.get('EXEEXT')),
          'CC=@0@'.format(meson.get_compiler('c').cmd_array()[0]),
+         'FC_DISABLE_BWRAP=@0@'.format((not get_option('tests-bwrap').allowed()).to_int()),
        ],
        protocol: 'tap',
        timeout: 600,
@@ -111,7 +120,8 @@ endif
 
 if jsonc_dep.found()
   test_conf = executable('test-conf', 'test-conf.c',
-                         dependencies: [fontconfig_dep, jsonc_dep])
+                         dependencies: [fontconfig_dep, jsonc_dep],
+                         c_args: ['-DSRCDIR="@0@"'.format(meson.current_source_dir())])
 endif
 
 test_const_name = executable('test_const_name', test_const_name_c,

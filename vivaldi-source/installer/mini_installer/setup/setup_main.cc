@@ -133,6 +133,7 @@ namespace {
 const wchar_t kSystemPrincipalSid[] = L"S-1-5-18";
 const wchar_t kDisplayVersion[] = L"DisplayVersion";
 constexpr wchar_t kEstimatedSize[] = L"EstimatedSize";
+constexpr wchar_t kInstallDate[] = L"InstallDate";
 
 base::ByteSize ComputeInstallationSize(const base::FilePath& src_path,
                                        const base::FilePath& setup_exe,
@@ -208,6 +209,28 @@ LONG OverwriteEstimatedSize(base::win::RegKey& key,
   return ERROR_SUCCESS;
 }
 
+// Overwrite an existing InstallDate as written by the MSI installer with the
+// current date.
+LONG OverwriteInstallDate(base::win::RegKey& key,
+                          const std::wstring& path,
+                          const std::wstring& value) {
+  LONG result = 0;
+  std::wstring existing;
+  if ((result = key.ReadValue(kInstallDate, &existing)) != ERROR_SUCCESS) {
+    LOG(ERROR) << "Failed to set InstallDate: " << kInstallDate
+               << " not found under " << path;
+    return result;
+  }
+  if ((result = key.WriteValue(kInstallDate, value.c_str())) != ERROR_SUCCESS) {
+    LOG(ERROR) << "Failed to set InstallDate: " << kInstallDate
+               << " could not be written under " << path;
+    return result;
+  }
+  VLOG(1) << "Set InstallDate at " << path << " to " << value << " from "
+          << existing;
+  return ERROR_SUCCESS;
+}
+
 LONG OverwriteWindowsInstallerPropertiesInKey(
     const std::wstring& path,
     REGSAM wowkey,
@@ -225,8 +248,11 @@ LONG OverwriteWindowsInstallerPropertiesInKey(
 
   LONG result1 = OverwriteDisplayVersion(key, path, display_version);
   LONG result2 = OverwriteEstimatedSize(key, path, estimated_size);
+  LONG result3 = OverwriteInstallDate(key, path, InstallUtil::GetCurrentDate());
 
-  return result1 != ERROR_SUCCESS ? result1 : result2;
+  return result1 != ERROR_SUCCESS
+             ? result1
+             : (result2 != ERROR_SUCCESS ? result2 : result3);
 }
 
 LONG OverwriteWindowsInstallerProperties(const std::wstring& product,

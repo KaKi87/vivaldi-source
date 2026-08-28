@@ -7,6 +7,7 @@
 
 #include "base/android/scoped_java_ref.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "chrome/browser/context_sharing/tab_bottom_sheet/android/tab_bottom_sheet_bridge.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_panel_host.h"
@@ -21,6 +22,10 @@ class CoBrowseViewsBridge;
 
 namespace content {
 class WebContents;
+}
+
+namespace tabs {
+class TabInterface;
 }
 
 namespace contextual_tasks {
@@ -45,6 +50,7 @@ class ContextualTasksPanelHostAndroid
   bool IsPanelSuppressed() const override;
   void SetPanelSuppressedForTesting(bool suppressed) override;
   content::WebContents* GetWebContents() override;
+  content::WebContents* GetToolbarWebContents() override;
   void SetWebContents(content::WebContents* web_contents) override;
 
   // context_sharing::TabBottomSheetBridge::Observer:
@@ -58,6 +64,8 @@ class ContextualTasksPanelHostAndroid
       const content::OpenURLParams& params,
       base::OnceCallback<void(content::NavigationHandle&)>
           navigation_handle_callback) override;
+  bool HandleKeyboardEvent(content::WebContents* source,
+                           const input::NativeWebKeyboardEvent& event) override;
 
  private:
   // Helper method to get the bridge, creating it if necessary. This is because
@@ -82,6 +90,7 @@ class ContextualTasksPanelHostAndroid
   std::unique_ptr<context_sharing::CoBrowseViewsBridge> views_bridge_;
   std::unique_ptr<context_sharing::TabBottomSheetBridge>
       tab_bottom_sheet_bridge_;
+  base::WeakPtr<tabs::TabInterface> tab_ref_;
 
   // The WebContents currently being displayed in the panel.
   raw_ptr<content::WebContents> web_contents_ = nullptr;

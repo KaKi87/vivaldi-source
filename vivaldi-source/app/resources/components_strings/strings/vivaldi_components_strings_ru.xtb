@@ -21,6 +21,7 @@
 <translation id="1728677426644403582">Вы просматриваете код страницы</translation>
 <translation id="1734878702283171397">Обратитесь за помощью к системному администратору.</translation>
 <translation id="1768211456781949159"><ph name="BEGIN_LINK" />Попробуйте запустить средства диагностики сети Windows<ph name="END_LINK" />.</translation>
+<translation id="1932098463447129402">Не ранее</translation>
 <translation id="1974060860693918893">Подробнее</translation>
 <translation id="2032962459168915086"><ph name="BEGIN_LINK" />Проверьте настройки прокси-сервера и брандмауэра<ph name="END_LINK" /></translation>
 <translation id="2048261947532620704">Перевод страницы</translation>
@@ -39,11 +40,12 @@
 <translation id="2467694685043708798"><ph name="BEGIN_LINK" />Провести диагностику сети<ph name="END_LINK" /></translation>
 <translation id="2491414235131909199">Эта страница была заблокирована расширением</translation>
 <translation id="255002559098805027"><ph name="HOST_NAME" /> отправил неверный ответ.</translation>
+<translation id="2607101320794533334">Информация об открытом ключе субъекта</translation>
 <translation id="2634124572758952069">Не удалось найти IP-адрес сервера <ph name="HOST_NAME" />.</translation>
-<translation id="2649204054376361687"><ph name="CITY" />, <ph name="COUNTRY" /></translation>
 <translation id="2650446666397867134">Доступ к файлу запрещён</translation>
 <translation id="2705137772291741111">Невозможно прочитать копию сайта, сохранённую в кэше.</translation>
 <translation id="2730326759066348565"><ph name="BEGIN_LINK" />Выполните диагностику подключения<ph name="END_LINK" /></translation>
+<translation id="2738771556149464852">Не позже</translation>
 <translation id="2784949926578158345">Соединение сброшено.</translation>
 <translation id="2826760142808435982">Соединение зашифровано и проверено с помощью <ph name="CIPHER" />. В качестве механизма обмена ключами используется <ph name="KX" />.</translation>
 <translation id="290376772003165898">Язык страницы не <ph name="LANGUAGE" />?</translation>
@@ -68,8 +70,8 @@
 <translation id="3447884698081792621">Показать сертификат (издатель: <ph name="ISSUER" />)</translation>
 <translation id="3462200631372590220">Скрыть подробности</translation>
 <translation id="3484560055331845446">Вы можете потерять доступ к аккаунту Google. Рекомендуем немедленно сменить пароль. После этого потребуется снова войти в аккаунт.</translation>
+<translation id="3493881266323043047">Срок действия</translation>
 <translation id="3566021033012934673">Ваше подключение не защищено</translation>
-<translation id="3574305903863751447"><ph name="CITY" />, <ph name="STATE" /> <ph name="COUNTRY" /></translation>
 <translation id="3586931643579894722">Скрыть детали</translation>
 <translation id="3614001939154393113">Возможно, злоумышленники пытаются похитить вашу информацию с сайта <ph name="BEGIN_BOLD" /><ph name="SITE" /><ph name="END_BOLD" /> (например пароли, сообщения и данные кредитных карт). Подробнее <ph name="BEGIN_LEARN_MORE_LINK" />об этом предупреждении<ph name="END_LEARN_MORE_LINK" /></translation>
 <translation id="3630155396527302611">Если программа входит в список тех, которым разрешён доступ к сети,
@@ -77,18 +79,17 @@
 <translation id="3658742229777143148">Идентификатор</translation>
 <translation id="3681007416295224113">Данные сертификата</translation>
 <translation id="3717027428350673159"><ph name="BEGIN_LINK" />Проверьте настройки прокси-сервера, брандмауэра и DNS<ph name="END_LINK" /></translation>
+<translation id="3798449238516105146">Версия</translation>
 <translation id="382518646247711829">Если вы используете прокси-сервер...</translation>
 <translation id="3950820424414687140">Вход</translation>
 <translation id="3973234410852337861"><ph name="HOST_NAME" /> заблокирован</translation>
 <translation id="3987940399970879459">Менее 1 МБ</translation>
 <translation id="4075123085690634698">Открыть ссылку в новом приватном окне (⇧⌘N)</translation>
 <translation id="4075732493274867456">Клиент и сервер поддерживают разные версии протокола SSL или набора шифров.</translation>
-<translation id="4116663294526079822">Всегда разрешать на этом сайте</translation>
 <translation id="4130226655945681476">Проверьте сетевые кабели, модем и маршрутизатор</translation>
 <translation id="4165986682804962316">Настройки сайта</translation>
 <translation id="4203896806696719780"><ph name="BEGIN_LINK" />Проверьте настройки брандмауэра и антивирусного ПО<ph name="END_LINK" /></translation>
 <translation id="4226937834893929579"><ph name="BEGIN_LINK" />Попробуйте провести диагностику сети<ph name="END_LINK" />.</translation>
-<translation id="4235360514405112390">Действительный</translation>
 <translation id="4241830393007970744">На этом сайте злоумышленники могут обманом заставить вас установить ПО или раскрыть личную информацию, например пароль, номер телефона или данные кредитной карты.</translation>
 <translation id="4250431568374086873">Подключение к сайту слабо защищено</translation>
 <translation id="4265872034478892965">Разрешено администратором</translation>
@@ -111,11 +112,11 @@
 <translation id="5023310440958281426">Проверьте правила, установленные администратором</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Проверьте адрес прокси-сервера<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64 бита)</translation>
+<translation id="5154702632169343078">Субъект</translation>
 <translation id="5216942107514965959">Последние посещённые сегодня</translation>
 <translation id="5355557959165512791">Сертификат веб-сайта <ph name="SITE" /> отозван. Открыть сайт в настоящее время нельзя. Сбой мог быть вызван сетевой ошибкой или действиями злоумышленников. Скорее всего, сайт заработает через некоторое время.</translation>
 <translation id="5386426401304769735">В цепочке сертификатов этого сайта есть сертификат, подписанный с помощью алгоритма SHA-1.</translation>
 <translation id="5452270690849572955">Страница <ph name="HOST_NAME" /> не найдена</translation>
-<translation id="5457113250005438886">Недействительный</translation>
 <translation id="5492298309214877701">Этот сайт в интранете организации или учебного заведения имеет тот же адрес, что и сайт в Интернете.
     <ph name="LINE_BREAK" />
     Обратитесь к системному администратору.</translation>
@@ -128,6 +129,7 @@
 <translation id="5799902971440853357">Прямо сейчас вы не можете открыть <ph name="SITE" /> потому, что сайт отправил некорректные данные авторизации. Как правило, ошибки сети или атаки злоумышленников носят временный характер, данная страница может быть доступна позже.</translation>
 <translation id="5810442152076338065">Соединение с <ph name="DOMAIN" /> зашифровано с помощью устаревшего набора шифров.</translation>
 <translation id="5838278095973806738">Не вводите на этом сайте конфиденциальную информацию (например, пароли и номера банковских карт). К ней могут получить доступ злоумышленники.</translation>
+<translation id="5851868085455377790">Издатель</translation>
 <translation id="5863515189965725638">Изменить IBAN</translation>
 <translation id="5869405914158311789">Не удаётся получить доступ к сайту</translation>
 <translation id="5932224571077948991">Сайт показывает навязчивую рекламу</translation>
@@ -159,20 +161,16 @@
 <translation id="6957624206566198865">Открыть страницу в новой приватной вкладке</translation>
 <translation id="7096937462164235847">Подлинность этого сайта не подтверждена.</translation>
 <translation id="7108819624672055576">Разрешено расширением</translation>
-<translation id="7111012039238467737">(действительный)</translation>
 <translation id="7126644664682723998">Вставить и найти</translation>
 <translation id="7210863904660874423"><ph name="HOST_NAME" /> не соответствует стандартам безопасности.</translation>
 <translation id="7219179957768738017">В этом подключении используется протокол <ph name="SSL_VERSION" />.</translation>
 <translation id="7221855153210829124">Показывать уведомления</translation>
 <translation id="7353601530677266744">Командная строка</translation>
 <translation id="7419106976560586862">Путь к профилю</translation>
-<translation id="7455133967321480974">Использовать глобально (блокировать)</translation>
 <translation id="7518003948725431193">Не найдена страница для веб-адреса: <ph name="URL" /></translation>
 <translation id="7549584377607005141">Для корректного отображения веб-страницы требуются введённые ранее данные. Их можно отправить повторно, но в этом случае все действия на странице будут выполнены снова.</translation>
 <translation id="759889825892636187"><ph name="HOST_NAME" /> пока не может обработать этот запрос.</translation>
 <translation id="7662298039739062396">Эта настройка управляется расширением</translation>
-<translation id="7663736086183791259">Сертификат <ph name="CERTIFICATE_VALIDITY" /></translation>
-<translation id="7714464543167945231">Сертификат</translation>
 <translation id="7716147886133743102">Заблокировано администратором</translation>
 <translation id="7716424297397655342">Не удалось загрузить сайт из кэша</translation>
 <translation id="773466115871691567">Всегда переводить <ph name="SOURCE_LANGUAGE" /></translation>
@@ -182,15 +180,12 @@
 <translation id="7878562273885520351">Злоумышленники могут узнать ваш пароль</translation>
 <translation id="7951415247503192394">(32 бит)</translation>
 <translation id="7953236668995583915">Перезагрузите страницу для вступления изменений в силу</translation>
-<translation id="8041940743680923270">Использовать глобально (спрашивать)</translation>
 <translation id="8076492880354921740">Вкладки</translation>
 <translation id="808894953321890993">Сменить пароль</translation>
 <translation id="8149426793427495338">Ваш компьютер перешёл в спящий режим.</translation>
 <translation id="8150722005171944719">Файл по адресу <ph name="URL" /> недоступен. Возможно, он был удалён или перемещён, либо права доступа к нему ограничены.</translation>
-<translation id="8184538546369750125">Использовать глобально (разрешать)</translation>
 <translation id="8211406090763984747">Подключение безопасно</translation>
 <translation id="8241707690549784388">Страница, на которую вы переходите, содержала введённые вами данные. При возврате может потребоваться повторить выполненные ранее действия. Продолжить?</translation>
-<translation id="8241712895048303527">Блокировать на этом сайте</translation>
 <translation id="8286036467436129157">Вход</translation>
 <translation id="8288807391153049143">Показать сертификат</translation>
 <translation id="8289355894181816810">Уточните информацию у администратора сети.</translation>
@@ -199,19 +194,18 @@
 <translation id="8498891568109133222">Превышено время ожидания ответа от <ph name="HOST_NAME" />.</translation>
 <translation id="8503813439785031346">Имя пользователя</translation>
 <translation id="8703575177326907206">Соединение с <ph name="DOMAIN" /> не зашифровано.</translation>
+<translation id="8705331520020532516">Серийный номер</translation>
 <translation id="8740359287975076522">Не удаётся найти &lt;abbr id="dnsDefinition"&gt;DNS-адрес&lt;/abbr&gt; сайта <ph name="HOST_NAME" />. Выполняется диагностика.</translation>
 <translation id="8820817407110198400">Закладки</translation>
 <translation id="8963117664422609631">Перейти в настройки сайта</translation>
 <translation id="8975012916872825179">В том числе телефонные номера, адреса электронной почты и адреса доставки</translation>
 <translation id="9001074447101275817">Прокси-сервер <ph name="DOMAIN" /> запрашивает имя пользователя и пароль.</translation>
 <translation id="9008201768610948239">Пропустить</translation>
-<translation id="9025348182339809926">(недействительный)</translation>
 <translation id="9039213469156557790">Обратите внимание, что на странице обнаружен небезопасный контент. Возможно, при передаче ресурсы просматриваются третьими лицами, а злоумышленники могут получить доступ к странице и изменить её поведение.</translation>
 <translation id="9062620674789239642">Возможно, он был перемещён, изменён или удалён.</translation>
 <translation id="9069693763241529744">Заблокировано расширением</translation>
 <translation id="9073799351042754113">Вы отключили предупреждения системы безопасности для этого сайта.</translation>
 <translation id="9168814207360376865">Разрешить сайтам проверять наличие сохраненных способов оплаты</translation>
-<translation id="9169664750068251925">Всегда блокировать на этом сайте</translation>
 <translation id="9183425211371246419"><ph name="HOST_NAME" /> использует неподдерживаемый протокол.</translation>
 <translation id="936602727769022409">Вы можете потерять доступ к учётной записи Google. Рекомендуем сменить пароль. После этого потребуется снова войти в учётную запись.</translation>
 <translation id="969892804517981540">Официальная сборка</translation>

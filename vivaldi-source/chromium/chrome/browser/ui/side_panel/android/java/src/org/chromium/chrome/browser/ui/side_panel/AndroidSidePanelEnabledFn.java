@@ -24,4 +24,33 @@ public final class AndroidSidePanelEnabledFn {
         // TODO(crbug.com/497862593): See if the cached flag can be instantiated inside this class.
         return ChromeFeatureList.sEnableAndroidSidePanel.isEnabled();
     }
+
+    /** Whether the window-scoped dev feature is enabled. */
+    public static boolean isWindowScopedDevFeatureEnabled() {
+        if (!isDevFeatureEnabled()) {
+            return false;
+        }
+
+        String devFeatureScope =
+                ChromeFeatureList.getFieldTrialParamByFeature(
+                        ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL_DEV_FEATURE, "scope");
+        return !"tab".equals(devFeatureScope);
+    }
+
+    /** Whether the tab-scoped dev feature is enabled. */
+    public static boolean isTabScopedDevFeatureEnabled() {
+        if (!isDevFeatureEnabled()) {
+            return false;
+        }
+
+        String devFeatureScope =
+                ChromeFeatureList.getFieldTrialParamByFeature(
+                        ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL_DEV_FEATURE, "scope");
+        return "tab".equals(devFeatureScope);
+    }
+
+    private static boolean isDevFeatureEnabled() {
+        return ChromeFeatureList.sEnableAndroidSidePanel.isEnabled()
+                && ChromeFeatureList.sEnableAndroidSidePanelDevFeature.isEnabled();
+    }
 }

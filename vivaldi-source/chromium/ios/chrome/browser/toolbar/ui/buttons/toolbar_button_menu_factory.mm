@@ -87,7 +87,7 @@
                                                        ->GetVirtualURL()]) {
       title = l10n_util::GetNSStringWithFixup(IDS_IOS_NEW_INCOGNITO_TAB);
       image = SymbolWithPalette(
-          CustomSymbolWithPointSize(kIncognitoSymbol, kInfobarSymbolPointSize),
+          SymbolWithPointSize(SymbolIncognito, kInfobarSymbolPointSize),
           @[ UIColor.whiteColor ]);
     } else {
       title = base::SysUTF16ToNSString(navigationItem->GetTitleForDisplay());
@@ -95,7 +95,7 @@
       if (!gfxImage.IsEmpty()) {
         image = gfxImage.ToUIImage();
       } else {
-        image = DefaultSymbolWithPointSize(kDocSymbol, kInfobarSymbolPointSize);
+        image = SymbolWithPointSize(SymbolDoc, kInfobarSymbolPointSize);
       }
     }
 
@@ -141,7 +141,7 @@
             : [_actionFactory actionToOpenNewTabWithBlock:createNewTabBlock];
     if (!_incognito) {
       newTabAction.image =
-          DefaultSymbolWithPointSize(kPlusSymbol, kSymbolActionPointSize);
+          SymbolWithPointSize(SymbolPlus, kSymbolActionPointSize);
     }
     return
         [UIMenu menuWithChildren:@[ newTabAction, newTabInCurrentGroupAction ]];
@@ -159,7 +159,7 @@
     UIAction* newTabAction =
         [_actionFactory actionToOpenNewTabWithBlock:createNewTabBlock];
     newTabAction.image =
-        DefaultSymbolWithPointSize(kPlusSymbol, kSymbolActionPointSize);
+        SymbolWithPointSize(SymbolPlus, kSymbolActionPointSize);
 
     return [UIMenu menuWithChildren:@[ newTabGroupAction, newTabAction ]];
   }
@@ -196,12 +196,6 @@
     cameraSearchAction, voiceSearchAction, newIncognitoSearchAction,
     newSearchAction
   ]];
-
-  if (IsAIMCobrowseDebugEntrypointEnabled()) {
-    UIAction* openAIMode = [_actionFactory actionToOpenAIMode];
-    [staticActions addObject:openAIMode];
-  }
-
   if (experimental_flags::EnableAIPrototypingMenu()) {
     UIAction* openAIMenu = [_actionFactory actionToOpenAIMenu];
     [staticActions addObject:openAIMenu];

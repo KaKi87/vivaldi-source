@@ -14,13 +14,13 @@
  * You should have received a copy of the GNU General Public License
  * along with @eyeo/snippets.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import $ from "../$.js";
 
 let {Math, setInterval, performance} = $(window);
 
 /**
- * Default profile("...") returned object when profile mode is disabled.
+ * @description Default profile("...") returned object when profile
+ * mode is disabled.
  * @type {Profiler}
  * @private
  */
@@ -33,15 +33,15 @@ const noopProfile = {
 };
 
 /**
- * Whether profile mode is inactive.
+ * @description Whether profile mode is inactive.
  * @type {boolean}
  * @private
  */
 let inactive = true;
 
 /**
- * Tells if the profile is inactive.
- * @memberOf module:content/snippets.profile
+ * @description Tells if the profile is inactive.
+ * @memberOf module:snippets/introspection
  * @returns {boolean}
  */
 export function inactiveProfile() {
@@ -49,12 +49,17 @@ export function inactiveProfile() {
 }
 
 /**
- * Enables profile mode.
- * @alias module:content/snippets.profile
+ * @description Enables profile mode.
+ * @memberOf module:snippets/introspection
  * @since Adblock Plus 3.9
  *
  * @example
- * example.com#$#profile; log 'Hello, world!'
+ * example.com#$#profile; abort-on-property-read atob => activates profile
+ * mode for the abort-on-property-read snippet and will log its performance
+ * regardless of whether the snippet runs successfully or fails.
+ *
+ * @see {@link https://eyeo.atlassian.net/wiki/spaces/CV/pages/516259930/profile} for internal documentation.
+ * @see {@link https://developers.eyeo.com/snippets/debugging-snippets/profile} for external documentation.
  */
 export function setProfile() {
   inactive = false;
@@ -70,8 +75,8 @@ export function setProfile() {
  */
 
 /**
- * Create an object with `mark()` and `end()` methods to either keep marking a
- * specific profiled name, or ending it.
+ * @description Create an object with `mark()` and `end()` methods
+ * to either keep marking a specific profiled name, or ending it.
  *
  * @example
  * let {mark, end} = profile('console.log');

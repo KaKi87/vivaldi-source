@@ -6,11 +6,8 @@
 // EGLMultiContextTest.cpp:
 //   Tests relating to multiple non-shared Contexts.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-#    pragma allow_unsafe_buffers
-#endif
-
 #include <gtest/gtest.h>
+#include "common/unsafe_buffers.h"
 
 #include "test_utils/ANGLETest.h"
 #include "test_utils/MultiThreadSteps.h"
@@ -216,11 +213,11 @@ TEST_P(EGLMultiContextTest, ComputeShaderOkayWithRendering)
 
     for (size_t t = 0; t < kThreadCount; ++t)
     {
-        surface[t] = eglCreatePbufferSurface(dpy, config, pbufferAttributes);
+        ANGLE_UNSAFE_TODO(surface[t]) = eglCreatePbufferSurface(dpy, config, pbufferAttributes);
         EXPECT_EGL_SUCCESS();
 
-        ctx[t] = window->createContext(EGL_NO_CONTEXT, nullptr);
-        EXPECT_NE(EGL_NO_CONTEXT, ctx[t]);
+        ANGLE_UNSAFE_TODO(ctx[t]) = window->createContext(EGL_NO_CONTEXT, nullptr);
+        ANGLE_UNSAFE_TODO(EXPECT_NE(EGL_NO_CONTEXT, ctx[t]));
     }
 
     // Synchronization tools to ensure the two threads are interleaved as designed by this test.
@@ -352,8 +349,8 @@ void main()
     EXPECT_EGL_TRUE(eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT));
     for (size_t t = 0; t < kThreadCount; ++t)
     {
-        eglDestroySurface(dpy, surface[t]);
-        eglDestroyContext(dpy, ctx[t]);
+        eglDestroySurface(dpy, ANGLE_UNSAFE_TODO(surface[t]));
+        eglDestroyContext(dpy, ANGLE_UNSAFE_TODO(ctx[t]));
     }
 }
 
@@ -371,8 +368,12 @@ TEST_P(EGLMultiContextTest, RepeatedEglInitAndTerminate)
     EGLDisplay dpy;
     EGLSurface srf;
     EGLContext ctx;
-    EGLAttrib dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, GetParam().getRenderer(),
-                             EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, GetParam().getDeviceType(),
+    EGLAttrib dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE,
+                             GetParam().getRenderer(),
+                             EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE,
+                             GetParam().getDeviceType(),
+                             EGL_PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE,
+                             static_cast<EGLAttrib>(GetPbufferOnlyDefaultPlatformType()),
                              EGL_NONE};
 
     for (int i = 0; i < 50; i++)  // Note: this test is fairly slow b/303089709
@@ -418,8 +419,12 @@ TEST_P(EGLMultiContextTest, ReuseUnterminatedDisplay)
     getEGLWindow()->destroyGL();
 
     EGLDisplay dpy;
-    EGLAttrib dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, GetParam().getRenderer(),
-                             EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, GetParam().getDeviceType(),
+    EGLAttrib dispattrs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE,
+                             GetParam().getRenderer(),
+                             EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE,
+                             GetParam().getDeviceType(),
+                             EGL_PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE,
+                             static_cast<EGLAttrib>(GetPbufferOnlyDefaultPlatformType()),
                              EGL_NONE};
 
     std::thread threadA = std::thread([&]() {

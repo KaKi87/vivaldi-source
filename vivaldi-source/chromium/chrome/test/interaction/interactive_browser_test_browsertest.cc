@@ -103,6 +103,35 @@ IN_PROC_BROWSER_TEST_F(InteractiveBrowserTestBrowsertest, DumpElements) {
                   DumpElements());
 }
 
+IN_PROC_BROWSER_TEST_F(InteractiveBrowserTestBrowsertest, DumpWebContents) {
+  const GURL url = embedded_test_server()->GetURL(kDocumentWithNamedElement);
+  RunTestSequence(
+      InstrumentTab(kWebContentsId), NavigateWebContents(kWebContentsId, url),
+      ExecuteJsAt(kWebContentsId, DeepQuery({"#select"}), "(el) => el.focus()"),
+      DumpWebContents(kWebContentsId));
+}
+
+IN_PROC_BROWSER_TEST_F(InteractiveBrowserTestBrowsertest, DumpWebContentsAt) {
+  const GURL url = embedded_test_server()->GetURL(kDocumentWithNamedElement);
+  RunTestSequence(InstrumentTab(kWebContentsId),
+                  NavigateWebContents(kWebContentsId, url),
+                  DumpWebContentsAt(kWebContentsId, DeepQuery({"#select"})));
+}
+
+IN_PROC_BROWSER_TEST_F(InteractiveBrowserTestBrowsertest, DumpWebUiPage) {
+  const GURL url("chrome://history");
+  RunTestSequence(InstrumentTab(kWebContentsId),
+                  NavigateWebContents(kWebContentsId, url),
+                  DumpWebContents(kWebContentsId));
+}
+
+IN_PROC_BROWSER_TEST_F(InteractiveBrowserTestBrowsertest,
+                       DumpWebContentsWithEverything) {
+  const GURL url("chrome://history");
+  RunTestSequence(InstrumentTab(kWebContentsId),
+                  NavigateWebContents(kWebContentsId, url), DumpElements());
+}
+
 IN_PROC_BROWSER_TEST_F(InteractiveBrowserTestBrowsertest,
                        EnsurePresentNotPresent) {
   const GURL url = embedded_test_server()->GetURL(kDocumentWithNamedElement);
@@ -1190,7 +1219,7 @@ class InteractiveBrowserTestDialog : public views::DialogDelegateView {
     switch (modal_type) {
       case ui::mojom::ModalType::kWindow:
         widget = constrained_window::CreateBrowserModalDialogViews(
-            std::move(dialog), parent->window()->GetNativeWindow());
+            std::move(dialog), parent->GetWindow()->GetNativeWindow());
         break;
       case ui::mojom::ModalType::kChild:
         widget = constrained_window::CreateWebModalDialogViews(

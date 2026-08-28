@@ -70,7 +70,7 @@ ProfileMenuController::Ids ProfileMenuController::GetIds(bool is_image) {
     ids.item_string = IDS_VIV_OPEN_IMAGE_PROFILE;
   } else {
     ids.first = IDC_OPEN_LINK_IN_PROFILE_FIRST;
-    ids.last = IDC_OPEN_LINK_IN_PROFILE_LAST;
+    ids.last = IDC_OPEN_LINK_IN_PROFILE_FIRST + 99; // From //chrome/browser/renderer_context_menu/render_view_context_menu.cc
     ids.menu = IDC_CONTENT_CONTEXT_OPENLINKINPROFILE;
     ids.menu_string = IDS_CONTENT_CONTEXT_OPENLINKINPROFILES;
     ids.item_string = IDS_VIV_OPEN_LINK_PROFILE;

@@ -823,18 +823,20 @@ IN_PROC_BROWSER_TEST_F(WebContentsImplBrowserTest,
                             page_destination_url /* expected_commit_url */));
 
   ASSERT_EQ(2U, observer.resource_load_entries().size());
+  const auto& resource_load_entry = observer.resource_load_entries()[0];
   const blink::mojom::ResourceLoadInfoPtr& page_load_info =
-      observer.resource_load_entries()[0].resource_load_info;
+      resource_load_entry.resource_load_info;
   EXPECT_EQ(page_destination_url, page_load_info->final_url);
-  EXPECT_EQ(page_original_url, page_load_info->original_url);
+  EXPECT_EQ(page_original_url, resource_load_entry.original_url);
 
   GURL image_destination_url(embedded_test_server()->GetURL("/blank.jpg"));
   GURL image_original_url(
       embedded_test_server()->GetURL("/server-redirect?blank.jpg"));
+  const auto& image_load_entry = observer.resource_load_entries()[1];
   const blink::mojom::ResourceLoadInfoPtr& image_load_info =
-      observer.resource_load_entries()[1].resource_load_info;
+      image_load_entry.resource_load_info;
   EXPECT_EQ(image_destination_url, image_load_info->final_url);
-  EXPECT_EQ(image_original_url, image_load_info->original_url);
+  EXPECT_EQ(image_original_url, image_load_entry.original_url);
 }
 
 IN_PROC_BROWSER_TEST_F(WebContentsImplBrowserTest,
@@ -3622,6 +3624,94 @@ IN_PROC_BROWSER_TEST_F(WebContentsImplBrowserTest, TitleUpdateOnRestore) {
 
 namespace {
 
+// A WebContentsDelegate whose AddNewContents() runs a caller-provided closure
+// before returning. The closure is used to destroy the opener WebContents
+// synchronously, simulating the re-entrant destruction that can happen when
+// AddNewContents() spins a nested run loop (e.g. on Windows, showing the new
+// browser window dispatches native messages that can close the opener window).
+class DestroyOpenerOnAddNewContentsDelegate : public WebContentsDelegate {
+ public:
+  explicit DestroyOpenerOnAddNewContentsDelegate(base::OnceClosure on_add)
+      : on_add_(std::move(on_add)) {}
+
+  WebContents* AddNewContents(
+      WebContents* source,
+      std::unique_ptr<WebContents> new_contents,
+      const GURL& target_url,
+      WindowOpenDisposition disposition,
+      const blink::mojom::WindowFeatures& window_features,
+      bool user_gesture,
+      bool* was_blocked) override {
+    // Keep the new popup alive so that CreateNewWindow()'s `weak_new_contents`
+    // guard does NOT short-circuit. Otherwise the function would return early
+    // before reaching the code that dereferences the (now destroyed) opener,
+    // and the regression would not be exercised.
+    new_contents_ = std::move(new_contents);
+    WebContents* raw_new_contents = new_contents_.get();
+    if (on_add_) {
+      std::move(on_add_).Run();
+    }
+    return raw_new_contents;
+  }
+
+ private:
+  base::OnceClosure on_add_;
+  std::unique_ptr<WebContents> new_contents_;
+};
+
+}  // namespace
+
+// Regression test for a use-after-free where the opener WebContents is
+// destroyed re-entrantly while WebContentsImpl::CreateNewWindow() is calling
+// WebContentsDelegate::AddNewContents(). With an opener-suppressed
+// (`noopener`) window.open(), CreateNewWindow() drives the new window through
+// the delegate and then keeps using `this` (and `delegate_`/`opener`) after
+// AddNewContents() returns. If the opener is torn down during that call, the
+// trailing code used to run on freed memory. See crbug.com/527676561.
+IN_PROC_BROWSER_TEST_F(WebContentsImplBrowserTest,
+                       CreateNewWindowOpenerDestroyedInAddNewContents) {
+  ASSERT_TRUE(embedded_test_server()->Start());
+
+  // Create an opener WebContents owned by the test, so the delegate can destroy
+  // it from within AddNewContents().
+  WebContents::CreateParams create_params(
+      shell()->web_contents()->GetBrowserContext());
+  create_params.desired_renderer_state =
+      WebContents::CreateParams::kInitializeAndWarmupRendererProcess;
+  std::unique_ptr<WebContents> opener(WebContents::Create(create_params));
+  WebContents* opener_ptr = opener.get();
+
+  base::RunLoop run_loop;
+  DestroyOpenerOnAddNewContentsDelegate delegate(
+      base::BindLambdaForTesting([&]() {
+        // Destroy the opener (`this` inside CreateNewWindow()) synchronously.
+        opener.reset();
+        run_loop.Quit();
+      }));
+  opener_ptr->SetDelegate(&delegate);
+
+  const GURL opener_url(
+      embedded_test_server()->GetURL("a.com", "/title1.html"));
+  ASSERT_TRUE(NavigateToURL(opener_ptr, opener_url));
+
+  // Open a new window with `noopener` so CreateNewWindow() takes the
+  // opener-suppressed path that shows/navigates the window via the delegate.
+  // The script is run fire-and-forget because the opener frame is destroyed
+  // while the window.open() IPC is being handled.
+  const GURL popup_url(
+      embedded_test_server()->GetURL("a.com", "/title2.html"));
+  ExecuteScriptAsync(
+      opener_ptr,
+      JsReplace("window.open($1, '_blank', 'noopener');", popup_url));
+
+  // The opener is destroyed during AddNewContents(). The test passes if this
+  // completes without a use-after-free (caught under ASAN).
+  run_loop.Run();
+  EXPECT_FALSE(opener);
+}
+
+namespace {
+
 class OutgoingSetRendererPrefsMojoWatcher {
  public:
   explicit OutgoingSetRendererPrefsMojoWatcher(RenderViewHostImpl* rvh)
@@ -4994,6 +5084,28 @@ IN_PROC_BROWSER_TEST_F(UnownedInnerWebContentsBrowserTest,
         static_cast<RenderWidgetHostViewBase*>(rfh_b2->GetView())));
   }
 
+  // Verify that the GetRootView() returns the expected view.
+  {
+    auto* inner_view = static_cast<RenderWidgetHostViewBase*>(
+        inner_wc_impl->GetRenderWidgetHostView());
+    EXPECT_EQ(outer_view, outer_view->GetRootView());
+    EXPECT_NE(outer_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_a->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(inner_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_a->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(inner_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_b1->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(inner_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_a_nested->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(inner_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_b2->GetView())
+                  ->GetRootView());
+  }
+
   // Attach the inner WebContents
   outer_wc->AttachUnownedInnerWebContents(
       UnownedInnerWebContentsClient::GetPassKeyForTesting(), inner_wc.get(),
@@ -5035,6 +5147,23 @@ IN_PROC_BROWSER_TEST_F(UnownedInnerWebContentsBrowserTest,
     EXPECT_EQ(0U, inner_event_router->RegisteredViewCountForTesting());
     EXPECT_EQ(0U,
               inner_text_input_manager->GetRegisteredViewsCountForTesting());
+  }
+
+  // Verify that the GetRootView() returns the expected view.
+  {
+    EXPECT_EQ(outer_view, outer_view->GetRootView());
+    EXPECT_EQ(outer_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_a->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(outer_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_b1->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(outer_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_a_nested->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(outer_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_b2->GetView())
+                  ->GetRootView());
   }
 
   // Get the RenderWidgetHostView for a subframe RFH by going through the
@@ -5099,6 +5228,28 @@ IN_PROC_BROWSER_TEST_F(UnownedInnerWebContentsBrowserTest,
         static_cast<RenderWidgetHostViewBase*>(rfh_a_nested->GetView())));
     EXPECT_TRUE(inner_text_input_manager->IsRegistered(
         static_cast<RenderWidgetHostViewBase*>(rfh_b2->GetView())));
+  }
+
+  // Verify that the GetRootView() returns the expected view.
+  {
+    auto* inner_view = static_cast<RenderWidgetHostViewBase*>(
+        inner_wc_impl->GetRenderWidgetHostView());
+    EXPECT_EQ(outer_view, outer_view->GetRootView());
+    EXPECT_NE(outer_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_a->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(inner_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_a->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(inner_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_b1->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(inner_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_a_nested->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(inner_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_b2->GetView())
+                  ->GetRootView());
   }
 
   // Verify that only RVHs in the main frame's SiteInstance have a RWHV.
@@ -5738,7 +5889,8 @@ class SurfaceEmbedConnectorWebContentsBrowserTest
     ~MockSurfaceEmbedConnectorDelegate() = default;
 
     // SurfaceEmbedConnector::Delegate implementation - all no-ops
-    void SetFrameSinkId(const viz::FrameSinkId& frame_sink_id) override {}
+    void SetFrameSinkId(const viz::FrameSinkId& frame_sink_id,
+                        bool allow_paint_holding) override {}
     void UpdateLocalSurfaceIdFromChild(
         const viz::LocalSurfaceId& local_surface_id) override {}
     void DetachedByHost() override {}
@@ -6017,6 +6169,28 @@ IN_PROC_BROWSER_TEST_F(SurfaceEmbedConnectorWebContentsBrowserTest,
         static_cast<RenderWidgetHostViewBase*>(rfh_b2->GetView())));
   }
 
+  // Verify that the GetRootView() returns the expected view.
+  {
+    auto* inner_view = static_cast<RenderWidgetHostViewBase*>(
+        inner_wc_impl->GetRenderWidgetHostView());
+    EXPECT_EQ(outer_view, outer_view->GetRootView());
+    EXPECT_NE(outer_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_a->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(inner_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_a->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(inner_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_b1->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(inner_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_a_nested->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(inner_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_b2->GetView())
+                  ->GetRootView());
+  }
+
   // Set the SurfaceEmbedConnector
   auto connector = CreateConnector(inner_wc_impl, outer_wc);
   auto* connector_ptr = connector.get();
@@ -6061,6 +6235,23 @@ IN_PROC_BROWSER_TEST_F(SurfaceEmbedConnectorWebContentsBrowserTest,
               inner_text_input_manager->GetRegisteredViewsCountForTesting());
   }
 
+  // Verify that the GetRootView() returns the expected view.
+  {
+    EXPECT_EQ(outer_view, outer_view->GetRootView());
+    EXPECT_EQ(outer_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_a->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(outer_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_b1->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(outer_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_a_nested->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(outer_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_b2->GetView())
+                  ->GetRootView());
+  }
+
   // Clear the SurfaceEmbedConnector
   inner_wc_impl->ClearSurfaceEmbedConnector();
   ASSERT_EQ(nullptr, inner_wc->GetSurfaceEmbedConnector());
@@ -6100,6 +6291,28 @@ IN_PROC_BROWSER_TEST_F(SurfaceEmbedConnectorWebContentsBrowserTest,
         static_cast<RenderWidgetHostViewBase*>(rfh_a_nested->GetView())));
     EXPECT_TRUE(inner_text_input_manager->IsRegistered(
         static_cast<RenderWidgetHostViewBase*>(rfh_b2->GetView())));
+  }
+
+  // Verify that the GetRootView() returns the expected view.
+  {
+    auto* inner_view = static_cast<RenderWidgetHostViewBase*>(
+        inner_wc_impl->GetRenderWidgetHostView());
+    EXPECT_EQ(outer_view, outer_view->GetRootView());
+    EXPECT_NE(outer_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_a->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(inner_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_a->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(inner_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_b1->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(inner_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_a_nested->GetView())
+                  ->GetRootView());
+    EXPECT_EQ(inner_view,
+              static_cast<RenderWidgetHostViewBase*>(rfh_b2->GetView())
+                  ->GetRootView());
   }
 
   // Verify that the inner WebContents's RenderViewHosts are still alive.
@@ -6664,6 +6877,118 @@ IN_PROC_BROWSER_TEST_F(SurfaceEmbedConnectorWebContentsBrowserTest,
     ASSERT_TRUE(rwhv2);
     EXPECT_TRUE(rwhv2->IsRenderWidgetHostViewChildFrame());
   }
+}
+
+#if BUILDFLAG(IS_LINUX)
+// TODO(crbug.com/534306599): Disabled on Linux.
+#define MAYBE_SurfaceEmbedConnectorWithOOPIFInBFCache \
+  DISABLED_SurfaceEmbedConnectorWithOOPIFInBFCache
+#else
+#define MAYBE_SurfaceEmbedConnectorWithOOPIFInBFCache \
+  SurfaceEmbedConnectorWithOOPIFInBFCache
+#endif
+IN_PROC_BROWSER_TEST_F(SurfaceEmbedConnectorWebContentsBrowserTest,
+                       MAYBE_SurfaceEmbedConnectorWithOOPIFInBFCache) {
+  ASSERT_TRUE(embedded_test_server()->Start());
+  const GURL outer_url(
+      embedded_test_server()->GetURL("a.com", "/simple_page.html"));
+  const GURL inner_url1(embedded_test_server()->GetURL(
+      "a.com", "/cross_site_iframe_factory.html?a(b)"));
+  const GURL inner_url2(
+      embedded_test_server()->GetURL("b.com", "/title2.html"));
+
+  // Setup outer WebContents.
+  ASSERT_TRUE(NavigateToURL(shell(), outer_url));
+  WebContentsImpl* outer_wc =
+      static_cast<WebContentsImpl*>(shell()->web_contents());
+
+  // Setup inner WebContents.
+  WebContents::CreateParams inner_params(
+      shell()->web_contents()->GetBrowserContext());
+  std::unique_ptr<WebContents> inner_wc = WebContents::Create(inner_params);
+  WebContentsImpl* inner_wc_impl =
+      static_cast<WebContentsImpl*>(inner_wc.get());
+  // Setup Delegate for inner WebContents so that IsBackForwardCacheSupported()
+  // for the inner WebContents delegate goes to content::Shell and returns true.
+  // In production code, inner WebContents is expected to have delegate setup
+  // correctly.
+  inner_wc->SetDelegate(outer_wc->GetDelegate());
+
+  // Set the SurfaceEmbedConnector.
+  auto connector = CreateConnector(inner_wc_impl, outer_wc);
+  auto* connector_ptr = connector.get();
+  inner_wc_impl->SetSurfaceEmbedConnector(std::move(connector));
+  EXPECT_EQ(connector_ptr, inner_wc->GetSurfaceEmbedConnector());
+
+  // Navigate to first page, then second page to put first page in BFCache.
+  ASSERT_TRUE(NavigateToURL(inner_wc.get(), inner_url1));
+  auto* rfh_a = inner_wc_impl->GetPrimaryMainFrame();
+  ASSERT_TRUE(rfh_a);
+  auto* rfh_b = static_cast<RenderFrameHostImpl*>(ChildFrameAt(rfh_a, 0));
+  ASSERT_TRUE(rfh_b);
+
+  ASSERT_TRUE(NavigateToURL(inner_wc.get(), inner_url2));
+  auto* rfh2 = inner_wc_impl->GetPrimaryMainFrame();
+  ASSERT_TRUE(rfh2);
+  EXPECT_NE(rfh_a, rfh2);
+
+  // Verify that the inner WebContents's RFHs are still alive and first page is
+  // in BFCache.
+  EXPECT_TRUE(rfh_a->IsRenderFrameLive());
+  EXPECT_TRUE(rfh_b->IsRenderFrameLive());
+  EXPECT_TRUE(rfh2->IsRenderFrameLive());
+  EXPECT_EQ(rfh2, inner_wc->GetPrimaryMainFrame());
+  EXPECT_TRUE(rfh_a->IsInBackForwardCache());
+  EXPECT_TRUE(rfh_b->IsInBackForwardCache());
+  EXPECT_FALSE(rfh2->IsInBackForwardCache());
+
+  // Verify that RenderWidgetHostViews are RenderWidgetHostViewChildFrame.
+  {
+    auto* rwhva = static_cast<RenderWidgetHostViewBase*>(rfh_a->GetView());
+    ASSERT_TRUE(rwhva);
+    EXPECT_TRUE(rwhva->IsRenderWidgetHostViewChildFrame());
+    auto* rwhvb = static_cast<RenderWidgetHostViewBase*>(rfh_b->GetView());
+    ASSERT_TRUE(rwhvb);
+    EXPECT_TRUE(rwhvb->IsRenderWidgetHostViewChildFrame());
+    auto* rwhv2 = static_cast<RenderWidgetHostViewBase*>(rfh2->GetView());
+    ASSERT_TRUE(rwhv2);
+    EXPECT_TRUE(rwhv2->IsRenderWidgetHostViewChildFrame());
+  }
+
+  // Clear the SurfaceEmbedConnector.
+  inner_wc_impl->ClearSurfaceEmbedConnector();
+  ASSERT_EQ(nullptr, inner_wc->GetSurfaceEmbedConnector());
+
+  // Verify that the inner WebContents's RFHs are still alive and not changed.
+  EXPECT_TRUE(rfh_a->IsRenderFrameLive());
+  EXPECT_TRUE(rfh_b->IsRenderFrameLive());
+  EXPECT_TRUE(rfh2->IsRenderFrameLive());
+  EXPECT_EQ(rfh2, inner_wc->GetPrimaryMainFrame());
+  EXPECT_TRUE(rfh_a->IsInBackForwardCache());
+  EXPECT_TRUE(rfh_b->IsInBackForwardCache());
+
+  // Verify that RenderWidgetHostViews have changed to platform views and not
+  // RenderWidgetHostViewChildFrame.
+  {
+    auto* rwhva = static_cast<RenderWidgetHostViewBase*>(rfh_a->GetView());
+    ASSERT_TRUE(rwhva);
+    EXPECT_FALSE(rwhva->IsRenderWidgetHostViewChildFrame());
+    auto* rwhvb = static_cast<RenderWidgetHostViewBase*>(rfh_b->GetView());
+    ASSERT_TRUE(rwhvb);
+    if (AreAllSitesIsolatedForTesting()) {
+      EXPECT_TRUE(rwhvb->IsRenderWidgetHostViewChildFrame());
+    } else {
+      // When full site isolation is not enabled, all frames in the inner
+      // WebContents should share the same RenderWidgetHostView.
+      EXPECT_EQ(rwhva, rwhvb);
+    }
+    auto* rwhv2 = static_cast<RenderWidgetHostViewBase*>(rfh2->GetView());
+    ASSERT_TRUE(rwhv2);
+    EXPECT_FALSE(rwhv2->IsRenderWidgetHostViewChildFrame());
+  }
+
+  // End the test, there should be no CHECK when everything is unregistered
+  // properly.
 }
 
 IN_PROC_BROWSER_TEST_F(WebContentsImplBrowserTest,
@@ -7742,7 +8067,8 @@ class FaviconWaiter : public WebContentsObserver {
   // WebContentsObserver:
   void DidUpdateFaviconURL(
       RenderFrameHost* render_frame_host,
-      const std::vector<blink::mojom::FaviconURLPtr>& candidates) override {
+      const std::vector<blink::mojom::FaviconURLPtr>& candidates,
+      blink::mojom::FaviconUpdateReason reason) override {
     received_favicon_ = true;
     run_loop_.Quit();
   }
@@ -8565,7 +8891,8 @@ IN_PROC_BROWSER_TEST_F(WebContentsFencedFrameBrowserTest, UpdateFavicon) {
       embedded_test_server()->GetURL("fencedframe.test", "/title1.html");
 
   RenderFrameHost* primary_rfh = web_contents()->GetPrimaryMainFrame();
-  EXPECT_CALL(observer, DidUpdateFaviconURL(primary_rfh, testing::_));
+  EXPECT_CALL(observer,
+              DidUpdateFaviconURL(primary_rfh, testing::_, testing::_));
   ASSERT_TRUE(NavigateToURL(shell(), main_url));
   ASSERT_TRUE(WaitForLoadStop(web_contents()));
 
@@ -8576,7 +8903,8 @@ IN_PROC_BROWSER_TEST_F(WebContentsFencedFrameBrowserTest, UpdateFavicon) {
   RenderFrameHost* inner_fenced_frame_rfh =
       fenced_frame_test_helper().CreateFencedFrame(primary_rfh,
                                                    fenced_frame_url);
-  EXPECT_CALL(observer, DidUpdateFaviconURL(inner_fenced_frame_rfh, testing::_))
+  EXPECT_CALL(observer, DidUpdateFaviconURL(inner_fenced_frame_rfh, testing::_,
+                                            testing::_))
       .Times(0);
 }
 

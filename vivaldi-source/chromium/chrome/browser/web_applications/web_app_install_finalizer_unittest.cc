@@ -21,10 +21,10 @@
 #include "build/buildflag.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/ui/web_applications/test/isolated_web_app_test_utils.h"
-#include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_integrity_block_data.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_builder.h"
 #include "chrome/browser/web_applications/jobs/finalize_install_job.h"
+#include "chrome/browser/web_applications/model/integrity_block_data.h"
 #include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"
 #include "chrome/browser/web_applications/scope_extension_info.h"
 #include "chrome/browser/web_applications/test/fake_os_integration_manager.h"
@@ -121,14 +121,15 @@ class WebAppInstallFinalizerUnitTest : public WebAppTest {
     WebAppTest::SetUp();
 
     FakeWebAppProvider* provider = FakeWebAppProvider::Get(profile());
-    auto install_manager = std::make_unique<WebAppInstallManager>(profile());
+    auto install_manager =
+        std::make_unique<WebAppInstallManager>(profile()->GetPrefs());
     install_manager_observer_ =
         std::make_unique<TestInstallManagerObserver>(install_manager.get());
     provider->SetInstallManager(std::move(install_manager));
     provider->SetInstallFinalizer(
         std::make_unique<WebAppInstallFinalizer>(profile()));
     provider->SetOriginAssociationManager(
-        std::make_unique<FakeWebAppOriginAssociationManager>());
+        std::make_unique<FakeWebAppOriginAssociationManager>(*profile()));
 
     auto mock_scheduler =
         std::make_unique<MockWebAppCommandScheduler>(*profile());
@@ -543,38 +544,6 @@ TEST_F(WebAppInstallFinalizerUnitTest, InstallUrlSetInWebAppDB) {
   EXPECT_EQ(1u, it->second.install_urls.size());
   EXPECT_EQ(GURL("https://foo.example/installer"),
             *it->second.install_urls.begin());
-}
-
-TEST_F(WebAppInstallFinalizerUnitTest, IsolationDataSetInWebAppDB) {
-  IwaVersion version = *IwaVersion::Create("1.2.3");
-
-  auto info = WebAppInstallInfo::CreateWithStartUrlForTesting(
-      IwaOrigin(test::GetDefaultEcdsaP256WebBundleId()).origin().GetURL());
-  info->title = u"Foo Title";
-  info->set_isolated_web_app_version(version);
-
-  const IsolatedWebAppStorageLocation location(
-      IwaStorageUnownedBundle{base::FilePath(FILE_PATH_LITERAL("p"))});
-  FinalizeJobOptions options(webapps::WebappInstallSource::EXTERNAL_POLICY);
-
-  auto integrity_block_data =
-      IsolatedWebAppIntegrityBlockData(test::CreateSignatures());
-  options.iwa_options =
-      FinalizeJobOptions::IwaOptions(location, integrity_block_data);
-
-  FinalizeInstallResult result = AwaitFinalizeInstall(*info, options);
-
-  EXPECT_EQ(webapps::InstallResultCode::kSuccessNewInstall, result.code);
-  EXPECT_EQ(result.installed_app_id,
-            GenerateAppId(/*manifest_id=*/std::nullopt, info->start_url()));
-
-  const WebApp* installed_app = registrar().GetAppById(result.installed_app_id);
-  EXPECT_THAT(
-      installed_app,
-      test::IwaIs(_, test::IsolationDataIs(location, version,
-                                           /*controlled_frame_partiions=*/_,
-                                           /*pending_update_info=*/std::nullopt,
-                                           integrity_block_data)));
 }
 
 TEST_F(WebAppInstallFinalizerUnitTest, PopUpContentSettingsGrantedForIwa) {

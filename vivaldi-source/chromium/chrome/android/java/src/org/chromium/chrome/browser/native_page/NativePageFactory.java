@@ -17,6 +17,7 @@ import android.graphics.Rect;
 import android.view.View;
 
 import androidx.annotation.VisibleForTesting;
+import androidx.fragment.app.FragmentActivity;
 
 import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.metrics.RecordUserAction;
@@ -31,6 +32,7 @@ import org.chromium.chrome.browser.RecentlyClosedEntriesManager;
 import org.chromium.chrome.browser.app.download.home.DownloadPage;
 import org.chromium.chrome.browser.back_press.BackPressManager;
 import org.chromium.chrome.browser.bookmarks.BookmarkPage;
+import org.chromium.chrome.browser.bricks.BricksPage;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsMarginAdapter;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
@@ -42,7 +44,6 @@ import org.chromium.chrome.browser.magic_stack.ModuleRegistry;
 import org.chromium.chrome.browser.management.ManagementPage;
 import org.chromium.chrome.browser.metrics.StartupMetricsTracker;
 import org.chromium.chrome.browser.ntp.IncognitoNewTabPage;
-import org.chromium.chrome.browser.ntp.IncognitoNtpMetrics;
 import org.chromium.chrome.browser.ntp.NewTabPage;
 import org.chromium.chrome.browser.ntp.NewTabPageCreationTracker;
 import org.chromium.chrome.browser.ntp.RecentTabsManager;
@@ -50,7 +51,10 @@ import org.chromium.chrome.browser.ntp.RecentTabsPage;
 import org.chromium.chrome.browser.pdf.PdfFragmentViewTrackerImpl;
 import org.chromium.chrome.browser.pdf.PdfInfo;
 import org.chromium.chrome.browser.pdf.PdfPage;
+import org.chromium.chrome.browser.printing.PrintHelper;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.settings.SettingsPage;
+import org.chromium.chrome.browser.settings.SettingsPageFragmentDelegateImpl;
 import org.chromium.chrome.browser.share.ShareDelegate;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLaunchType;
@@ -64,6 +68,7 @@ import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
 import org.chromium.chrome.browser.ui.native_page.NativePage.NativePageType;
 import org.chromium.chrome.browser.ui.native_page.NativePageHost;
+import org.chromium.chrome.browser.ui.side_ui.SideUiStateProvider;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.content_public.browser.LoadUrlParams;
@@ -107,6 +112,7 @@ public class NativePageFactory {
     private final OneshotSupplier<ModuleRegistry> mModuleRegistrySupplier;
     private final MonotonicObservableSupplier<EdgeToEdgeController> mEdgeToEdgeControllerSupplier;
     private final TopInsetProvider mTopInsetProvider;
+    private final OneshotSupplier<SideUiStateProvider> mSideUiStateProviderSupplier;
     private final StartupMetricsTracker mStartupMetricsTracker;
     private @Nullable NewTabPageCreationTracker mNewTabPageCreationTracker;
 
@@ -134,6 +140,7 @@ public class NativePageFactory {
             OneshotSupplier<ModuleRegistry> moduleRegistrySupplier,
             MonotonicObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier,
             TopInsetProvider topInsetProvider,
+            OneshotSupplier<SideUiStateProvider> sideUiStateProviderSupplier,
             StartupMetricsTracker startupMetricsTracker,
             BackPressManager backPressManager,
             RecentlyClosedEntriesManager recentlyClosedEntriesManager) {
@@ -154,6 +161,7 @@ public class NativePageFactory {
         mModuleRegistrySupplier = moduleRegistrySupplier;
         mEdgeToEdgeControllerSupplier = edgeToEdgeControllerSupplier;
         mTopInsetProvider = topInsetProvider;
+        mSideUiStateProviderSupplier = sideUiStateProviderSupplier;
         mStartupMetricsTracker = startupMetricsTracker;
         mBackPressManager = backPressManager;
         mRecentlyClosedEntriesManager = recentlyClosedEntriesManager;
@@ -181,6 +189,7 @@ public class NativePageFactory {
                             mModuleRegistrySupplier,
                             mEdgeToEdgeControllerSupplier,
                             mTopInsetProvider,
+                            mSideUiStateProviderSupplier,
                             mStartupMetricsTracker,
                             mBackPressManager,
                             mRecentlyClosedEntriesManager);
@@ -217,6 +226,7 @@ public class NativePageFactory {
         private final MonotonicObservableSupplier<EdgeToEdgeController>
                 mEdgeToEdgeControllerSupplier;
         private final TopInsetProvider mTopInsetProvider;
+        private final OneshotSupplier<SideUiStateProvider> mSideUiStateProviderSupplier;
         private final StartupMetricsTracker mStartupMetricsTracker;
         private final BackPressManager mBackPressManager;
         private final RecentlyClosedEntriesManager mRecentlyClosedEntriesManager;
@@ -240,6 +250,7 @@ public class NativePageFactory {
                 OneshotSupplier<ModuleRegistry> moduleRegistrySupplier,
                 MonotonicObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier,
                 TopInsetProvider topInsetProvider,
+                OneshotSupplier<SideUiStateProvider> sideUiStateProviderSupplier,
                 StartupMetricsTracker startupMetricsTracker,
                 BackPressManager backPressManager,
                 RecentlyClosedEntriesManager recentlyClosedEntriesManager) {
@@ -261,6 +272,7 @@ public class NativePageFactory {
             mModuleRegistrySupplier = moduleRegistrySupplier;
             mEdgeToEdgeControllerSupplier = edgeToEdgeControllerSupplier;
             mTopInsetProvider = topInsetProvider;
+            mSideUiStateProviderSupplier = sideUiStateProviderSupplier;
             mStartupMetricsTracker = startupMetricsTracker;
             mBackPressManager = backPressManager;
             mRecentlyClosedEntriesManager = recentlyClosedEntriesManager;
@@ -279,11 +291,7 @@ public class NativePageFactory {
                             mEdgeToEdgeControllerSupplier);
             if (tab.isIncognito()) {
                 return new IncognitoNewTabPage(
-                        mActivity,
-                        nativePageHost,
-                        tab,
-                        mEdgeToEdgeControllerSupplier,
-                        createIncognitoNtpMetrics());
+                        mActivity, nativePageHost, tab.getProfile(), mEdgeToEdgeControllerSupplier);
             }
 
             return new NewTabPage(
@@ -310,6 +318,7 @@ public class NativePageFactory {
                     mModuleRegistrySupplier,
                     mEdgeToEdgeControllerSupplier,
                     mTopInsetProvider,
+                    mSideUiStateProviderSupplier,
                     mStartupMetricsTracker,
                     mBackPressManager);
         }
@@ -365,7 +374,7 @@ public class NativePageFactory {
                     mBackPressManager);
         }
 
-        protected NativePage buildRecentTabsPage(Tab tab) {
+        protected NativePage buildRecentTabsPage(Tab tab, String url) {
             RecentTabsManager recentTabsManager =
                     new RecentTabsManager(
                             tab,
@@ -397,7 +406,8 @@ public class NativePageFactory {
                     navigationDelegate,
                     mBrowserControlsManager,
                     mTabStripHeightSupplier,
-                    mEdgeToEdgeControllerSupplier);
+                    mEdgeToEdgeControllerSupplier,
+                    url);
         }
 
         protected NativePage buildManagementPage(Tab tab) {
@@ -425,21 +435,44 @@ public class NativePageFactory {
                     pdfFragmentViewTracker);
         }
 
-        private @Nullable IncognitoNtpMetrics createIncognitoNtpMetrics() {
-            if (ChromeFeatureList.sRecordIncognitoNtpTimeToFirstNavigationMetric.isEnabled()) {
-                return new IncognitoNtpMetrics();
-            }
-            return null;
+        protected NativePage buildBricksPage(Tab tab, String url) {
+            return new BricksPage(
+                    new TabShim(
+                            tab,
+                            mBrowserControlsManager,
+                            mTabModelSelector,
+                            mEdgeToEdgeControllerSupplier));
+        }
+
+        protected NativePage buildSettingsPage(Tab tab) {
+            assert ChromeFeatureList.isEnabled(ChromeFeatureList.SETTINGS_IN_TAB);
+            return new SettingsPage(
+                    mActivity,
+                    tab.getProfile(),
+                    new TabShim(
+                            tab,
+                            mBrowserControlsManager,
+                            mTabModelSelector,
+                            mEdgeToEdgeControllerSupplier),
+                    new SettingsPageFragmentDelegateImpl(
+                            mActivity,
+                            tab.getProfile(),
+                            mWindowAndroid,
+                            mActivityResultTracker,
+                            mSnackbarManagerSupplier.get(),
+                            mBottomSheetController,
+                            mModalDialogManagerSupplier.get(),
+                            tab.getId()));
         }
 
         /** Vivaldi: Builds the native start page for the selected tab model. */
         protected NativePage buildVivaldiNativePage(
                 Tab tab, ActivityLifecycleDispatcher lifecycleDispatcher) {
-            TabShim shim = new TabShim(
+            NativePageHost shim = new TabShim(
                     tab, mBrowserControlsManager, mTabModelSelector, mEdgeToEdgeControllerSupplier);
             if (tab.isIncognitoBranded())
                 return new IncognitoNewTabPage(
-                        mActivity, shim, tab, mEdgeToEdgeControllerSupplier, null);
+                        mActivity, shim, tab.getProfile(), mEdgeToEdgeControllerSupplier);
             return new SpeedDialPage(mActivity, shim, mTabModelSelector,
                     ((ChromeActivity) mActivity).getToolbarManager(), lifecycleDispatcher);
         } // End Vivaldi
@@ -480,8 +513,9 @@ public class NativePageFactory {
         }
 
         NativePage page;
-
-        switch (NativePage.nativePageType(gurl, candidatePage, isIncognito, pdfInfo != null)) {
+        boolean isPdf = pdfInfo != null;
+        boolean preferReuse = isPdf && assumeNonNull(pdfInfo).preferReuse;
+        switch (NativePage.nativePageType(gurl, candidatePage, isIncognito, preferReuse, isPdf)) {
             case NativePageType.NONE:
                 return null;
             case NativePageType.CANDIDATE:
@@ -500,7 +534,7 @@ public class NativePageFactory {
                 page = getBuilder().buildHistoryPage(tab, url);
                 break;
             case NativePageType.RECENT_TABS:
-                page = getBuilder().buildRecentTabsPage(tab);
+                page = getBuilder().buildRecentTabsPage(tab, url);
                 break;
             case NativePageType.MANAGEMENT:
                 page = getBuilder().buildManagementPage(tab);
@@ -509,9 +543,16 @@ public class NativePageFactory {
                 assumeNonNull(pdfInfo);
                 if (mPdfFragmentViewTracker == null) {
                     mPdfFragmentViewTracker =
-                            new PdfFragmentViewTrackerImpl(mTabModelSelector, mActivity);
+                            new PdfFragmentViewTrackerImpl(
+                                    mTabModelSelector, (FragmentActivity) mActivity);
                 }
                 page = getBuilder().buildPdfPage(tab, url, pdfInfo, mPdfFragmentViewTracker);
+                break;
+            case NativePageType.BRICKS:
+                page = getBuilder().buildBricksPage(tab, url);
+                break;
+            case NativePageType.SETTINGS:
+                page = getBuilder().buildSettingsPage(tab);
                 break;
             default:
                 assert false;
@@ -578,7 +619,7 @@ public class NativePageFactory {
             return null;
         }
         NativePage page;
-        if (candidatePage != null && candidatePage.getUrl().equals(url)) {
+        if (candidatePage != null && url.equals(candidatePage.getUrl())) {
             page = candidatePage;
         } else {
             page =
@@ -608,13 +649,11 @@ public class NativePageFactory {
         }
         return new PdfPage(
                 new TabShim(tab, browserControlsManager, tabModelSelector, null),
-                tab.getProfile(),
-                tab.getProfile().isOffTheRecord(),
+                tab,
                 activity,
                 url,
                 pdfInfo,
                 activity.getString(R.string.pdf_transient_tab_title),
-                tab.getId(),
                 pdfFragmentViewTracker);
     }
 
@@ -684,6 +723,11 @@ public class NativePageFactory {
             return EdgeToEdgeControllerFactory.createForViewAndObserveSupplier(
                     view, mEdgeToEdgeControllerSupplier);
         }
+
+        @Override
+        public void print() {
+            PrintHelper.printTab(mTab);
+        }
     }
 
     /** Destroy and unhook objects at destruction. */
@@ -707,7 +751,7 @@ public class NativePageFactory {
         NativePage page;
 
         switch (NativePage.nativePageType(
-                new GURL(url), candidatePage, isIncognito, pdfInfo != null)) {
+                new GURL(url), candidatePage, isIncognito, false, pdfInfo != null)) {
             case NativePageType.NONE:
                 return null;
             case NativePageType.CANDIDATE:
@@ -735,7 +779,7 @@ public class NativePageFactory {
                 page = null;
                 break;
             case NativePageType.RECENT_TABS:
-                page = getBuilder().buildRecentTabsPage(tab);
+                page = getBuilder().buildRecentTabsPage(tab, url);
                 break;
             case NativePageType.VIVALDI_NOTES:
                 PanelUtils.showPanelAsync(mActivity, VivaldiUrlConstants.VIVALDI_NATIVE_NOTES_URL);
@@ -744,8 +788,8 @@ public class NativePageFactory {
             case NativePageType.PDF:
                 assumeNonNull(pdfInfo);
                 if (mPdfFragmentViewTracker == null) {
-                    mPdfFragmentViewTracker =
-                            new PdfFragmentViewTrackerImpl(mTabModelSelector, mActivity);
+                    mPdfFragmentViewTracker = new PdfFragmentViewTrackerImpl(
+                            mTabModelSelector, (FragmentActivity) mActivity);
                 }
                 page = getBuilder().buildPdfPage(tab, url, pdfInfo, mPdfFragmentViewTracker);
                 break;
